@@ -51,6 +51,7 @@ const OPERATION_LABELS: Record<string, string> = {
 /** 工具名称映射 - 保持代码格式 */
 const TOOL_LABELS: Record<string, string> = {
   apply_chapter_edit: 'apply_chapter_edit',
+  operate_apply: 'operate_apply',
   create_chapter: 'create_chapter',
   update_chapter_title: 'update_chapter_title',
 };
@@ -91,7 +92,7 @@ export function buildOperatePhases(data: Partial<OperateFlowData>): OperatePhase
   const operation = data.operation || 'append';
   const locateMethod = data.locateMethod || 'none';
   const targetOperation = data.targetOperation || operation;
-  const toolUsed = data.toolUsed || 'apply_chapter_edit';
+  const toolUsed = data.toolUsed || 'operate_apply';
   const status = data.status || 'running';
   const requiresConfirmation = data.requiresConfirmation ?? false;
   const locateTarget = data.locateTarget || data.chapterTitle || '';
@@ -336,7 +337,7 @@ function OperateSummaryCard({ data }: { data: OperateFlowData }) {
   const [expanded, setExpanded] = useState(false);  // 默认折叠
   const operation = data.operation || 'append';
   const locateMethod = data.locateMethod || 'none';
-  const toolUsed = data.toolUsed || 'apply_chapter_edit';
+  const toolUsed = data.toolUsed || 'operate_apply';
 
   return (
     <div className="mt-3 mb-3">

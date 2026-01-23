@@ -76,6 +76,7 @@ class EventParser:
         "smart_rewrite": {"icon": "Edit3", "title": "智能改写"},
         "smart_insert": {"icon": "Plus", "title": "智能插入"},
         "apply_chapter_edit": {"icon": "Check", "title": "应用修改"},
+        "operate_apply": {"icon": "Check", "title": "应用修改"},
         "deai_rewrite": {"icon": "RefreshCw", "title": "去AI改写"},
         # ========== 分析类 ==========
         "analyze_text_tool": {"icon": "BarChart2", "title": "分析文本"},
@@ -174,6 +175,17 @@ class EventParser:
             return "插入中..."
         elif tool_name == "apply_chapter_edit":
             return "保存中..."
+        elif tool_name == "operate_apply":
+            operation = args.get("operation", "")
+            op_map = {
+                "append": "续写",
+                "replace": "改写",
+                "insert": "插入",
+                "content": "整章替换",
+                "create": "创建章节",
+                "title": "修改标题",
+            }
+            return op_map.get(operation, "保存中...")
         elif tool_name == "deai_rewrite":
             return "改写中..."
         # 分析类

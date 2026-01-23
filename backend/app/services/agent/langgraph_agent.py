@@ -46,8 +46,7 @@ from app.services.context.context_config import ContextConfig
 from app.services.agent.tools.editor_tools import (
     smart_continue,
     smart_rewrite,
-    smart_insert,
-    apply_chapter_edit
+    smart_insert
 )
 # 🔧 2025-12-14: 导入 registry 用于统一工具调用
 from app.services.agent.tools import registry

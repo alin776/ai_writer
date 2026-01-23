@@ -1016,6 +1016,7 @@ async def get_writing_context(
             from app.services.worldview_service import WorldviewService
             from app.services.chapter_vector_service import ChapterVectorService
             from app.utils.text_cleaner import text_cleaner
+            from app.utils.chapter_file_storage import chapter_storage
 
             work_service = WorkService(db)
             work = None
@@ -1068,7 +1069,12 @@ async def get_writing_context(
                     content_limit = _get_content_limit_for_batch(len(selected_chapters))
 
                     for ch in selected_chapters:
-                        raw_content = ch.content if ch.content else ""
+                        min_mtime = ch.updated_at.timestamp() if ch.updated_at else None
+                        raw_content = chapter_storage.read_content(
+                            str(ch.work_id), str(ch.id), min_mtime=min_mtime
+                        )
+                        if raw_content is None:
+                            raw_content = ch.content if ch.content else ""
                         clean_content = text_cleaner.html_to_clean_text(
                             raw_content,
                             preserve_structure=True,
@@ -1281,7 +1287,9 @@ async def read_paragraph(
                     "available_orders": available_orders[:10]  # 只显示前10个
                 }, ensure_ascii=False, indent=2)
 
-            content = chapter.content or ""
+            from app.services.chapter_content_provider import ChapterContentProvider
+            content_provider = ChapterContentProvider()
+            content = content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
 
             # 大章节分块处理
             if len(content) > MAX_CHAPTER_SIZE:
@@ -1367,19 +1375,17 @@ from app.services.agent.tools.editor_tools import (
 
 # 导入章节管理工具
 from app.services.agent.tools.chapter_tools import (
-    create_chapter,
-    update_chapter_title,
     delete_chapter,
     update_chapter_content
 )
+
+# 导入统一操作工具（2026-01-23）
+from app.services.agent.tools.operate_tools import operate_apply
 
 # 导入辅助工具（2026-01-09）
 from app.services.agent.tools.consistency_checker import check_story_consistency_tool
 from app.services.agent.tools.show_dont_tell import show_emotion_tool, enhance_scene_tool
 from app.services.agent.tools.style_learning import learn_style_tool, get_style_guidance_tool, analyze_style_tool
-
-# 导入定位工具（2026-01-10）
-from app.services.agent.tools.locate_tools import locate_content
 
 # 导入探索工具（2026-01-17）
 from app.services.agent.tools.explore_tools import explore_content
@@ -1387,8 +1393,6 @@ from app.services.agent.tools.explore_tools import explore_content
 LANGGRAPH_TOOLS = [
     # 统一信息获取入口（2026-01-18 更新）
     explore_content,  # 深度探索 - 替代 search_content 和 get_writing_context
-    # 定位工具（修改内容前必须调用）
-    locate_content,
     # 分析工具
     analyze_content,
     # 创作工具
@@ -1398,10 +1402,8 @@ LANGGRAPH_TOOLS = [
     show_emotion_tool,
     enhance_scene_tool,
     learn_style_tool,
-    # 操作工具
-    apply_chapter_edit,
-    create_chapter,
-    update_chapter_title,
+    # 操作工具（统一入口）
+    operate_apply,
     delete_chapter,
     update_chapter_content,
     # 内部工具（不暴露给 AI 规划器，但保留以供 explore_content 内部调用）

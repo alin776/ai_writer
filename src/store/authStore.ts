@@ -1,6 +1,64 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { User } from '@/types';
+
+/**
+ * 检查是否是配额超限错误
+ */
+const isQuotaExceeded = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+  const name = (error as { name?: string }).name;
+  return name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
+};
+
+/**
+ * 安全的 localStorage 包装器
+ * 处理配额超限等异常情况
+ */
+const safeStorage = {
+  getItem: (name: string) => {
+    try {
+      return localStorage.getItem(name);
+    } catch (error) {
+      console.error('[authStore] localStorage 读取失败:', error);
+      return null;
+    }
+  },
+  setItem: (name: string, value: string) => {
+    try {
+      localStorage.setItem(name, value);
+    } catch (error) {
+      if (isQuotaExceeded(error)) {
+        console.warn('[authStore] localStorage 配额超限，尝试清理后重试');
+        try {
+          // 尝试清除当前 key 后重新写入
+          localStorage.removeItem(name);
+          localStorage.setItem(name, value);
+          return;
+        } catch (retryError) {
+          console.error('[authStore] localStorage 配额不足，认证信息无法持久化:', retryError);
+          // 显示用户友好的错误提示
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('storage-quota-exceeded', {
+                detail: { store: 'auth', message: '存储空间不足，请清理浏览器缓存' },
+              })
+            );
+          }
+          return;
+        }
+      }
+      console.error('[authStore] localStorage 写入失败:', error);
+    }
+  },
+  removeItem: (name: string) => {
+    try {
+      localStorage.removeItem(name);
+    } catch (error) {
+      console.error('[authStore] localStorage 删除失败:', error);
+    }
+  },
+};
 
 /**
  * 用户在线状态类型
@@ -153,6 +211,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage', // localStorage 中的 key
+      storage: createJSONStorage(() => safeStorage), // 使用安全的 localStorage 包装器
       partialize: (state) => ({
         user: state.user,
         token: state.token,

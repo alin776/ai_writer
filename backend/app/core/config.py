@@ -228,6 +228,7 @@ class Settings(BaseSettings):
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB
     UPLOAD_DIR: str = "./uploads"
+    CHAPTER_STORAGE_ROOT: str = "./uploads/chapters"
 
     # ==================== 世界观提取配置 ====================
 

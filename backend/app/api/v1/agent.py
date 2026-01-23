@@ -61,6 +61,7 @@ TOOL_ICONS = {
     "smart_rewrite": "Edit3",
     "smart_insert": "Plus",
     "apply_chapter_edit": "Check",
+    "operate_apply": "Check",
     "deai_rewrite": "RefreshCw",
     "analyze_text_tool": "BarChart2",
     "analyze_content": "FileSearch",
@@ -88,6 +89,7 @@ TOOL_TITLES = {
     "smart_rewrite": "智能改写",
     "smart_insert": "智能插入",
     "apply_chapter_edit": "应用修改",
+    "operate_apply": "应用修改",
     "deai_rewrite": "去AI改写",
     "analyze_text_tool": "分析文本",
     "analyze_content": "内容分析",
@@ -142,6 +144,18 @@ def build_tool_description(task: dict) -> str:
     if tool == "smart_rewrite":
         style = params.get("style", "润色优化")
         return style
+
+    if tool == "operate_apply":
+        operation = params.get("operation", "")
+        op_map = {
+            "append": "续写",
+            "replace": "改写",
+            "insert": "插入",
+            "content": "整章替换",
+            "create": "创建章节",
+            "title": "修改标题",
+        }
+        return op_map.get(operation, "应用中...")
 
     return ""
 

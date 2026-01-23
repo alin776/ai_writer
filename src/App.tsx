@@ -4,9 +4,15 @@ import { useTranslation } from 'react-i18next';
 import { router } from './router';
 import Toast from './components/common/Toast';
 import { useAuthStore } from './store/authStore';
+import { useGlobalStore } from './store/globalStore';
 import { useTheme } from './hooks/useTheme';
 import { useTokenExpiryWarning } from './hooks/useTokenExpiryWarning';
 import './i18n';
+
+// 导入存储调试工具（开发模式）
+if (import.meta.env.DEV) {
+  import('./utils/storageDebug');
+}
 
 const LoadingFallback: React.FC = () => {
   const { t } = useTranslation();
@@ -26,6 +32,7 @@ const LoadingFallback: React.FC = () => {
 
 const App: React.FC = () => {
   const { user } = useAuthStore();
+  const { error: showErrorToast } = useGlobalStore();
   const { i18n } = useTranslation();
   const userTheme = user?.preferences?.theme;
   const userLanguage = user?.preferences?.language;
@@ -33,6 +40,26 @@ const App: React.FC = () => {
 
   // 启用 token 过期提醒
   useTokenExpiryWarning();
+
+  // 监听 localStorage 配额超限事件
+  useEffect(() => {
+    const handleStorageQuotaExceeded = (event: Event) => {
+      const customEvent = event as CustomEvent<{ store: string; message: string }>;
+      const { store, message } = customEvent.detail;
+
+      if (store === 'auth') {
+        showErrorToast(
+          '存储空间不足：认证信息无法保存，刷新页面可能需要重新登录。请清理浏览器缓存后重试。',
+          8000
+        );
+      }
+    };
+
+    window.addEventListener('storage-quota-exceeded', handleStorageQuotaExceeded);
+    return () => {
+      window.removeEventListener('storage-quota-exceeded', handleStorageQuotaExceeded);
+    };
+  }, [showErrorToast]);
 
   // 应用用户主题
   useEffect(() => {

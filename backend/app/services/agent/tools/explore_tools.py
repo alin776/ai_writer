@@ -544,6 +544,8 @@ class Evidence:
     source_type: str             # 来源类型
     query: str                   # 触发此结果的搜索词
     round_idx: int               # 第几轮搜索到的
+    chapter_id: str = ""         # 章节ID（可选）
+    chapter_title: str = ""      # 章节标题（可选）
 
 
 @dataclass
@@ -810,6 +812,8 @@ class ExploreState:
             return False
         self.evidence_keys.add(evidence_key)
 
+        chapter_id = result.get("chapter_id") or ""
+        chapter_title = result.get("chapter_title") or ""
         evidence = Evidence(
             # 🔧 2026-01-21: 增加单条证据文本长度 200→500，保留更多上下文
             text=result.get("snippet", result.get("content", ""))[:500],
@@ -818,7 +822,9 @@ class ExploreState:
             similarity=result.get("similarity", 0),
             source_type=source_type or "hybrid",
             query=query,
-            round_idx=round_idx
+            round_idx=round_idx,
+            chapter_id=chapter_id,
+            chapter_title=chapter_title
         )
         self.evidences.append(evidence)
         return True
@@ -1132,6 +1138,34 @@ def _build_explore_summary(result: ExploreResult) -> str:
         summary_parts.append(result.analysis)
 
     return "\n".join(summary_parts)
+
+
+def _build_search_results(result: ExploreResult, limit: int = 10) -> List[Dict[str, Any]]:
+    """构建兼容 frontend_display.search_results 的精简列表"""
+    results: List[Dict[str, Any]] = []
+    seen = set()
+    evidences = sorted(result.evidences, key=lambda e: e.similarity or 0, reverse=True)
+    for e in evidences:
+        text = _truncate_text(e.text or "", 400)
+        if not text:
+            continue
+        key = (e.chapter_order, e.paragraph_index, text[:80])
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append({
+            "chapter_id": e.chapter_id or "",
+            "chapter_order": e.chapter_order,
+            "chapter_title": e.chapter_title or "",
+            "paragraph_index": e.paragraph_index,
+            "text": text,
+            "similarity": e.similarity,
+            "source": e.source_type,
+            "round_idx": e.round_idx,
+        })
+        if len(results) >= limit:
+            break
+    return results
 
 
 def to_frontend_display(result: ExploreResult) -> Dict[str, Any]:
@@ -2782,7 +2816,8 @@ class ContentExplorer:
                                         "chapter_order": chapter_order,
                                         "paragraph_index": paragraph_index,
                                         "similarity": 1.0,
-                                        "source": "paragraph"
+                                        "source": "paragraph",
+                                        "chapter_title": read_data.get("chapter_title", "")
                                     }
                                     if self.state.add_evidence(
                                         paragraph_evidence,
@@ -2907,7 +2942,8 @@ class ContentExplorer:
                             "chapter_order": chapter_order,
                             "paragraph_index": paragraph_index,
                             "similarity": 1.0,
-                            "source": "paragraph"
+                            "source": "paragraph",
+                            "chapter_title": result_data.get("chapter_title", "")
                         }
                         if self.state.add_evidence(
                             paragraph_evidence,
@@ -3317,6 +3353,47 @@ async def explore_content(
             }
             for order, ch in sorted(result.chapters.items())
         ]
+        if not chapters_list and result.evidences:
+            fallback_chapters: Dict[int, Dict[str, Any]] = {}
+            for e in result.evidences:
+                chapter_order = e.chapter_order
+                if not chapter_order:
+                    continue
+                entry = fallback_chapters.get(chapter_order)
+                if not entry:
+                    entry = {
+                        "id": "",
+                        "title": "",
+                        "order": chapter_order,
+                        "content": "",
+                        "word_count": 0
+                    }
+                if not entry["id"] and e.chapter_id:
+                    entry["id"] = e.chapter_id
+                if not entry["title"] and e.chapter_title:
+                    entry["title"] = e.chapter_title
+                fallback_chapters[chapter_order] = entry
+
+            if fallback_chapters and work_id:
+                try:
+                    from app.services.agent.langgraph_tools import resolve_chapter_id
+                    for chapter_order, entry in fallback_chapters.items():
+                        if entry["id"]:
+                            continue
+                        resolved_id, _ = await resolve_chapter_id(work_id, str(chapter_order))
+                        if resolved_id:
+                            entry["id"] = resolved_id
+                except Exception:
+                    pass
+
+            for entry in fallback_chapters.values():
+                if not entry["title"]:
+                    entry["title"] = f"第{entry['order']}章"
+
+            chapters_list = [
+                fallback_chapters[chapter_order]
+                for chapter_order in sorted(fallback_chapters)
+            ]
 
         # 2026-01-18: 构建兼容 get_writing_context 的 worldview 对象
         worldview_dict = {}
@@ -3325,6 +3402,23 @@ async def explore_content(
                 {"name": item.name, "description": item.description}
                 for item in items
             ]
+
+        frontend_display = to_frontend_display(result)
+        search_results = _build_search_results(result)
+        if search_results and work_id:
+            try:
+                from app.services.agent.langgraph_tools import resolve_chapter_id
+                for item in search_results:
+                    chapter_order = item.get("chapter_order")
+                    if not item.get("chapter_id") and chapter_order:
+                        resolved_id, _ = await resolve_chapter_id(work_id, str(chapter_order))
+                        if resolved_id:
+                            item["chapter_id"] = resolved_id
+                    if not item.get("chapter_title") and chapter_order:
+                        item["chapter_title"] = f"第{chapter_order}章"
+            except Exception:
+                pass
+        frontend_display["search_results"] = search_results
 
         # 转换为JSON
         return json.dumps({
@@ -3335,7 +3429,7 @@ async def explore_content(
             "stats": result.stats,
             "stop_reason": result.stop_reason,
             "total_duration_ms": result.total_duration_ms,
-            "frontend_display": to_frontend_display(result),
+            "frontend_display": frontend_display,
             "context_for_task": build_context_for_task(result),
             "events_emitted": events_emitted,
             # 添加 explore_summary 字段，便于 ParameterResolver 解析

@@ -8,6 +8,7 @@ from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.work import Work
 from app.models.chapter import Chapter
+from app.models.chapter_content_index import ChapterContentIndex
 from app.models.character import Character
 from app.models.location import Location
 from app.models.setting import Setting
@@ -125,13 +126,19 @@ async def global_search(
     if not type or type == "chapters":
         # 构建章节查询，JOIN作品表获取作品标题
         chapters_query = (
-            select(Chapter, Work.title.label('work_title'))
+            select(
+                Chapter,
+                Work.title.label('work_title'),
+                ChapterContentIndex.plain_text,
+                ChapterContentIndex.summary,
+            )
             .join(Work, Chapter.work_id == Work.id)
+            .outerjoin(ChapterContentIndex, ChapterContentIndex.chapter_id == Chapter.id)
             .where(Work.author_id == current_user.id)
             .where(
                 or_(
                     Chapter.title.ilike(search_pattern),
-                    Chapter.content.ilike(search_pattern)
+                    ChapterContentIndex.plain_text.ilike(search_pattern)
                 )
             )
             .order_by(Chapter.updated_at.desc())
@@ -151,11 +158,11 @@ async def global_search(
                 work_id=chapter.work_id,
                 work_title=work_title,
                 title=chapter.title,
-                content_snippet=highlight_snippet(chapter.content or "", q, 200),
+                content_snippet=highlight_snippet(plain_text or summary or "", q, 200),
                 word_count=chapter.word_count,
                 updated_at=chapter.updated_at
             )
-            for chapter, work_title in chapters_data
+            for chapter, work_title, plain_text, summary in chapters_data
         ]
         results.total += len(results.chapters)
     

@@ -59,11 +59,10 @@ async def get_tool_decision_static_prompt() -> str:
   参数: chapter_id, chapter_content, user_requirement, word_count
 - smart_insert: 智能插入（根据意图生成插入内容）
   参数: chapter_id, user_intent, chapter_content, insert_context, word_count
-- operate_apply: 🆕 统一应用 AI 生成的内容（推荐！）
+- operate_apply: 🆕 统一应用内容到编辑器（推荐！）
   参数: operation(append/replace/insert/content/create/title), chapter_id, content, ...
-  ⚠️ 可替代 apply_chapter_edit，支持更多操作类型
-- apply_chapter_edit: 直接应用编辑到章节 (参数: chapter_id, operation, content)
-  ⚠️ 注意：此工具用于将已生成的内容应用到编辑器
+  ⚠️ smart_* 生成内容后，必须用 operate_apply 应用到编辑器
+  ⚠️ operate_apply 会自动处理定位，不需要单独调用 locate_content
 
 【读取工具】⚠️ 优先使用 explore_content 统一入口！
 - explore_content: 深度探索工具，自动判断任务复杂度并获取所需信息（推荐！）
@@ -78,18 +77,22 @@ async def get_tool_decision_static_prompt() -> str:
 
 【工具使用规则】
 
-1. 用户提到具体文字但未说章节 → 先用 explore_content 定位
-1.1 用户要求对照/证据/引用原文 → 只用 explore_content，不用 analyze_content
-2. 用户说"修改第X章"、"改写第X章" → 使用 smart_rewrite（已知章节）
-3. 用户说"续写"、"继续写" → 使用 smart_continue
-4. 用户说"插入" → 使用 smart_insert
-5. 用户说"创建新章节"、"新建章节" → 使用 create_chapter
-6. 用户说"删除章节" → 使用 delete_chapter（⚠️ 危险操作，需确认）
-7. 用户说"改标题"、"重命名章节" → 使用 update_chapter_title
+1. 用户提到具体文字但未说章节 → 先用 explore_content 定位章节
+2. 用户说"修改第X章"、"改写第X章" → smart_rewrite → operate_apply(operation="replace")
+3. 用户说"续写"、"继续写" → smart_continue → operate_apply(operation="append")
+4. 用户说"插入" → smart_insert → operate_apply(operation="insert")
+5. 用户说"创建新章节"、"新建章节" → operate_apply(operation="create")
+6. 用户说"删除章节" → delete_chapter（⚠️ 危险操作，需确认）
+7. 用户说"改标题"、"重命名章节" → operate_apply(operation="title")
 8. 用户说"检查一致性"、"有没有矛盾" → 使用 analyze_content（analysis_types=["consistency"]）
 9. 用户说"分析风格"、"写作特点" → 使用 analyze_content（analysis_types=["style"]）
 10. 用户说"情感描写"、"展示情绪" → 使用 show_emotion_tool
 11. 用户说"增强场景"、"画面感" → 使用 enhance_scene_tool
+
+⚠️ **operate_apply 会自动处理定位**：
+- 改写时传入 original_text（要替换的原文），operate_apply 自动 text_match 定位
+- 插入时传入 target_description（插入位置描述），operate_apply 自动 semantic 定位
+- **不需要单独调用 locate_content**
 
 ⚠️ 【搜索兜底规则】：
 - 如果用户提供的文字**过于简短**（少于3个字）或是**通用描述**（如"这一章"、"这段话"）
@@ -122,9 +125,9 @@ async def get_tool_decision_static_prompt() -> str:
 "有没有叫赵穆的人物" → {{"need_tools": true, "tool_name": "explore_content", "tool_args": {{"target_task": "查找赵穆相关信息"}}}}
 "段融是谁" → {{"need_tools": true, "tool_name": "explore_content", "tool_args": {{"target_task": "查找段融相关信息"}}}}
 "请给出'二十四桥明月夜'的原文出处" → {{"need_tools": true, "tool_name": "explore_content", "tool_args": {{"target_task": "查找'二十四桥明月夜'原文出处"}}}}
-"创建一个新章节叫第六章" → {{"need_tools": true, "tool_name": "create_chapter", "tool_args": {{"work_id": "xxx", "title": "第六章"}}}}
+"创建一个新章节叫第六章" → {{"need_tools": true, "tool_name": "operate_apply", "tool_args": {{"operation": "create", "work_id": "xxx", "title": "第六章"}}}}
 "删除第三章" → {{"need_tools": true, "tool_name": "delete_chapter", "tool_args": {{"chapter_id": "xxx"}}}}
-"把第二章标题改成觉醒" → {{"need_tools": true, "tool_name": "update_chapter_title", "tool_args": {{"chapter_id": "xxx", "new_title": "觉醒"}}}}
+"把第二章标题改成觉醒" → {{"need_tools": true, "tool_name": "operate_apply", "tool_args": {{"operation": "title", "chapter_id": "xxx", "title": "觉醒"}}}}
 "检查前五章有没有矛盾" → {{"need_tools": true, "tool_name": "analyze_content", "tool_args": {{"analysis_types": ["consistency"], "work_id": "xxx", "content": "..."}}}}
 "分析一下我的写作风格" → {{"need_tools": true, "tool_name": "analyze_content", "tool_args": {{"analysis_types": ["style"], "content": "..."}}}}
 "帮我写一段愤怒的情感描写" → {{"need_tools": true, "tool_name": "show_emotion_tool", "tool_args": {{"emotion": "愤怒", "intensity": 4}}}}

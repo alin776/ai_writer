@@ -263,7 +263,7 @@ class WritingAction(BaseAction):
 可用工具：
 - read_chapter_tool: 读取章节内容
 - smart_rewrite: 生成改写版本（3个版本供用户选择）
-- apply_chapter_edit: 直接应用修改到章节
+- operate_apply: 直接应用修改到章节
 - smart_continue: 追加内容到章节末尾（不生成内容，需要先有content）
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"时立即调用）
 
@@ -436,9 +436,9 @@ class WritingAction(BaseAction):
 - smart_insert: 插入内容到章节
   - 参数: chapter_id, position, content
   - 用于: 用户说"插入"内容时
-- apply_chapter_edit: 应用章节编辑
-  - 参数: chapter_id, operation, content
-  - 用于: 替换/追加/插入操作
+- operate_apply: 应用章节编辑
+  - 参数: operation, chapter_id, content
+  - 用于: 替换/追加/插入/整章/标题
 
 当前信息（内部参数，禁止在回复中显示）：work_id={work_id}, chapter_id={chapter_id}
 

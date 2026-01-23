@@ -27,6 +27,7 @@ from app.models.worldview_suggestion import WorldviewSuggestion, SuggestionType,
 from app.models.chapter_history import ChapterHistory
 from app.models.chapter_revision import ChapterRevision, ChapterRevisionStatus
 from app.models.chapter_word_stat import ChapterWordStat
+from app.models.chapter_content_index import ChapterContentIndex
 from app.models.user_credits import UserCredits
 from app.models.credit_transaction import CreditTransaction
 from app.models.redeem_code import RedeemCode
@@ -56,6 +57,7 @@ from app.models.message_bookmark import MessageBookmark
 from app.models.channel_notification_setting import ChannelNotificationSetting
 from app.models.channel_read_state import ChannelReadState
 from app.models.work_report import WorkReport, WorkReportReason, WorkReportStatus
+from app.models.comment import Comment
 from app.models.chapter_comment import (
     ChapterComment,
     ChapterCommentLike,
@@ -68,6 +70,8 @@ from app.models.channel_join_request import ChannelJoinRequest, JoinRequestStatu
 from app.models.friendship import Friendship
 from app.models.friend_request import FriendRequest
 from app.models.user_report import UserReport, UserReportReason, UserReportStatus
+from app.models.rating import WorkRating
+from app.models.bookshelf import Bookshelf
 
 __all__ = [
     "User",
@@ -120,6 +124,7 @@ __all__ = [
     "ChapterRevision",
     "ChapterRevisionStatus",
     "ChapterWordStat",
+    "ChapterContentIndex",
     "UserCredits",
     "CreditTransaction",
     "RedeemCode",
@@ -154,6 +159,7 @@ __all__ = [
     "WorkReport",
     "WorkReportReason",
     "WorkReportStatus",
+    "Comment",
     "ChapterComment",
     "ChapterCommentLike",
     "ChapterCommentReport",
@@ -169,4 +175,6 @@ __all__ = [
     "UserReport",
     "UserReportReason",
     "UserReportStatus",
+    "WorkRating",
+    "Bookshelf",
 ]

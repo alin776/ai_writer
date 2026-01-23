@@ -25,6 +25,7 @@ def _get_new_aggregated_tools_section() -> str:
     chapters,            # 相关章节原文（列表）
     worldview            # 世界观设定
   }
+  ⚠️ 后续工具参数请引用 chapters[...] 或 explore_summary/context_for_task；frontend_display 仅用于展示
 
   ✅ **所有信息获取场景都用这个工具**:
     - 续写/改写前获取上下文 → explore_content(target_task="续写第5章，需要第4-5章内容和世界观")
@@ -93,7 +94,7 @@ def _get_editor_tools_section() -> str:
 
 ⚠️ **核心规则：创作类 vs 操作类**
 - 创作类工具（smart_continue, smart_insert, smart_rewrite）：只生成内容，不写入编辑器
-- 操作类工具（operate_apply, apply_chapter_edit）：将内容写入编辑器
+- 操作类工具（operate_apply）：将内容写入编辑器
 
 🆕 **推荐：使用 operate_apply 统一入口**
 - operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作
@@ -129,8 +130,8 @@ def _get_editor_tools_section() -> str:
   参数: chapter_id, user_intent, chapter_content, insert_context, word_count
   触发词: "插入"、"在...处添加"、"在...后面加"
   ⚠️ 如果用户想把插入内容写入编辑器 → 后续调用 operate_apply(operation="insert")
-  ⚠️ **定位规则**：插入位置由 locate_content 工具确定，smart_insert 只负责生成内容
-  ⚠️ insert_context 可以从 locate_content 返回的 text 获取，用于风格参考
+  ⚠️ **定位规则**：插入位置由 operate_apply 内部自动定位（传入 target_description）
+  ⚠️ insert_context 可用于风格参考，从 explore_content 返回的章节内容中获取
 
 ---
 
@@ -155,7 +156,7 @@ def _get_editor_tools_section() -> str:
   ✅ **推荐使用场景**：
     * smart_continue 后续写 → operate_apply(operation="append", chapter_id=..., content=...)
     * smart_rewrite 后替换 → operate_apply(operation="replace", chapter_id=..., content=..., original_text=...)
-    * smart_insert 后插入 → operate_apply(operation="insert", chapter_id=..., content=..., paragraph_index=...)
+    * smart_insert 后插入 → operate_apply(operation="insert", chapter_id=..., content=..., target_description=...)
     * 重写整章 → operate_apply(operation="content", chapter_id=..., content=...)
     * 创建新章节 → operate_apply(operation="create", work_id=..., title=..., content=...)
     * 修改标题 → operate_apply(operation="title", chapter_id=..., title=...)
@@ -171,45 +172,20 @@ def _get_editor_tools_section() -> str:
 
 ---
 
-- apply_chapter_edit: 将已生成的内容应用到编辑器（底层操作工具）
+- apply_chapter_edit: ⚠️ **底层操作工具（由 operate_apply 内部调用，推荐使用 operate_apply 代替！）**
   参数: chapter_id, operation, content, paragraph_index(整数), node_id, before_anchor, after_anchor, original_text
   operation: "append"(续写) | "insert"(插入) | "replace"(替换)
-  ⚠️ 此工具用于将创作类工具生成的内容写入编辑器
-  ⚠️ **必须在创作类工具之后调用**：先创作，后应用！
+  ⚠️ 推荐使用 operate_apply 代替直接调用此工具
+  ⚠️ operate_apply 会自动处理定位并调用此工具
 
-  ⚠️ **参数类型约束（必须严格遵守！）**：
-    * paragraph_index: 【必须是整数】如 0、1、2。从 locate_content 获取
-    * node_id: 【字符串】节点ID，从 locate_content 获取
-    * before_anchor/after_anchor: 【文本】锚点字符串
-
-  ❌ **错误示例（绝对禁止！）**：
-    * position="before" ❌ 错误！不要传 position 参数！
-    * position="after" ❌ 错误！
-    * paragraph_index="第三段" ❌ 错误！必须是整数如 2
-
-  ✅ **正确做法**：
-    * 插入/替换操作 → 先调用 locate_content 获取 paragraph_index 和 node_id
-    * 然后将 locate_content 返回的整数 paragraph_index 传入此工具
-    * 示例：locate_content 返回 paragraph_index=2 → apply_chapter_edit(paragraph_index=2)
-
-- locate_content: 定位章节中的内容位置（**修改前必须调用！**）
+- locate_content: ⚠️ **内部定位工具（由 operate_apply 自动调用，通常不需要直接使用！）**
   参数: chapter_id, query, nodes_info(可选)
-  query: "第三段"、"开头"、"结尾"、"段融吞噬器灵的场景"、具体文本片段
-  返回: chapter_id, paragraph_index, text_preview, before_anchor, after_anchor, node_id, text, cross_chapter
-  ⚠️ nodes_info 仅来自前端/上下文；get_writing_context 不返回 nodes，禁止引用 chapters[*].nodes。
-  ⚠️ **核心用途**：为 operate_apply/apply_chapter_edit 提供定位信息（paragraph_index, node_id）
-  ⚠️ **跨章节定位**：如果内容不在当前章节，会自动全局搜索并返回目标章节的 chapter_id
-    * 返回的 chapter_id 可能与传入的不同（cross_chapter=true）
-    * **必须使用返回的 chapter_id 调用 smart_rewrite 和 operate_apply**
-  ⚠️ **必须使用场景**：
-    * 用户要**改写/润色/修改**某内容 → 先用 locate_content 定位！
-    * 用户要**插入**内容到某位置 → 先用 locate_content 定位！
-    * 用户说"找到XX场景，改写它" → 先用 locate_content 定位！
-    * 用户指定模糊位置（如"第三段"、"开头"）→ 先用 locate_content 定位！
-  ⚠️ **工作流程**：locate_content → smart_rewrite/smart_insert → operate_apply
-  ⚠️ **参数传递**：locate_content 返回的 chapter_id、paragraph_index 和 node_id 必须传给后续工具
-    * 示例：smart_rewrite(chapter_id={"$ref": {"task_id": 1, "path": "chapter_id"}}, ...)
-    * 示例：operate_apply(chapter_id={"$ref": {"task_id": 1, "path": "chapter_id"}}, paragraph_index={"$ref": {"task_id": 1, "path": "paragraph_index"}}, ...)
+  ⚠️ **重要：operate_apply 会自动调用 locate_content，你不需要单独调用！**
+  ⚠️ operate_apply 的定位策略：
+    * replace 操作：传入 original_text → 自动 text_match 定位
+    * insert 操作：传入 target_description → 自动 semantic 定位
+    * 直接提供 paragraph_index/node_id → direct 定位（最高优先级）
+  ⚠️ **唯一例外**：如果用户未指定章节，需要先用 explore_content 找到章节，再传给 operate_apply
 """
 
 

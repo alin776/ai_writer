@@ -1,6 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm.attributes import set_committed_value
 import re
 import logging
 
@@ -10,6 +11,9 @@ from app.utils.cache import CacheInvalidator
 from app.core.redis import redis_client, CacheKey, CacheExpire
 from app.services.chapter_history_service import ChapterHistoryService
 from app.services.chapter_word_stat_service import ChapterWordStatService
+from app.services.chapter_content_provider import ChapterContentProvider
+from app.services.chapter_content_index_service import ChapterContentIndexService
+from app.utils.chapter_file_storage import chapter_storage
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +53,18 @@ class ChapterService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.content_provider = ChapterContentProvider()
+        self.index_service = ChapterContentIndexService(db)
     
     async def get_chapter_by_id(self, chapter_id: str) -> Optional[Chapter]:
         """根据 ID 获取章节"""
         result = await self.db.execute(
             select(Chapter).where(Chapter.id == chapter_id)
         )
-        return result.scalar_one_or_none()
+        chapter = result.scalar_one_or_none()
+        if chapter:
+            self.content_provider.hydrate_chapter(chapter)
+        return chapter
     
     async def get_chapters_by_work(
         self,
@@ -93,6 +102,9 @@ class ChapterService:
             if len(chapters) > 1:
                 logger.info(f"  - Chapter: {chapters[-1].title}, order={chapters[-1].order}")
 
+        for chapter in chapters:
+            self.content_provider.hydrate_chapter(chapter)
+
         return chapters
     
     async def create_chapter(self, chapter_data: ChapterCreate) -> Chapter:
@@ -109,7 +121,8 @@ class ChapterService:
             order = chapter_data.order
         
         # 计算字数（去除HTML标签）
-        word_count = calculate_word_count(chapter_data.content)
+        content_text = chapter_data.content or ""
+        word_count = calculate_word_count(content_text)
 
         # 解析章节状态
         status_value = ChapterStatus.DRAFT
@@ -128,7 +141,7 @@ class ChapterService:
         chapter = Chapter(
             work_id=chapter_data.work_id,
             title=chapter_data.title,
-            content=chapter_data.content,
+            content="",
             order=order,
             word_count=word_count,
             status=status_value,
@@ -138,12 +151,24 @@ class ChapterService:
         self.db.add(chapter)
         await self.db.commit()
         await self.db.refresh(chapter)
+        set_committed_value(chapter, "content", content_text)
+
+        try:
+            chapter_storage.write_content(
+                str(chapter.work_id), str(chapter.id), content_text
+            )
+            await self.index_service.upsert_from_content(
+                str(chapter.work_id), str(chapter.id), content_text
+            )
+        except Exception as exc:
+            logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
 
         # 记录历史，便于后续增量统计
+        history_service = ChapterHistoryService(self.db)
         try:
             await history_service.save_history(
                 chapter_id=str(chapter.id),
-                content=chapter.content or "",
+                content=content_text,
                 version=chapter.version,
                 modified_by="user",
                 operation="create",
@@ -206,13 +231,14 @@ class ChapterService:
                 max_order = result.scalar()
                 order = (max_order or 0) + 1
 
-            word_count = calculate_word_count(content)
+            content_text = content or ""
+            word_count = calculate_word_count(content_text)
 
             chapter = Chapter(
                 id=chapter_id,  # 使用预生成的 ID
                 work_id=work_id,
                 title=title,
-                content=content,
+                content="",
                 order=order,
                 word_count=word_count,
                 status=ChapterStatus.DRAFT,
@@ -222,6 +248,16 @@ class ChapterService:
             self.db.add(chapter)
             await self.db.commit()
             await self.db.refresh(chapter)
+            set_committed_value(chapter, "content", content_text)
+            try:
+                chapter_storage.write_content(
+                    str(chapter.work_id), str(chapter.id), content_text
+                )
+                await self.index_service.upsert_from_content(
+                    str(chapter.work_id), str(chapter.id), content_text
+                )
+            except Exception as exc:
+                logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
             return chapter
 
         # 否则使用标准创建流程
@@ -242,10 +278,14 @@ class ChapterService:
         
         # 更新字段
         update_data = chapter_data.model_dump(exclude_unset=True)
-        
+        content_updated = "content" in update_data
+        new_content = None
+
         # 如果更新了内容，重新计算字数（去除HTML标签）
-        if "content" in update_data:
-            update_data["word_count"] = calculate_word_count(update_data["content"])
+        if content_updated:
+            new_content = update_data.pop("content")
+            new_content = new_content or ""
+            update_data["word_count"] = calculate_word_count(new_content)
 
         # 协调 status 与 is_published 字段
         if "status" in update_data:
@@ -266,6 +306,19 @@ class ChapterService:
         
         await self.db.commit()
         await self.db.refresh(chapter)
+        if content_updated:
+            set_committed_value(chapter, "content", new_content)
+
+        if content_updated:
+            try:
+                chapter_storage.write_content(
+                    str(chapter.work_id), str(chapter.id), new_content
+                )
+                await self.index_service.upsert_from_content(
+                    str(chapter.work_id), str(chapter.id), new_content
+                )
+            except Exception as exc:
+                logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
         
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
@@ -282,7 +335,7 @@ class ChapterService:
             )
             await history_service.save_history(
                 chapter_id=str(chapter.id),
-                content=chapter.content or "",
+                content=new_content if content_updated else original_content,
                 version=chapter.version,
                 modified_by="user",
                 operation="update",
@@ -310,7 +363,7 @@ class ChapterService:
         chapter = await self.get_chapter_by_id(chapter_id)
         if not chapter:
             return False
-        
+
         work_id = chapter.work_id
         work_id_str = str(work_id)
         order = chapter.order
@@ -329,6 +382,12 @@ class ChapterService:
             ch.order -= 1
         
         await self.db.commit()
+
+        try:
+            chapter_storage.delete_content(str(work_id), chapter_id)
+            await self.index_service.delete_index(chapter_id)
+        except Exception as exc:
+            logger.warning(f"[ChapterService] 删除章节文件或索引失败: {exc}")
         
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id_str)
@@ -379,10 +438,14 @@ class ChapterService:
 
         # 更新数据
         update_data = chapter_data.model_dump(exclude_unset=True)
+        content_updated = "content" in update_data
+        new_content = None
 
         # 如果更新了内容，重新计算字数
-        if "content" in update_data:
-            update_data["word_count"] = calculate_word_count(update_data["content"])
+        if content_updated:
+            new_content = update_data.pop("content")
+            new_content = new_content or ""
+            update_data["word_count"] = calculate_word_count(new_content)
 
         # 协调 status 与 is_published 字段
         if "status" in update_data:
@@ -403,6 +466,19 @@ class ChapterService:
 
         await self.db.commit()
         await self.db.refresh(chapter)
+        if content_updated:
+            set_committed_value(chapter, "content", new_content)
+
+        if content_updated:
+            try:
+                chapter_storage.write_content(
+                    str(chapter.work_id), str(chapter.id), new_content
+                )
+                await self.index_service.upsert_from_content(
+                    str(chapter.work_id), str(chapter.id), new_content
+                )
+            except Exception as exc:
+                logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
 
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
@@ -446,25 +522,37 @@ class ChapterService:
 
         original_word_count = chapter.word_count or 0
 
+        base_content = chapter.content or ""
+
         # 根据操作类型构建新内容
         if operation == "append":
-            new_content = chapter.content + content
+            new_content = base_content + content
         elif operation == "replace":
             new_content = content
         elif operation == "insert":
-            pos = position if position is not None else len(chapter.content)
-            new_content = chapter.content[:pos] + content + chapter.content[pos:]
+            pos = position if position is not None else len(base_content)
+            new_content = base_content[:pos] + content + base_content[pos:]
         else:
             return None
 
         # 更新章节
-        chapter.content = new_content
         chapter.word_count = calculate_word_count(new_content)
         chapter.version = chapter.version + 1
         chapter.last_modified_by = "agent"
 
         await self.db.commit()
         await self.db.refresh(chapter)
+        set_committed_value(chapter, "content", new_content)
+
+        try:
+            chapter_storage.write_content(
+                str(chapter.work_id), str(chapter.id), new_content
+            )
+            await self.index_service.upsert_from_content(
+                str(chapter.work_id), str(chapter.id), new_content
+            )
+        except Exception as exc:
+            logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
 
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, str(chapter.work_id))

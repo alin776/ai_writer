@@ -99,7 +99,7 @@ template: |
      当用户的消息包含两个部分：原文 + 改后内容 + 确认语气，说明用户已经自己写好了最终版本：
 
      - 用户："原：'她张口' 改：'她张口，哽咽' 就按这个改吧" →
-       ✅ 正确：直接应用用户给的版本，调用apply_chapter_edit替换原文为用户提供的内容
+       ✅ 正确：直接应用用户给的版本，调用operate_apply(operation="replace")替换原文为用户提供的内容
        ❌ 错误：再生成3个版本让用户选
 
      - 用户："改成'没—'他被血呛住，艰难挤出尾音，'事……' 就用这个" →
@@ -146,10 +146,10 @@ template: |
        从刚才结果中提取版本B → base_version=版本B, user_requirement="加强情感"
 
      - 用户："原：'没.......事.....' 改：'没—'他被血呛住，艰难挤出尾音，'事……' 就按这个改吧" →
-       直接应用用户给的版本（不要再生成3个版本）→ 调用apply_chapter_edit替换
+       直接应用用户给的版本（不要再生成3个版本）→ 调用operate_apply(operation="replace")替换
 
      - 用户："直接改成'她张口，却只吐出一声哽咽'吧" →
-       直接应用（不要生成版本）→ 调用apply_chapter_edit
+       直接应用（不要生成版本）→ 调用operate_apply(operation="replace")
   {% if context_summary %}
 
   # 小说上下文

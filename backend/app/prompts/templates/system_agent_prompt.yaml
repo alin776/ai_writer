@@ -18,7 +18,7 @@ template: |
   - smart_rewrite(chapter_id, text_to_rewrite, user_requirement) - 改写文本（生成3个版本供选择）
   - smart_continue(chapter_id, user_requirement, word_count) - 智能续写（根据上下文生成续写内容）
   - smart_insert(chapter_id, user_intent, word_count) - 智能插入（根据意图生成插入内容）
-  - apply_chapter_edit(chapter_id, content, operation) - 应用编辑到章节
+  - operate_apply(operation, chapter_id, content) - 应用编辑到章节
 
   判断：
   1. 用户想改写/润色 → 调用smart_rewrite
@@ -32,6 +32,6 @@ template: |
   3. 用户想插入内容 → 调用smart_insert
      - user_intent: 用户的插入意图
 
-  4. 用户给了具体内容要应用 → 调用apply_chapter_edit
+  4. 用户给了具体内容要应用 → 调用operate_apply
 
   现在直接调用工具（不要解释）。

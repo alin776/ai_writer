@@ -16,6 +16,7 @@ from sqlalchemy import select
 from app.core.database import async_session_maker
 from app.models.chapter import Chapter
 from app.services.chapter_vector_service import ChapterVectorService
+from app.utils.chapter_file_storage import chapter_storage
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,16 +34,13 @@ async def migrate_existing_chapters():
             logger.info("开始迁移现有章节向量数据")
             logger.info("=" * 60)
 
-            # 1. 查询所有有内容的章节
-            stmt = select(Chapter).where(
-                Chapter.content.isnot(None),
-                Chapter.content != ""
-            ).order_by(Chapter.work_id, Chapter.order)
+            # 1. 查询所有章节（内容从文件读取）
+            stmt = select(Chapter).order_by(Chapter.work_id, Chapter.order)
 
             result = await db.execute(stmt)
             chapters = result.scalars().all()
 
-            logger.info(f"找到 {len(chapters)} 个有内容的章节")
+            logger.info(f"找到 {len(chapters)} 个章节")
 
             if len(chapters) == 0:
                 logger.info("没有需要迁移的章节")
@@ -61,7 +59,10 @@ async def migrate_existing_chapters():
             for i, chapter in enumerate(chapters, 1):
                 try:
                     # 检查内容长度
-                    content_length = len(chapter.content.strip())
+                    content = chapter_storage.read_content(
+                        str(chapter.work_id), str(chapter.id)
+                    ) or ""
+                    content_length = len(content.strip())
 
                     if content_length < 100:
                         logger.info(
@@ -82,7 +83,7 @@ async def migrate_existing_chapters():
                         chapter_id=str(chapter.id),
                         chapter_order=chapter.order,
                         chapter_title=chapter.title,
-                        content=chapter.content
+                        content=content
                     )
 
                     success_count += 1
@@ -119,10 +120,14 @@ async def migrate_existing_chapters():
             # 6. 获取统计信息（验证迁移结果）
             if success_count > 0:
                 # 随机抽取一个成功的章节验证
-                sample_chapter = next(
-                    (c for c in chapters if len(c.content.strip()) >= 100),
-                    None
-                )
+                sample_chapter = None
+                for candidate in chapters:
+                    candidate_content = chapter_storage.read_content(
+                        str(candidate.work_id), str(candidate.id)
+                    ) or ""
+                    if len(candidate_content.strip()) >= 100:
+                        sample_chapter = candidate
+                        break
                 if sample_chapter:
                     stats = await vector_service.get_stats(str(sample_chapter.work_id))
                     logger.info(f"抽样验证 - 作品 {sample_chapter.work.title if sample_chapter.work else 'N/A'}:")

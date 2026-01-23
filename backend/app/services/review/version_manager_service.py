@@ -21,6 +21,7 @@ from app.schemas.review import (
     VersionMilestoneUpdate
 )
 from app.utils.datetime_utils import get_utc_now
+from app.services.chapter_content_provider import ChapterContentProvider
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class VersionManagerService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.content_provider = ChapterContentProvider()
 
     async def create_version(
         self,
@@ -317,7 +319,10 @@ class VersionManagerService:
         result = await self.db.execute(
             select(Chapter).where(Chapter.id == chapter_id)
         )
-        return result.scalar_one_or_none()
+        chapter = result.scalar_one_or_none()
+        if chapter:
+            self.content_provider.hydrate_chapter(chapter)
+        return chapter
 
     async def _get_review_session(self, session_id: UUID) -> Optional[ReviewSession]:
         """获取评审会话"""

@@ -15,6 +15,8 @@ from app.models.location import Location
 from app.models.setting import Setting
 from app.models.work_guidelines import WorkGuidelines
 from app.models.ai_guidelines import AIGuidelines
+from app.utils.chapter_file_storage import chapter_storage
+from app.services.chapter_content_index_service import ChapterContentIndexService
 from app.schemas.export import (
     ImportOptions,
     ImportPreviewResponse,
@@ -226,6 +228,7 @@ class ImportService:
         chapters_created = 0
         total_words = 0  # 累计总字数
         created_chapters: List[Chapter] = []
+        created_contents: List[str] = []
         for idx, chapter_data in enumerate(chapters_data):
             is_published = chapter_data.get('is_published', False)
             raw_status = chapter_data.get('status')
@@ -238,7 +241,7 @@ class ImportService:
             chapter = Chapter(
                 work_id=work.id,
                 title=chapter_data['title'],
-                content=content_text,
+                content="",
                 summary=chapter_data.get('summary'),
                 order=chapter_data.get('order', idx + 1),
                 word_count=word_count,
@@ -248,6 +251,7 @@ class ImportService:
             self.db.add(chapter)
             chapters_created += 1
             created_chapters.append(chapter)
+            created_contents.append(content_text)
         
         # 导入世界观
         characters_created = 0
@@ -355,17 +359,38 @@ class ImportService:
 
         await self.db.commit()
 
+        index_service = ChapterContentIndexService(self.db)
+        index_updated = False
+        for chapter, content in zip(created_chapters, created_contents):
+            try:
+                chapter_storage.write_content(
+                    str(chapter.work_id), str(chapter.id), content
+                )
+                await index_service.upsert_from_content(
+                    str(chapter.work_id), str(chapter.id), content, commit=False
+                )
+                index_updated = True
+            except Exception as exc:
+                await self.db.rollback()
+                logger.warning(f"[ImportService] 写入章节文件或索引失败: {chapter.id} error={exc}")
+        if index_updated:
+            try:
+                await self.db.commit()
+            except Exception as exc:
+                await self.db.rollback()
+                logger.warning(f"[ImportService] 提交索引失败: {exc}")
+
         # 汇总需异步向量化的章节
         vectorize_jobs: list[Dict[str, Any]] = []
-        for chapter in created_chapters:
-            if chapter.content and len(chapter.content.strip()) > 100:
+        for chapter, content in zip(created_chapters, created_contents):
+            if content and len(content.strip()) > 100:
                 vectorize_jobs.append(
                     {
                         "work_id": str(work.id),
                         "chapter_id": str(chapter.id),
                         "chapter_order": chapter.order,
                         "chapter_title": chapter.title,
-                        "content": chapter.content,
+                        "content": content,
                     }
                 )
         
@@ -432,6 +457,7 @@ class ImportService:
         # 导入章节
         chapters_created = 0
         created_chapters: List[Chapter] = []
+        created_contents: List[str] = []
         for idx, chapter_data in enumerate(chapters):
             content_text = chapter_data['content']
             word_count = self._calculate_word_count(content_text)
@@ -440,7 +466,7 @@ class ImportService:
             chapter = Chapter(
                 work_id=work.id,
                 title=chapter_data['title'],
-                content=content_text,  # 保留纯文本，避免未清洗的 HTML 直存
+                content="",  # DB content 置空，纯文本写入文件
                 order=starting_order + idx + 1,
                 word_count=word_count,
                 status=ChapterStatus.DRAFT,
@@ -449,6 +475,7 @@ class ImportService:
             self.db.add(chapter)
             chapters_created += 1
             created_chapters.append(chapter)
+            created_contents.append(content_text)
 
         # 更新作品统计
         work.total_chapters = (work.total_chapters or 0) + chapters_created
@@ -470,17 +497,38 @@ class ImportService:
 
         await self.db.commit()
 
+        index_service = ChapterContentIndexService(self.db)
+        index_updated = False
+        for chapter, content in zip(created_chapters, created_contents):
+            try:
+                chapter_storage.write_content(
+                    str(chapter.work_id), str(chapter.id), content
+                )
+                await index_service.upsert_from_content(
+                    str(chapter.work_id), str(chapter.id), content, commit=False
+                )
+                index_updated = True
+            except Exception as exc:
+                await self.db.rollback()
+                logger.warning(f"[ImportService] 写入章节文件或索引失败: {chapter.id} error={exc}")
+        if index_updated:
+            try:
+                await self.db.commit()
+            except Exception as exc:
+                await self.db.rollback()
+                logger.warning(f"[ImportService] 提交索引失败: {exc}")
+
         # 汇总需异步向量化的章节
         vectorize_jobs: list[Dict[str, Any]] = []
-        for chapter in created_chapters:
-            if chapter.content and len(chapter.content.strip()) > 100:
+        for chapter, content in zip(created_chapters, created_contents):
+            if content and len(content.strip()) > 100:
                 vectorize_jobs.append(
                     {
                         "work_id": str(work.id),
                         "chapter_id": str(chapter.id),
                         "chapter_order": chapter.order,
                         "chapter_title": chapter.title,
-                        "content": chapter.content,
+                        "content": content,
                     }
                 )
         

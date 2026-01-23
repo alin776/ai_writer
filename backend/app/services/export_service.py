@@ -30,6 +30,7 @@ from app.schemas.export import (
 from app.utils.markdown_generator import MarkdownGenerator
 from app.utils.file_storage import temp_storage
 from app.utils.datetime_utils import get_utc_now
+from app.services.chapter_content_provider import ChapterContentProvider
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class ExportService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.content_provider = ChapterContentProvider()
     
     async def export_work(
         self, 
@@ -154,7 +156,10 @@ class ExportService:
             chapters = sorted(chapters, key=lambda c: c.order)
             
             for chapter in chapters:
-                md.add_chapter(chapter.title, chapter.content or '')
+                content = self.content_provider.read_content(
+                    str(chapter.work_id), str(chapter.id)
+                ) or ""
+                md.add_chapter(chapter.title, content)
         
         # 添加世界观附录
         if options.include_worldview:
@@ -207,7 +212,9 @@ class ExportService:
             ExportChapter(
                 id=c.id,
                 title=c.title,
-                content=c.content or '',
+                content=self.content_provider.read_content(
+                    str(c.work_id), str(c.id)
+                ) or "",
                 summary=c.summary,
                 order=c.order,
                 word_count=c.word_count,

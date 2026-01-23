@@ -22,6 +22,7 @@ from app.services.worldview_service import WorldviewService
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.redis_client import redis_client
 from app.schemas.worldview import CharacterCreate, LocationCreate, SettingCreate
+from app.services.chapter_content_provider import ChapterContentProvider
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class WorldviewSyncService:
         self.db = db
         self.user_id = user_id
         self.worldview_service = WorldviewService(db)
+        self.content_provider = ChapterContentProvider()
 
     async def extract_changes_from_chapter(
         self,
@@ -136,9 +138,10 @@ class WorldviewSyncService:
         # 合并所有章节内容
         combined_content = ""
         for chapter in chapters:
-            logger.info(f"[世界观同步] 章节 {chapter.order} '{chapter.title}': 内容长度={len(chapter.content) if chapter.content else 0}")
-            if chapter.content:
-                combined_content += f"\n\n【第{chapter.order}章 {chapter.title}】\n{chapter.content}"
+            content = self.content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
+            logger.info(f"[世界观同步] 章节 {chapter.order} '{chapter.title}': 内容长度={len(content)}")
+            if content:
+                combined_content += f"\n\n【第{chapter.order}章 {chapter.title}】\n{content}"
 
         logger.info(f"[世界观同步] 合并 {len(chapters)} 个章节，总内容长度: {len(combined_content)}")
         logger.info(f"[世界观同步] 内容预览: {combined_content[:500]}...")

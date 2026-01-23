@@ -24,6 +24,7 @@ from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai_log_service import AILogService
 # 导入 TaskType 用于智能模型选择
 from app.services.agent.model_selector import TaskType
+from app.services.chapter_content_provider import ChapterContentProvider
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ class NovelReviewService:
         )
         self.ai_log_service = AILogService(db)
         self.prompts = ReviewPromptTemplates()
+        self.content_provider = ChapterContentProvider()
 
     async def review_chapter(
         self,
@@ -142,7 +144,10 @@ class NovelReviewService:
         result = await self.db.execute(
             select(Chapter).where(Chapter.id == chapter_id)
         )
-        return result.scalar_one_or_none()
+        chapter = result.scalar_one_or_none()
+        if chapter:
+            self.content_provider.hydrate_chapter(chapter)
+        return chapter
 
     async def _call_ai_review(
         self,

@@ -1,5 +1,63 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+
+const MAX_LAST_CHAPTER_ENTRIES = 200;
+const MAX_BOOKSHELF_ENTRIES = 200;
+
+const trimRecord = <T>(
+  record: Record<string, T>,
+  maxEntries: number,
+  isValid: (entry: [string, T]) => boolean
+) => {
+  const entries = Object.entries(record).filter(isValid);
+  if (entries.length <= maxEntries) {
+    return Object.fromEntries(entries) as Record<string, T>;
+  }
+  return Object.fromEntries(entries.slice(entries.length - maxEntries)) as Record<string, T>;
+};
+
+const updateBoundedRecord = <T>(
+  record: Record<string, T>,
+  key: string,
+  value: T,
+  maxEntries: number,
+  isValid: (entry: [string, T]) => boolean
+) => {
+  const next = { ...record };
+  if (key in next) {
+    delete next[key];
+  }
+  next[key] = value;
+  return trimRecord(next, maxEntries, isValid);
+};
+
+const isQuotaExceeded = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+  const name = (error as { name?: string }).name;
+  return name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
+};
+
+const safeStorage = {
+  getItem: (name: string) => localStorage.getItem(name),
+  setItem: (name: string, value: string) => {
+    try {
+      localStorage.setItem(name, value);
+    } catch (error) {
+      if (isQuotaExceeded(error)) {
+        try {
+          localStorage.removeItem(name);
+          localStorage.setItem(name, value);
+          return;
+        } catch (retryError) {
+          console.error('[workNavStore] localStorage 配额不足，已跳过写入:', retryError);
+          return;
+        }
+      }
+      console.error('[workNavStore] localStorage 写入失败:', error);
+    }
+  },
+  removeItem: (name: string) => localStorage.removeItem(name),
+};
 
 // 阅读状态（用于从阅读器返回时恢复）
 interface ReadingState {
@@ -117,10 +175,13 @@ export const useWorkNavStore = create<WorkNavState>()(
         }),
       setLastChapter: (workId, chapterId) => {
         set((state) => ({
-          lastChapterMap: {
-            ...state.lastChapterMap,
-            [workId]: chapterId,
-          },
+          lastChapterMap: updateBoundedRecord(
+            state.lastChapterMap,
+            workId,
+            chapterId,
+            MAX_LAST_CHAPTER_ENTRIES,
+            ([key, value]) => typeof key === 'string' && typeof value === 'string' && value.length > 0
+          ),
         }));
       },
       getLastChapter: (workId) => {
@@ -157,12 +218,22 @@ export const useWorkNavStore = create<WorkNavState>()(
         set({ novelSquareBrowseState: null });
       },
       setBookshelfStatus: (workId, inBookshelf) => {
-        set((state) => ({
-          bookshelfMap: {
-            ...state.bookshelfMap,
-            [workId]: inBookshelf,
-          },
-        }));
+        set((state) => {
+          if (!inBookshelf) {
+            const next = { ...state.bookshelfMap };
+            delete next[workId];
+            return { bookshelfMap: next };
+          }
+          return {
+            bookshelfMap: updateBoundedRecord(
+              state.bookshelfMap,
+              workId,
+              inBookshelf,
+              MAX_BOOKSHELF_ENTRIES,
+              ([key, value]) => typeof key === 'string' && typeof value === 'boolean'
+            ),
+          };
+        });
       },
       getBookshelfStatus: (workId) => {
         return get().bookshelfMap[workId] || false;
@@ -180,13 +251,22 @@ export const useWorkNavStore = create<WorkNavState>()(
     }),
     {
       name: 'work-nav-storage', // localStorage 的 key
+      storage: createJSONStorage(() => safeStorage),
       partialize: (state) => ({
         // 持久化章节记录、阅读状态、浏览状态和书架状态
-        lastChapterMap: state.lastChapterMap,
+        lastChapterMap: trimRecord(
+          state.lastChapterMap,
+          MAX_LAST_CHAPTER_ENTRIES,
+          ([key, value]) => typeof key === 'string' && typeof value === 'string' && value.length > 0
+        ),
         novelSquareReadingState: state.novelSquareReadingState,
         bookshelfReadingState: state.bookshelfReadingState,
         novelSquareBrowseState: state.novelSquareBrowseState,
-        bookshelfMap: state.bookshelfMap,
+        bookshelfMap: trimRecord(
+          state.bookshelfMap,
+          MAX_BOOKSHELF_ENTRIES,
+          ([key, value]) => typeof key === 'string' && typeof value === 'boolean'
+        ),
       }),
       // 合并时验证数据有效性，避免损坏的数据导致问题
       merge: (persistedState: any, currentState) => {
@@ -195,7 +275,11 @@ export const useWorkNavStore = create<WorkNavState>()(
         if (persistedState && typeof persistedState === 'object') {
           // 验证并合并章节记录
           if (persistedState.lastChapterMap && typeof persistedState.lastChapterMap === 'object') {
-            merged.lastChapterMap = persistedState.lastChapterMap;
+            merged.lastChapterMap = trimRecord(
+              persistedState.lastChapterMap,
+              MAX_LAST_CHAPTER_ENTRIES,
+              ([key, value]) => typeof key === 'string' && typeof value === 'string' && value.length > 0
+            );
           }
 
           // 验证并合并阅读状态
@@ -213,7 +297,11 @@ export const useWorkNavStore = create<WorkNavState>()(
 
           // 验证并合并书架状态
           if (persistedState.bookshelfMap && typeof persistedState.bookshelfMap === 'object') {
-            merged.bookshelfMap = persistedState.bookshelfMap;
+            merged.bookshelfMap = trimRecord(
+              persistedState.bookshelfMap,
+              MAX_BOOKSHELF_ENTRIES,
+              ([key, value]) => typeof key === 'string' && typeof value === 'boolean'
+            );
           }
         }
 

@@ -73,9 +73,9 @@ class Work(Base):
     knowledge_items = relationship("KnowledgeItem", back_populates="work", cascade="all, delete-orphan")
     bookshelf_items = relationship("Bookshelf", back_populates="work", cascade="all, delete-orphan", passive_deletes=True)
     entity_relationships = relationship("EntityRelationship", back_populates="work", cascade="all, delete-orphan")
-    comments = relationship("Comment", back_populates="work", cascade="all, delete-orphan")
     work_ratings = relationship("WorkRating", back_populates="work", cascade="all, delete-orphan")
     channel = relationship("Channel", back_populates="work", cascade="all, delete-orphan", uselist=False)
+    comments = relationship("Comment", back_populates="work", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Work {self.title}>"

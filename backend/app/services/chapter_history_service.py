@@ -4,12 +4,16 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm.attributes import set_committed_value
 from uuid import UUID
 import re
 
 from app.models.chapter_history import ChapterHistory
 from app.models.chapter import Chapter
 from app.schemas.chapter import ChapterUpdate
+from app.utils.chapter_file_storage import chapter_storage
+from app.services.chapter_content_provider import ChapterContentProvider
+from app.services.chapter_content_index_service import ChapterContentIndexService
 
 
 def calculate_word_count(content: str) -> int:
@@ -122,24 +126,41 @@ class ChapterHistoryService:
         if not chapter:
             return None
 
+        content_provider = ChapterContentProvider()
+        current_content = content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
+
         # 保存当前内容到历史（作为恢复前的备份）
         await self.save_history(
             chapter_id=chapter_id,
-            content=chapter.content,
+            content=current_content,
             version=chapter.version,
             modified_by="user",
             operation="restore",
             description=f"恢复前备份 (将恢复到版本 {history.version})"
         )
 
-        # 更新章节内容
-        chapter.content = history.content
+        restored_content = history.content or ""
+
+        # 更新章节内容元数据（内容本体写入文件）
         chapter.word_count = history.word_count
         chapter.version = chapter.version + 1
         chapter.last_modified_by = "user"
 
         await self.db.commit()
         await self.db.refresh(chapter)
+        set_committed_value(chapter, "content", restored_content)
+
+        try:
+            chapter_storage.write_content(
+                str(chapter.work_id), str(chapter.id), restored_content
+            )
+            index_service = ChapterContentIndexService(self.db)
+            await index_service.upsert_from_content(
+                str(chapter.work_id), str(chapter.id), restored_content
+            )
+        except Exception:
+            # 不阻断恢复流程
+            pass
 
         return chapter
 

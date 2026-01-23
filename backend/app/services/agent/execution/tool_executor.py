@@ -61,6 +61,7 @@ TOOL_CACHE_INVALIDATION_TOOLS = {
     "update_chapter_title",
     "delete_chapter",
     "create_chapter",
+    "operate_apply",
 }
 
 GWC_ALIAS_TOOL_INCLUDES = {
@@ -449,6 +450,22 @@ class ToolExecutor:
             # target_task 必须由 AI 提供，不设默认值
             params.setdefault("max_rounds", 10)
             params.setdefault("conversation_id", state.get("conversation_id", ""))
+            allowed_keys = {
+                "work_id",
+                "target_task",
+                "search_keywords",
+                "max_rounds",
+                "user_id",
+                "conversation_id",
+            }
+            params = {key: value for key, value in params.items() if key in allowed_keys}
+
+        # 🆕 2026-01-23: operate_apply 统一操作工具
+        elif tool_name == "operate_apply":
+            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("user_id", state.get("user_id", ""))
+            params.setdefault("conversation_id", state.get("conversation_id", ""))
 
         # 🆕 2026-01-17: read_paragraph 段落精确读取工具
         elif tool_name == "read_paragraph":
@@ -668,6 +685,10 @@ class ToolExecutor:
             # 兜底：返回完整 JSON
             return json.dumps(result, ensure_ascii=False)
 
+        # 🆕 2026-01-23: operate_apply 统一操作工具
+        elif tool_name == "operate_apply":
+            return json.dumps(data, ensure_ascii=False)
+
         # 章节管理工具（OPERATION 类）- 返回完整 JSON 供 HITL 处理
         elif tool_name in ["create_chapter", "update_chapter_title", "delete_chapter", "update_chapter_content"]:
             return json.dumps(data, ensure_ascii=False)
@@ -696,6 +717,7 @@ class ToolExecutor:
             smart_insert,
             apply_chapter_edit,
         )
+        from app.services.agent.tools.operate_tools import operate_apply
         from app.services.agent.tools.show_dont_tell import (
             show_emotion_tool,
             enhance_scene_tool,
@@ -731,6 +753,8 @@ class ToolExecutor:
             # 深度探索工具（2026-01-17）
             "read_paragraph": read_paragraph,
             "explore_content": explore_content,
+            # 统一操作工具（2026-01-23）
+            "operate_apply": operate_apply,
             # 创作增强工具
             "show_emotion_tool": show_emotion_tool,
             "enhance_scene_tool": enhance_scene_tool,
@@ -896,6 +920,20 @@ class ToolExecutor:
                         "target_task": tool_args.get("target_task", ""),
                         "max_rounds": tool_args.get("max_rounds", 10),
                         "user_id": tool_args.get("user_id", state.get("user_id", ""))
+                    }
+                elif tool_name == "operate_apply":
+                    params = {
+                        "operation": tool_args.get("operation", "append"),
+                        "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
+                        "work_id": tool_args.get("work_id", state.get("work_id", "")),
+                        "content": tool_args.get("content"),
+                        "title": tool_args.get("title"),
+                        "original_text": tool_args.get("original_text"),
+                        "target_description": tool_args.get("target_description"),
+                        "paragraph_index": tool_args.get("paragraph_index"),
+                        "node_id": tool_args.get("node_id"),
+                        "user_id": tool_args.get("user_id", state.get("user_id", "")),
+                        "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", "")),
                     }
                 else:
                     params = tool_args

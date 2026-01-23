@@ -1020,7 +1020,7 @@ tool_policy: {tool_policy}
             pass  # 保持原样
 
     def _ensure_editor_apply_tasks(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Ensure smart_* editor tasks are followed by apply_chapter_edit (default version A)."""
+        """Ensure smart_* editor tasks are followed by operate_apply (default version A)."""
         if not tasks:
             return tasks
 
@@ -1057,7 +1057,8 @@ tool_policy: {tool_policy}
                     source_tool=tool,
                     source_task_id=task_id,
                     locate_task_id=last_locate_task_id,
-                    new_task_id=next_task_id
+                    new_task_id=next_task_id,
+                    source_params=params
                 )
                 if apply_task:
                     tasks.insert(idx + 1, apply_task)
@@ -1074,7 +1075,7 @@ tool_policy: {tool_policy}
 
         needle = f"$TASK_{source_task_id}"
         for task in tasks:
-            if task.get("tool") != "apply_chapter_edit":
+            if task.get("tool") not in {"operate_apply", "apply_chapter_edit"}:
                 continue
             params = task.get("params", {})
             if source_task_id in ParameterResolver.extract_dependencies(params):
@@ -1092,7 +1093,8 @@ tool_policy: {tool_policy}
         source_tool: str,
         source_task_id: int,
         locate_task_id: Optional[int],
-        new_task_id: int
+        new_task_id: int,
+        source_params: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
         # 🔧 2026-01-12: 跨章节修复 - chapter_id 优先使用 locate_content 的结果
         # locate_content 会在全局搜索时返回目标章节的 chapter_id
@@ -1122,19 +1124,19 @@ tool_policy: {tool_policy}
                 "operation": "insert",
                 "content": {"$ref": {"task_id": source_task_id, "path": "content"}}
             }
+            if source_params and source_params.get("user_intent"):
+                params["target_description"] = source_params.get("user_intent")
         else:
             return None
 
         if locate_task_id:
             params.setdefault("node_id", {"$ref": {"task_id": locate_task_id, "path": "node_id"}})
             params.setdefault("paragraph_index", {"$ref": {"task_id": locate_task_id, "path": "paragraph_index"}})
-            params.setdefault("before_anchor", {"$ref": {"task_id": locate_task_id, "path": "before_anchor"}})
-            params.setdefault("after_anchor", {"$ref": {"task_id": locate_task_id, "path": "after_anchor"}})
 
         return {
             "task_id": new_task_id,
             "description": "应用到编辑器",
-            "tool": "apply_chapter_edit",
+            "tool": "operate_apply",
             "params": params
         }
 

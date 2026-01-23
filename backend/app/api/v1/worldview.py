@@ -1306,6 +1306,7 @@ async def extract_changes_from_chapter(
     from app.services.worldview_sync_service import WorldviewSyncService
     from sqlalchemy import select
     from app.models.chapter import Chapter
+    from app.services.chapter_content_provider import ChapterContentProvider
 
     # 验证作品权限
     work_service = WorkService(db)
@@ -1324,7 +1325,8 @@ async def extract_changes_from_chapter(
         chapter = chapter_result.scalar_one_or_none()
         if not chapter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found")
-        chapter_content = chapter.content or ""
+        content_provider = ChapterContentProvider()
+        chapter_content = content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
 
     if len(chapter_content) < 100:
         # 内容太短，返回空结果

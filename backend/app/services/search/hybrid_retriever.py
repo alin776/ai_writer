@@ -30,6 +30,8 @@ from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.chapter import Chapter
+from app.models.chapter_content_index import ChapterContentIndex
+from app.services.chapter_content_provider import ChapterContentProvider
 from app.services.chapter_vector_service import ChapterVectorService
 
 logger = logging.getLogger(__name__)
@@ -134,6 +136,7 @@ class HybridRetriever:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.vector_service = ChapterVectorService(db)
+        self.content_provider = ChapterContentProvider()
 
     async def _rerank(self, query: str, candidates: List[Dict[str, Any]], top_k: int) -> List[Dict[str, Any]]:
         """
@@ -341,7 +344,11 @@ class HybridRetriever:
             if not keywords:
                 logger.warning(f"[HybridRetriever] 无法从 query={query!r} 提取关键词，跳过全文检索")
             else:
-                stmt = select(Chapter).where(Chapter.work_id == work_uuid)
+                stmt = (
+                    select(Chapter, ChapterContentIndex.plain_text)
+                    .join(ChapterContentIndex, ChapterContentIndex.chapter_id == Chapter.id)
+                    .where(Chapter.work_id == work_uuid)
+                )
                 # 时序窗口限制：与向量检索保持一致
                 # current_order=None 时用 10**6（表示检索所有章节）
                 # look_ahead=None 时用 10**6（表示不限制向后看的章节数）
@@ -358,19 +365,16 @@ class HybridRetriever:
                 # OR 条件：任一关键词命中即可
                 # 注意：keywords 已确保非空，or_(*keyword_conditions) 是安全的
                 keyword_conditions = [
-                    Chapter.content.ilike(f"%{kw}%") for kw in keywords
+                    ChapterContentIndex.plain_text.ilike(f"%{kw}%") for kw in keywords
                 ]
                 stmt = stmt.where(or_(*keyword_conditions)).limit(top_k * 3)
 
                 rows = await self.db.execute(stmt)
-                chapters = rows.scalars().all()
+                chapters = rows.all()
 
                 # 为每个命中章节提取 snippet
-                for ch in chapters:
-                    raw_content = ch.content or ""
-                    # 清理 HTML 标签和实体
-                    content = re.sub(r'<[^>]+>', '', raw_content)
-                    content = content.replace('&nbsp;', ' ').replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+                for ch, plain_text in chapters:
+                    content = plain_text or ""
                     content_lower = content.lower()
 
                     # 统计命中的关键词数量
@@ -394,7 +398,8 @@ class HybridRetriever:
                     start = max(0, best_idx - 250)
                     end = min(len(content), best_idx + 250)
                     snippet = content[start:end]
-                    paragraph_index = self._infer_paragraph_index(raw_content, snippet, matched_keywords)
+                    html_content = self.content_provider.read_content(str(ch.work_id), str(ch.id)) or ""
+                    paragraph_index = self._infer_paragraph_index(html_content, snippet, matched_keywords)
 
                     # 根据匹配关键词数量调整基础分
                     base_score = 0.50 + 0.05 * len(matched_keywords)

@@ -30,6 +30,7 @@ from app.services.agent.model_selector import TaskType
 # 导入 JSON 提取函数
 from app.services.review.novel_review_service import extract_json_from_response
 from app.utils.datetime_utils import get_utc_now
+from app.services.chapter_content_provider import ChapterContentProvider
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class TaskGeneratorService:
         self.ai_service = HTTPAIService(db=db, user_id=None)
         self.ai_log_service = AILogService(db)
         self.prompts = ReviewPromptTemplates()
+        self.content_provider = ChapterContentProvider()
 
     async def generate_tasks_from_review(
         self,
@@ -466,7 +468,10 @@ class TaskGeneratorService:
         result = await self.db.execute(
             select(Chapter).where(Chapter.id == chapter_id)
         )
-        return result.scalar_one_or_none()
+        chapter = result.scalar_one_or_none()
+        if chapter:
+            self.content_provider.hydrate_chapter(chapter)
+        return chapter
 
     async def _get_task(self, task_id: UUID) -> Optional[ReviewTask]:
         """获取任务"""

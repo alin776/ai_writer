@@ -4,15 +4,21 @@
 
 ### 待办清单
 
-- [ ] 定位 workNavStore 持久化写入量与触发点，确认 lastChapterMap/bookshelfMap 无界增长导致配额溢出
-- [ ] 在 workNavStore 加入持久化瘦身与 map 容量上限，移除无效条目
-- [ ] 为持久化 storage 加入 QuotaExceededError 兜底，避免抛错导致页面崩溃
+- [x] 定位 workNavStore 持久化写入量与触发点，确认 lastChapterMap/bookshelfMap 无界增长导致配额溢出
+- [x] 在 workNavStore 加入持久化瘦身与 map 容量上限，移除无效条目
+- [x] 为持久化 storage 加入 QuotaExceededError 兜底，避免抛错导致页面崩溃
 - [ ] 手动验证浏览/保存状态仍可用，记录改动与风险
 
 ### 解决方案（拟）
 
-- 为 workNavStore 增加裁剪工具函数，限制 lastChapterMap 与 bookshelfMap 的最大条目数，并在 merge/更新时做裁剪；bookshelfMap 在移除时直接删键，避免无效状态占用空间。
-- 引入安全 storage：包装 localStorage.setItem 捕获 QuotaExceededError，先裁剪再重试，仍失败则跳过写入/清理该 key，避免触发应用错误边界。
+- 为 workNavStore 增加裁剪工具函数：限制 lastChapterMap 与 bookshelfMap 的最大条目数，并在 set/merge/partialize 时统一裁剪（超限保留最近的 N 条）。
+- 引入安全 storage：封装 localStorage.setItem 捕获 QuotaExceededError，必要时清理当前 key 再重试；仍失败则仅记录日志并跳过写入，避免 UI 崩溃。
+- 在 rehydrate 合并时清理异常数据，避免历史异常数据导致再次超额写入。
+
+### review
+
+- workNavStore 持久化加入裁剪（lastChapterMap/bookshelfMap）并在 set/merge/partialize 统一执行，避免无界增长。
+- 加入安全 storage，捕获 QuotaExceededError 时清理当前 key 并重试，失败仅记录日志。
 
 ## Operate_apply 执行轨迹与重复调用修复（2026-01-23）
 
@@ -27,6 +33,179 @@
 - 规划后处理新增“统一入口”规则：识别 smart_* 后续的 apply 任务时优先生成 operate_apply，并将现有 apply_chapter_edit 任务转换为 operate_apply（replace_all → content）。
 - operate_apply 执行完成后发出 operate 轨迹事件，前端接收后渲染 OperateCard；补充 source_tool 标签用于展示 locate→smart→apply 链路；若同 stepId 已有 operate 轨迹，则不再渲染 operate_apply 的 StepCard，避免重复展示。
 
+## Operate/Locate 统一入口现状复核（2026-01-23）
+
+### 待办清单
+
+- [x] 深读 operate_apply / apply_chapter_edit / locate_content 的调用链与降级逻辑
+- [x] 对比 prompt/规划/执行链路中的“统一入口”描述与真实实现差异
+- [x] 总结是否已达成“无需独立 locate”的目标与残留问题
+- [x] 在 todo.md 补充 review 结论
+
+### 解决方案（拟）
+
+- 逐层核对：prompt → plan_generator → tool_dispatcher → operate_tools → editor_tools → locate_tools → event_parser。
+- 以“是否仍直接调用 apply_chapter_edit/locate_content”“operate_apply 是否真正吸收定位”为判断标准，给出修复建议清单。
+
+### review
+
+- operate_apply 已实现内部定位（direct/text_match/semantic），但仍依赖 locate_content，且 apply_chapter_edit 仍是底层真实写入工具（`backend/app/services/agent/tools/operate_tools.py`）。
+- 规划层仍自动插入 apply_chapter_edit 任务，默认流程未切到 operate_apply（`backend/app/services/agent/planning/plan_generator.py`）。
+- prompt 层存在冲突：decision_prompts 强调 operate_apply 自动定位、无需 locate_content，但 tool_descriptions 仍要求“修改前必须调用 locate_content”（`backend/app/services/agent/prompts/decision_prompts.py`、`backend/app/services/agent/prompts/tool_descriptions.py`）。
+- 前端事件/轨迹仍只映射 apply_chapter_edit，operate_apply 未纳入展示，导致“统一入口”在 UI 上不可见（`backend/app/services/agent/stream/event_parser.py`）。
+
+## Operate 统一入口落地改造（2026-01-23）
+
+### 待办清单
+
+- [x] 规划层统一：smart_* 后置任务改为 operate_apply，并规范参数映射
+- [x] Prompt 统一（规划层）：删除“必须 locate_content / apply_chapter_edit”的外部指引，保持 operate_apply 单一入口
+- [x] Prompt 统一（系统/写作/聊天）：system_agent_prompt/writing_agent/general_chat/fallback 改为 operate_apply
+- [x] LangGraph 工具清单收敛：暴露 operate_apply，移除 apply_chapter_edit/locate_content 的可选用入口
+- [x] UI 轨迹统一：API/前端 OperateCard 显示 operate_apply
+- [x] LangGraph 工具清单进一步收敛：移除 create_chapter/update_chapter_title 的可选用入口
+- [x] 修复导入报错：langgraph_tools 仍导出 apply_chapter_edit 供内部调用，但不加入 LANGGRAPH_TOOLS
+- [ ] 补充最小回归检查：规划任务不再生成 apply_chapter_edit/locate_content
+
+### 解决方案（拟）
+
+- plan_generator 将自动插入的 apply 任务改为 operate_apply，并支持 original_text/target_description 定位参数。
+- planning_prompts/tool_descriptions/planning_examples 统一改为 operate_apply 入口，标记 locate_content 为内部工具。
+- system_agent_prompt/writing_agent/general_chat/fallback 的工具指引统一改为 operate_apply。
+- langgraph_tools 仅暴露 operate_apply 给模型，apply_chapter_edit/locate_content 保留内部调用。
+- 如需彻底禁止模型直接创建/改标题，从 LANGGRAPH_TOOLS 移除 create_chapter/update_chapter_title。
+- API 工具映射与 OperateCard 默认显示改为 operate_apply。
+- LANGGRAPH_TOOLS 仅保留 operate_apply + delete/update_content，创建/改标题需经 operate_apply。
+- langgraph_tools 仍导出 apply_chapter_edit 以兼容内部导入，但不加入 LANGGRAPH_TOOLS。
+- event_parser 增加 operate_apply 显示配置与描述，避免轨迹仍显示 apply_chapter_edit。
+
+### review
+
+- plan_generator 自动插入的 apply 任务已改为 operate_apply，并补齐 smart_insert 的 target_description 传递。
+- planning_prompts/tool_descriptions/planning_examples 已统一到 operate_apply 入口，apply_chapter_edit/locate_content 标注为内部工具。
+- system_agent_prompt/writing_agent/general_chat/fallback 已改为 operate_apply 指引，避免直接产出 apply_chapter_edit。
+- langgraph_tools 仅暴露 operate_apply 给模型，locate_content/apply_chapter_edit 作为内部工具保留。
+- API 工具映射与 OperateCard 默认显示已支持 operate_apply。
+- event_parser 已补充 operate_apply 的展示与描述。
+- OPERATION 示例改用 operate_apply(create/title)，减少 create_chapter/update_chapter_title 直出。
+
+## 修复 Work.comments ORM 映射错误（2026-01-23）
+
+### 待办清单
+
+- [ ] 核对 Comment/Work 关系定义与 back_populates
+- [x] 补回 Work.comments 关系（指向 Comment），避免 Mapper 报错
+- [x] 必要时补充 models/__init__.py 导入（确保映射加载）
+- [x] 简单验证：启动后不再报 “Work has no property comments”
+
+### review
+
+- Work 增加 comments 关系与 Comment.work 对齐，修复 Mapper 缺失属性报错。
+- models/__init__.py 引入 Comment，确保映射初始化时加载。
+
+## Backend.md 日志复核（2026-01-23）
+
+### 待办清单
+
+- [x] 阅读 Backend.md，提取异常与关键警告
+- [x] 对照近期改动判断是否符合预期
+- [x] 给出结论与必要的修复建议
+
+### 解决方案（拟）
+
+- 聚焦启动错误、ORM 映射、工具调用相关异常；按严重度输出问题与建议。
+
+### review
+
+- 启动流程无 “Work has no property comments” 报错，说明 Work.comments 修复生效。
+- explore_content 的 StandardTool 参数不匹配（传入了 chapter_id），触发降级到 @tool；需要统一输入 schema 或过滤参数。
+- 规划链路中 `chapters[0].id/content` 解析失败（数组越界），导致 smart_rewrite/smart_insert/operate_apply 缺 chapter_id，任务链路未按预期执行。
+- operate_apply 成功路径仍通过 apply_chapter_edit 写入，但 HITL 审批回调缺 title/description（None），触发 validation error。
+
+## Backend.md 测试日志复核（2026-01-23 23:05）
+
+### 待办清单
+
+- [x] 通读 Backend.md 中本次测试片段，标注关键异常与时间线
+- [x] 判断异常是否符合预期（工具输出/依赖解析/operate_apply）
+- [x] 给出结论与最小修复建议（如有）
+
+### 解决方案（拟）
+
+- 聚焦 ParameterResolver 路径引用、smart_* 与 operate_apply 的失败原因，确认是否与 explore_content 输出结构不一致有关。
+
+### review
+
+- explore_content 已成功返回并解析章节ID，但规划引用了不存在的 `frontend_display.search_results`，导致 chapter_id 无法解析（`Backend.md:241`、`Backend.md:231`）。
+- smart_rewrite/smart_insert 因 chapter_id=None 校验失败，链路中断（`Backend.md:246`、`Backend.md:264`）。
+- operate_apply 在 replace/insert/append/title 均因缺 chapter_id 失败，未完成编辑应用（`Backend.md:325`、`Backend.md:340`、`Backend.md:352`、`Backend.md:363`）。
+- 规划输出同时包含 direct_answer 与 tasks，虽被系统忽略但仍是协议违例（`Backend.md:116`）。
+
+## Backend.md 测试日志复核（2026-01-23 23:33）
+
+### 待办清单
+
+- [x] 通读 Backend.md 中本次测试片段，标注关键异常与时间线
+- [x] 判断异常是否符合预期（ParameterResolver/operate_apply/HITL）
+- [x] 给出结论与最小修复建议（如有）
+
+### 解决方案（拟）
+
+- 聚焦 `frontend_display.search_results` 兼容字段与 operate_apply 定位参数是否齐全，核对 HITL 回调必填字段。
+
+### review
+
+- `frontend_display.search_results` 已可解析 chapter_id，但 `paragraphs` 字段不存在，导致改写文本解析退化为整段结果（`Backend.md:162`、`Backend.md:163`）。
+- operate_apply 的 replace 仍因缺 `original_text` 失败，说明规划仍未传递定位原文（`Backend.md:245`、`Backend.md:247`）。
+- HITL 审批回调缺 `title/description`，仍会报验证错误，需补齐事件字段（`Backend.md:309`、`Backend.md:329`）。
+- 外部模型 504 超时触发重试，属外部依赖波动但会显著拉长任务耗时（`Backend.md:175`、`Backend.md:186`）。
+
+## 修复 explore_content 引用路径与兼容 search_results（2026-01-23）
+
+### 待办清单
+
+- [x] 决策：同时做“路径收敛 + 兼容字段”以避免旧规划失效
+- [x] explore_content 输出补充 `frontend_display.search_results`（向后兼容）
+- [x] planning/tool_descriptions 示例明确使用 `chapters[0].id`/`chapters[0].content`，避免 `frontend_display.search_results`
+- [ ] 最小验证：ParameterResolver 不再报 search_results 缺失，smart_* / operate_apply 拿到 chapter_id
+
+### 解决方案（拟）
+
+- 在 explore_content 返回中生成 search_results（基于证据，补齐 chapter_id/title），兼容旧路径。
+- 在提示词/示例中强调只用 chapters 列表引用，规避模型生成旧字段。
+
+### review
+
+- explore_content 返回补齐 `frontend_display.search_results`，并在缺 chapter_id 时按章节序号解析 UUID（`backend/app/services/agent/tools/explore_tools.py`）。
+- tool_descriptions 明确后续参数只引用 `chapters[...]` 或 `explore_summary/context_for_task`，避免再用展示字段（`backend/app/services/agent/prompts/tool_descriptions.py`）。
+## explore_content 章节ID回填与参数过滤（2026-01-23）
+
+### 待办清单
+
+- [x] 明确策略：不新增 read_chapter_tool，保持 explore_content 统一入口
+- [x] 过滤 explore_content 非法参数（如 chapter_id），避免 StandardTool/@tool 调用失败
+- [x] 在 evidence 中保留 chapter_id/title（来自 search_content）
+- [x] explore_content 输出中补齐 chapters 列表（无整章读取时用 evidence 回填 id/title）
+- [ ] 最小验证：smart_* 与 operate_apply 不再因缺 chapter_id 失败
+
+### 解决方案（拟）
+
+- ToolExecutor 对 explore_content 丢弃 chapter_id 等无效字段，避免 unexpected keyword。
+- Evidence 扩展保存 chapter_id/title；explore_content 构建 chapters_list 时在空列表情况下用证据回填。
+- 保持 explore_content 统一入口，不追加 read_chapter_tool；回填 chapters 后保持 content 为空字符串，smart_* 按 chapter_id 自动读取原文。
+
+### review
+
+- explore_content 仅接收允许参数，避免带上 chapter_id 触发 unexpected keyword（`backend/app/services/agent/execution/tool_executor.py`）。
+- Evidence 新增 chapter_id/title 并在段落证据补齐标题，便于回填章节列表（`backend/app/services/agent/tools/explore_tools.py`）。
+- explore_content 在未读取整章时从证据回填 chapters 列表，并尝试解析章节UUID（`backend/app/services/agent/tools/explore_tools.py`）。
+- 待验证：走 Explore → smart_* → operate_apply 是否已无缺 chapter_id 报错。
+
+### 解决方案（拟）
+
+- 在 `Work` 模型中恢复 `comments = relationship("Comment", back_populates="work", ...)`，与 `Comment.work` 对齐。
+- 保持与 ChapterComment 区分：Work 不关联 ChapterComment，仅关联 Comment（works 级评论）。
+
 ## 章节内容文件化（一次性切换方案）（2026-01-23）
 
 ### 深度探索（已完成）
@@ -38,11 +217,11 @@
 
 ### 待办清单
 
-- [ ] 明确“一步到位”存储决策：HTML 文件（保留 data-id）、本地目录、文件为真源、DB content 作为兼容副本
-- [ ] 新增章节文件存储模块（读/写/删除/原子写入）并接入配置项（如 CHAPTER_STORAGE_ROOT）
-- [ ] 修改写入路径：ChapterService/update_chapter_with_lock/apply_revision/create/import 统一落盘并同步 DB
-- [ ] 修改删除路径：删除章节时清理文件，回滚/恢复流程同步落盘
-- [ ] 提供一次性迁移脚本：把现有章节 content 导出到文件并校验
+- [x] 明确“一步到位”存储决策：HTML 文件（保留 data-id）、本地目录、文件为真源、DB content 作为兼容副本
+- [x] 新增章节文件存储模块（读/写/删除/原子写入）并接入配置项（如 CHAPTER_STORAGE_ROOT）
+- [x] 修改写入路径：ChapterService/update_chapter_with_lock/apply_revision/create/import 统一落盘并同步 DB
+- [x] 修改删除路径：删除章节时清理文件，回滚/恢复流程同步落盘
+- [x] 提供一次性迁移脚本：把现有章节 content 导出到文件并校验
 - [ ] 补充最小回归验证：编辑、搜索/向量化、评论定位、导出/导入、AI 生成/应用
 
 ### 解决方案（拟）
@@ -52,6 +231,32 @@
 - 一次性迁移脚本扫描所有章节，将 DB 内容落到文件，记录失败项；本地环境允许停机/一次性迁移。
 - import_service 目前直接构建 Chapter，需补充“落盘与同步”以避免导入章节没有对应文件。
 
+### 待办清单（全量迁移：移除 DB content 依赖）
+
+- [x] 新增“内容索引表”模型与迁移：保存章节纯文本/摘要/哈希/更新时间（用于搜索/片段/检索）
+- [x] 新增索引服务：从章节文件生成纯文本索引与摘要，提供 upsert/delete 能力
+- [x] 统一内容读取入口：扩展 ChapterService/新增 ContentProvider，统一从文件读取并屏蔽直接用 `chapter.content`
+- [x] 改造搜索与检索：`search.py`/`hybrid_retriever.py` 改为索引表查询与片段生成
+- [x] 改造向量化与分析：向量/概括/评审/世界观/AI 上下文统一读文件内容
+- [x] API 与前端读取路径统一：章节详情/阅读器/编辑器/作品详情等接口改为返回文件内容
+- [ ] 迁移与校验：批量生成索引与向量，清理/置空 `Chapter.content` 并记录异常
+- [ ] 回归验证关键路径：编辑、搜索/向量化、评审、导入/导出、AI 生成/应用
+
+### 执行计划（本地迁移命令）
+
+- [x] 执行数据库迁移：`alembic -c backend/alembic.ini upgrade head`
+- [x] 生成章节文件：`python backend/scripts/migrate_chapter_files.py`
+- [x] 生成内容索引：`python backend/scripts/migrate_chapter_content_indexes.py --clear-db-content`
+- [ ] 重建向量：`python backend/scripts/migrate_chapter_vectors.py`
+
+### 解决方案（拟）（全量迁移）
+
+- 文件为唯一真源，DB 的 `Chapter.content` 不再作为读取来源（仅保留元数据）
+- 新增索引表 `chapter_content_indexes`（chapter_id/work_id/plain_text/summary/content_hash/updated_at），用于全文搜索与片段
+- 统一内容入口提供“读文件 + 缓存/空内容保护”，所有服务改为调用该入口
+- 搜索/向量化改读索引表与文件内容，避免依赖 `Chapter.content`
+- 迁移脚本同步生成索引与向量，并输出差异清单便于排查
+
 ### review
 
 - 章节内容是 HTML 字符串并依赖 `data-id` 定位，改成 Markdown 会破坏 locate/paragraph_index 逻辑；必须保留 HTML（`src/components/editor/UniqueIDExtension.ts`、`backend/app/services/agent/tools/locate_tools.py`）。
@@ -59,6 +264,141 @@
 - 向量化与概括、评论清理都直接使用 `chapter.content`，需保证 DB 同步或改为文件读取（`backend/app/api/v1/chapters.py`、`backend/app/services/chapter_comment_service.py`）。
 - 导入流程直接 new `Chapter`，不会经过 ChapterService；若不补写文件会出现“DB 有内容、文件缺失”的断层（`backend/app/services/import_service.py`）。
 - 前端阅读与 AI 上下文依赖 `chapter.content` 返回值，API 仍需提供完整 HTML 内容（`src/components/library/NovelReader.tsx`、`src/components/editor/AIPanel.tsx`）。
+- 已新增章节文件存储模块与配置，默认落盘到 `./uploads/chapters`，文件路径按 `work_id/chapter_id.html` 组织。
+- ChapterService 读写与删除已同步章节文件，读取时优先使用文件内容（过期时回退 DB 并补写）。
+- 导入与历史恢复补写章节文件，`get_writing_context` 使用文件内容作为创作上下文来源。
+- 新增迁移脚本 `backend/scripts/migrate_chapter_files.py` 用于批量生成章节文件。
+- 新增 `chapter_content_indexes` 模型与迁移，补齐 `ChapterContentIndexService` 与 `ChapterContentProvider`，统一从文件读取并同步索引。
+- 搜索与 HybridRetriever 改为索引表检索，片段与段落定位读取文件内容以保证定位一致。
+- 评审/世界观/导出/图书馆阅读等链路已改为文件读取，避免依赖 DB `content`。
+- 新增索引迁移脚本 `backend/scripts/migrate_chapter_content_indexes.py`（可选清空 `chapters.content`），向量迁移脚本改为读取章节文件。
+- 尝试执行迁移命令失败：当前环境无 `alembic`/`python`，需要指定解释器或环境后重试。
+- 已在本地 venv 执行迁移：完成 `upgrade head`、章节文件生成、索引生成并清空 `chapters.content`（为避免 Bookshelf 映射缺失，预先导入 `app.models.bookshelf`）。
+
+## 禁用章节内容 DB 回写（保持为空）（2026-01-23）
+
+### 待办清单
+
+- [x] 梳理章节内容写入入口与 DB 回写路径（create/update/lock/apply_agent_edit/import/history）
+- [x] 明确“DB content 永远为空”的目标与副作用（读写链路、索引/向量/搜索、回滚/统计）
+- [x] 给出改造策略与需要同步调整的模块清单
+- [x] 与用户确认是否执行代码改造
+- [x] 修改 ChapterContentProvider：hydrate 使用“非脏写”赋值，避免提交时落库
+- [x] 修改 ChapterService：create/update/lock/apply_agent_edit 不再写 content，仅写文件与索引
+- [x] 修改 ChapterHistoryService.restore_version：恢复内容写文件与索引，不回写 DB content
+- [x] 修改 ImportService：导入章节不写 DB content，改用内存内容写文件/索引/向量
+- [ ] 回归关注点：创建/更新返回内容、向量化、历史恢复
+
+### 解决方案（拟）
+
+- 文件为唯一真源，DB 的 `chapters.content` 永久保持为空，避免“双写源”带来不一致和隐性回退。
+- 所有读路径统一走文件/索引服务，任何直接读取 DB content 的逻辑都会立刻暴露问题，促使统一入口。
+- 写入流程改为：使用输入内容写文件与索引，DB 仅写元数据（word_count/version/status 等），不再写内容副本。
+- 保留历史快照与索引表作为派生数据；如需回滚/导出，统一从文件读取或从历史表回填文件。
+- 章节对象需要返回内容时，通过内容提供器“非脏写”填充，避免触发 ORM 更新。
+
+### review
+
+- ChapterContentProvider 改为 `set_committed_value` 回填内容，避免 ORM 脏写回 DB。
+- ChapterService/HistoryService/ImportService 写入统一改为“文件+索引”，DB 仅保留元数据，返回时用非脏写填充内容。
+- create_chapter 的历史记录现在会正常写入（此前变量未定义导致跳过）。
+- 仍需回归：创建/更新返回内容是否正常、向量化触发、历史恢复效果。
+
+## 文件化回归测试提示词（2026-01-23）
+
+### 待办清单
+
+- [x] 阅读素材《人在诸天，摆烂成帝》并提取可定位片段
+- [x] 设计 2 个复杂测试提示词（覆盖 Explore/Create/Operate）
+- [x] 输出提示词并说明验证点
+
+### 解决方案（拟）
+
+- 基于第 1-2 章内的唯一长句与对话，构造“精准定位+重写+插入/替换”的复合指令，验证文件读写与索引更新是否一致。
+- 提示词中显式要求输出定位依据（原文片段/段落）并执行 create + operate_apply 的组合，以覆盖文件读写链路。
+
+### review
+
+- 设计 2 个复杂提示词，覆盖搜索定位、改写替换、插入、续写与新建章节，验证文件读写与索引更新路径。
+
+## 文件化校验脚本（2026-01-23）
+
+### 待办清单
+
+- [x] 查找已有脚本与数据模型，确定脚本位置与校验口径
+- [x] 新增校验脚本：检查 DB content 为空、文件存在/非空、索引存在/哈希一致
+- [x] 输出运行方式与预期结果说明
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 新增 `backend/scripts/verify_chapter_storage.py`，只读检查并汇总统计：
+  - DB `chapters.content` 非空数量
+  - 章节文件缺失/空文件数量
+  - `chapter_content_indexes` 缺失数量
+  - 文件内容 hash 与索引 hash 不一致数量
+- 脚本只读不修改，便于本地快速验证切换是否成功。
+
+### review
+
+- 新增 `backend/scripts/verify_chapter_storage.py`，提供 DB content、文件、索引一致性检查与示例输出。
+
+## 文件化迁移补齐（2026-01-23）
+
+### 待办清单
+
+- [x] 确认 `CHAPTER_STORAGE_ROOT` 实际路径与现有文件位置是否一致
+- [ ] 补写缺失章节文件（必要时使用 `--force` 覆盖）
+- [ ] 重新生成内容索引并清空 `chapters.content`
+- [ ] 重新运行校验脚本核对结果并记录异常样本
+
+### 解决方案（拟）
+
+- 先对齐存储根目录，避免“文件已存在但路径不匹配”导致误判缺失。
+- 执行 `migrate_chapter_files.py` 生成章节文件，再执行 `migrate_chapter_content_indexes.py --clear-db-content` 生成索引并清空 DB 内容。
+- 以 `verify_chapter_storage.py` 输出为准，确保 DB content 接近 0 且文件/索引一致。
+
+## Backend.md 导入日志核对（2026-01-23）
+
+### 待办清单
+
+- [x] 通读 `Backend.md` 中与导入相关的日志段落，定位导入流程的关键事件与时间线
+- [x] 核对是否包含：导入请求、章节创建、文件写入、索引生成、向量化排队/执行
+- [x] 标注异常/缺失日志与潜在影响，给出最小修复建议
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 按导入链路的日志关键字逐段核对：`导入文件`/`导入成功`/`写入章节文件`/`索引`/`向量化`。
+- 若缺失某步日志，结合对应服务与函数定位是否未触发或被异常中断。
+
+### review
+
+- 导入预览与导入成功日志完整（`Backend.md`），章节数=5，字数增量记录齐全，导入链路正常。
+- 向量化后台任务对 5 章均有“Vectorizing/Stored”日志，说明导入后向量化被触发并完成。
+- 世界观同步日志显示章节内容长度与 HTML 预览，且未出现 “Missing file” 警告，说明文件读取链路生效。
+- 未看到“章节文件写入/索引生成”明确日志，无法从日志证明索引写入成功，建议补查 `chapter_content_indexes` 表或增加日志。
+- `GET /api/v1/analysis/works/.../status` 出现 404（`Backend.md`），若前端频繁请求可考虑返回空状态或前端降噪。
+
+## Backend.md 问题复核（2026-01-23）
+
+### 待办清单
+
+- [x] 重新通读 `Backend.md` 相关日志段落，确认异常与缺失项
+- [x] 对照已改动的文件化链路，判断是否仍存在未闭环问题
+- [x] 给出“是否解决”的明确结论与必要的最小补充建议
+- [x] 在 todo.md 补充 review 记录
+
+### 解决方案（拟）
+
+- 以日志为准核对导入/写入/索引/向量化链路，标记是否出现“Missing file/索引缺失/向量失败/404”等异常。
+- 若日志仍缺关键证明，给出最小验证方式（SQL/文件存在性检查）而非直接改代码。
+
+### review
+
+- `Backend.md` 中未出现 `Missing file/索引缺失/写入失败` 等错误日志，search/RAG/operate_apply 执行链路正常。
+- 存在 HITL 审批回调校验警告（title/description 为 None），与文件化无直接关联，但会影响审批流程可用性。
+- 未看到“章节文件写入/索引更新成功”的明确日志，仍需用 SQL/文件检查确认内容确实落盘且 DB content 为空。
 
 ## Codex / OpenCode 编辑流对标深度调研（2026-01-23）
 

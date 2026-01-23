@@ -134,7 +134,7 @@ class GeneralChatAction(BaseAction):
 - `smart_rewrite`：改写指定内容（会生成3个版本让用户选择）
 - `smart_continue`：追加内容到章节末尾（不生成内容，需要先有content）
 - `smart_insert`：插入新内容
-- `apply_chapter_edit`：应用章节编辑（替换/追加/插入）
+- `operate_apply`：应用章节编辑（替换/追加/插入/整章/标题）
 
 【可用的世界观工具】
 - `get_worldview_summary`：查询作品的世界观信息（角色、地点、设定）

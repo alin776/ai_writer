@@ -19,6 +19,7 @@ from app.schemas.work import WorkResponse
 from pydantic import BaseModel
 import uuid
 from app.services.notification_service import NotificationService
+from app.services.chapter_content_provider import ChapterContentProvider
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -375,11 +376,14 @@ async def get_published_chapter_content(
     chapter.view_count += 1
     await db.commit()
 
+    content_provider = ChapterContentProvider()
+    chapter_content = content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
+
     return {
         "id": str(chapter.id),
         "work_id": str(work_id),
         "title": chapter.title,
-        "content": chapter.content,
+        "content": chapter_content,
         "order": chapter.order,
         "word_count": chapter.word_count,
         "view_count": chapter.view_count,
