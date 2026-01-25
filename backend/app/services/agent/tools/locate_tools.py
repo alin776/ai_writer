@@ -48,6 +48,30 @@ def _normalize_locate_query(query: str, max_len: int = LOCATE_QUERY_MAX_LEN) -> 
         text = text[:max_len]
     return text
 
+
+def _extract_query_tokens(query: str) -> List[str]:
+    text = _normalize_locate_query(query)
+    if not text:
+        return []
+    tokens = re.split(r"[\s/、，,；;。\.]+", text)
+    result = []
+    seen = set()
+    for token in tokens:
+        token = token.strip()
+        if len(token) < 2 or token in seen:
+            continue
+        seen.add(token)
+        result.append(token)
+    return result
+
+
+def _has_query_overlap(query: str, paragraph_text: str) -> bool:
+    tokens = _extract_query_tokens(query)
+    if not tokens:
+        return True
+    text = paragraph_text or ""
+    return any(token in text for token in tokens)
+
 def _split_paragraphs(content: str) -> List[Dict[str, Any]]:
     """
     将内容分割为段落列表（与前端 Tiptap 编辑器保持一致）
@@ -63,7 +87,7 @@ def _split_paragraphs(content: str) -> List[Dict[str, Any]]:
     # 优先按 HTML <p> 标签分割（与前端 Tiptap 一致）
     if '<p' in content:
         # 匹配 <p>...</p>、<p ...>...</p>、<h1>...</h1> 等块级元素
-        block_pattern = r'<(p|h[1-6]|blockquote|pre)([^>]*)>(.*?)</\1>'
+        block_pattern = r'<(p|h[1-6]|blockquote|pre|li)([^>]*)>(.*?)</\1>'
         matches = re.findall(block_pattern, content, re.DOTALL | re.IGNORECASE)
 
         for tag, attrs, inner_html in matches:
@@ -447,14 +471,16 @@ def _match_node_id_by_index(
     paragraphs: Optional[List[Dict[str, Any]]],
     paragraph_index: Optional[int]
 ) -> Optional[str]:
-    """优先用 nodes_info，其次用解析段落的 node_id 兜底。"""
+    """优先用解析段落的 node_id，其次用 nodes_info 兜底。"""
     if paragraph_index is None:
         return None
+    if paragraphs and 0 <= paragraph_index < len(paragraphs):
+        node_id = paragraphs[paragraph_index].get("node_id")
+        if node_id:
+            return node_id
     node_id = _match_node_by_index(nodes_info, paragraph_index) if nodes_info else None
     if node_id:
         return node_id
-    if paragraphs and 0 <= paragraph_index < len(paragraphs):
-        return paragraphs[paragraph_index].get("node_id")
     return None
 
 
@@ -775,21 +801,28 @@ async def locate_content(
             if llm_result:
                 llm_idx, llm_confidence = llm_result
                 para = paragraphs[llm_idx]
-                result.update({
-                    "locate_method": "llm_assisted",
-                    "paragraph_index": llm_idx,
-                    "text_preview": para["preview"],
-                    "text": para["text"],
-                    "node_id": _match_node_id_by_index(nodes_list, paragraphs, llm_idx),
-                    "confidence": llm_confidence
-                })
-                # 生成锚点
-                if llm_idx > 0:
-                    result["before_anchor"] = paragraphs[llm_idx - 1]["text"][-30:]
-                if llm_idx < len(paragraphs) - 1:
-                    result["after_anchor"] = paragraphs[llm_idx + 1]["text"][:30]
-                logger.info(f"[locate_content] LLM 辅助定位成功: 第{llm_idx + 1}段")
-                return _cache_result(json.dumps(result, ensure_ascii=False))
+                if not _has_query_overlap(query, para["text"]):
+                    logger.warning(
+                        "[locate_content] LLM 辅助定位候选缺乏关键词匹配，忽略: 第%d段",
+                        llm_idx + 1
+                    )
+                    llm_result = None
+                else:
+                    result.update({
+                        "locate_method": "llm_assisted",
+                        "paragraph_index": llm_idx,
+                        "text_preview": para["preview"],
+                        "text": para["text"],
+                        "node_id": _match_node_id_by_index(nodes_list, paragraphs, llm_idx),
+                        "confidence": llm_confidence
+                    })
+                    # 生成锚点
+                    if llm_idx > 0:
+                        result["before_anchor"] = paragraphs[llm_idx - 1]["text"][-30:]
+                    if llm_idx < len(paragraphs) - 1:
+                        result["after_anchor"] = paragraphs[llm_idx + 1]["text"][:30]
+                    logger.info(f"[locate_content] LLM 辅助定位成功: 第{llm_idx + 1}段")
+                    return _cache_result(json.dumps(result, ensure_ascii=False))
 
             # LLM 也无法定位，降级返回模糊匹配结果
             para = paragraphs[para_idx]
@@ -817,20 +850,26 @@ async def locate_content(
         if llm_result:
             llm_idx, llm_confidence = llm_result
             para = paragraphs[llm_idx]
-            result.update({
-                "locate_method": "llm_assisted",
-                "paragraph_index": llm_idx,
-                "text_preview": para["preview"],
-                "text": para["text"],
-                "node_id": _match_node_id_by_index(nodes_list, paragraphs, llm_idx),
-                "confidence": llm_confidence
-            })
-            if llm_idx > 0:
-                result["before_anchor"] = paragraphs[llm_idx - 1]["text"][-30:]
-            if llm_idx < len(paragraphs) - 1:
-                result["after_anchor"] = paragraphs[llm_idx + 1]["text"][:30]
-            logger.info(f"[locate_content] LLM 辅助定位成功: 第{llm_idx + 1}段")
-            return _cache_result(json.dumps(result, ensure_ascii=False))
+            if not _has_query_overlap(query, para["text"]):
+                logger.warning(
+                    "[locate_content] LLM 辅助定位候选缺乏关键词匹配，忽略: 第%d段",
+                    llm_idx + 1
+                )
+            else:
+                result.update({
+                    "locate_method": "llm_assisted",
+                    "paragraph_index": llm_idx,
+                    "text_preview": para["preview"],
+                    "text": para["text"],
+                    "node_id": _match_node_id_by_index(nodes_list, paragraphs, llm_idx),
+                    "confidence": llm_confidence
+                })
+                if llm_idx > 0:
+                    result["before_anchor"] = paragraphs[llm_idx - 1]["text"][-30:]
+                if llm_idx < len(paragraphs) - 1:
+                    result["after_anchor"] = paragraphs[llm_idx + 1]["text"][:30]
+                logger.info(f"[locate_content] LLM 辅助定位成功: 第{llm_idx + 1}段")
+                return _cache_result(json.dumps(result, ensure_ascii=False))
 
         # 策略6: 全局降级 - 在整个作品中搜索
         if work_id and allow_global_fallback:

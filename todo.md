@@ -1,5 +1,198 @@
 # TODO
 
+## listItem data-id 覆盖修复（2026-01-25）
+
+### 问题描述
+
+- 编辑器会产生 `<li>` 节点（StarterKit list + taskList/taskItem）
+- UniqueID 扩展未覆盖 listItem，导致列表项无 data-id
+- 后端归一化和定位解析也未覆盖 `<li>` 标签
+- 结果：AI 修订落到列表项时，前端只能靠 paragraph_index，可能"显示修订失败"
+
+### 修复内容
+
+- [x] 前端 UniqueIDExtension.ts:70 - types 添加 `listItem`, `taskItem`
+- [x] 后端 html_block_ids.py:6 - `_BLOCK_TAGS` 添加 `li`
+- [x] 后端 locate_tools.py:90 - `block_pattern` 添加 `li`
+
+### 下一步
+
+1. 运行 `python normalize_chapter_block_ids.py --dry-run` 查看影响范围
+2. 执行归一化，补齐历史章节中 `<li>` 的 data-id
+3. 回归测试列表场景的定位和修订
+
+---
+
+## 生成复杂测试 Prompt（2026-01-25）
+
+### 待办清单
+
+- [x] 通读素材并整理章节关键信息（仅用于提示设计）
+- [x] 设计 2 个“跨章改写+插入”复杂测试 Prompt（覆盖位置冲突/重复短语/节点定位）
+- [x] 在 todo.md review 记录 prompt 设计要点与覆盖范围
+
+### 解决方案（拟）
+
+- 基于前五章内容，构造含“早期伏笔插入 + 后期揭示改写 + 章节不同 + 不改事实仅暗示”的复杂需求。
+- 提示中明确 Explore → Locate → Operate 的链路要求，验证跨章操作不误用当前章定位信息。
+
+### review
+
+- 新增 `ensure_block_ids` 并在章节写入路径统一补齐 data-id（create/update/apply_agent_edit），保证服务端内容具备稳定 node_id（`backend/app/utils/html_block_ids.py` `backend/app/services/chapter_service.py`）。
+- locate_content 优先使用章节 HTML 自带 node_id，避免 nodes_info 与段落索引错位导致错误节点（`backend/app/services/agent/tools/locate_tools.py`）。
+- locate_content 仅在“同章”时注入 context 的 node_id/nodes_info，跨章场景不再误用当前章节点列表（`backend/app/services/agent/execution/tool_executor.py`）。
+- 提供一次性归一化脚本，补齐历史章节 data-id（`normalize_chapter_block_ids.py`）；建议先 `--dry-run` 再执行。
+- 验证建议：运行脚本后复跑跨章插入/改写；确认 locate_content 返回 node_id，前端不再出现“显示修订失败”。
+
+- 根因1：smart_insert 生成“1/2”候选但未拆分，整段编号列表被当作插入内容，导致乱插入/列表化（`backend/app/services/agent/tools/editor_tools.py`）。
+- 根因2：smart_insert 读取章节内容时仍使用章节序号，触发 UUID 错误导致上下文缺失，生成内容偏离目标段落（`backend/app/services/agent/tools/editor_tools.py` `backend/app/services/agent/execution/tool_executor.py`）。
+- 根因3：locate_content 模糊失败后由 LLM 选中第1段且无关键词重合，paragraph_index=0 直接写回错误段落（`backend/app/services/agent/tools/locate_tools.py` `Backend.md`）。
+- 修复点：拆分候选并返回 versions，写回选第1条；smart_insert 通过 work_id 解析 chapter_id；LLM 辅助定位缺乏关键词重合则拒绝（`backend/app/services/agent/tools/editor_tools.py` `backend/app/services/agent/tools/locate_tools.py`）。
+- 前端提示：修订预览文案按 replace/insert/append 区分，避免把改写显示为“新增内容预览”（`src/components/agent/ExecutionFlow/RevisionCard.tsx`）。
+- 验证建议：复跑同场景，检查 smart_insert 不再出现 UUID 错误、locate_content 低置信度时不再落第1段且若跨章会标记 cross_chapter，前端预览文案与操作类型一致。
+
+- smart_insert 仍以 chapter_id=1 读取章节内容，触发 UUID 校验错误，说明章节序号未在该链路被统一解析（`Backend.md:282`）。
+- locate_content 在第5章未命中查询后由 LLM 选中第1段（`Backend.md:347`），但证据片段里出现第5章第63段（`INFO.md:260`），疑似改写落在错误段落。
+- smart_rewrite 输入 original_text 缺失（`Backend.md:355`），且原文长度仅 3（`Backend.md:358`），改写可能未基于真实原文。
+- 前端轨迹将第5章 replace 操作显示为“新增内容预览”，标注与真实操作不一致（`INFO.md:303`）。
+- 规划阶段出现 504 网关超时并重试成功，存在外部 API 不稳定导致规划延迟的风险（`Backend.md:68` `Backend.md:80`）。
+- ToolExecutor 现同时解析 tool_args 与 state 的章节序号，确保 locate_content 在未显式传参时也能获得 UUID（`backend/app/services/agent/execution/tool_executor.py`）。
+- explore_content 覆盖判定增加“负向覆盖”保护，避免“不要覆盖第X章”被误判为强制全覆盖（`backend/app/services/agent/tools/explore_tools.py`）。
+- 原问题验证：章节序号导致 UUID 报错在 ToolExecutor 路径可被解析；章节覆盖提前结束在含“覆盖第X-Y章”任务会被阻断并继续探索。
+- 残留风险：operate_apply 内部直接调用 locate_content 时仍不经过 ToolExecutor，若传入章节序号且未提前解析，仍可能触发 UUID 错误，需额外链路验证。
+- ToolExecutor 在 locate_content 调用前解析章节序号（仅当 chapter_id 为纯数字且存在 work_id），并记录解析/失败日志（`backend/app/services/agent/execution/tool_executor.py`）。
+- explore_content 在确定性评估中加入“章节范围覆盖不足”判定，若任务含“覆盖”且缺章则继续探索（`backend/app/services/agent/tools/explore_tools.py`）。
+- 自检要点：locate_content 传入 chapter_id=1/5 时应先解析为 UUID；覆盖规则在缺失章节时不再命中“证据≥30”提前结束。
+
+- 关键阻断：locate_content 传入 chapter_id=1/5（章节序号）触发 UUID 校验失败，定位直接中断（`Backend.md:242` `Backend.md:401`）。
+- 参数链路断裂：ParameterResolver 多处字段缺失并降级返回，smart_insert/smart_rewrite 最终拿到 chapter_id=None，operate_apply insert/replace 均因缺少 chapter_id 失败（`Backend.md:367` `Backend.md:391` `Backend.md:526` `Backend.md:559`）。
+- 工具注册/规划不一致：StandardTool 找不到 smart_insert/smart_rewrite，降级 @tool 仍因参数缺失失败，表明工具注册或规划输出与执行端不一致（`Backend.md:371` `Backend.md:533`）。
+- 需求未满足：explore_content 触发规则1提前结束，仅覆盖 1/3/4/5 章，未满足“覆盖第1-5章”硬性要求（`Backend.md:222` `Backend.md:223`）。
+- 前端归因偏差：INFO.md 将失败归因为“定位失败”，但真实根因是 chapter_id 类型错误（序号 vs UUID），建议在前端/日志提示暴露具体错误（`INFO.md:55` `INFO.md:57` `Backend.md:242`）。
+- 残留风险：因 locate_content 在第1/5章均失败，cross_chapter 降级/原文清空与 smart_insert/smart_rewrite 输出结构未被验证，需修复 chapter_id 后重跑链路确认。
+
+- Prompt 1 覆盖：章节 1→5 的跨章 insert/replace，强制使用 explore_content 获取 chapter_id，要求 locate_content 给出 paragraph_index/node_id，验证跨章不误用当前章 nodes_info。
+- Prompt 2 覆盖：章节 2→3 的跨章 insert/replace，指定“第 2 章中以‘赵穆’开头的第二段”以制造重复短语场景，要求使用 paragraph_index 定位，验证定位漂移修复。
+- 两个 Prompt 均包含“伏笔不改事实+后期呼应改写+最终应用修订”链路，覆盖 Explore→Create→Operate 的整链测试。
+
+## 分析 Backend.md 与 INFO.md 运行轨迹问题（2026-01-25）
+
+### 待办清单
+
+- [x] 通读 `D:\Java\ai_writer\Backend.md` 与 `D:\Java\ai_writer\INFO.md`，提取关键异常/失败链路
+- [x] 对照当前修复点（chapter_id/定位漂移/参数模板），判定是否仍有未覆盖问题
+- [x] 输出问题清单（按严重性排序）并标注疑似根因与建议验证点
+- [x] 在 todo.md review 记录分析结论与残留风险
+
+### 解决方案（拟）
+
+- 逐条扫日志中的 ERROR/WARN/异常堆栈，与修复点映射，识别是否为历史遗留或新回归。
+- 对 Explore→Create→Operate 的调用链重点核对：chapter_id 获取、locate_content/operate_apply 参数、前端修订定位字段。
+
+### review
+
+- 关键失败链路：read_paragraph 未注册为 StandardTool，回退 @tool 返回结构不含 content，ParameterResolver 多次告警，导致 smart_rewrite 以错误原文生成版本，operate_apply replace 因缺 original_text 失败（`D:\Java\ai_writer\Backend.md`）。
+- 覆盖不足：explore_content 因“证据充足”规则提前结束，仅覆盖第1章，未满足用户要求的 1-5 章覆盖（`D:\Java\ai_writer\Backend.md`、`D:\Java\ai_writer\INFO.md`）。
+- 定位风险：第5章 locate_content 的 query 与原文不一致，模糊匹配失败后由 LLM 选第1段，存在改写落错段风险（`D:\Java\ai_writer\Backend.md`）。
+- 规格违背：要求生成2个候选伏笔句，但工具只产出1个，未满足任务约束（`D:\Java\ai_writer\INFO.md`）。
+
+## 复核 Backend.md 与 INFO.md 运行轨迹（修复后）（2026-01-25）
+
+### 待办清单
+
+- [x] 复读 `D:\Java\ai_writer\Backend.md` 与 `D:\Java\ai_writer\INFO.md`，确认新日志是否仍触发旧错误
+- [x] 核对 read_paragraph 返回结构是否消除 content/original_text 缺失链路
+- [x] 输出剩余问题清单（按严重性排序）与建议验证点
+- [x] 在 todo.md review 记录复核结论与残留风险
+
+### 解决方案（拟）
+
+- 以最新日志为准，定位是否还有 “read_paragraph 不存在/字段 content 不存在/replace 缺 original_text” 等问题。
+- 对照 Explore→Locate→Operate 关键链路，确认跨章定位是否仍可能漂移。
+
+### review
+
+- 插入链路仍失败：smart_insert 结果未含 `versions`，ParameterResolver 取 `versions[0].content` 为空，导致 operate_apply insert 传入 content=None 并触发校验失败（`D:\Java\ai_writer\Backend.md:200` `D:\Java\ai_writer\Backend.md:210` `D:\Java\ai_writer\INFO.md:281`）。
+- 根因：smart_insert 产出结构只有 `content`（`backend/app/services/agent/tools/editor_tools.py:928`），但计划中已有 operate_apply，且参数仍使用 `versions[0].content`；_ensure_editor_apply_tasks 仅在缺少 apply 任务时才插入，不会修正已有错误引用（`backend/app/services/agent/planning/plan_generator.py:1037` `backend/app/services/agent/planning/plan_generator.py:1165`）。
+- locate_content 在第5章未命中 query，LLM 也未选中候选，触发全局降级落在第4章，但后续 replace 仍使用第5章 chapter_id，存在跨章错位改写风险（`D:\Java\ai_writer\Backend.md:227` `D:\Java\ai_writer\Backend.md:245` `D:\Java\ai_writer\Backend.md:260` `D:\Java\ai_writer\Backend.md:294`）。
+- 根因：locate_content 全局降级会返回新的 chapter_id（`backend/app/services/agent/tools/locate_tools.py:854`），但计划里的 operate_apply 章节ID并未绑定 locate_content 结果，导致章节不一致时仍写回原章节。
+- explore_content 仅覆盖第1-4章（未覆盖第5章），与“1-5章”要求不符，仍需强制覆盖策略或 min_chapters（`D:\Java\ai_writer\Backend.md:146` `D:\Java\ai_writer\INFO.md:260`）。
+- 根因：覆盖判定规则只看证据数与关键词覆盖率，未约束“章节范围必须覆盖到第5章”，命中 V3.4 规则1 即提前结束（`backend/app/services/agent/tools/explore_tools.py:2529`）。
+- read_paragraph 修复本轮未被调用，无法从日志验证其是否已消除 content/original_text 缺失链路；需补一次包含 read_paragraph 的链路回归。
+
+## 复核 smart_insert/跨章定位修复有效性（2026-01-25）
+
+### 待办清单
+
+- [x] 检查 `backend/app/services/agent/tools/editor_tools.py` 中 smart_insert 是否已补齐 versions 输出结构
+- [x] 检查 `backend/app/services/agent/tools/operate_tools.py` 中跨章节定位是否更新 chapter_id 与 cross_chapter
+- [x] 输出复核结论与潜在回归点
+- [x] 在 todo.md review 记录结论
+
+### 解决方案（拟）
+
+- 对照日志问题点，确认 smart_insert 输出与 operate_apply 章节选择逻辑是否与修复目标一致。
+
+### review
+
+- smart_insert 已补齐 `versions` 结构，保持 `content` 字段兼容，operate_apply 可稳定解析 `versions[0].content`（`backend/app/services/agent/tools/editor_tools.py:1005`）。
+- operate_apply 已在定位后更新 `chapter_id` 并记录 `cross_chapter`，可避免全局降级导致写回原章节（`backend/app/services/agent/tools/operate_tools.py:205` `backend/app/services/agent/tools/operate_tools.py:370`）。
+- 潜在回归：若 locate_content 返回跨章节但 original_text/paragraph_index 仍来自原章节，需确认 operate_apply 中定位字段与章内容一致性（目前依赖 locate_content 返回的段落信息）。
+
+## 核对“失败摘要”与实际日志（2026-01-25）
+
+### 待办清单
+
+- [x] 对照 `D:\Java\ai_writer\Backend.md` 查证 locate_content 是否真的失败
+- [x] 对照 `D:\Java\ai_writer\INFO.md` 核实失败原因是否为 content 为空
+- [x] 汇总与用户摘要不一致的点并给出真实根因
+
+### 解决方案（拟）
+
+- 以日志时间线为准，逐条核实 locate_content、operate_apply、smart_insert 的结果与参数。
+
+### review
+
+- locate_content 在第1章精确匹配成功，并非“定位失败”；插入失败的真实原因是 operate_apply 收到 content=None（`D:\Java\ai_writer\Backend.md:168` `D:\Java\ai_writer\Backend.md:210`）。
+- 第5章定位未命中导致全局降级到第4章，原链路仍写回第5章，属于跨章错位风险而非“缺少 chapter_id”（`D:\Java\ai_writer\Backend.md:227` `D:\Java\ai_writer\Backend.md:260` `D:\Java\ai_writer\Backend.md:298`）。
+
+## 复核修复后最新运行轨迹（2026-01-25）
+
+### 待办清单
+
+- [x] 读取最新 `D:\Java\ai_writer\Backend.md` 与 `D:\Java\ai_writer\INFO.md` 尾部日志
+- [x] 核对是否仍出现 `content=None`/`versions[0].content` 解析失败/跨章写回
+- [x] 给出是否已完全修复的结论与剩余风险
+- [x] 在 todo.md review 记录复核结论
+
+### 解决方案（拟）
+
+- 以最新日志时间线为准，验证 smart_insert → operate_apply 与 locate_content → operate_apply 的跨章行为。
+
+### review
+
+- 日志仍显示 `versions[0].content` 解析失败与 `content=None`（`D:\Java\ai_writer\Backend.md:200` `D:\Java\ai_writer\Backend.md:210`），说明该日志未包含你最新 smart_insert 修复，需重新跑最新版本验证。
+- locate_content 在第5章未命中并全局降级到第4章（`D:\Java\ai_writer\Backend.md:260`），但操作仍写回第5章（`D:\Java\ai_writer\Backend.md:298`）；该问题应由最新 operate_apply 跨章更新修复验证。
+- explore_content 仍只覆盖第1-4章（`D:\Java\ai_writer\Backend.md:146`），说明“强制章节覆盖”未启用，仍是残留风险。
+
+## 生成复杂测试 Prompt（第二轮）（2026-01-25）
+
+### 待办清单
+
+- [x] 通读素材关键章节（聚焦第1-5章）以支撑复杂测试情境
+- [x] 设计 2 个复杂测试 Prompt，覆盖“跨章定位/全局降级/versions 解析/清空 original_text”等修复点
+- [x] 在 todo.md review 记录 Prompt 覆盖点
+
+### 解决方案（拟）
+
+- 结合现有修复点，构造“必须跨章、且需要 locate_content 返回 chapter_id 的链路”测试。
+- Prompt 中要求输出 chapter_id/paragraph_index、并明确验证 replace/insert 的定位字段来源与跨章安全行为。
+
+### review
+
+- Prompt 1：强调跨章定位与全局降级返回 chapter_id，验证 operate_apply 跨章改写与 original_text 清空逻辑；同时要求 smart_insert 输出 versions 并通过 versions[0].content 应用。
+- Prompt 2：强制重复短语场景 + 指定段落索引，验证 paragraph_index 定位修复与跨章安全处理，避免 original_text 误匹配。
+
 ## 排查 Explore → Planning 章节ID为空与 emit_explore_events 传递（2026-01-25）
 
 ### 待办清单
@@ -45,6 +238,43 @@
 - explore_content 构建 chapters_list 时将 id 统一为字符串，并在章节序号存在时调用 resolve_chapter_id 补齐空缺 id，确保 `chapters[*].id` 可被 ParameterResolver 解析（`backend/app/services/agent/tools/explore_tools.py`）。
 - ToolExecutor 对 explore_content 始终返回完整 JSON，避免 explore_summary 字符串被注册为 raw_result 导致字段解析失败（`backend/app/services/agent/execution/tool_executor.py`）。
 - 最小回归思路：跑一次包含 explore_content → smart_insert/smart_rewrite 的规划链路，确认 `chapters[1].id` 非 None 且 smart_* 入参 chapter_id 不为空；本次未执行实际运行验证。
+
+## 修复 paragraph_index 定位漂移（find → 段落块定位）（2026-01-25）
+
+### 待办清单
+
+- [x] 在 editor_tools.py 新增 _get_paragraph_position()，返回第 N 段的 HTML 块起止位置
+- [x] insert 逻辑使用 _get_paragraph_position 计算插入位置，移除 old_content.find
+- [x] replace 逻辑用段落块起止位置切片替换，避免重复文本误命中
+- [x] 添加最小日志（记录 para_index 与定位位置）
+- [x] 更新 todo.md review，说明修复点与回归关注
+
+### 解决方案（拟）
+
+- 以正则 finditer 遍历段落块，按索引返回 start/end，避免纯文本 find 命中重复段落。
+
+### review
+
+## 分析 Backend.md 与 INFO.md 后台/前端运行轨迹问题（2026-01-25）
+
+### 待办清单
+
+- [x] 通读 `Backend.md` 与 `INFO.md` 全量日志，标出所有 ERROR/WARN 与工具执行失败链路
+- [x] 对照 explore→locate→smart_insert/smart_rewrite→operate_apply 链路，定位参数缺失/格式错误/降级行为
+- [x] 汇总问题清单，标注关键日志位置与可能根因
+- [x] 在 todo.md review 记录结论与残留风险
+
+### 解决方案（拟）
+
+- 以日志为准梳理失败点，聚焦 chapter_id 类型、ParameterResolver 字段缺失、工具注册与 cross_chapter 处理。
+- 问题清单按严重性排序，附关键日志位置，并给出建议核查点。
+
+### review
+
+- `_get_paragraph_position` 支持 `inner_start/inner_end`，replace 只替换段落内部内容，保留 `<p>` 与 `data-id`，避免破坏 HTML 结构（`backend/app/services/agent/tools/editor_tools.py`）。
+- insert 在段落块后插入新段落，纯文本自动包装 `<p>`，语义明确为“新增段落”（`backend/app/services/agent/tools/editor_tools.py`）。
+- 潜在回归：插入去重仍用 `actual_content` 进行片段比对，若已包装 `<p>` 可能无法识别重复并重复插入（`backend/app/services/agent/tools/editor_tools.py`）。
+- 潜在风险：若 `actual_content` 已是 HTML 但非 `<p>/<h>` 起始，会被再次包装为 `<p>`，可能生成嵌套结构；需确认是否存在此类输入（`backend/app/services/agent/tools/editor_tools.py`）。
 
 
 ## 修复 explore_content locate_content 导入错误（2026-01-25）
@@ -758,6 +988,169 @@ V3.4.1 修复后的规则：
 ```
 
 ---
+
+## 根治修订定位失败（节点ID一致性）（2026-01-25）
+
+### 待办清单
+
+- [x] 深度梳理节点ID链路（前端 UniqueID/节点列表 → 后端 locate_content → 修订显示）
+- [x] 设计根治方案并确认需要修改的最小链路（nodes_info 绑定章节 + data-id 归一化）
+- [x] 实施后端数据归一化：保存/应用修订时补齐 data-id
+- [x] 约束 locate_content 仅使用同章 nodes_info（跨章时忽略错误节点列表）
+- [x] 如需要，补充一次性迁移脚本或启动期修复说明
+- [x] 在 todo.md review 记录根治方案、影响范围与验证步骤
+
+## 复核根治修复完整性（2026-01-25）
+
+### 待办清单
+
+- [x] 复核新增 data-id 归一化是否影响原有章节内容写入与索引
+- [x] 修复 create_chapter_simple 缩进/逻辑错误，并确认不影响原流程
+- [x] 核对 locate_content 节点映射逻辑是否一致（HTML node_id 优先）
+- [x] 评估跨章场景 nodes_info 注入限制是否导致单章定位退化
+- [x] 检查脚本执行路径是否可用（路径、依赖、dry-run）
+- [x] 输出 review 结论与潜在风险，写入 todo.md
+
+### 解决方案（拟）
+
+- 逐点核查 data-id 归一化对内容/索引的影响，并修复 create_chapter_simple 的缩进问题。
+- 确认 locate_content 的 node_id 来源一致性与跨章 nodes_info 注入策略不降级单章定位。
+- 验证归一化脚本路径/依赖可用性，明确 dry-run 与执行步骤。
+
+### review
+
+- 已修复 `create_chapter_simple` 缩进导致的语法错误，恢复预生成 ID 章节创建流程（`backend/app/services/chapter_service.py`）。
+- data-id 归一化对内容写入/索引无破坏性：`ensure_block_ids` 仅补齐/去重 `data-id`，`calculate_word_count` 在去标签后统计，不受新增属性影响（`backend/app/utils/html_block_ids.py`、`backend/app/services/chapter_service.py`）。
+- locate_content 已优先使用 HTML 段落的 `node_id`，仅在缺失时回退 `nodes_info`，与前端定位一致性更高（`backend/app/services/agent/tools/locate_tools.py`）。
+- 跨章场景仅允许同章注入 nodes_info，避免错章映射；残留风险是 state 章节序号未解析时可能不注入 nodes_info，但更安全（`backend/app/services/agent/execution/tool_executor.py`）。
+- 归一化脚本可用，需依赖后端环境与文件存储；仅写文件与索引，DB `content` 字段不会同步更新，建议先 `--dry-run`（`normalize_chapter_block_ids.py`）。
+## 复核跨章修订失败与显示异常（2026-01-25）
+
+### 待办清单
+
+- [x] 通读最新 `Backend.md` 与 `INFO.md` 的执行链路，定位失败点与错误提示来源
+- [x] 核对 locate_content/operate_apply 的 chapter_id、paragraph_index、cross_chapter 是否一致
+- [x] 对照前端提示“显示修订失败”，排查是否为定位/锚点/预览渲染问题
+- [x] 输出问题结论与验证建议，并在 todo.md review 记录
+
+### 解决方案（拟）
+
+- 以日志为准核对 locate_content 返回段落、operate_apply 写入章节、前端预览定位是否一致，确认是跨章失败还是“显示层”失败。
+- 若为显示问题，记录具体条件（如 paragraph_index 失效/节点缺失/章节未刷新）；若为跨章失败，定位 chapter_id/cross_chapter 链路。
+
+### review
+
+- 后端链路未失败：第1章 insert 与第5章 replace 的 operate_apply 均成功（`Backend.md:195-211`、`Backend.md:284-299`），cross_chapter=false，非跨章失败。
+- 规划参数缺陷：explore_content 未覆盖第2章，`chapters[4].id` 越界，导致第5章 locate_content 缺少 chapter_id，被 ToolExecutor 通过 search_content 补齐（`Backend.md:213-235`）。
+- 定位风险：第5章 locate_content 模糊匹配相似度仅 0.53，LLM 候选被关键词校验拒绝，最终降级为模糊匹配第11段（`Backend.md:239-257`），存在低置信定位风险。
+- 前端提示“显示修订失败”更像展示层问题：第1章插入的 node_id 为 null，只能靠 paragraph_index 定位，若编辑器节点列表与段落索引不一致或事件早于内容加载，会触发显示失败（`INFO.md:132-136` 与 `src/components/editor/NovelEditor.tsx:986-1060`）。
+- 建议验证：在前端日志中确认 getAllNodes 是否含 73 号节点；若无，说明 paragraph_index 与编辑器节点序列不一致，应优先传 node_id 或补锚点。
+
+## 确认 Tiptap 节点类型与 data-id 覆盖范围（2026-01-25）
+
+### 待办清单
+
+- [x] 核对编辑器扩展配置（是否启用 list/table 等节点）
+- [x] 核对 UniqueIDExtension 绑定的节点类型
+- [x] 给出是否需要扩展 _BLOCK_TAGS 的结论与最小改动建议
+- [x] 更新 todo.md review 记录结论与后续建议
+
+### 解决方案（拟）
+
+- 读取 `src/components/editor/NovelEditor.tsx` 的扩展配置与 `src/components/editor/UniqueIDExtension.ts` 的节点绑定范围，确认是否会产生 `<li>/<table>` 等节点并需要后端补齐 `data-id`。
+
+### review
+
+- 编辑器启用了 StarterKit（包含 bulletList/orderedList/listItem）与 taskList/taskItem，但未看到 table 扩展启用，前端确实会产生 `<li>`（`src/components/editor/NovelEditor.tsx:291` `src/components/editor/NovelEditor.tsx:334`）。
+- UniqueIDExtension 仅绑定 `paragraph/heading/blockquote/codeBlock`，不会给 `listItem` 分配 data-id（`src/components/editor/NovelEditor.tsx:377` `src/components/editor/UniqueIDExtension.ts:41`）。
+- 结论：若列表内容需要修订定位，应将 `listItem` 纳入 data-id 归一化与段落解析，否则 `<li>` 只能依赖 paragraph_index，仍有“显示修订失败”风险。
+- table 目前未启用扩展，暂不建议加到 _BLOCK_TAGS；若后续启用 table，再同步扩展 `table/tableRow/tableCell/tableHeader`。
+## 生成复杂测试 Prompt（验证插入偏差修复）（2026-01-25）
+
+### 待办清单
+
+- [x] 通读素材 `docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`，标注定位锚点与章节信息
+- [x] 设计 2 条高复杂度 Prompt，覆盖跨章 locate_content/候选拆分/paragraph_index 依赖
+- [x] 明确建议测试章节与关键定位短句
+- [x] 在 todo.md review 记录 prompt 覆盖点与验证要点
+
+### 解决方案（拟）
+
+- 以第1/第3/第5章的“器灵等阶、未入阶、岁月/经历”相关句为锚点，制造重复短语与跨章定位压力。
+- Prompt 强制 explore→locate→smart_insert→operate_apply 全链路，并校验 versions[0].content、chapter_id 解析与 cross_chapter 行为。
+
+### review
+
+- 建议测试章节：第1章《吞噬》与第5章《太一门》做跨章伏笔+改写；第2/3章用于“站桩/练功/刀法”高重复短语定位压力测试。
+- 锚点短句：第1章“器灵等阶：未入阶。”；第5章“经历/岁月/吞噬效果”相关段；第3章“浑圆桩/内息/五虎群羊刀”相关段。
+- Prompt 覆盖点：强制 explore→locate→smart_insert→operate_apply，全链路验证 versions[0].content、chapter_id 序号解析、paragraph_index 定位与 cross_chapter 处理。
+
+## 插入偏差根因分析与修复验证（2026-01-25）
+
+### 待办清单
+
+- [x] 复读 `Backend.md`/`INFO.md` 的插入与改写链路，确认偏差发生点（smart_insert 输出、locate_content 返回）
+- [x] 核对 smart_insert 候选解析与 chapter_id 解析是否生效，并补齐必要的日志/前端提示
+- [x] 如需，修正前端修订预览文案（replace/insert 区分）
+- [x] 在 todo.md review 记录根因、修复点与验证建议
+
+### 解决方案（拟）
+
+- 以日志与工具返回结构为准，锁定“候选未拆分、定位降级误选段、chapter_id 序号未解析”三条主因。
+- 用最小改动确保 smart_insert 只输出单句候选、locate_content 低置信度时拒绝不匹配段，并在前端明确显示 replace/insert。
+
+### review
+
+## 修复插入偏差与错段改写（2026-01-25）
+
+### 待办清单
+
+- [x] 复核 smart_insert/locate_content/operate_apply/plan_generator 链路，确认候选选择与 paragraph_index 来源
+- [x] 修复 smart_insert 候选输出解析（拆分编号列表，确保 content/versions[0] 为单句）
+- [x] 统一 chapter_id 序号解析用于 smart_insert/相关读取路径，避免上下文获取失败
+- [x] 校正 locate_content 兜底策略（低置信度时返回失败或改用证据段落索引）
+- [ ] 若涉及前端展示误导，补充最小提示或修正预览文案
+- [ ] 在 todo.md review 记录结论与残留风险
+
+### 解决方案（拟）
+
+- 后端优先处理候选句解析与章节ID解析，保证插入内容为单句且上下文可靠。
+- 定位失败时不再硬选第1段，改为显式失败或用证据段落索引，降低错段概率。
+
+### review
+
+## 再次 Review 与完善修复点（2026-01-25）
+
+### 待办清单
+
+- [x] 复核本次修改文件与调用链（ToolExecutor/locate_content/resolve_chapter_id、explore_content 规则）是否引入新问题
+- [x] 验证原问题是否真正解决（章节序号导致 UUID 报错、章节覆盖提前结束）
+- [x] 检查修改完整性与逻辑一致性（参数解析、降级路径、日志提示）
+- [x] 若发现遗漏/缺陷，进行最小修复并记录影响范围
+- [x] 在 todo.md review 记录结论与残留风险
+
+### 解决方案（拟）
+
+- 以调用链为主，逐步验证 chapter_id 解析与覆盖判定逻辑；必要时补齐缺失的兜底或条件判断。
+- 若需代码调整，优先最小化改动并补足清晰日志。
+
+### review
+
+## 修复 locate_content 章节序号/探索覆盖问题（2026-01-25）
+
+### 待办清单
+
+- [x] 复核 locate_content、ToolExecutor、resolve_chapter_id 相关实现，确定章节序号转 UUID 的修复点
+- [x] 在 ToolExecutor 中对 locate_content 章节序号进行解析并替换为 UUID
+- [x] 在 explore_content 覆盖评估中加入“章节范围未全覆盖则继续探索”的判断
+- [x] 简要自检关键链路日志与参数，更新 todo.md review
+
+### 解决方案（拟）
+
+- 利用 `resolve_chapter_id` 将 `chapter_id=1/5` 这种序号在执行前转换为 UUID，避免 locate_content 直接抛 UUID 错误。
+- 当任务明确要求“覆盖第X-Y章”时，在覆盖评估阶段将缺失章节视为不足，避免规则1提前结束。
+
+### review
 
 ## Operate SubAgent 开发计划评审（2026-01-21）
 

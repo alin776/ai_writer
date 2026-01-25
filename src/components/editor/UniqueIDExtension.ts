@@ -67,7 +67,7 @@ export const UniqueID = Extension.create<UniqueIDOptions>({
 
   addOptions() {
     return {
-      types: ['paragraph', 'heading', 'blockquote', 'codeBlock'],
+      types: ['paragraph', 'heading', 'blockquote', 'codeBlock', 'listItem', 'taskItem'],
       attributeName: 'data-id',
       generateID: generateShortID,
     };
