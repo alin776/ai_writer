@@ -51,6 +51,7 @@ class OperateResult:
     message: str
     operation: str                            # 请求的操作类型
     target_operation: Optional[str] = None    # 实际执行的底层操作（如 content → replace_all）
+    action_type: Optional[str] = None         # apply_chapter_edit 的 action_type
     chapter_id: Optional[str] = None
     chapter_title: Optional[str] = None
     tool_used: Optional[str] = None
@@ -61,6 +62,13 @@ class OperateResult:
     requires_confirmation: bool = False
     revision_id: Optional[str] = None
     request_id: Optional[str] = None
+    description: Optional[str] = None
+    content: Optional[str] = None
+    position: Optional[Dict[str, Any]] = None
+    before_anchor: Optional[str] = None
+    after_anchor: Optional[str] = None
+    old_title: Optional[str] = None
+    new_title: Optional[str] = None
     # 内容信息（文档要求）
     content_length: Optional[int] = None      # 写入内容长度
     original_text: Optional[str] = None       # 原文（replace 时）
@@ -105,6 +113,7 @@ class ContentOperator:
         target_description: Optional[str] = None,
         paragraph_index: Optional[int] = None,
         node_id: Optional[str] = None,
+        nodes_info: Optional[str] = None,
         user_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
         **kwargs
@@ -174,6 +183,8 @@ class ContentOperator:
         located_paragraph_index = paragraph_index
         located_node_id = node_id
         locate_method = "none"
+        locate_before_anchor = None
+        locate_after_anchor = None
 
         if needs_locate:
             locate_result = await self._smart_locate(
@@ -183,10 +194,13 @@ class ContentOperator:
                 target_description=target_description,
                 paragraph_index=paragraph_index,
                 node_id=node_id,
+                nodes_info=nodes_info,
             )
             located_paragraph_index = locate_result.get("paragraph_index")
             located_node_id = locate_result.get("node_id")
             locate_method = locate_result.get("method", "none")
+            locate_before_anchor = locate_result.get("before_anchor")
+            locate_after_anchor = locate_result.get("after_anchor")
 
             if not locate_result.get("success"):
                 if operation == "insert" and locate_result.get("fallback"):
@@ -219,28 +233,45 @@ class ContentOperator:
                 title=title,
                 paragraph_index=located_paragraph_index,
                 node_id=located_node_id,
+                before_anchor=locate_before_anchor,
+                after_anchor=locate_after_anchor,
                 original_text=original_text,
                 user_id=user_id,
                 conversation_id=conversation_id,
             )
 
+            action_type = result.get("action_type")
+            description = result.get("description", result.get("message"))
+            content_value = result.get("content") or result.get("new_content") or content
+            position_value = result.get("position")
+            before_anchor = result.get("before_anchor") or locate_before_anchor
+            after_anchor = result.get("after_anchor") or locate_after_anchor
+
             return OperateResult(
                 success=result.get("success", False),
-                message=result.get("description", result.get("message", "操作完成")),
+                message=description or "操作完成",
                 operation=operation,
                 target_operation=target_operation,
                 chapter_id=chapter_id or result.get("chapter_id"),
                 chapter_title=result.get("chapter_title"),
                 tool_used=tool_name,
                 located=needs_locate,
-                paragraph_index=located_paragraph_index,
-                node_id=located_node_id,
+                paragraph_index=result.get("paragraph_index", located_paragraph_index),
+                node_id=result.get("node_id", located_node_id),
                 locate_method=locate_method,
                 requires_confirmation=result.get("requires_confirmation", False),
                 revision_id=result.get("revision_id"),
                 request_id=result.get("request_id"),
-                content_length=len(content) if content else None,
-                original_text=original_text,
+                action_type=action_type,
+                description=description,
+                content=content_value,
+                position=position_value,
+                before_anchor=before_anchor,
+                after_anchor=after_anchor,
+                old_title=result.get("old_title"),
+                new_title=result.get("new_title"),
+                content_length=len(content_value) if content_value else None,
+                original_text=original_text or result.get("original_text"),
             )
 
         except Exception as e:
@@ -269,6 +300,7 @@ class ContentOperator:
         target_description: Optional[str],
         paragraph_index: Optional[int] = None,
         node_id: Optional[str] = None,
+        nodes_info: Optional[str] = None,
     ) -> Dict[str, Any]:
         """阶段2：智能定位"""
         # 优先级1：DIRECT 定位
@@ -316,10 +348,15 @@ class ContentOperator:
 
         # 调用 locate_content
         try:
-            result_str = await locate_content.ainvoke({
+            locate_params = {
                 "chapter_id": chapter_id,
                 "query": query
-            })
+            }
+            if nodes_info is not None:
+                if not isinstance(nodes_info, str):
+                    nodes_info = json.dumps(nodes_info, ensure_ascii=False)
+                locate_params["nodes_info"] = nodes_info
+            result_str = await locate_content.ainvoke(locate_params)
             result = json.loads(result_str) if isinstance(result_str, str) else result_str
 
             if result.get("success"):
@@ -327,6 +364,8 @@ class ContentOperator:
                     "success": True,
                     "paragraph_index": result.get("paragraph_index"),
                     "node_id": result.get("node_id"),
+                    "before_anchor": result.get("before_anchor"),
+                    "after_anchor": result.get("after_anchor"),
                     "method": method
                 }
             else:
@@ -368,6 +407,8 @@ class ContentOperator:
         title: Optional[str],
         paragraph_index: Optional[int],
         node_id: Optional[str],
+        before_anchor: Optional[str],
+        after_anchor: Optional[str],
         original_text: Optional[str],
         user_id: Optional[str],
         conversation_id: Optional[str],
@@ -380,6 +421,8 @@ class ContentOperator:
                 "operation": target_operation,
                 "paragraph_index": paragraph_index,
                 "node_id": node_id,
+                "before_anchor": before_anchor,
+                "after_anchor": after_anchor,
                 "original_text": original_text,
                 "user_id": user_id,
                 "conversation_id": conversation_id,
@@ -453,6 +496,7 @@ async def operate_apply(
     target_description: Optional[str] = None,
     paragraph_index: Optional[int] = None,
     node_id: Optional[str] = None,
+    nodes_info: Optional[str] = None,
     user_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
 ) -> str:
@@ -486,6 +530,7 @@ async def operate_apply(
         target_description=target_description,
         paragraph_index=paragraph_index,
         node_id=node_id,
+        nodes_info=nodes_info,
         user_id=user_id,
         conversation_id=conversation_id,
     )
@@ -505,6 +550,7 @@ class OperateApplyInput(ToolInput):
     target_description: Optional[str] = Field(default=None, description="目标位置描述（insert 时用于语义定位）")
     paragraph_index: Optional[int] = Field(default=None, description="段落索引（优先级最高的定位方式）")
     node_id: Optional[str] = Field(default=None, description="节点ID（优先级最高的定位方式）")
+    nodes_info: Optional[str] = Field(default=None, description="节点列表（可选，JSON字符串）")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     conversation_id: Optional[str] = Field(default=None, description="会话ID")
 
@@ -527,6 +573,7 @@ async def operate_apply_executor(input_data: OperateApplyInput) -> OperateApplyO
             "target_description": input_data.target_description,
             "paragraph_index": input_data.paragraph_index,
             "node_id": input_data.node_id,
+            "nodes_info": input_data.nodes_info,
             "user_id": input_data.user_id,
             "conversation_id": input_data.conversation_id,
         })

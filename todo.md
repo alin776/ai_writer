@@ -1,5 +1,156 @@
 # TODO
 
+## 排查 Explore → Planning 章节ID为空与 emit_explore_events 传递（2026-01-25）
+
+### 待办清单
+
+- [x] 复核 explore_content 在 ParallelExecutor/ToolExecutor/ToolDispatcher 路径是否必然开启 emit_explore_events，并确认 state 传递链路
+- [x] 对比 explore_content 返回结构（完整JSON vs explore_summary），确认 ParameterResolver 能否拿到 chapters[].id
+- [x] 追踪 chapters[].id 为空的来源（get_writing_context 输出 / ExploreState.add_chapter / chapters_list fallback）
+- [x] 汇总最小修复策略（chapter_id None 兜底、强制结构化输出、章节ID补齐）
+- [x] 更新 todo.md review 记录排查结论与下一步验证点
+
+### 解决方案（拟）
+
+- 优先确认 explore_content 是否在所有执行路径返回结构化 JSON；若仅返回 explore_summary，ParameterResolver 将无法解析 chapters。
+- 排查 get_writing_context 输出章节对象的 id 是否可能为 None；必要时在 add_chapter/chapters_list 层做字符串兜底。
+- 若规划参数包含 chapter_id=None，tool_executor 需要兜底到 state.chapter_id 或显式报错提示“规划阶段未提供章节ID”。
+
+### review
+
+- emit_explore_events 在 TaskRunner 与 ToolDispatcher 路径均会为 explore_content 设置为 True，但若某些调用绕过这些入口（或 state 丢失），ToolExecutor 会返回 explore_summary 字符串，ParallelExecutor 解析失败后将 raw_result 注册为纯文本，ParameterResolver 无法解析 chapters[].id（`backend/app/services/agent/execution/task_runner.py`、`backend/app/services/agent/core/tool_dispatcher.py`、`backend/app/services/agent/execution/tool_executor.py`、`backend/app/services/agent/execution/parallel_executor.py`）。
+- explore_content 只有在返回完整 JSON 时，ParallelExecutor 才能把 raw_result 注册为 dict，从而让 ParameterResolver 解析 `chapters[*].id` 成立；否则 chapters 解析退化为 None（`backend/app/services/agent/execution/parallel_executor.py`、`backend/app/services/agent/parameter_resolver.py`）。
+- chapters[].id 为空更可能来自 `ExploreState.add_chapter`：`chapter.get("id", "")` 会原样保留 None，且不会回退 `chapter_id`，导致 `chapters_list` 输出 id=None（`backend/app/services/agent/tools/explore_tools.py`）。fallback 章节列表只在 result.chapters 为空时触发，无法覆盖此情况（`backend/app/services/agent/tools/explore_tools.py`）。
+- get_writing_context 正常会返回 `id` 字符串，因此若出现 id=None，需重点排查旧格式输出（只含 chapter_id）或数据异常；可考虑在 add_chapter 或 chapters_list 处做 id 归一化/resolve 兜底（`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/tools/explore_tools.py`）。
+- 下一步验证点：在一次 explore_content+规划链路中，确认 ToolExecutor 返回的是完整 JSON（不是 explore_summary），且 chapters[].id 不为 None；否则应优先修复输出结构或章节ID归一化。
+
+## 修复 Explore 章节ID归一化与结构化输出兜底（2026-01-25）
+
+### 待办清单
+
+- [x] 在 ExploreState.add_chapter 里补齐章节ID（优先 id，其次 chapter_id），避免写入 None
+- [x] chapters_list 构建后补齐缺失章节ID（按章节序号 resolve_chapter_id）
+- [x] ToolExecutor 对 explore_content 始终返回完整 JSON（避免 explore_summary 破坏结构化解析）
+- [x] 最小回归思路：确认 chapters[].id 不为 None，且 ParameterResolver 可解析 chapters[1].id
+- [x] 更新 todo.md review，总结修复与回归关注
+
+### 解决方案（拟）
+
+- explore_content 返回章节列表时进行 ID 归一化，避免空值阻断 smart_insert/smart_rewrite。
+- ToolExecutor 在 explore_content 路径不再输出 explore_summary 字符串，统一输出完整 JSON，由 ParallelExecutor/ToolDispatcher 负责提取 summary。
+
+### review
+
+- ExploreState.add_chapter 已改为优先使用 `id`，缺失时回退 `chapter_id` 并归一化为字符串，避免 chapters 里出现 None（`backend/app/services/agent/tools/explore_tools.py`）。
+- explore_content 构建 chapters_list 时将 id 统一为字符串，并在章节序号存在时调用 resolve_chapter_id 补齐空缺 id，确保 `chapters[*].id` 可被 ParameterResolver 解析（`backend/app/services/agent/tools/explore_tools.py`）。
+- ToolExecutor 对 explore_content 始终返回完整 JSON，避免 explore_summary 字符串被注册为 raw_result 导致字段解析失败（`backend/app/services/agent/execution/tool_executor.py`）。
+- 最小回归思路：跑一次包含 explore_content → smart_insert/smart_rewrite 的规划链路，确认 `chapters[1].id` 非 None 且 smart_* 入参 chapter_id 不为空；本次未执行实际运行验证。
+
+
+## 修复 explore_content locate_content 导入错误（2026-01-25）
+
+### 待办清单
+
+- [x] 复核 explore_tools 对 locate_content 的导入路径与 langgraph_tools 导出情况
+- [x] 调整 explore_tools 导入路径（改为 locate_tools），保持其他工具不变
+- [ ] 最小回归：确认 explore_content 可调用 locate_content
+- [x] 更新 todo.md review 总结与回归要点
+
+### 解决方案（拟）
+
+- langgraph_tools 未导出 locate_content，explore_tools 改为从 locate_tools 直接导入；其余 search_content/get_writing_context/read_paragraph 仍保持 langgraph_tools 来源，避免影响现有链路。
+
+### review
+
+- explore_content 读取 locate_content 的导入已改为 `app.services.agent.tools.locate_tools`，避免 langgraph_tools 未导出导致的 ImportError（`backend/app/services/agent/tools/explore_tools.py`）。
+- 其余 search_content/get_writing_context/read_paragraph 保持 langgraph_tools 来源，减少对现有工具链的影响（`backend/app/services/agent/tools/explore_tools.py`）。
+- 回归关注：需触发一次 explore_content（包含 locate_content 路径）确认不再报导入错误。
+
+## 修复 smart_rewrite 参数模板导致类型错误（2026-01-25）
+
+### 待办清单
+
+- [x] 复核 Backend.md 中 smart_rewrite 参数错误的来源与参数结构
+- [x] ParameterResolver 支持 $template（{{TASK_N.field}}）并解析为字符串
+- [x] 提取依赖时识别 $template 占位符，避免调度缺依赖
+- [x] 更新 todo.md review，总结修复与回归点
+
+### 解决方案（拟）
+
+- 在 ParameterResolver 中增加模板占位符解析（支持 {{TASK_2.content}}），并对 $template 字典做字符串解析，避免 smart_rewrite 收到 dict。
+- 依赖解析追加对模板占位符的扫描，确保任务顺序正确。
+
+### review
+
+- ParameterResolver 现在识别 `{"$template": "..."}` 并解析 `{{TASK_N.field}}`，避免 smart_rewrite 的 user_requirement 变成 dict 导致类型错误（`backend/app/services/agent/parameter_resolver.py`）。
+- 模板占位符已加入依赖提取与字符串替换，调度可正确建立前置任务依赖（`backend/app/services/agent/parameter_resolver.py`）。
+- 回归关注：仍需复跑含模板参数的 smart_rewrite，确认 StandardTool/@tool 均能通过校验并生成 versions/original_text。
+
+## 深度探索链路复核与更新（2026-01-24）
+
+### 待办清单
+
+- [x] 复核 operate_apply/locate_content/前端定位链路，确认节点ID与段落号缺口
+- [x] locate_content 增加 data-id 解析兜底，缺 nodes_info 时回填 node_id
+- [x] explore_content 输出段落补充 node_id（可解析时），便于规划直接传 operate_apply
+- [x] operate_apply 注入上下文定位字段时做章节一致性校验
+- [x] 更新 todo.md review 总结与回归要点
+
+### 解决方案（拟）
+
+- locate_content 在分段时解析 HTML data-id，按段落索引回填 node_id，减少对前端 nodes_info 依赖。
+- explore_content 的 chapters[].paragraphs 补充 node_id（若能从章节原文解析），让规划链路可直接引用 node_id/paragraph_index。
+- operate_apply 上下文注入仅在章节一致时生效，避免跨章节误用当前节点信息。
+
+### review
+
+- locate_content 解析段落时提取 HTML `data-id`，缺 nodes_info 时仍可回填 node_id，并在全局降级路径复用该兜底（`backend/app/services/agent/tools/locate_tools.py`）。
+- explore_content 的 chapters[].paragraphs 输出新增 node_id（可解析时），读取段落与章节回退都可提供 node_id 供后续 operate_apply 直接使用（`backend/app/services/agent/tools/explore_tools.py`）。
+- operate_apply 的上下文定位字段注入增加章节一致性校验，跨章节调用不再误用当前编辑器 nodes_info/段落号（`backend/app/services/agent/core/tool_dispatcher.py`、`backend/app/services/agent/execution/tool_executor.py`）。
+- 回归关注：跨章节改写应不再套用当前章节节点；无 nodes_info 时仍能从章节 HTML 解析 node_id；章节内容无 data-id 的场景仍会退化为段落号/锚点定位。
+
+## 深度探索章节位置缺失排查（2026-01-24）
+
+### 待办清单
+
+- [x] 复核 explore_content → search_content/locate_content 的证据输出，确认 paragraph_index/node_id 缺失路径
+- [x] 对照前端修订定位优先级（nodeId/paragraphIndex/position/锚点），判断为什么无法定位原文
+- [x] 给出最小修复方案（必要时补 locate_content/强制段落号/优化 original_text 对齐）并记录影响范围
+- [x] 更新 todo.md review，记录结论与注意事项
+
+### 解决方案（拟）
+
+- explore_content 默认只保证证据片段，paragraph_index 仅在检索结果自带或 auto_locate 命中时返回；向量/全文检索 snippet 与 HTML 原文不匹配时易推断失败。
+- explore_content 不传 nodes_info，locate_content 无法生成 node_id；前端只能依赖 paragraph_index/锚点/原文，定位优先级降低且失败概率高。
+- 前端修订定位优先级为 nodeId → paragraphIndex → position → 锚点 → 模糊匹配；若 original_text 被截断（去痕迹 5000 字）、空白/标点差异或内容已改动，会导致“原文已变更/无法定位”。
+- 需要位置时建议：在任务中显式要求“章节号+段落号/只允许精确段落读取”触发 strict 模式，或先 locate_content/operate_apply 获取 paragraph_index/node_id 再应用。
+
+### review
+
+- explore_content 的位置来源主要来自检索结果/auto_locate，缺少 nodes_info 时无法产出 node_id，导致定位优先级下降（`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/tools/locate_tools.py`）。
+- 前端修订定位依赖 nodeId/paragraphIndex/锚点；original_text 只要被截断或与正文不一致就会报“无法定位/原文变更”（`src/components/editor/NovelEditor.tsx`、`src/utils/revisionLocator.ts`）。
+- 最小策略是显式触发 strict 段落号或先 locate_content/operate_apply 获取 paragraph_index/node_id，再做应用；避免仅依赖原文匹配。
+
+## 打通 Explore → Create → Operate 修订定位链路（2026-01-24）
+
+### 待办清单
+
+- [x] operate_apply 补齐定位输出（before/after anchors、node_id、paragraph_index），用于前端修订定位
+- [x] operate_apply 调用 locate_content 时透传 nodes_info（来自上下文），提高 node_id 命中率
+- [x] tool_dispatcher/tool_executor 在 operate_apply 调用前补齐上下文定位字段（original_text/paragraph_index/node_id/nodes_info）
+- [x] 最小验证：operate_apply 返回定位字段，前端可用 nodeId/paragraphIndex/锚点定位修订
+
+### 解决方案（拟）
+
+- ContentOperator._smart_locate 捕获 locate_content 的 before/after anchors，并在 OperateResult 中透传；operate_apply 返回值带齐定位字段，供前端修订定位。
+- operate_apply 增加可选 nodes_info，并在 locate_content 调用时传入，以便返回 node_id；tool_dispatcher/tool_executor 从 context 注入 nodes_info 与定位字段作为兜底。
+
+### review
+
+- operate_apply 输出补齐 content/original_text/position/before_anchor/after_anchor/node_id/paragraph_index，stream_event_handler 能构建完整 editor_action（`backend/app/services/agent/tools/operate_tools.py`、`backend/app/services/agent/stream/stream_event_handler.py`）。
+- operate_apply 透传 nodes_info 给 locate_content，支持 node_id 定位并回填锚点（`backend/app/services/agent/tools/operate_tools.py`）。
+- tool_dispatcher/tool_executor 为 operate_apply 注入 context 定位字段与 nodes_info 兜底，确保没有显式 locate 也能定位（`backend/app/services/agent/core/tool_dispatcher.py`、`backend/app/services/agent/execution/tool_executor.py`）。
+
 ## 修复 work-nav-storage 超出 localStorage 配额导致崩溃（2026-01-23）
 
 ### 待办清单

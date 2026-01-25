@@ -845,8 +845,10 @@ class ExploreState:
     def add_chapter(self, chapter: Dict, round_idx: int):
         """添加章节原文（覆盖式，同一章节只保留一份）"""
         order = chapter.get("order", chapter.get("chapter_order", 0))
+        raw_id = chapter.get("id") or chapter.get("chapter_id") or ""
+        chapter_id = str(raw_id) if raw_id else ""
         self.chapters[order] = ChapterRead(
-            id=chapter.get("id", ""),  # 2026-01-18: 添加章节ID
+            id=chapter_id,  # 2026-01-18: 添加章节ID
             order=order,
             title=chapter.get("title", chapter.get("chapter_title", "")),
             content=chapter.get("content", ""),
@@ -1183,6 +1185,20 @@ def _build_chapter_paragraphs(
     """为 chapters 输出补齐可用段落（优先已读段落，其次章节原文，再次证据片段）"""
     paragraphs: List[Dict[str, Any]] = []
     seen = set()
+    node_id_by_index: Dict[int, str] = {}
+    parsed_chapter = None
+
+    if chapter_content:
+        try:
+            from app.services.agent.tools.locate_tools import _split_paragraphs
+            parsed_chapter = _split_paragraphs(chapter_content)
+            for para in parsed_chapter:
+                idx = para.get("index")
+                node_id = para.get("node_id")
+                if isinstance(idx, int) and node_id:
+                    node_id_by_index[idx] = node_id
+        except Exception:
+            parsed_chapter = None
 
     for p in result.paragraphs:
         if p.chapter_order != chapter_order:
@@ -1196,30 +1212,27 @@ def _build_chapter_paragraphs(
         seen.add(key)
         paragraphs.append({
             "text": text,
-            "paragraph_index": p.paragraph_index
+            "paragraph_index": p.paragraph_index,
+            "node_id": node_id_by_index.get(p.paragraph_index)
         })
 
     if paragraphs:
         return paragraphs[:limit]
 
-    if chapter_content:
-        try:
-            from app.services.agent.tools.locate_tools import _split_paragraphs
-            parsed = _split_paragraphs(chapter_content)
-            for para in parsed[:limit]:
-                text = (para.get("text") or "").strip()
-                if not text:
-                    continue
-                key = (para.get("index"), text[:80])
-                if key in seen:
-                    continue
-                seen.add(key)
-                paragraphs.append({
-                    "text": text,
-                    "paragraph_index": para.get("index")
-                })
-        except Exception:
-            pass
+    if parsed_chapter:
+        for para in parsed_chapter[:limit]:
+            text = (para.get("text") or "").strip()
+            if not text:
+                continue
+            key = (para.get("index"), text[:80])
+            if key in seen:
+                continue
+            seen.add(key)
+            paragraphs.append({
+                "text": text,
+                "paragraph_index": para.get("index"),
+                "node_id": para.get("node_id")
+            })
 
     if paragraphs:
         return paragraphs[:limit]
@@ -2668,7 +2681,8 @@ class ContentExplorer:
 
     async def _execute_round_with_plan(self, round_idx: int, plan: RoundPlan) -> ExploreRound:
         """根据 AI 计划执行一轮探索"""
-        from app.services.agent.langgraph_tools import search_content, get_writing_context, read_paragraph, locate_content
+        from app.services.agent.langgraph_tools import search_content, get_writing_context, read_paragraph
+        from app.services.agent.tools.locate_tools import locate_content
 
         tool_calls = []
         new_evidences = 0
@@ -3424,7 +3438,7 @@ async def explore_content(
         # 2026-01-18: 构建兼容 get_writing_context 的 chapters 数组
         chapters_list = [
             {
-                "id": ch.id,
+                "id": str(ch.id) if ch.id else "",
                 "title": ch.title,
                 "order": ch.order,
                 "content": ch.content,
@@ -3473,6 +3487,25 @@ async def explore_content(
                 fallback_chapters[chapter_order]
                 for chapter_order in sorted(fallback_chapters)
             ]
+
+        if chapters_list and work_id:
+            try:
+                from app.services.agent.langgraph_tools import resolve_chapter_id
+                for entry in chapters_list:
+                    entry_id = entry.get("id")
+                    if entry_id:
+                        if not isinstance(entry_id, str):
+                            entry["id"] = str(entry_id)
+                        continue
+                    chapter_order = entry.get("order") or entry.get("chapter_order")
+                    if chapter_order:
+                        resolved_id, _ = await resolve_chapter_id(work_id, str(chapter_order))
+                        if resolved_id:
+                            entry["id"] = resolved_id
+                    if entry.get("id") is None:
+                        entry["id"] = ""
+            except Exception:
+                pass
 
         for entry in chapters_list:
             entry["paragraphs"] = _build_chapter_paragraphs(

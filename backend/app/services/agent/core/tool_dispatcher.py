@@ -703,6 +703,13 @@ class ToolDispatcher:
         """调用 operate_apply 统一操作工具（2026-01-23 新增）"""
         logger.info(f"[ToolDispatcher] 🚀 准备调用 operate_apply, operation={tool_args.get('operation')}")
 
+        context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+        state_chapter_id = state.get("chapter_id")
+        target_chapter_id = tool_args.get("chapter_id") or state_chapter_id
+        same_chapter = True
+        if target_chapter_id and state_chapter_id and target_chapter_id != state_chapter_id:
+            same_chapter = False
+
         # 补充 state 中的参数
         if not tool_args.get("chapter_id") and state.get("chapter_id"):
             tool_args["chapter_id"] = state.get("chapter_id")
@@ -712,6 +719,15 @@ class ToolDispatcher:
             tool_args["user_id"] = state.get("user_id")
         if not tool_args.get("conversation_id") and state.get("conversation_id"):
             tool_args["conversation_id"] = state.get("conversation_id")
+        if same_chapter:
+            if tool_args.get("node_id") is None and context.get("locate_node_id"):
+                tool_args["node_id"] = context.get("locate_node_id")
+            if tool_args.get("paragraph_index") is None and context.get("locate_paragraph_index") is not None:
+                tool_args["paragraph_index"] = context.get("locate_paragraph_index")
+            if not tool_args.get("original_text") and context.get("locate_original_text"):
+                tool_args["original_text"] = context.get("locate_original_text")
+            if not tool_args.get("nodes_info") and context.get("nodes_info"):
+                tool_args["nodes_info"] = context.get("nodes_info")
 
         from app.services.agent.tools.operate_tools import operate_apply
         return await operate_apply.ainvoke(tool_args)

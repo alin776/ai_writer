@@ -183,7 +183,7 @@ class ToolExecutor:
 
             # 提取返回值
             if isinstance(result, dict) and result.get("success"):
-                if normalized_name == "explore_content" and state.get("emit_explore_events"):
+                if normalized_name == "explore_content":
                     try:
                         tool_result = json.dumps(result, ensure_ascii=False)
                     except Exception:
@@ -679,10 +679,6 @@ class ToolExecutor:
         # 🆕 2026-01-18: explore_content 深度探索工具
         elif tool_name == "explore_content":
             # explore_content 返回的 JSON 结构不包含 data 字段
-            # 直接返回 explore_summary 或完整结果
-            if "explore_summary" in result:
-                return result.get("explore_summary", "")
-            # 兜底：返回完整 JSON
             return json.dumps(result, ensure_ascii=False)
 
         # 🆕 2026-01-23: operate_apply 统一操作工具
@@ -922,6 +918,12 @@ class ToolExecutor:
                         "user_id": tool_args.get("user_id", state.get("user_id", ""))
                     }
                 elif tool_name == "operate_apply":
+                    context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+                    state_chapter_id = state.get("chapter_id")
+                    target_chapter_id = tool_args.get("chapter_id") or state_chapter_id
+                    same_chapter = True
+                    if target_chapter_id and state_chapter_id and target_chapter_id != state_chapter_id:
+                        same_chapter = False
                     params = {
                         "operation": tool_args.get("operation", "append"),
                         "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
@@ -932,9 +934,28 @@ class ToolExecutor:
                         "target_description": tool_args.get("target_description"),
                         "paragraph_index": tool_args.get("paragraph_index"),
                         "node_id": tool_args.get("node_id"),
+                        "nodes_info": tool_args.get("nodes_info"),
                         "user_id": tool_args.get("user_id", state.get("user_id", "")),
                         "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", "")),
                     }
+                    if same_chapter:
+                        if not params.get("original_text") and context.get("locate_original_text"):
+                            params["original_text"] = context.get("locate_original_text")
+                        if params.get("node_id") is None and context.get("locate_node_id"):
+                            params["node_id"] = context.get("locate_node_id")
+                        if params.get("paragraph_index") is None and context.get("locate_paragraph_index") is not None:
+                            params["paragraph_index"] = context.get("locate_paragraph_index")
+                        if params.get("nodes_info") is None and context.get("nodes_info"):
+                            params["nodes_info"] = context.get("nodes_info")
+                    nodes_info = params.get("nodes_info")
+                    if nodes_info is not None and not isinstance(nodes_info, str):
+                        params["nodes_info"] = json.dumps(nodes_info, ensure_ascii=False)
+                    pi = params.get("paragraph_index")
+                    if pi is not None and not isinstance(pi, int):
+                        try:
+                            params["paragraph_index"] = int(pi)
+                        except (ValueError, TypeError):
+                            params["paragraph_index"] = None
                 else:
                     params = tool_args
 

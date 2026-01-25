@@ -70,6 +70,11 @@ class ParameterResolver:
         r'【(?:步骤|任务)(\d+).*?】'
     )
 
+    # 🆕 2026-01-25: 支持模板占位符 {{TASK_1.field}}
+    TEMPLATE_PATTERN = re.compile(
+        r'\{\{\s*TASK_(\d+)(?:\.([a-zA-Z_][a-zA-Z0-9_.\[\]]*))?\s*\}\}'
+    )
+
     def __init__(self, strict_mode: bool = False):
         """
         初始化参数解析器
@@ -197,6 +202,8 @@ class ParameterResolver:
             elif isinstance(value, dict):
                 if self._is_ref_obj(value):
                     resolved[key] = self._resolve_ref(value, current_task_id)
+                elif self._is_template_obj(value):
+                    resolved[key] = self._resolve_template_obj(value, current_task_id)
                 else:
                     # 递归解析嵌套字典
                     resolved[key] = self._resolve_params_internal(value, current_task_id)
@@ -339,6 +346,13 @@ class ParameterResolver:
             )
             result = self._resolve_legacy_placeholder(result, current_task_id)
 
+        # 3. 解析模板占位符 {{TASK_N.field}}
+        if self.TEMPLATE_PATTERN.search(result):
+            result = self.TEMPLATE_PATTERN.sub(
+                lambda m: self._replace_template_placeholder(m, current_task_id),
+                result
+            )
+
         return result
 
     def _replace_placeholder(
@@ -398,6 +412,46 @@ class ParameterResolver:
 
         # 提取JSON字段
         return self._extract_field(task_result, field_path, task_id)
+
+    def _replace_template_placeholder(
+        self,
+        match: re.Match,
+        current_task_id: Optional[int]
+    ) -> str:
+        task_id = int(match.group(1))
+        field_path = match.group(2)
+
+        if current_task_id and task_id == current_task_id:
+            logger.warning(
+                f"[ParameterResolver] 检测到自引用模板占位符: 任务{current_task_id}引用自己"
+            )
+            return ""
+
+        if task_id not in self.task_results:
+            error_msg = (
+                f"任务{task_id}尚未执行，无法解析模板占位符 "
+                f"{{{{TASK_{task_id}{'.' + field_path if field_path else ''}}}}}"
+            )
+            if self.strict_mode:
+                logger.error(f"[ParameterResolver] {error_msg}")
+                raise ParameterResolverError(error_msg)
+            logger.warning(
+                f"[ParameterResolver] {error_msg}, 保留模板占位符（非严格模式）"
+            )
+            return match.group(0)
+
+        payload = self.task_payloads.get(task_id, self.task_results.get(task_id))
+        if not field_path:
+            result = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
+            return result
+
+        value = self._extract_from_payload(payload, field_path, match.group(0))
+        if isinstance(value, str):
+            return value
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except Exception:
+            return str(value)
 
     def _extract_field(
         self,
@@ -564,6 +618,11 @@ class ParameterResolver:
                         deps.add(int(match.group(1)))
                     except (TypeError, ValueError):
                         continue
+                for match in cls.TEMPLATE_PATTERN.finditer(value):
+                    try:
+                        deps.add(int(match.group(1)))
+                    except (TypeError, ValueError):
+                        continue
 
         _walk(params)
         return deps
@@ -578,6 +637,27 @@ class ParameterResolver:
         if keys == {"ref"} and isinstance(value.get("ref"), dict):
             return True
         return False
+
+    @staticmethod
+    def _is_template_obj(value: Any) -> bool:
+        if not isinstance(value, dict):
+            return False
+        keys = set(value.keys())
+        if keys == {"$template"}:
+            return True
+        if keys == {"template"}:
+            return True
+        return False
+
+    def _resolve_template_obj(
+        self,
+        template_obj: Dict[str, Any],
+        current_task_id: Optional[int]
+    ) -> str:
+        template = template_obj.get("$template", template_obj.get("template", ""))
+        if not isinstance(template, str):
+            template = str(template)
+        return self._resolve_string(template, current_task_id)
 
     def _resolve_ref(
         self,

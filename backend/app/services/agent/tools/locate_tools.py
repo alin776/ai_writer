@@ -63,17 +63,23 @@ def _split_paragraphs(content: str) -> List[Dict[str, Any]]:
     # 优先按 HTML <p> 标签分割（与前端 Tiptap 一致）
     if '<p' in content:
         # 匹配 <p>...</p>、<p ...>...</p>、<h1>...</h1> 等块级元素
-        block_pattern = r'<(p|h[1-6]|blockquote|pre)[^>]*>(.*?)</\1>'
+        block_pattern = r'<(p|h[1-6]|blockquote|pre)([^>]*)>(.*?)</\1>'
         matches = re.findall(block_pattern, content, re.DOTALL | re.IGNORECASE)
 
-        for i, (tag, inner_html) in enumerate(matches):
+        for tag, attrs, inner_html in matches:
             # 去除内部 HTML 标签，只保留文本
             text = re.sub(r'<[^>]+>', '', inner_html).strip()
             if text:  # 跳过空段落
+                node_id = None
+                if attrs:
+                    id_match = re.search(r'data-id=["\']([^"\']+)["\']', attrs, re.IGNORECASE)
+                    if id_match:
+                        node_id = id_match.group(1)
                 paragraphs.append({
                     "index": len(paragraphs),
                     "text": text,
-                    "preview": text[:50] + "..." if len(text) > 50 else text
+                    "preview": text[:50] + "..." if len(text) > 50 else text,
+                    "node_id": node_id
                 })
     else:
         # 纯文本模式：按换行分割
@@ -84,7 +90,8 @@ def _split_paragraphs(content: str) -> List[Dict[str, Any]]:
                 paragraphs.append({
                     "index": len(paragraphs),
                     "text": para,
-                    "preview": para[:50] + "..." if len(para) > 50 else para
+                    "preview": para[:50] + "..." if len(para) > 50 else para,
+                    "node_id": None
                 })
 
     return paragraphs
@@ -435,6 +442,22 @@ def _match_node_by_index(nodes_info: List[Dict], paragraph_index: int) -> Option
     return None
 
 
+def _match_node_id_by_index(
+    nodes_info: Optional[List[Dict]],
+    paragraphs: Optional[List[Dict[str, Any]]],
+    paragraph_index: Optional[int]
+) -> Optional[str]:
+    """优先用 nodes_info，其次用解析段落的 node_id 兜底。"""
+    if paragraph_index is None:
+        return None
+    node_id = _match_node_by_index(nodes_info, paragraph_index) if nodes_info else None
+    if node_id:
+        return node_id
+    if paragraphs and 0 <= paragraph_index < len(paragraphs):
+        return paragraphs[paragraph_index].get("node_id")
+    return None
+
+
 def _apply_anchor_fields(
     result: Dict[str, Any],
     paragraphs: List[Dict[str, Any]],
@@ -645,7 +668,7 @@ async def locate_content(
                     "paragraph_index": para_index,
                     "text_preview": para["preview"],
                     "text": para["text"],
-                    "node_id": _match_node_by_index(nodes_list, para_index),
+                "node_id": _match_node_id_by_index(nodes_list, paragraphs, para_index),
                     "confidence": 1.0
                 })
 
@@ -673,7 +696,7 @@ async def locate_content(
                 "paragraph_index": 0,
                 "text_preview": para["preview"],
                 "text": para["text"],
-                "node_id": _match_node_by_index(nodes_list, 0),
+                "node_id": _match_node_id_by_index(nodes_list, paragraphs, 0),
                 "confidence": 0.95
             })
             _apply_anchor_fields(result, paragraphs, 0)
@@ -688,7 +711,7 @@ async def locate_content(
                 "paragraph_index": last_idx,
                 "text_preview": para["preview"],
                 "text": para["text"],
-                "node_id": _match_node_by_index(nodes_list, last_idx),
+                "node_id": _match_node_id_by_index(nodes_list, paragraphs, last_idx),
                 "confidence": 0.95
             })
             _apply_anchor_fields(result, paragraphs, last_idx)
@@ -714,7 +737,7 @@ async def locate_content(
                     "paragraph_index": found_para_index,
                     "text_preview": query[:50] + "..." if len(query) > 50 else query,
                     "text": query,
-                    "node_id": _match_node_by_index(nodes_list, found_para_index) if found_para_index is not None else None,
+                    "node_id": _match_node_id_by_index(nodes_list, paragraphs, found_para_index),
                     "before_anchor": text_result["before_anchor"],
                     "after_anchor": text_result["after_anchor"],
                     "confidence": 1.0
@@ -738,7 +761,7 @@ async def locate_content(
                     "paragraph_index": para_idx,
                     "text_preview": para["preview"],
                     "text": para["text"],
-                    "node_id": _match_node_by_index(nodes_list, para_idx),
+                    "node_id": _match_node_id_by_index(nodes_list, paragraphs, para_idx),
                     "confidence": similarity
                 })
                 _apply_anchor_fields(result, paragraphs, para_idx)
@@ -757,7 +780,7 @@ async def locate_content(
                     "paragraph_index": llm_idx,
                     "text_preview": para["preview"],
                     "text": para["text"],
-                    "node_id": _match_node_by_index(nodes_list, llm_idx),
+                    "node_id": _match_node_id_by_index(nodes_list, paragraphs, llm_idx),
                     "confidence": llm_confidence
                 })
                 # 生成锚点
@@ -775,7 +798,7 @@ async def locate_content(
                 "paragraph_index": para_idx,
                 "text_preview": para["preview"],
                 "text": para["text"],
-                "node_id": _match_node_by_index(nodes_list, para_idx),
+                "node_id": _match_node_id_by_index(nodes_list, paragraphs, para_idx),
                 "confidence": similarity
             })
             _apply_anchor_fields(result, paragraphs, para_idx)
@@ -799,7 +822,7 @@ async def locate_content(
                 "paragraph_index": llm_idx,
                 "text_preview": para["preview"],
                 "text": para["text"],
-                "node_id": _match_node_by_index(nodes_list, llm_idx),
+                "node_id": _match_node_id_by_index(nodes_list, paragraphs, llm_idx),
                 "confidence": llm_confidence
             })
             if llm_idx > 0:
@@ -851,13 +874,14 @@ async def locate_content(
                             node_id = None
                             if target_chapter_id == chapter_id:
                                 anchor_paragraphs = paragraphs
-                                node_id = _match_node_by_index(nodes_list, target_paragraph_index)
+                                node_id = _match_node_id_by_index(nodes_list, paragraphs, target_paragraph_index)
                             else:
                                 from app.services.chapter_service import ChapterService
                                 chapter_svc = ChapterService(db)
                                 target_chapter = await chapter_svc.get_chapter_by_id(target_chapter_id)
                                 if target_chapter and target_chapter.content:
                                     anchor_paragraphs = _split_paragraphs(target_chapter.content)
+                                    node_id = _match_node_id_by_index(None, anchor_paragraphs, target_paragraph_index)
                             result.update({
                                 "locate_method": "global_fallback",
                                 "chapter_id": target_chapter_id,
@@ -894,7 +918,7 @@ async def locate_content(
                                         "paragraph_index": para_idx,
                                         "text_preview": para["preview"],
                                         "text": para["text"],
-                                        "node_id": None,
+                                        "node_id": _match_node_id_by_index(None, target_paragraphs, para_idx),
                                         "confidence": similarity * 0.8,  # 降低置信度
                                         "cross_chapter": target_chapter_id != chapter_id
                                     })
