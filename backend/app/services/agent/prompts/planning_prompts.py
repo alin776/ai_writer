@@ -215,6 +215,14 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 ⚠️ **参数引用规则**：后续工具参数只允许引用 explore_content 的 `chapters[...]` / `explore_summary` / `context_for_task`
 （`frontend_display` 仅用于展示，禁止作为参数来源）
 
+⚠️ **locate_content 输出字段规则**：
+- locate_content 的输出字段在顶层：`chapter_id` / `paragraph_index` / `node_id` / `text` / `before_anchor` / `after_anchor`
+- ❌ 禁止引用 `results` / `found_paragraphs` / `frontend_display.locations`
+
+⚠️ **insert 降级规则**：
+- insert 默认 **不允许** 降级为 append
+- 只有用户明确允许“找不到就追加到末尾”时，operate_apply 参数才可设置 `allow_append_fallback: true`
+
 ✅ 正确流程：smart_rewrite → operate_apply(operation="replace", original_text="要替换的原文")
 ❌ 错误流程：smart_rewrite 后未通过 operate_apply 写入（不要分步调用！）
 

@@ -114,6 +114,7 @@ class ContentOperator:
         paragraph_index: Optional[int] = None,
         node_id: Optional[str] = None,
         nodes_info: Optional[str] = None,
+        allow_append_fallback: bool = False,
         user_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
         **kwargs
@@ -201,16 +202,28 @@ class ContentOperator:
             locate_method = locate_result.get("method", "none")
             locate_before_anchor = locate_result.get("before_anchor")
             locate_after_anchor = locate_result.get("after_anchor")
+            # 🔧 2026-01-25: 使用定位返回的章节 ID（处理全局降级）
+            located_chapter_id = locate_result.get("chapter_id") or chapter_id
+            cross_chapter = locate_result.get("cross_chapter", False)
+            if cross_chapter:
+                logger.warning(f"[Operate] 跨章节定位：原章节 {chapter_id} → 实际章节 {located_chapter_id}")
+                chapter_id = located_chapter_id  # 更新为实际定位到的章节
+                # 🔧 跨章节时清空原始文本，避免在新章节中无效匹配
+                original_text = None
+                logger.debug(f"[Operate] 跨章节：清空 original_text，将依赖 paragraph_index 定位")
 
             if not locate_result.get("success"):
-                if operation == "insert" and locate_result.get("fallback"):
+                if operation == "insert" and locate_result.get("fallback") and allow_append_fallback:
                     logger.warning(f"[Operate] insert 定位失败，降级为 append")
                     target_operation = "append"
                     locate_method = "fallback"
                 else:
+                    message = locate_result.get("message", "定位失败")
+                    if operation == "insert" and locate_result.get("fallback"):
+                        message = f"{message}（未允许降级追加）"
                     return OperateResult(
                         success=False,
-                        message=locate_result.get("message", "定位失败"),
+                        message=message,
                         operation=operation,
                         target_operation=target_operation,  # 记录原计划的目标操作
                         chapter_id=chapter_id,
@@ -360,12 +373,20 @@ class ContentOperator:
             result = json.loads(result_str) if isinstance(result_str, str) else result_str
 
             if result.get("success"):
+                # 🔧 2026-01-25: 返回 locate_content 的 chapter_id，用于处理全局降级
+                located_chapter_id = result.get("chapter_id")
+                cross_chapter = result.get("cross_chapter", False)
+                if located_chapter_id and located_chapter_id != chapter_id:
+                    cross_chapter = True
+                    logger.warning(f"[Operate] 全局降级：定位到其他章节 {located_chapter_id}，原章节 {chapter_id}")
                 return {
                     "success": True,
                     "paragraph_index": result.get("paragraph_index"),
                     "node_id": result.get("node_id"),
                     "before_anchor": result.get("before_anchor"),
                     "after_anchor": result.get("after_anchor"),
+                    "chapter_id": located_chapter_id or chapter_id,  # 🆕 返回实际定位到的章节
+                    "cross_chapter": cross_chapter,                   # 🆕 标记是否跨章节
                     "method": method
                 }
             else:
@@ -484,6 +505,8 @@ def get_operator() -> ContentOperator:
     【使用方式】
     1. 先用 smart_continue/smart_rewrite/smart_insert 生成内容
     2. 再用 operate_apply 将内容写入章节
+
+    ⚠️ insert 默认不允许降级为 append；如需允许，请显式传入 allow_append_fallback=true
     """
 )
 async def operate_apply(
@@ -497,6 +520,7 @@ async def operate_apply(
     paragraph_index: Optional[int] = None,
     node_id: Optional[str] = None,
     nodes_info: Optional[str] = None,
+    allow_append_fallback: bool = False,
     user_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
 ) -> str:
@@ -513,6 +537,7 @@ async def operate_apply(
         target_description: 目标位置描述（insert 时用于语义定位）
         paragraph_index: 段落索引（优先级最高的定位方式）
         node_id: 节点ID（优先级最高的定位方式）
+        allow_append_fallback: insert 定位失败时是否允许降级追加
         user_id: 用户ID
         conversation_id: 会话ID
 
@@ -531,6 +556,7 @@ async def operate_apply(
         paragraph_index=paragraph_index,
         node_id=node_id,
         nodes_info=nodes_info,
+        allow_append_fallback=allow_append_fallback,
         user_id=user_id,
         conversation_id=conversation_id,
     )
@@ -551,6 +577,7 @@ class OperateApplyInput(ToolInput):
     paragraph_index: Optional[int] = Field(default=None, description="段落索引（优先级最高的定位方式）")
     node_id: Optional[str] = Field(default=None, description="节点ID（优先级最高的定位方式）")
     nodes_info: Optional[str] = Field(default=None, description="节点列表（可选，JSON字符串）")
+    allow_append_fallback: bool = Field(default=False, description="insert 失败是否允许降级 append")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     conversation_id: Optional[str] = Field(default=None, description="会话ID")
 
@@ -574,6 +601,7 @@ async def operate_apply_executor(input_data: OperateApplyInput) -> OperateApplyO
             "paragraph_index": input_data.paragraph_index,
             "node_id": input_data.node_id,
             "nodes_info": input_data.nodes_info,
+            "allow_append_fallback": input_data.allow_append_fallback,
             "user_id": input_data.user_id,
             "conversation_id": input_data.conversation_id,
         })

@@ -375,7 +375,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }),
       // 🆕 节点唯一ID扩展（用于 Agent 精确定位）
       UniqueID.configure({
-        types: ['paragraph', 'heading', 'blockquote', 'codeBlock'],
+        types: ['paragraph', 'heading', 'blockquote', 'codeBlock', 'listItem', 'taskItem'],
       }),
     ],
     content: content || '<p></p>',

@@ -14,6 +14,7 @@ import json
 import logging
 
 from app.services.agent.tools import registry
+from app.services.agent.langgraph_tools import resolve_chapter_id, is_chapter_order
 from app.services.agent.utils.chapter_cache import ChapterCache
 from app.services.agent.utils.tool_cache import ToolCache
 from app.services.agent.utils.tool_context import (
@@ -325,6 +326,7 @@ class ToolExecutor:
 
         elif tool_name == "smart_insert":
             params.setdefault("chapter_id", state.get("chapter_id", ""))
+            params.setdefault("work_id", state.get("work_id", ""))
             # 🔧 2026-01-12: 确保 chapter_content 是字符串类型，避免 AI 传入列表导致验证失败
             chapter_content = params.get("chapter_content")
             if chapter_content is not None and not isinstance(chapter_content, str):
@@ -346,12 +348,21 @@ class ToolExecutor:
             ignore_state = self._should_ignore_state_chapter_id(state, params)
             if not ignore_state:
                 params.setdefault("chapter_id", state.get("chapter_id", ""))
-            params.setdefault("node_id", state.get("context", {}).get("locate_node_id"))
+            context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+            state_chapter_id = str(state.get("chapter_id", "") or "").strip()
+            target_chapter_id = str(params.get("chapter_id", "") or "").strip()
+            use_context_locate = bool(
+                target_chapter_id
+                and state_chapter_id
+                and target_chapter_id == state_chapter_id
+            )
+            if use_context_locate:
+                params.setdefault("node_id", context.get("locate_node_id"))
             nodes_info = params.get("nodes_info")
             if nodes_info is not None and not isinstance(nodes_info, str):
                 params["nodes_info"] = json.dumps(nodes_info, ensure_ascii=False)
-            elif not nodes_info:
-                context_nodes = state.get("context", {}).get("nodes_info")
+            elif not nodes_info and use_context_locate:
+                context_nodes = context.get("nodes_info")
                 if context_nodes:
                     params["nodes_info"] = (
                         context_nodes
@@ -539,10 +550,52 @@ class ToolExecutor:
         chapter_id = str(tool_args.get("chapter_id", "") or "").strip()
         state_chapter_id = str(state.get("chapter_id", "") or "").strip()
         ignore_state = self._should_ignore_state_chapter_id(state, tool_args)
-        if chapter_id or (state_chapter_id and not ignore_state):
+        work_id = str(state.get("work_id", "") or "").strip()
+        if chapter_id:
+            resolved_id = await self._resolve_locate_chapter_id(work_id, chapter_id)
+            if resolved_id:
+                tool_args["chapter_id"] = resolved_id
+                logger.info(
+                    "[ToolExecutor] locate_content 章节序号已解析: %s -> %s",
+                    chapter_id,
+                    resolved_id
+                )
+            elif is_chapter_order(chapter_id):
+                if work_id:
+                    logger.warning(
+                        "[ToolExecutor] locate_content 章节序号解析失败: chapter_id=%s",
+                        chapter_id
+                    )
+                else:
+                    logger.warning(
+                        "[ToolExecutor] locate_content 无法解析章节序号，缺少 work_id: chapter_id=%s",
+                        chapter_id
+                    )
+            return tool_args
+        if state_chapter_id and not ignore_state:
+            resolved_state_id = await self._resolve_locate_chapter_id(work_id, state_chapter_id)
+            if resolved_state_id:
+                tool_args["chapter_id"] = resolved_state_id
+                logger.info(
+                    "[ToolExecutor] locate_content 状态章节序号已解析: %s -> %s",
+                    state_chapter_id,
+                    resolved_state_id
+                )
+            else:
+                tool_args["chapter_id"] = state_chapter_id
+                if is_chapter_order(state_chapter_id):
+                    if work_id:
+                        logger.warning(
+                            "[ToolExecutor] locate_content 状态章节序号解析失败: chapter_id=%s",
+                            state_chapter_id
+                        )
+                    else:
+                        logger.warning(
+                            "[ToolExecutor] locate_content 无法解析状态章节序号，缺少 work_id: chapter_id=%s",
+                            state_chapter_id
+                        )
             return tool_args
 
-        work_id = str(state.get("work_id", "") or "").strip()
         if not work_id:
             return tool_args
 
@@ -567,6 +620,18 @@ class ToolExecutor:
             logger.warning(f"[ToolExecutor] locate_content 自动补全 chapter_id 失败: {e}")
 
         return tool_args
+
+    @staticmethod
+    async def _resolve_locate_chapter_id(work_id: str, chapter_id: str) -> str:
+        work_id = str(work_id or "").strip()
+        chapter_id = str(chapter_id or "").strip()
+        if not work_id or not chapter_id or not is_chapter_order(chapter_id):
+            return ""
+        resolved_id, error = await resolve_chapter_id(work_id, chapter_id)
+        if error:
+            logger.warning("[ToolExecutor] locate_content 章节序号解析失败: %s", error)
+            return ""
+        return str(resolved_id or "").strip()
 
     @staticmethod
     def _should_ignore_state_chapter_id(state: dict, tool_args: dict) -> bool:

@@ -1324,15 +1324,26 @@ async def read_paragraph(
 
             # 构建结果
             result_paragraphs = []
+            target_text = ""
+            target_node_id = None
             for i in range(start_idx, end_idx):
+                para = paragraphs[i]
                 result_paragraphs.append({
                     "index": i,
-                    "text": paragraphs[i]["text"],
+                    "text": para["text"],
                     "is_target": i == paragraph_index
                 })
+                if i == paragraph_index:
+                    target_text = para["text"]
+                    target_node_id = para.get("node_id")
 
             result = json.dumps({
                 "success": True,
+                # 🔧 新增字段：方便规划层直接使用
+                "content": target_text,                    # 目标段落文本（别名）
+                "paragraph_index": paragraph_index,        # 段落索引
+                "node_id": target_node_id,                 # 节点ID（如果有）
+                # 原有字段
                 "work_id": work_id,
                 "chapter_order": chapter_order,
                 "chapter_title": chapter.title,

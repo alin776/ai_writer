@@ -152,6 +152,7 @@ def _get_editor_tools_section() -> str:
     - target_description: 目标位置描述（insert 时用于语义定位）
     - paragraph_index: 段落索引（优先级最高的定位方式）
     - node_id: 节点ID（优先级最高的定位方式）
+    - allow_append_fallback: insert 定位失败是否允许降级追加（默认 false）
 
   ✅ **推荐使用场景**：
     * smart_continue 后续写 → operate_apply(operation="append", chapter_id=..., content=...)
@@ -167,7 +168,7 @@ def _get_editor_tools_section() -> str:
     3. SEMANTIC: insert + target_description（语义定位）
 
   ⚠️ **降级策略**：
-    * insert 定位失败 → 自动降级为 append
+    * insert 定位失败 → 默认返回错误（需显式 allow_append_fallback 才能降级为 append）
     * replace 定位失败 → 返回错误
 
 ---

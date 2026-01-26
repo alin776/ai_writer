@@ -75,6 +75,11 @@ class ParameterResolver:
         r'\{\{\s*TASK_(\d+)(?:\.([a-zA-Z_][a-zA-Z0-9_.\[\]]*))?\s*\}\}'
     )
 
+    # 🆕 2026-01-25: 最小化 $eval 支持（仅 result(N).path ± int）
+    EVAL_PATTERN = re.compile(
+        r"^result\(\s*['\"]?(\d+)['\"]?\s*\)\.([a-zA-Z0-9_.\[\]]+)\s*(?:([+-])\s*(\d+))?\s*$"
+    )
+
     def __init__(self, strict_mode: bool = False):
         """
         初始化参数解析器
@@ -202,6 +207,8 @@ class ParameterResolver:
             elif isinstance(value, dict):
                 if self._is_ref_obj(value):
                     resolved[key] = self._resolve_ref(value, current_task_id)
+                elif self._is_eval_obj(value):
+                    resolved[key] = self._resolve_eval_obj(value, current_task_id)
                 elif self._is_template_obj(value):
                     resolved[key] = self._resolve_template_obj(value, current_task_id)
                 else:
@@ -228,6 +235,10 @@ class ParameterResolver:
                     elif isinstance(item, dict):
                         if self._is_ref_obj(item):
                             resolved[key].append(self._resolve_ref(item, current_task_id))
+                        elif self._is_eval_obj(item):
+                            resolved[key].append(self._resolve_eval_obj(item, current_task_id))
+                        elif self._is_template_obj(item):
+                            resolved[key].append(self._resolve_template_obj(item, current_task_id))
                         else:
                             # 递归解析字典元素
                             resolved[key].append(
@@ -569,13 +580,16 @@ class ParameterResolver:
                 return fallback
 
         tokens = self._parse_field_path(field_path)
-        logger.info(f"[ParameterResolver] 解析路径 {field_path} -> tokens: {tokens}")
+        logger.debug(f"[ParameterResolver] 解析路径 {field_path} -> tokens: {tokens}")
 
         value = data
-        for token in tokens:
+        for idx, token in enumerate(tokens):
             if isinstance(token, int):
                 if isinstance(value, list) and 0 <= token < len(value):
                     value = value[token]
+                elif isinstance(value, str) and token == 0 and idx == len(tokens) - 1:
+                    # 兼容 content[0] 误用：直接返回字符串内容
+                    return value
                 else:
                     logger.warning(f"[ParameterResolver] 数组索引 {token} 越界，降级返回完整结果")
                     return fallback
@@ -601,6 +615,16 @@ class ParameterResolver:
                         deps.add(int(task_id))
                     except (TypeError, ValueError):
                         pass
+                    return
+                if cls._is_eval_obj(value):
+                    expr = value.get("$eval", value.get("eval", ""))
+                    if isinstance(expr, str):
+                        match = cls.EVAL_PATTERN.match(expr.strip())
+                        if match:
+                            try:
+                                deps.add(int(match.group(1)))
+                            except (TypeError, ValueError):
+                                pass
                     return
                 for item in value.values():
                     _walk(item)
@@ -649,6 +673,17 @@ class ParameterResolver:
             return True
         return False
 
+    @staticmethod
+    def _is_eval_obj(value: Any) -> bool:
+        if not isinstance(value, dict):
+            return False
+        keys = set(value.keys())
+        if keys == {"$eval"}:
+            return True
+        if keys == {"eval"}:
+            return True
+        return False
+
     def _resolve_template_obj(
         self,
         template_obj: Dict[str, Any],
@@ -658,6 +693,43 @@ class ParameterResolver:
         if not isinstance(template, str):
             template = str(template)
         return self._resolve_string(template, current_task_id)
+
+    def _resolve_eval_obj(
+        self,
+        eval_obj: Dict[str, Any],
+        current_task_id: Optional[int]
+    ) -> Any:
+        expr = eval_obj.get("$eval", eval_obj.get("eval", ""))
+        if not isinstance(expr, str):
+            expr = str(expr or "")
+        expr = expr.strip()
+        if not expr:
+            return None
+
+        match = self.EVAL_PATTERN.match(expr)
+        if not match:
+            logger.warning(f"[ParameterResolver] 不支持的 $eval 表达式: {expr}")
+            return None
+
+        task_id = int(match.group(1))
+        path = match.group(2)
+        op = match.group(3)
+        delta = match.group(4)
+
+        value = self._resolve_ref({"$ref": {"task_id": task_id, "path": path}}, current_task_id)
+        if value is None:
+            return None
+
+        if op and delta is not None:
+            try:
+                base = int(value)
+                delta_val = int(delta)
+                return base + delta_val if op == "+" else base - delta_val
+            except (TypeError, ValueError):
+                logger.warning(f"[ParameterResolver] $eval 数值运算失败: {expr}")
+                return None
+
+        return value
 
     def _resolve_ref(
         self,

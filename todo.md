@@ -1,5 +1,95 @@
 # TODO
 
+## 复核中期+长期方案改动（2026-01-26）
+
+### 待办清单
+
+- [x] 通读本次修改的核心文件，核对是否引入新问题
+- [x] 逐条验证是否解决“插入落尾/replace 缺 chapter_id”
+- [x] 检查改动覆盖完整性（规划提示/执行层/探索覆盖）
+- [x] 校验逻辑一致性与边界行为（默认降级/显式允许）
+- [x] 输出 review（问题清单、风险、验证建议）
+
+### review
+
+- 修复验证：章节范围强制覆盖 + locate_content 顶层字段引用 + insert 默认 fail-fast 已覆盖“插入落尾/replace 缺 chapter_id”的主要触发链路（`backend/app/services/agent/tools/explore_tools.py` `backend/app/services/agent/prompts/planning_prompts.py` `backend/app/services/agent/tools/operate_tools.py`）。
+- 新风险：范围强制覆盖对“只定位单章一句”的任务可能增加探索轮次，若章节号无效可能导致反复探索至上限（`backend/app/services/agent/tools/explore_tools.py`）。
+- 新风险：insert 定位失败将直接报错，若旧 prompt 依赖“找不到就追加”会被打断，需要显式传 `allow_append_fallback`（`backend/app/services/agent/tools/operate_tools.py`）。
+- 兼容性：规划提示已明确禁止 results/locations 引用，若历史任务仍引用 results，需依赖兼容字段或回归更新规划模板（`backend/app/services/agent/prompts/planning_prompts.py` `backend/app/services/agent/prompts/planning_examples.py`）。
+- 文档一致性：工具说明已同步更新降级规则与新参数，避免 LLM 使用旧行为（`backend/app/services/agent/prompts/tool_descriptions.py`）。
+
+## 中期+长期方案落地（2026-01-26）
+
+### 待办清单
+
+- [x] 强制章节读齐：明确章节号/范围时启用范围覆盖，不依赖“覆盖”关键词
+- [x] 更新规划提示：规范 locate_content 输出字段引用，禁止 results/locations；补充 allow_append_fallback 规则
+- [x] 执行层 fail-fast：新增 allow_append_fallback 参数，insert 失败默认不降级；replace/insert 缺定位信息直接报错
+- [x] 视需要补充示例/文档（最小改动）
+- [x] 在 todo.md 添加 review，记录根因与最优解落地结果
+
+### review
+
+- 中期落地：明确章节号/范围时强制覆盖校验，不再依赖“覆盖”关键词，避免第5章未读导致 chapters_list 缺失（`backend/app/services/agent/tools/explore_tools.py`）。
+- 中期落地：规划提示明确 locate_content 顶层字段，禁止 results/locations 引用；insert 默认不降级 append，需显式允许（`backend/app/services/agent/prompts/planning_prompts.py` `backend/app/services/agent/prompts/planning_examples.py`）。
+- 长期落地：operate_apply 新增 `allow_append_fallback`，insert 定位失败默认报错，避免“静默写到末尾”，同时补充参数说明（`backend/app/services/agent/tools/operate_tools.py`）。
+- 文档同步：operate_apply 的工具说明补齐 `allow_append_fallback` 并更新降级描述（`backend/app/services/agent/prompts/tool_descriptions.py`）。
+- 验证建议：复跑“第1章插入 + 第5章改写”任务，确认无 “results 不存在/数组索引越界/insert 降级 append/replace 缺 chapter_id”。
+
+## 深度探索并复核根因/最优解（2026-01-26）
+
+### 待办清单
+
+- [x] 深入复核 Explore→Locate→Create→Operate 全链路的章 ID 传递与定位字段解析
+- [x] 梳理日志证据，定位“插入落尾/replace 缺 chapter_id”的直接触发点
+- [x] 复核规划模板与 ParameterResolver 的引用路径是否一致（results/chapters/locations）
+- [x] 给出最优解方案（短期兜底 + 中期结构化返回 + 长期约束规划）
+- [x] 在 todo.md 添加 review，输出根因、最优解与验证建议
+
+### review
+
+- 根因：规划引用的 `results[0].*`/`chapters[1].*` 与实际工具输出字段不一致，ParameterResolver 多次降级返回，导致第1章插入缺失定位字段而降级为 append，且第5章 chapter_id 解析为 None（`Backend.md:288` `Backend.md:310-318` `Backend.md:326-355`）。
+- 直接触发点：locate_content 未提供 `results` 兼容字段，导致插入位置信息解析失败；explore_content 的 chapters_list 未合并证据章节，导致 `chapters[1]` 越界（`backend/app/services/agent/tools/locate_tools.py` `backend/app/services/agent/tools/explore_tools.py`）。
+- 最优解（短期）：在 locate_content/explore_content 返回中补齐 `results`/`chapter_id`/`chapter_id` 兼容字段，保证既有规划引用不中断，并合并证据章节以补齐章 ID（已落地）。
+- 最优解（中期）：规划模板改为使用稳定字段（如 `chapters` 按 order 排序且始终包含请求章节），避免 `results` 依赖；必要时增加显式“章节ID解析”工具并在规划中强制调用。
+- 最优解（长期）：让计划层声明输出 schema（章节映射表）并在执行层校验缺失字段，若 chapter_id/paragraph_index 为空则拒绝执行而不是降级追加。
+- 验证建议：复跑同提示，确认不再出现 “results 不存在/数组索引越界/insert 降级 append/replace 缺 chapter_id”。
+
+## 复核插入错位与缺失 chapter_id（2026-01-26）
+
+### 待办清单
+
+- [x] 通读 `Backend.md`/`INFO.md`，按时间线还原 Locate→Create→Operate 链路
+- [x] 确认第1章插入为何降级为 append（定位值是否丢失/解析失败）
+- [x] 确认第5章 replace 为何缺失 chapter_id（规划/解析/工具链路）
+- [x] 复核相关代码路径（parameter_resolver/operate_tools/plan_generator/locate_tools）
+- [x] 输出 review（问题清单、根因、是否符合预期、残留风险与验证建议）
+
+### review
+
+- 根因1：第1章插入降级为 append，因为规划引用的定位字段解析失败，operate_apply 未收到 paragraph_index/node_id（`Backend.md:310-318`）；locate_content 输出缺少 `results` 兼容字段，导致 `results[0]` 路径解析失败（`backend/app/services/agent/tools/locate_tools.py`）。
+- 根因2：第5章改写失败，explore 输出只包含已读章节列表，证据中出现的第5章未进入 chapters_list，导致 `chapters[1]` 越界并生成 chapter_id=None（`Backend.md:326-343`）；修复为“证据章节并入 chapters_list”，并补齐 `chapter_id` 与 `results` 兼容字段（`backend/app/services/agent/tools/explore_tools.py`）。
+- 一致性检查：plan_generator 已优先使用 locate_content 的 chapter_id，但当 locate_content 的 chapter_id 输入错误时仍会链路失效，因此必须保证 explore 输出可正确提供第5章 id（`backend/app/services/agent/planning/plan_generator.py`）。
+- 影响评估：新增兼容字段不改变原有结构；章节列表合并仅补齐缺失章信息，避免索引越界，但不会覆盖已读章节内容。
+- 验证建议：复跑同提示，确认日志不再出现 “数组索引 1 越界 / results 不存在 / insert 定位失败降级 append”，且第5章 smart_rewrite/replace 成功执行。
+
+## 复核定位链路修复完整性（2026-01-25）
+
+### 待办清单
+
+- [x] 复核参数解析链路（$eval/占位符/依赖提取）是否引入新问题
+- [x] 复核 locate_content 输出兼容字段与缓存写入是否满足规划引用
+- [x] 复核 insert/replace 的 HTML 段落定位与列表场景一致性
+- [x] 若发现问题，进行最小修复并记录影响范围
+- [x] 在 todo.md 添加 review，总结结论、风险与验证建议
+
+### review
+
+- 已补齐 ParameterResolver 对 $eval 的依赖提取与列表内解析，避免计划调度缺失依赖导致定位结果空值（`backend/app/services/agent/parameter_resolver.py`）。
+- locate_content 兼容字段与缓存写入可供规划引用，已确认 `frontend_display`/`found_paragraphs` 返回 `paragraph_index`/`node_id`（`backend/app/services/agent/tools/locate_tools.py`）。
+- 残留风险：insert 在列表上下文仍统一包装 `<p>`，可能在 `<ul>/<ol>` 内生成不合法结构，若列表场景频繁需考虑按 `<li>` 包装（`backend/app/services/agent/tools/editor_tools.py`）。
+- 验证建议：复跑 Prompt1/Prompt2，重点关注是否还有 “insert 定位失败降级 append”，并补测列表段落插入。
+
 ## listItem data-id 覆盖修复（2026-01-25）
 
 ### 问题描述
@@ -1065,6 +1155,71 @@ V3.4.1 修复后的规则：
 - UniqueIDExtension 仅绑定 `paragraph/heading/blockquote/codeBlock`，不会给 `listItem` 分配 data-id（`src/components/editor/NovelEditor.tsx:377` `src/components/editor/UniqueIDExtension.ts:41`）。
 - 结论：若列表内容需要修订定位，应将 `listItem` 纳入 data-id 归一化与段落解析，否则 `<li>` 只能依赖 paragraph_index，仍有“显示修订失败”风险。
 - table 目前未启用扩展，暂不建议加到 _BLOCK_TAGS；若后续启用 table，再同步扩展 `table/tableRow/tableCell/tableHeader`。
+
+## 扩展 listItem/taskItem data-id 支持（2026-01-25）
+
+### 待办清单
+
+- [x] 前端 UniqueID types 增加 listItem/taskItem（UniqueIDExtension + NovelEditor）
+- [x] 后端 data-id 归一化与 locate_content 解析支持 li（_BLOCK_TAGS + block_pattern + _find_text_by_node_id）
+- [x] 评估 listItem 与 paragraph_index 对齐风险，必要时调整 getAllNodes 过滤规则
+- [x] 更新 todo.md review 记录结论，并注明归一化已由你执行
+
+### 解决方案（拟）
+
+- 同步前后端节点类型覆盖，确保 `<li>` 有 data-id 且 locate_content 可解析；如前端节点列表与后端段落索引可能错位，则最小化过滤策略以维持一致性。
+
+### review
+
+- 前端 UniqueID 已覆盖 `listItem/taskItem`，并在编辑器配置中启用（`src/components/editor/UniqueIDExtension.ts` `src/components/editor/NovelEditor.tsx`）。
+- 后端 locate_content 解析与 node_id 回查补齐 `li` 支持，data-id 归一化已覆盖 `<li>`（`backend/app/services/agent/tools/locate_tools.py` `backend/app/utils/html_block_ids.py`）。
+- paragraph_index 对齐风险评估：listItem 会增加节点类型，但 node_id 作为首选定位可规避索引偏移；暂不调整 `getAllNodes`，保留后续必要时再过滤的空间。
+- 归一化执行结果（用户已完成）：扫描 1655 章，更新 1094 章，dry_run=False，历史 `<li>` 已补齐 data-id。
+
+## 生成复杂测试 Prompt（五条）（2026-01-25）
+
+### 待办清单
+
+- [x] 通读素材并提取第1-5章关键锚点（器灵等阶/浑圆桩/五虎群羊刀/太一门等）
+- [x] 设计 5 条复杂 Prompt，覆盖跨章定位、node_id 优先、paragraph_index 兜底、listItem 修订
+- [x] 明确建议测试章节与验证点
+- [x] 在 todo.md review 记录 Prompt 与覆盖范围
+
+### 解决方案（拟）
+
+- 基于第1-5章情节设置“伏笔插入 + 后续章节呼应改写 + 列表项改写”组合任务，强制 Explore→Locate→Create→Operate 全链路并回传 chapter_id/paragraph_index/node_id。
+
+### review
+
+- 测试章节建议：第1章/第2章/第3章/第5章（跨章改写 + 列表插入 + 关键词重复定位）。
+- 覆盖要点：node_id 优先定位、paragraph_index 兜底、跨章 locate_content 不误用 nodes_info、listItem 节点修订。
+- Prompt 1（跨章改写 + 伏笔插入）：在第1章“器灵等阶：未入阶。”段落后插入一句伏笔，暗示“器灵与经历/岁月相关”，并在第5章“也就是说器灵等级...”附近改写一段，把“经历+岁月”写成更清晰的推论。要求 Explore→Locate→Create→Operate，返回 node_id/paragraph_index。
+- Prompt 2（列表插入 + listItem 修订）：第2章“站桩”段落后插入 3 条编号列表（列表项必须含“身弓/臂弓/腿弓”关键词），随后再定位该列表第二条进行改写（listItem 直接替换为更简洁一句），要求输出 listItem 的 node_id。
+- Prompt 3（重复词定位）：第1章中“赵穆第一次出现的那一段”后插入一句旁白（不改变事实，只增加心理暗示），并在第3章“段融一夕千悟”段落中插入一句呼应。要求精确 locate_content，避免匹配后续“赵穆”段落。
+- Prompt 4（跨章插入 + 锚点）：第4章“家底”段落中“经济基础决定上层建筑”后插入两句现实感描写；第5章“太一门”介绍处补一句“宗门统治逻辑”呼应。要求使用 before/after_anchor，若 node_id 缺失则 paragraph_index 兜底。
+- Prompt 5（列表 + node_id 回查）：第5章“杨震请段融撮一顿”段落后插入一个 2 条无序列表，列出“酒菜/人情”两条短评；完成后用 node_id 定位第1条 listItem 并替换一个词，验证 node_id 可用。
+
+## 修复定位结果未传递导致插入追加（2026-01-25）
+
+### 待办清单
+
+- [x] 复核 Backend.md/INFO.md 中 locate_content 成功但 operate_apply 降级为 append 的原因
+- [x] 补齐 locate_content 输出的兼容字段（found_paragraphs / frontend_display.locations）
+- [x] ParameterResolver 支持 $eval 的最小安全解析（仅 result(N).path ± int）
+- [x] apply_chapter_edit 支持 li 的 node_id/paragraph_index 插入与替换
+- [x] 更新 todo.md review，给出验证步骤（重跑 Prompt1/Prompt2）
+
+### 解决方案（拟）
+
+- 针对 LLM 规划误引用路径（frontend_display/ found_paragraphs / content[0]）增加兼容输出与解析兜底，避免 operate_apply 无定位信息而降级 append。
+
+### review
+
+- 根因：规划参数引用错误（frontend_display.locations / content[0] / $eval 未解析）导致 paragraph_index/node_id/content 解析失败，operate_apply 触发 insert → append 降级，实际写到了章节末尾（`Backend.md`）。
+- 兼容修复：locate_content 返回 `found_paragraphs` 与 `frontend_display.locations`，并统一通过 `_cache_result` 生成，保证计划引用路径可解析（`backend/app/services/agent/tools/locate_tools.py`）。
+- 解析修复：ParameterResolver 增加 `$eval` 最小解析（仅 `result(N).path ± int`）并兼容 `content[0]` 误用，避免 paragraph_index/content 为空（`backend/app/services/agent/parameter_resolver.py`）。
+- 写入修复：apply_chapter_edit 覆盖 `li` 节点的 node_id/paragraph_index 插入与替换，并识别 `ul/ol` 为 HTML 上下文（`backend/app/services/agent/tools/editor_tools.py`）。
+- 验证建议：重跑 Prompt1/Prompt2，检查 operate_apply 不再降级 append，插入落点与 locate_content 的 paragraph_index/node_id 一致，且 listItem 可被 node_id 精确替换。
 ## 生成复杂测试 Prompt（验证插入偏差修复）（2026-01-25）
 
 ### 待办清单

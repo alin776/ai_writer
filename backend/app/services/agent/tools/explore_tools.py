@@ -2253,6 +2253,32 @@ class ContentExplorer:
 
         return covered / len(self.search_keywords)
 
+    def _should_enforce_scope_coverage(self) -> bool:
+        if not self.chapter_scopes:
+            return False
+        target = self.target_task or ""
+        negative_hints = ["不覆盖", "无需覆盖", "不用覆盖", "不要覆盖", "避免覆盖", "禁止覆盖"]
+        if any(hint in target for hint in negative_hints):
+            return False
+        # 只要显式指定了章节范围或章节号，就强制覆盖
+        return True
+
+    def _missing_scope_chapters(self) -> List[int]:
+        if not self._should_enforce_scope_coverage():
+            return []
+        required = set()
+        for start, end in self.chapter_scopes:
+            if isinstance(start, int) and isinstance(end, int):
+                required.update(range(start, end + 1))
+        if not required:
+            return []
+        covered = {
+            e.chapter_order
+            for e in self.state.evidences
+            if isinstance(e.chapter_order, int) and e.chapter_order > 0
+        }
+        return sorted(required - covered)
+
     def _generate_rule_based_summary(self, evidence_count: int, chapter_count: int, keyword_coverage: float) -> str:
         """生成规则判断时的总结"""
         # 收集章节信息
@@ -2519,6 +2545,18 @@ class ContentExplorer:
                 sufficient=False,
                 coverage=f"关键词覆盖不足：{coverage_rate:.0%}覆盖率，{evidence_count}条证据",
                 missing=extraction.potential_gaps[:3] if extraction.potential_gaps else ["关键词覆盖不足，需要继续探索"],
+                summary=extraction.summary,
+                next_action=extraction.next_action
+            )
+
+        missing_chapters = self._missing_scope_chapters()
+        if missing_chapters:
+            logger.info("[ContentExplorer] 章节覆盖不足: missing=%s", missing_chapters)
+            missing_items = [f"缺少第{order}章的证据片段" for order in missing_chapters[:5]]
+            return SufficiencyAssessment(
+                sufficient=False,
+                coverage=f"章节覆盖不足：缺少{len(missing_chapters)}个章节的证据",
+                missing=missing_items,
                 summary=extraction.summary,
                 next_action=extraction.next_action
             )
@@ -3446,8 +3484,13 @@ async def explore_content(
             }
             for order, ch in sorted(result.chapters.items())
         ]
-        if not chapters_list and result.evidences:
-            fallback_chapters: Dict[int, Dict[str, Any]] = {}
+        chapters_by_order = {
+            entry.get("order"): entry
+            for entry in chapters_list
+            if entry.get("order")
+        }
+        fallback_chapters: Dict[int, Dict[str, Any]] = {}
+        if result.evidences:
             for e in result.evidences:
                 chapter_order = e.chapter_order
                 if not chapter_order:
@@ -3483,9 +3526,23 @@ async def explore_content(
                 if not entry["title"]:
                     entry["title"] = f"第{entry['order']}章"
 
+        if fallback_chapters:
+            for chapter_order, entry in fallback_chapters.items():
+                existing = chapters_by_order.get(chapter_order)
+                if existing:
+                    if not existing.get("id") and entry.get("id"):
+                        existing["id"] = entry["id"]
+                    if not existing.get("title") and entry.get("title"):
+                        existing["title"] = entry["title"]
+                    if not existing.get("content") and entry.get("content"):
+                        existing["content"] = entry["content"]
+                    if not existing.get("word_count") and entry.get("word_count"):
+                        existing["word_count"] = entry["word_count"]
+                else:
+                    chapters_by_order[chapter_order] = entry
             chapters_list = [
-                fallback_chapters[chapter_order]
-                for chapter_order in sorted(fallback_chapters)
+                chapters_by_order[chapter_order]
+                for chapter_order in sorted(chapters_by_order)
             ]
 
         if chapters_list and work_id:
@@ -3506,6 +3563,10 @@ async def explore_content(
                         entry["id"] = ""
             except Exception:
                 pass
+
+        for entry in chapters_list:
+            if "chapter_id" not in entry:
+                entry["chapter_id"] = entry.get("id") or ""
 
         for entry in chapters_list:
             entry["paragraphs"] = _build_chapter_paragraphs(
@@ -3555,6 +3616,7 @@ async def explore_content(
             "explore_summary": explore_summary,
             # 2026-01-18: 添加兼容字段，支持 $ref 引用
             "chapters": chapters_list,
+            "results": chapters_list,
             "worldview": worldview_dict
         }, ensure_ascii=False, indent=2)
 

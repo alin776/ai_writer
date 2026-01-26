@@ -14,6 +14,7 @@ from app.services.chapter_word_stat_service import ChapterWordStatService
 from app.services.chapter_content_provider import ChapterContentProvider
 from app.services.chapter_content_index_service import ChapterContentIndexService
 from app.utils.chapter_file_storage import chapter_storage
+from app.utils.html_block_ids import ensure_block_ids
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,7 @@ class ChapterService:
         
         # 计算字数（去除HTML标签）
         content_text = chapter_data.content or ""
+        content_text = ensure_block_ids(content_text)
         word_count = calculate_word_count(content_text)
 
         # 解析章节状态
@@ -232,6 +234,7 @@ class ChapterService:
                 order = (max_order or 0) + 1
 
             content_text = content or ""
+            content_text = ensure_block_ids(content_text)
             word_count = calculate_word_count(content_text)
 
             chapter = Chapter(
@@ -285,6 +288,7 @@ class ChapterService:
         if content_updated:
             new_content = update_data.pop("content")
             new_content = new_content or ""
+            new_content = ensure_block_ids(new_content)
             update_data["word_count"] = calculate_word_count(new_content)
 
         # 协调 status 与 is_published 字段
@@ -445,6 +449,7 @@ class ChapterService:
         if content_updated:
             new_content = update_data.pop("content")
             new_content = new_content or ""
+            new_content = ensure_block_ids(new_content)
             update_data["word_count"] = calculate_word_count(new_content)
 
         # 协调 status 与 is_published 字段
@@ -534,6 +539,8 @@ class ChapterService:
             new_content = base_content[:pos] + content + base_content[pos:]
         else:
             return None
+
+        new_content = ensure_block_ids(new_content)
 
         # 更新章节
         chapter.word_count = calculate_word_count(new_content)

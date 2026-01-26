@@ -974,6 +974,11 @@ locate_content 只接受以下参数：
 - node_id: 节点ID（可选）
 ⚠️ nodes_info 仅来自前端/上下文；explore_content 不返回 nodes，禁止引用 chapters[*].nodes。
 
+⚠️ locate_content 输出字段在顶层：chapter_id / paragraph_index / node_id / text / before_anchor / after_anchor
+❌ 禁止引用 results / found_paragraphs / frontend_display.locations
+
+⚠️ insert 默认不允许降级 append；只有用户明确允许时，operate_apply 才能设置 allow_append_fallback: true
+
 ❌ 绝对禁止传入 work_id 参数！locate_content 不接受 work_id！
 ✅ 正确: {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}
 ❌ 错误: {"work_id": "xxx", "chapter_id": "xxx", "query": "xxx"}

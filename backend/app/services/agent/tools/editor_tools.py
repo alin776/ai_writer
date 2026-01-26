@@ -392,8 +392,8 @@ async def apply_chapter_edit(
 
             # 🔧 2026-01-11: 处理 paragraph_index = -1（表示最后一段）
             if paragraph_index == -1 and old_content:
-                if '<p' in old_content:
-                    pattern = r'<(p|h[1-6]|blockquote|pre)[^>]*>(.*?)</\1>'
+                if '<p' in old_content or '<li' in old_content:
+                    pattern = r'<(p|h[1-6]|blockquote|pre|li)[^>]*>(.*?)</\1>'
                     matches = re.findall(pattern, old_content, re.DOTALL | re.IGNORECASE)
                     paragraph_index = len(matches) - 1 if matches else 0
                 else:
@@ -434,7 +434,7 @@ async def apply_chapter_edit(
             def _replace_by_node_id(raw: str, target_id: str, replacement: str):
                 if not target_id:
                     return None
-                pattern = rf'(<(p|h[1-6]|blockquote|pre)[^>]*\sdata-id=["\']{re.escape(target_id)}["\'][^>]*>)(.*?)(</\2>)'
+                pattern = rf'(<(p|h[1-6]|blockquote|pre|li)[^>]*\sdata-id=["\']{re.escape(target_id)}["\'][^>]*>)(.*?)(</\2>)'
                 match = re.search(pattern, raw, re.DOTALL | re.IGNORECASE)
                 if not match:
                     return None
@@ -443,7 +443,7 @@ async def apply_chapter_edit(
             def _insert_after_node_id(raw: str, target_id: str, insertion: str):
                 if not target_id:
                     return None
-                pattern = rf'(<(p|h[1-6]|blockquote|pre)[^>]*\sdata-id=["\']{re.escape(target_id)}["\'][^>]*>.*?</\2>)'
+                pattern = rf'(<(p|h[1-6]|blockquote|pre|li)[^>]*\sdata-id=["\']{re.escape(target_id)}["\'][^>]*>.*?</\2>)'
                 match = re.search(pattern, raw, re.DOTALL | re.IGNORECASE)
                 if not match:
                     return None
@@ -453,8 +453,8 @@ async def apply_chapter_edit(
             def _get_paragraph_text(raw: str, idx: int):
                 if idx is None or idx < 0:
                     return None
-                if '<p' in raw:
-                    pattern = r'<(p|h[1-6]|blockquote|pre)[^>]*>(.*?)</\1>'
+                if '<p' in raw or '<li' in raw:
+                    pattern = r'<(p|h[1-6]|blockquote|pre|li)[^>]*>(.*?)</\1>'
                     matches = re.findall(pattern, raw, re.DOTALL | re.IGNORECASE)
                     if 0 <= idx < len(matches):
                         inner_html = matches[idx][1]
@@ -464,6 +464,46 @@ async def apply_chapter_edit(
                 paragraphs = [p.strip() for p in re.split(r'\n\n+|\n', raw) if p.strip()]
                 if 0 <= idx < len(paragraphs):
                     return paragraphs[idx]
+                return None
+
+            def _get_paragraph_position(raw: str, idx: int, position_type: str = "end"):
+                """
+                返回第 idx 个段落在 HTML 中的精确位置（避免 find() 命中重复文本）
+
+                Args:
+                    raw: HTML 内容
+                    idx: 段落索引（0-based）
+                    position_type:
+                        "start" - 整个段落块开始（<p 前）
+                        "end" - 整个段落块结束（</p> 后）
+                        "inner_start" - 内部内容开始（<p...> 后）
+                        "inner_end" - 内部内容结束（</p> 前）
+
+                Returns:
+                    位置索引，或 None
+                """
+                if idx is None or idx < 0:
+                    return None
+                if '<p' in raw or '<li' in raw:
+                    # 捕获组: (1)标签名 (2)整个开始标签 (3)内部内容
+                    pattern = r'(<(p|h[1-6]|blockquote|pre|li)[^>]*>)(.*?)(</\2>)'
+                    matches = list(re.finditer(pattern, raw, re.DOTALL | re.IGNORECASE))
+                    if 0 <= idx < len(matches):
+                        match = matches[idx]
+                        if position_type == "start":
+                            return match.start()
+                        elif position_type == "end":
+                            return match.end()
+                        elif position_type == "inner_start":
+                            return match.start() + len(match.group(1))  # <p...> 后
+                        elif position_type == "inner_end":
+                            return match.end() - len(match.group(4))    # </p> 前
+                    return None
+                # 纯文本模式：按非空行分割
+                paragraphs = list(re.finditer(r'[^\n]+', raw))
+                if 0 <= idx < len(paragraphs):
+                    match = paragraphs[idx]
+                    return match.end() if position_type in ("end", "inner_end") else match.start()
                 return None
 
             if operation == "append" and old_content.endswith(actual_content):
@@ -497,11 +537,12 @@ async def apply_chapter_edit(
                     if inserted is not None:
                         new_content = inserted
                 if new_content is None and insert_pos is None and paragraph_index is not None:
-                    para_text = _get_paragraph_text(old_content, paragraph_index)
-                    if para_text:
-                        idx = old_content.find(para_text)
-                        if idx != -1:
-                            insert_pos = idx + len(para_text)
+                    # 🔧 修复：在段落块后插入新段落，避免 find() 命中重复文本
+                    insert_pos = _get_paragraph_position(old_content, paragraph_index, "end")
+                    if insert_pos is not None:
+                        logger.debug(f"[apply_chapter_edit] insert 按段落索引定位: para_index={paragraph_index}, pos={insert_pos}")
+                    else:
+                        logger.warning(f"[apply_chapter_edit] insert 段落索引定位失败: para_index={paragraph_index}")
                 if new_content is None and insert_pos is None and (before_anchor or after_anchor):
                     inferred = position_inferrer.find_by_anchors(
                         content=old_content,
@@ -514,7 +555,17 @@ async def apply_chapter_edit(
                     if insert_pos is None:
                         insert_pos = len(old_content)
                     if isinstance(insert_pos, int) and 0 <= insert_pos <= len(old_content):
-                        if old_content[insert_pos:insert_pos + len(actual_content)] == actual_content:
+                        # 🔧 先计算要插入的内容（可能需要包装）
+                        content_to_insert = actual_content
+                        is_html_context = bool(re.search(r'<(p|h[1-6]|blockquote|pre|li|ul|ol)\b', old_content, re.IGNORECASE))
+                        # 识别所有块级元素（p, h1-h6, blockquote, pre, li, ul, ol）
+                        is_already_html = bool(re.match(r'^\s*<(p|h[1-6]|blockquote|pre|li|ul|ol)\b', actual_content, re.IGNORECASE))
+                        if is_html_context and not is_already_html:
+                            content_to_insert = f"<p>{actual_content}</p>"
+                            logger.debug(f"[apply_chapter_edit] insert 包装纯文本为段落标签")
+
+                        # 🔧 去重检查（同时检查包装后和原始内容）
+                        if old_content[insert_pos:insert_pos + len(content_to_insert)] == content_to_insert:
                             return json.dumps({
                                 "success": True,
                                 "requires_confirmation": False,
@@ -525,7 +576,20 @@ async def apply_chapter_edit(
                                 "no_change": True,
                                 "description": description or "insert already applied"
                             }, ensure_ascii=False)
-                    new_content = old_content[:insert_pos] + actual_content + old_content[insert_pos:]
+                        # 也检查原始内容（兼容未包装的情况）
+                        if content_to_insert != actual_content and old_content[insert_pos:insert_pos + len(actual_content)] == actual_content:
+                            return json.dumps({
+                                "success": True,
+                                "requires_confirmation": False,
+                                "action_type": "update_content",
+                                "chapter_id": resolved_chapter_id,
+                                "work_id": str(chapter.work_id),
+                                "operation": operation,
+                                "no_change": True,
+                                "description": description or "insert already applied"
+                            }, ensure_ascii=False)
+
+                        new_content = old_content[:insert_pos] + content_to_insert + old_content[insert_pos:]
 
             elif operation == "replace":
                 replaced = None
@@ -541,12 +605,34 @@ async def apply_chapter_edit(
                 if replaced is None and node_id:
                     replaced = _replace_by_node_id(old_content, node_id, actual_content)
                 if replaced is None and original_text:
-                    if original_text in old_content:
+                    match_count = old_content.count(original_text)
+                    if match_count == 1:
+                        # 唯一匹配，直接替换
                         replaced = old_content.replace(original_text, actual_content, 1)
+                    elif match_count > 1 and paragraph_index is not None:
+                        # 🔧 重复出现，优先用 paragraph_index 定位，避免替换错段
+                        inner_start = _get_paragraph_position(old_content, paragraph_index, "inner_start")
+                        inner_end = _get_paragraph_position(old_content, paragraph_index, "inner_end")
+                        if inner_start is not None and inner_end is not None:
+                            replaced = old_content[:inner_start] + actual_content + old_content[inner_end:]
+                            logger.debug(f"[apply_chapter_edit] replace original_text 重复({match_count}次)，改用段落索引定位: para_index={paragraph_index}")
+                        else:
+                            # 段落定位失败，退回第一次出现
+                            replaced = old_content.replace(original_text, actual_content, 1)
+                            logger.warning(f"[apply_chapter_edit] replace original_text 重复({match_count}次)，段落定位失败，使用第一次出现")
+                    elif match_count > 1:
+                        # 重复出现但无 paragraph_index，使用第一次出现并警告
+                        replaced = old_content.replace(original_text, actual_content, 1)
+                        logger.warning(f"[apply_chapter_edit] replace original_text 重复({match_count}次)，无 paragraph_index，使用第一次出现")
                 if replaced is None and paragraph_index is not None:
-                    para_text = _get_paragraph_text(old_content, paragraph_index)
-                    if para_text and para_text in old_content:
-                        replaced = old_content.replace(para_text, actual_content, 1)
+                    # 🔧 修复：只替换段落内部内容，保留 <p> 标签和 data-id
+                    inner_start = _get_paragraph_position(old_content, paragraph_index, "inner_start")
+                    inner_end = _get_paragraph_position(old_content, paragraph_index, "inner_end")
+                    if inner_start is not None and inner_end is not None:
+                        replaced = old_content[:inner_start] + actual_content + old_content[inner_end:]
+                        logger.debug(f"[apply_chapter_edit] replace 按段落索引定位: para_index={paragraph_index}, inner_start={inner_start}, inner_end={inner_end}")
+                    else:
+                        logger.warning(f"[apply_chapter_edit] replace 段落索引定位失败: para_index={paragraph_index}")
                 if replaced is None and before_anchor and after_anchor:
                     before_idx = old_content.find(before_anchor)
                     if before_idx != -1:
@@ -837,6 +923,33 @@ async def smart_rewrite(
         return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 
+def _extract_numbered_candidates(text: str) -> List[str]:
+    if not text:
+        return []
+    pattern = re.compile(r"(?:^|\s)(\d{1,2})[\.、\)]\s+")
+    matches = list(pattern.finditer(text))
+    if len(matches) < 2:
+        return []
+    numbers = [int(m.group(1)) for m in matches]
+    if numbers[0] != 1 or numbers[1] != 2:
+        return []
+    candidates: List[str] = []
+    for idx, match in enumerate(matches):
+        start = match.end()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+        item = text[start:end].strip()
+        if item:
+            candidates.append(item)
+    return candidates if len(candidates) >= 2 else []
+
+
+def _should_select_candidate(user_intent: str, candidates: List[str]) -> bool:
+    if not candidates:
+        return False
+    intent = user_intent or ""
+    return any(token in intent for token in ["候选", "备选", "2个", "两个", "两句"])
+
+
 @tool
 @register_as_tool(
     "smart_insert",
@@ -849,7 +962,8 @@ async def smart_insert(
     chapter_content: Optional[str] = None,
     insert_context: Optional[str] = None,
     word_count: int = 200,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    work_id: Optional[str] = None
 ) -> str:
     """
     智能插入 - 生成要插入的内容（不直接修改编辑器）
@@ -870,12 +984,25 @@ async def smart_insert(
     """
     try:
         # 如果没有提供章节内容，自动获取
-        if not chapter_content and chapter_id:
+        resolved_chapter_id = chapter_id
+        if work_id and chapter_id and chapter_id.count('-') != 4:
+            try:
+                from app.services.agent.langgraph_tools import resolve_chapter_id
+                resolved_id, error = await resolve_chapter_id(work_id, chapter_id)
+                if resolved_id:
+                    resolved_chapter_id = resolved_id
+                elif error:
+                    logger.warning(f"[smart_insert] 章节序号解析失败: {error}")
+                    resolved_chapter_id = ""
+            except Exception as e:
+                logger.warning(f"[smart_insert] 章节序号解析异常: {e}")
+
+        if not chapter_content and resolved_chapter_id:
             try:
                 async with AsyncSessionLocal() as db:
                     from app.services.chapter_service import ChapterService
                     chapter_svc = ChapterService(db)
-                    chapter = await chapter_svc.get_chapter_by_id(chapter_id)
+                    chapter = await chapter_svc.get_chapter_by_id(resolved_chapter_id)
                     if chapter and chapter.content:
                         chapter_content = chapter.content
             except Exception as e:
@@ -913,16 +1040,38 @@ async def smart_insert(
         # CREATIVE 工具：应用输出过滤器，去除脏信息
         generated_content = creative_output_filter(generated_content)
 
+        candidates = _extract_numbered_candidates(generated_content)
+        if _should_select_candidate(user_intent, candidates):
+            versions = [
+                {
+                    "style_name": f"候选{idx + 1}",
+                    "reason": user_intent,
+                    "content": item
+                }
+                for idx, item in enumerate(candidates)
+            ]
+            generated_content = candidates[0]
+            description = f"AI生成插入候选：{len(candidates)}条，选用第1条"
+        else:
+            versions = [{
+                "style_name": "插入内容",
+                "reason": user_intent,
+                "content": generated_content
+            }]
+            description = f"AI生成插入内容：{len(generated_content)}字"
+
         # 🆕 2026-01-10: 锚点定位职责已移交给 locate_content 工具
         # smart_insert 只负责创作，不负责定位
 
+        # 🔧 2026-01-25: 统一返回格式，使用 versions 结构与 smart_rewrite 保持一致
         return json.dumps({
             "success": True,
             "action_type": "insert",
-            "chapter_id": chapter_id,
-            "content": generated_content,
+            "chapter_id": resolved_chapter_id or chapter_id,
+            "content": generated_content,  # 保留原字段以兼容
+            "versions": versions,
             "content_length": len(generated_content),
-            "description": f"AI生成插入内容：{len(generated_content)}字"
+            "description": description
         }, ensure_ascii=False)
 
     except Exception as e:
@@ -1095,6 +1244,7 @@ class SmartInsertInput(ToolInput):
     insert_context: Optional[str] = Field(default=None, description="插入点附近的上下文")
     word_count: int = Field(default=200, description="期望生成字数")
     user_id: Optional[str] = Field(default=None, description="用户ID")
+    work_id: Optional[str] = Field(default=None, description="作品ID（用于章节序号解析）")
 
 
 class SmartInsertOutput(ToolOutput):
@@ -1112,7 +1262,8 @@ async def smart_insert_executor(input_data: SmartInsertInput) -> SmartInsertOutp
             "chapter_content": input_data.chapter_content,
             "insert_context": input_data.insert_context,
             "word_count": input_data.word_count,
-            "user_id": input_data.user_id
+            "user_id": input_data.user_id,
+            "work_id": input_data.work_id
         })
 
         result_data = json.loads(result_str) if isinstance(result_str, str) else result_str

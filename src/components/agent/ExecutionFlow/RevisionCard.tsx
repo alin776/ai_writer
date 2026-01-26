@@ -45,6 +45,16 @@ export function RevisionCard({
     return titles[revisionType] || '章节修订';
   };
 
+  const getPreviewLabel = () => {
+    const labels: Record<string, string> = {
+      create: '章节内容预览',
+      insert: '新增内容预览',
+      append: '续写内容预览',
+      replace: '改写内容预览'
+    };
+    return labels[revisionType] || '内容预览';
+  };
+
   // 状态标签样式
   const statusStyles: Record<string, string> = {
     pending: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
@@ -173,7 +183,7 @@ export function RevisionCard({
                 }}
               >
                 <div className="text-[11px] text-gray-400 dark:text-slate-500 mb-1">
-                  {revisionType === 'create' ? '章节内容预览' : '新增内容预览'}
+                  {getPreviewLabel()}
                 </div>
                 <div className="text-[13px] text-gray-600 dark:text-slate-300 leading-[1.6] line-clamp-2">
                   "{contentPreview}..."
