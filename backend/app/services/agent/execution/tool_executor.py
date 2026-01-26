@@ -131,6 +131,21 @@ class ToolExecutor:
             # 准备参数
             params = self.prepare_params(normalized_name, tool_args, state)
 
+            # 🔧 2026-01-26: fail-fast，避免 chapter_id 为空导致隐式失败
+            if normalized_name in {"smart_rewrite", "smart_insert", "smart_continue"}:
+                if not params.get("chapter_id"):
+                    return json.dumps({
+                        "error": "missing_chapter_id",
+                        "message": "chapter_id 为空，请检查是否引用 locate_content 的 chapter_id（引用路径错误）"
+                    }, ensure_ascii=False)
+            if normalized_name in {"operate_apply", "apply_chapter_edit"}:
+                operation = params.get("operation")
+                if operation in {"replace", "insert", "append", "content"} and not params.get("chapter_id"):
+                    return json.dumps({
+                        "error": "missing_chapter_id",
+                        "message": "chapter_id 为空，请检查是否引用 locate_content 的 chapter_id（引用路径错误）"
+                    }, ensure_ascii=False)
+
             cached_result = self._read_cover_cache(normalized_name, params, state)
             if cached_result is not None:
                 return cached_result
@@ -272,7 +287,24 @@ class ToolExecutor:
             selected_text = context_data.get("selected_text", "")
             locate_original_text = context_data.get("locate_original_text", "")
 
-            params.setdefault("chapter_id", current_chapter_id)
+            # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
+            # 如果 chapter_id 是 None（不是空字符串或未设置），说明 $ref 解析越界
+            # 此时应该报错而不是静默使用当前章节
+            param_chapter_id = params.get("chapter_id")
+            if param_chapter_id is None:
+                if "chapter_id" in params:
+                    # 参数中明确有 chapter_id 但值为 None，说明引用解析失败
+                    logger.error(
+                        "[ToolExecutor] smart_rewrite chapter_id 引用解析失败（越界或路径错误），"
+                        f"原始参数: {params}, state.chapter_id: {current_chapter_id}"
+                    )
+                    logger.warning(
+                        "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致修改位置错误"
+                    )
+                # 强制设置 chapter_id（setdefault 不会覆盖 None 值）
+                params["chapter_id"] = current_chapter_id
+            else:
+                params.setdefault("chapter_id", current_chapter_id)
 
             # text_to_rewrite: 优先使用参数值，其次使用选中文本
             if not params.get("text_to_rewrite"):
@@ -302,7 +334,21 @@ class ToolExecutor:
             params.setdefault("user_id", state.get("user_id"))
 
         elif tool_name == "smart_continue":
-            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
+            current_chapter_id = state.get("chapter_id", "")
+            param_chapter_id = params.get("chapter_id")
+            if param_chapter_id is None:
+                if "chapter_id" in params:
+                    logger.error(
+                        "[ToolExecutor] smart_continue chapter_id 引用解析失败（越界或路径错误），"
+                        f"原始参数: {params}, state.chapter_id: {current_chapter_id}"
+                    )
+                    logger.warning(
+                        "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致续写位置错误"
+                    )
+                params["chapter_id"] = current_chapter_id
+            else:
+                params.setdefault("chapter_id", current_chapter_id)
             # 🔧 2026-01-12: 确保 chapter_content 是字符串类型
             chapter_content = params.get("chapter_content")
             if chapter_content is not None and not isinstance(chapter_content, str):
@@ -317,7 +363,21 @@ class ToolExecutor:
             params.setdefault("user_id", state.get("user_id"))
 
         elif tool_name == "smart_insert":
-            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
+            current_chapter_id = state.get("chapter_id", "")
+            param_chapter_id = params.get("chapter_id")
+            if param_chapter_id is None:
+                if "chapter_id" in params:
+                    logger.error(
+                        "[ToolExecutor] smart_insert chapter_id 引用解析失败（越界或路径错误），"
+                        f"原始参数: {params}, state.chapter_id: {current_chapter_id}"
+                    )
+                    logger.warning(
+                        "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致插入位置错误"
+                    )
+                params["chapter_id"] = current_chapter_id
+            else:
+                params.setdefault("chapter_id", current_chapter_id)
             params.setdefault("work_id", state.get("work_id", ""))
             # 🔧 2026-01-12: 确保 chapter_content 是字符串类型，避免 AI 传入列表导致验证失败
             chapter_content = params.get("chapter_content")
@@ -465,7 +525,21 @@ class ToolExecutor:
 
         # 🆕 2026-01-23: operate_apply 统一操作工具
         elif tool_name == "operate_apply":
-            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
+            current_chapter_id = state.get("chapter_id", "")
+            param_chapter_id = params.get("chapter_id")
+            if param_chapter_id is None:
+                if "chapter_id" in params:
+                    logger.error(
+                        "[ToolExecutor] operate_apply chapter_id 引用解析失败（越界或路径错误），"
+                        f"原始参数: {params}, state.chapter_id: {current_chapter_id}"
+                    )
+                    logger.warning(
+                        "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致操作位置错误"
+                    )
+                params["chapter_id"] = current_chapter_id
+            else:
+                params.setdefault("chapter_id", current_chapter_id)
             params.setdefault("work_id", state.get("work_id", ""))
             params.setdefault("user_id", state.get("user_id", ""))
             params.setdefault("conversation_id", state.get("conversation_id", ""))

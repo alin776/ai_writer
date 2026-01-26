@@ -571,7 +571,10 @@ class ParameterResolver:
         field_path: str,
         fallback: str
     ) -> Any:
-        """从结构化结果中提取字段，失败则回退到 fallback。"""
+        """从结构化结果中提取字段，失败则回退到 fallback。
+
+        2026-01-27 改进：越界时记录更详细的警告信息，便于调试。
+        """
         data = payload
         if isinstance(payload, str):
             try:
@@ -591,12 +594,23 @@ class ParameterResolver:
                     # 兼容 content[0] 误用：直接返回字符串内容
                     return value
                 else:
-                    logger.warning(f"[ParameterResolver] 数组索引 {token} 越界，降级返回完整结果")
-                    return fallback
+                    # 2026-01-27: 记录更详细的警告信息
+                    actual_len = len(value) if isinstance(value, list) else 0
+                    logger.warning(
+                        f"[ParameterResolver] 数组索引越界: path={field_path}, "
+                        f"index={token}, actual_len={actual_len}, "
+                        f"返回 None（而非 fallback={fallback}）"
+                    )
+                    # 2026-01-27: 越界时返回 None，让调用方明确知道提取失败
+                    return None
             elif isinstance(value, dict) and token in value:
                 value = value[token]
             else:
-                logger.warning(f"[ParameterResolver] 字段 {token} 不存在于 {type(value).__name__}，降级返回完整结果")
+                logger.warning(
+                    f"[ParameterResolver] 字段不存在: path={field_path}, "
+                    f"field={token}, type={type(value).__name__}, "
+                    f"降级返回 fallback"
+                )
                 return fallback
 
         return value

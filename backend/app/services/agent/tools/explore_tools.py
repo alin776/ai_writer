@@ -333,7 +333,7 @@ def _parse_chapter_scopes(target_task: str) -> List[Tuple[int, int]]:
         if isinstance(start, int) and isinstance(end, int):
             scopes.append((min(start, end), max(start, end)))
 
-    # 兼容“章节1-2”“章节(1-2, 34-35)”等写法
+    # 兼容"章节1-2""章节(1-2, 34-35)"等写法
     if "章节" in text:
         for match in re.finditer(r"章节\s*\(?\s*(\d+)\s*[到至\-~—～]\s*(\d+)", text):
             start = int(match.group(1))
@@ -344,10 +344,15 @@ def _parse_chapter_scopes(target_task: str) -> List[Tuple[int, int]]:
             end = _chinese_to_int(match.group(2))
             if isinstance(start, int) and isinstance(end, int):
                 scopes.append((min(start, end), max(start, end)))
-        for match in re.finditer(r"(\d+)\s*[到至\-~—～]\s*(\d+)", text):
+        # 2026-01-27: 移除贪心正则，避免误匹配 UUID 中的数字
+        # 原来的正则 r"(\d+)\s*[到至\-~—～]\s*(\d+)" 会匹配任何数字范围
+        # 改为只匹配紧跟在"章节"后面、且范围合理（<=1000）的数字
+        for match in re.finditer(r"章节[^第]*?(\d{1,3})\s*[到至\-~—～]\s*(\d{1,3})(?!\s*章)", text):
             start = int(match.group(1))
             end = int(match.group(2))
-            scopes.append((min(start, end), max(start, end)))
+            # 额外校验：范围不超过 1000 章，避免误匹配大数字
+            if start <= 1000 and end <= 1000:
+                scopes.append((min(start, end), max(start, end)))
 
     # 兼容“1-2章”写法
     for match in re.finditer(r"(\d+)\s*[到至\-~—～]\s*(\d+)\s*章", text):
@@ -400,10 +405,22 @@ def _extract_title_chapter_number(title: str) -> Optional[int]:
 
 def _map_scopes_to_orders(
     scopes: List[Tuple[int, int]],
-    title_order_map: Dict[int, int]
+    title_order_map: Dict[int, int],
+    total_chapters: int = 0
 ) -> List[Tuple[int, int]]:
-    if not scopes or not title_order_map:
+    """将标题号范围映射到实际序号。
+
+    2026-01-27 改进：映射失败时返回合理的默认范围，而非空列表。
+    """
+    if not scopes:
         return []
+
+    if not title_order_map:
+        # 无映射表时，如果有总章节数，限制范围；否则返回原始范围
+        if total_chapters > 0:
+            return [(max(1, s), min(e, total_chapters)) for s, e in scopes if s <= total_chapters]
+        return scopes  # 保留原始范围
+
     mapped: List[Tuple[int, int]] = []
     for start, end in scopes:
         orders = [
@@ -411,10 +428,21 @@ def _map_scopes_to_orders(
             if start <= title_no <= end
         ]
         if not orders:
+            # 2026-01-27: 映射失败时，尝试使用原始范围（限制在合理范围内）
+            max_order = max(title_order_map.values()) if title_order_map else total_chapters
+            if max_order > 0 and start <= max_order:
+                # 原始范围有效，限制上界
+                mapped.append((start, min(end, max_order)))
             continue
         mapped.append((min(orders), max(orders)))
+
     if not mapped:
-        return []
+        # 所有范围都映射失败，返回原始范围（限制在合理范围内）
+        max_order = max(title_order_map.values()) if title_order_map else total_chapters
+        if max_order > 0:
+            return [(max(1, s), min(e, max_order)) for s, e in scopes if s <= max_order]
+        return scopes  # 最后兜底：返回原始范围
+
     mapped.sort(key=lambda item: (item[0], item[1]))
     merged: List[Tuple[int, int]] = []
     for start, end in mapped:
@@ -1489,7 +1517,8 @@ class ContentExplorer:
                 if title_no not in title_order_map:
                     title_order_map[title_no] = chapter.order
             self.title_order_map = title_order_map
-            mapped = _map_scopes_to_orders(self.chapter_scopes_raw, title_order_map)
+            total_chapters = len(chapters) if chapters else 0
+            mapped = _map_scopes_to_orders(self.chapter_scopes_raw, title_order_map, total_chapters)
             if mapped:
                 self.chapter_scopes = mapped
                 logger.info(

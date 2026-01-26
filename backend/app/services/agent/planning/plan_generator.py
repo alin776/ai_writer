@@ -519,6 +519,7 @@ tool_policy: {tool_policy}
 
         # 🔧 2025-12-25: 新增规划验证和自动修复
         plan_data = self._validate_and_fix_plan(plan_data, message)
+        plan_data["tasks"] = self._ensure_chapter_id_from_locate(plan_data.get("tasks", []))
         plan_data["tasks"] = self._ensure_editor_apply_tasks(plan_data.get("tasks", []))
         plan_data["tasks"] = self._ensure_replace_original_text(plan_data.get("tasks", []))
 
@@ -1110,6 +1111,65 @@ tool_policy: {tool_policy}
                         "path": "original_text"
                     }
                 }
+                task["params"] = params
+
+        return tasks
+
+    @staticmethod
+    def _should_override_chapter_id(chapter_id: Any, locate_task_id: Optional[int]) -> bool:
+        if not locate_task_id:
+            return False
+        if not chapter_id:
+            return True
+        if isinstance(chapter_id, dict):
+            ref_obj = chapter_id.get("$ref") or chapter_id.get("ref") or {}
+            if not ref_obj:
+                return False
+            ref_task_id = ref_obj.get("task_id")
+            ref_path = ref_obj.get("path") or ""
+            if str(ref_task_id) == str(locate_task_id) and ref_path == "chapter_id":
+                return False
+            return True
+        if isinstance(chapter_id, str):
+            if "$TASK_" in chapter_id or "chapters[" in chapter_id or "chapters" in chapter_id:
+                return True
+        return False
+
+    def _ensure_chapter_id_from_locate(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """优先使用 locate_content 的 chapter_id，避免 chapters[1] 越界导致 None。"""
+        if not tasks:
+            return tasks
+
+        last_locate_task_id: Optional[int] = None
+        for task in tasks:
+            tool = task.get("tool")
+            task_id = task.get("task_id")
+            params = task.get("params", {}) or {}
+
+            if tool == "locate_content":
+                try:
+                    last_locate_task_id = int(task_id)
+                except (TypeError, ValueError):
+                    last_locate_task_id = task_id
+                continue
+
+            if tool in {"smart_rewrite", "smart_insert", "smart_continue", "operate_apply", "apply_chapter_edit"}:
+                if last_locate_task_id and self._should_override_chapter_id(params.get("chapter_id"), last_locate_task_id):
+                    params["chapter_id"] = {
+                        "$ref": {
+                            "task_id": last_locate_task_id,
+                            "path": "chapter_id"
+                        }
+                    }
+
+                if tool in {"operate_apply", "apply_chapter_edit"}:
+                    if params.get("operation") in {"replace", "insert"} and last_locate_task_id:
+                        params.setdefault("node_id", {"$ref": {"task_id": last_locate_task_id, "path": "node_id"}})
+                        params.setdefault(
+                            "paragraph_index",
+                            {"$ref": {"task_id": last_locate_task_id, "path": "paragraph_index"}}
+                        )
+
                 task["params"] = params
 
         return tasks

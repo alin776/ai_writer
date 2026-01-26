@@ -1,5 +1,186 @@
 # TODO
 
+## 深挖 opencode Explore 阶段实现（2026-01-27）
+
+### 待办清单
+
+- [x] 全量扫描 opencode Explore 相关源码（agent 配置/权限/提示词/plan mode/子代理调用）
+- [x] 追踪 Explore 的调用链路与运行时约束（task 工具/会话/权限）
+- [x] 输出 opencode Explore 的实现机制与可借鉴点
+- [x] 在 todo.md 添加 review，记录结论与文件依据
+
+### 解决方案（拟）
+
+- 以 `opencode/packages/opencode/src/agent/agent.ts`、`opencode/packages/opencode/src/agent/prompt/explore.txt`、`opencode/packages/opencode/src/session/prompt.ts`、`opencode/packages/opencode/src/tool/task.ts` 为起点，向外追踪 Explore 子代理的创建、权限与提示词执行路径，整理完整实现与可借鉴机制。
+
+### review
+
+**实现结构**：
+- Explore 是 **subagent**，在 `Agent` 默认配置中启用，并由权限系统限制为“只读/探索工具”；配置入口在 `opencode/packages/opencode/src/agent/agent.ts:125`。
+- Explore 的行为由专用 prompt 约束，明确“用 Glob/Grep/Read/Bash 做搜索、不要修改系统、返回绝对路径”。`opencode/packages/opencode/src/agent/prompt/explore.txt:1`
+- Plan 模式的 Phase 1 强制“只用 Explore 子代理”，并建议 **并行启动最多 3 个** 探索代理，分别聚焦不同区域。`opencode/packages/opencode/src/session/prompt.ts:1263` `opencode/packages/opencode/src/session/prompt/plan-reminder-anthropic.txt:20`
+- 实际调用链路通过 `Task` 工具创建子会话并运行指定 subagent；任务权限会被收窄（禁止 todo/write/edit），并可复用 session_id。`opencode/packages/opencode/src/tool/task.ts:15` `opencode/packages/opencode/src/tool/task.txt:1`
+- 额外机制：当工具输出被截断时，提示使用 Explore 子代理对保存文件继续 Grep/Read，以避免大输出污染上下文。`opencode/packages/opencode/src/tool/truncation.ts:92`
+
+**可借鉴点**：
+- **并行探索策略**：把“找文件/找实现/找测试”拆成多个 Explore 子任务并行执行，提高召回（来自 Plan 模式提示）。
+- **探索只读权限**：限制 Explore 只允许读/搜类工具，避免误写，同时便于把搜索做“更大胆/更彻底”。
+- **截断接力机制**：大输出先落盘，再用 Explore 子代理分段 Grep/Read，降低上下文浪费。
+- **显式探索提示词**：要求输出绝对路径 + 约束工具选择，减少“搜错/读错文件”的概率。
+
+## 深度 Review Explore 阶段缺陷（2026-01-27）
+
+### 待办清单
+
+- [x] 汇总 Explore 主流程与阶段划分（阶段1/2/3与关键工具）
+- [x] 复核检索链路（exact_search/search_content/HybridRetriever）与召回/精度风险
+- [x] 复核定位与读取链路（locate_content/read_paragraph）对性能与漏检的影响
+- [x] 基于代码给出“慢/不准/缺关键信息”的缺陷清单与证据
+- [x] 在 todo.md 添加 review，记录结论与文件依据
+
+### 解决方案（拟）
+
+- 逐段阅读 `backend/app/services/agent/tools/explore_tools.py` 与检索相关实现，结合 `backend/app/services/agent/langgraph_tools.py`、`backend/app/services/search/hybrid_retriever.py`、`backend/app/services/chapter_vector_service.py`、`backend/app/services/agent/tools/locate_tools.py` 等文件，形成基于代码的缺陷评审结论。
+
+### review
+
+**结论**：存在导致“慢/不准/漏重要信息”的结构性缺陷，主要集中在探索预算过小、关键词覆盖默认充足、检索/过滤阈值与去重策略过硬、定位与读取上限过低等方面。
+
+1) **高风险：关键词为空时覆盖率直接=100%，可能误判“信息充足”并提前停止**
+   - `_calculate_keyword_coverage` 在 `search_keywords` 为空时直接返回 1.0（`backend/app/services/agent/tools/explore_tools.py:2266`），而 `_evaluate_from_extraction` 基于覆盖率+证据量触发“充足”（`backend/app/services/agent/tools/explore_tools.py:2535`）。
+   - 这会在用户未提供明确关键词或抽取失败时，导致“证据多但无关”也被视为充足，阶段2就提前返回（`backend/app/services/agent/tools/explore_tools.py:1783`）。
+
+2) **高风险：探索预算硬限制过小，容易漏关键证据**
+   - 补充阶段最多 3 轮、每轮最多 3 个语义查询、每次检索 `top_k=5`（`backend/app/services/agent/tools/explore_tools.py:1871`、`backend/app/services/agent/tools/explore_tools.py:2255`、`backend/app/services/agent/tools/explore_tools.py:2817`）。
+   - 自动定位与自动读段落上限仅 3（严格模式 12），导致大量结果不被验证/扩展上下文（`backend/app/services/agent/tools/explore_tools.py:30`、`backend/app/services/agent/tools/explore_tools.py:2793`）。
+
+3) **中高风险：检索阈值与证据过滤叠加，可能丢弃中等相关的关键片段**
+   - HybridRetriever 向量相似度阈值 0.25（`backend/app/services/search/hybrid_retriever.py:277`），但 Explore 证据过滤阈值 0.35，会直接丢掉 0.25~0.35 的中等相关结果（`backend/app/services/agent/tools/explore_tools.py:30`、`backend/app/services/agent/tools/explore_tools.py:787`）。
+
+4) **中风险：关键词抽取启发式偏短，导致精确搜索覆盖不足**
+   - `_extract_keywords_for_search` 只保留 2-6 字汉字实体，长名称、数字、英文缩写易被漏掉，进而阶段1精确搜索跳过或偏泛（`backend/app/services/agent/tools/explore_tools.py:149`）。
+   - 阶段1 `exact_search_paragraphs` 使用 `match_mode="any"` + `limit=100`，若关键词过泛，会累积大量噪声并干扰后续评估（`backend/app/services/agent/tools/explore_tools.py:1713`、`backend/app/services/chapter_vector_service.py:323`）。
+
+5) **中风险：相似查询去重策略过于简单，可能误跳过有效搜索**
+   - `should_search` 对“包含关系 + 长度比”就判相似，可能把“同实体不同侧面”的查询直接跳过（`backend/app/services/agent/tools/explore_tools.py:683`）。
+
+6) **中风险：未限定章节时的全局检索范围极大，拖慢且引入噪声**
+   - `HybridRetriever.search` 在无章节约束时使用极大时序窗口（`backend/app/services/search/hybrid_retriever.py:277`），导致搜索范围过宽、慢且易引入无关片段。
+
+7) **中风险：定位 query 截断 + LLM 辅助定位开销，可能慢且定位不稳**
+   - `locate_content` 会截断 query（200 字），再走模糊/LLM 辅助定位（`backend/app/services/agent/tools/locate_tools.py:45`、`backend/app/services/agent/tools/locate_tools.py:157`），在 Explore 自动定位（`backend/app/services/agent/tools/explore_tools.py:2888`）中会放大耗时并带来定位失败风险。
+
+## 深度探索 codex/opencode 的 Explore 阶段实现（2026-01-27）
+
+### 待办清单
+
+- [x] 定位 codex 中 Explore 相关实现（命令解析/探索状态/展示逻辑）
+- [x] 定位 opencode 中 Explore 相关实现（子代理配置/权限/提示词/触发流程）
+- [x] 汇总两项目的 Explore 实现路径并输出结论
+- [x] 在 todo.md 添加 review，记录关键文件与要点
+
+### 解决方案（拟）
+
+- 读取 codex 的 `parse_command` 与 TUI `exec_cell` 逻辑，梳理“什么命令被视为 Explore、如何聚合与展示”；读取 opencode 的 `Agent` 配置、`explore` prompt、`Task` 子代理调用与 plan-mode 提示，说明 Explore 阶段的角色与触发路径。
+
+### review
+
+- codex：Explore 不是独立代理，而是 UI 侧对“只包含 Read/List/Search 的工具调用”做归类显示；`ExecCell::is_exploring_call` 判定条件为非 UserShell 且 parsed 全为 Read/List/Search，TUI 用 `exploring_display_lines` 展示 “Exploring/Explored” 并合并连续 Read（`/mnt/d/Java/ai_writer/codex/codex-rs/tui/src/exec_cell/model.rs:105` `/mnt/d/Java/ai_writer/codex/codex-rs/tui/src/exec_cell/render.rs:254`）。
+- codex：命令解析由 `parse_command` 产出 `ParsedCommand`（Read/ListFiles/Search/Unknown），并通过工具事件把 parsed_cmd 附到 Exec 事件中，供前端展示使用（`/mnt/d/Java/ai_writer/codex/codex-rs/core/src/parse_command.rs:30` `/mnt/d/Java/ai_writer/codex/codex-rs/protocol/src/parse_command.rs:7` `/mnt/d/Java/ai_writer/codex/codex-rs/core/src/tools/events.rs:61`）。
+- opencode：Explore 是一个受限子代理（mode=subagent），权限默认 deny，仅允许 grep/glob/list/read/bash 等探索类工具，prompt 强调“只探索、不可改写”（`/mnt/d/Java/ai_writer/opencode/packages/opencode/src/agent/agent.ts:125` `/mnt/d/Java/ai_writer/opencode/packages/opencode/src/agent/prompt/explore.txt:1`）。
+- opencode：Plan 模式下的 Phase 1 明确要求只调用 explore 子代理，并支持并行启动多个 explore 进行代码库探索（`/mnt/d/Java/ai_writer/opencode/packages/opencode/src/session/prompt.ts:1263`）。
+- opencode：实际调用路径通过 `task` 工具按 `subagent_type` 获取子代理并创建子会话，探索流程由 task 子任务驱动（`/mnt/d/Java/ai_writer/opencode/packages/opencode/src/tool/task.ts:15`）。
+
+## 核对章节错乱根因描述（2026-01-27）
+
+### 待办清单
+
+- [x] 复核 locate_content 对 query 的期望与全局降级条件，判断“摘要 query”是否易触发定位失败/跨章
+- [x] 复核 smart_rewrite 在缺 text_to_rewrite 时的章节内容获取与 chapter_id 兜底来源
+- [x] 复核 explore_content 输出章节列表与规划引用路径的风险点（chapters 选择/默认当前章）
+- [x] 对用户的根因描述给出准确性判断与补充
+- [x] 在 todo.md 添加 review，记录结论与证据文件
+
+### 解决方案（拟）
+
+- 阅读 `backend/app/services/agent/tools/locate_tools.py`、`backend/app/services/agent/tools/editor_tools.py`、`backend/app/services/agent/execution/tool_executor.py`、`backend/app/services/agent/tools/explore_tools.py`，结合工具输出与兜底逻辑，对照用户描述逐条核对并补充偏差点。
+
+### review
+
+- locate_content 对 query 仅做空白归一与截断，不会清理“摘要前缀/段落标签”；当 query 为摘要而非原文时，精确/模糊/LLM 可能失败，且 `allow_global_fallback=True` 时会触发跨章降级（`backend/app/services/agent/tools/locate_tools.py`）。
+- smart_rewrite 在缺 `text_to_rewrite` 时会自动按 `chapter_id` 取整章内容；若 `chapter_id` 解析为 None，ToolExecutor 会降级为当前章节（state.chapter_id），因此可能误写到“当前打开章”（`backend/app/services/agent/tools/editor_tools.py` `backend/app/services/agent/execution/tool_executor.py`）。
+- explore_content 输出 `chapters_list` 按 chapter_order 排序并可能包含多章；规划若引用 `chapters[0/1]` 容易错章，且只有在存在 locate_content 任务时，plan_generator 才会强制用 locate 的 `chapter_id` 覆盖（`backend/app/services/agent/tools/explore_tools.py` `backend/app/services/agent/planning/plan_generator.py`）。
+- 结论：用户的根因描述整体方向准确，但需补充“chapter_id 为 None 时会被 ToolExecutor 默认回落到当前章”“跨章降级仅在 allow_global_fallback 打开时触发”两点边界条件。
+
+## P0 BUG 修复：章节范围解析与参数越界（2026-01-27）
+
+### 问题描述
+
+1. **章节范围解析贪心正则**：`_parse_chapter_scopes()` 第347行的正则会误匹配 UUID 中的数字，导致出现"第484-600章"这种错误范围
+2. **映射失败返回空列表**：`_map_scopes_to_orders()` 当所有范围映射失败时返回空列表，导致搜索无范围限制
+3. **参数越界时降级不当**：`parameter_resolver` 数组越界时返回 fallback，可能导致后续工具拿到错误数据
+
+### 待办清单
+
+- [x] 修复 `_parse_chapter_scopes()` 的贪心正则，限制只在合理上下文中匹配
+- [x] 修复 `_map_scopes_to_orders()` 映射失败时的处理，返回原始范围而非空列表
+- [x] 增强 `parameter_resolver` 的越界保护，对 chapter_id 等关键参数特殊处理
+- [x] 在 todo.md 添加 review
+
+### review
+
+**1. 修复贪心正则（explore_tools.py 第347-355行）**
+- 移除了 `r"(\d+)\s*[到至\-~—～]\s*(\d+)"` 这个会匹配任何数字范围的贪心正则
+- 改为只匹配紧跟在"章节"后面、且范围合理（<=1000章）的数字
+- 新正则：`r"章节[^第]*?(\d{1,3})\s*[到至\-~—～]\s*(\d{1,3})(?!\s*章)"`
+
+**2. 修复映射失败处理（explore_tools.py 第406-457行）**
+- `_map_scopes_to_orders()` 增加 `total_chapters` 参数
+- 映射失败时返回原始范围（限制在合理范围内），而非空列表
+- 避免因映射失败导致搜索无范围限制
+
+**3. 增强越界保护（parameter_resolver.py 第568-616行）**
+- 数组越界时返回 `None`（而非 fallback），让调用方明确知道提取失败
+- 记录更详细的警告信息：path、index、actual_len
+
+**4. 检测 chapter_id 引用解析失败（tool_executor.py）**
+- `smart_rewrite`、`smart_insert`、`operate_apply` 增加对 chapter_id 为 None 的检测
+- 当检测到引用解析失败时记录 ERROR 日志，便于调试
+- **重要修复**：使用 `params["chapter_id"] = ...` 强制覆盖，而非 `setdefault`（setdefault 不会覆盖 None 值）
+
+**深度 Review 发现的问题（2026-01-27 补充）**
+
+| 问题 | 严重程度 | 状态 | 说明 |
+|------|----------|------|------|
+| `setdefault` 不会覆盖 None 值 | 🔴 高 | ✅ 已修复 | 导致 chapter_id 仍为 None |
+| `smart_insert` 缺少 chapter_id 检测 | 🟡 中 | ✅ 已修复 | 添加了与 smart_rewrite 一致的检测 |
+| `smart_continue` 缺少 chapter_id 检测 | 🟡 中 | ✅ 已修复 | 添加了与 smart_rewrite 一致的检测 |
+| 新正则可能过于严格 | 🟢 低 | ⏸️ 可接受 | 限制 1-3 位数字，1000 章以上会漏 |
+
+---
+
+## 拆段来源解释（2026-01-26）
+
+### 待办清单
+
+- [x] 结合编辑器与后端写入链路梳理“段落被拆分”的常见触发点
+- [x] 给出直白回答与最小例子
+- [x] 在 todo.md 添加 review，记录结论与注意事项
+
+### review
+
+- 段落被拆分通常来自用户编辑（回车/粘贴）、编辑器节点规范化/协作冲突合并；并非后端主动拆段，但后端回写 HTML 也会触发前端重新解析并重建节点。
+
+## 修复章节定位与改写章节错乱（2026-01-27）
+
+### 待办清单
+
+- [ ] 复核 smart_* / operate_apply 的 chapter_id 兜底逻辑，确认“用户指定第X章”时的覆盖规则
+- [ ] 在 ToolExecutor 增加“显式章节号”纠偏与序号解析，避免默认落到当前章节
+- [ ] 优化 locate_content 的 query 归一化，剔除“相关片段/段落标记”等摘要前缀
+- [ ] 同步规划提示：未给出原文时需先 locate_content，禁止用 explore_summary 充当 text_to_rewrite
+- [ ] 在 todo.md 添加 review，总结修复点与验证建议
+
 ## smart* 单输出提示修正（2026-01-26）
 
 ### 待办清单
@@ -198,6 +379,75 @@
 ### 解决方案（拟）
 
 - 基于前五章内容，构造含“早期伏笔插入 + 后期揭示改写 + 章节不同 + 不改事实仅暗示”的复杂需求。
+
+## 生成抽象复杂测试 Prompt（2026-01-26）
+
+### 待办清单
+
+- [x] 通读《人在诸天，摆烂成帝》素材，整理可用于测试的章节要点
+- [x] 对照近期“单输出/多版本规避/定位链路”等变化设计 5 个抽象复杂测试 Prompt
+- [x] 输出 5 个 Prompt 给用户进行测试
+- [x] 在 todo.md 添加 review，记录覆盖点与注意事项
+
+### review
+
+- 测试 prompt 覆盖第1/3/4/5/8/9章关键片段，包含“插入/改写/跨章镜像”场景，便于验证 locate→operate 的 chapter_id 与定位稳定性。
+- 每个 prompt 明确要求多版本/候选输出，用于验证“只输出单版本、忽略多版本请求”的新行为是否生效。
+- 关键词锚点采用原文句子（如“遵守交通规则…”“妖神之后…”“等等我，我还没上车呢！！！”），若定位失败可微调标点或改用相邻句作为锚点。
+
+## data-id 与 node_id 核对（2026-01-26）
+
+### 待办清单
+
+- [x] 阅读前后端相关实现（UniqueIDExtension/html_block_ids/locate_tools/operate_tools）
+- [x] 对照用户的要点逐条核对准确性与边界条件
+- [x] 输出直白版结论给用户
+- [x] 在 todo.md 添加 review，总结核对结论与注意事项
+
+### review
+
+- 结论：整体描述正确，data-id 与 node_id 在编辑定位链路中等价；node_id 既可来自 HTML 的 data-id，也可由前端 nodes_info 传入。
+- 现状补充：前端 UniqueIDExtension 与后端归一化已覆盖 `p/h1-6/blockquote/pre/li`（含 listItem），但 `table` 等仍缺 data-id。
+- 风险修正：缺 data-id 时会退化为 paragraph_index/锚点；insert 不再默认落到末尾，除非显式允许 append 降级。
+
+## 漂移原因举例说明（2026-01-26）
+
+### 待办清单
+
+- [x] 结合 locate/apply 链路梳理一个“定位成功但应用漂移”的最小场景
+- [x] 写出直白例子（含触发条件与结果），用于回答用户
+- [x] 在 todo.md 添加 review，总结例子覆盖点与注意事项
+
+### review
+
+- 示例覆盖“定位与应用间内容变化”与“data-id 丢失导致降级”的两种常见漂移路径，说明成功率与准确率无法同时 100%。
+
+## 静态窗口 100% 成功+不漂移 可行性（2026-01-26）
+
+### 待办清单
+
+- [x] 梳理“静态窗口”可行做法与必要约束（写锁/版本校验/禁降级/全量 data-id）
+- [x] 给出是否能达成“100% 成功+100% 不漂移”的直白结论
+- [x] 输出可行的极限方案与代价（成功率/可用性）
+- [x] 在 todo.md 添加 review，记录结论与注意事项
+
+### review
+
+- 结论：静态窗口 + 强约束可以做到“已执行的补丁不漂移”，但无法保证“100% 成功”，因为任何不满足约束的请求都必须失败。
+
+## 导入作品 data-id 现状核对（2026-01-26）
+
+### 待办清单
+
+- [x] 复核导入链路是否在写入时补齐 data-id
+- [x] 给出“哪些导入会有/没有 data-id”的直白结论
+- [x] 输出对应的建议动作（如归一化/编辑保存）
+- [x] 在 todo.md 添加 review，记录结论与注意事项
+
+### review
+
+- 导入链路当前不会主动补齐 data-id：txt/markdown 导入直接写原文到章节文件，json 导入也写入原 content。
+- data-id 只有在“编辑器保存/后端 ensure_block_ids 写入路径”或“离线归一化脚本”时才会被补齐。
 - 提示中明确 Explore → Locate → Operate 的链路要求，验证跨章操作不误用当前章定位信息。
 
 ### review
