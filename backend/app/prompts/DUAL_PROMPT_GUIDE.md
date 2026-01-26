@@ -99,7 +99,6 @@ async def _generate_rewrite_content(
         task_type="rewrite",
         original_text=rewrite_args["text_to_rewrite"],
         user_requirement=rewrite_args.get("user_requirement", ""),
-        base_version=rewrite_args.get("base_version", ""),
         style_reference=chapter_content[:500],  # 取前500字作为风格参考
         current_plot=state.get("context", {}).get("plot_state", ""),
         character_context=state.get("context", {}).get("characters", "")

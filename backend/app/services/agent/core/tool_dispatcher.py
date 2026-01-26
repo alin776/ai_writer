@@ -11,7 +11,6 @@ import re
 from typing import Dict, Any, Optional, TYPE_CHECKING
 
 from app.services.agent.tools.tool_registry import registry
-from app.services.agent.utils.tool_helpers import resolve_version_reference
 from app.services.agent.utils.chapter_cache import ChapterCache
 
 # 导入 @tool 版本用于降级
@@ -472,15 +471,6 @@ class ToolDispatcher:
         # user_requirement 兜底：从用户消息中提取
         user_requirement = tool_args.get("user_requirement", "") or state.get("last_user_message", "")
 
-        base_version = tool_args.get("base_version", "")
-        if base_version is None:
-            base_version = ""
-        elif not isinstance(base_version, str):
-            if isinstance(base_version, (int, float)) and base_version == 0:
-                base_version = ""
-            else:
-                base_version = str(base_version)
-
         # 诊断日志：帮助定位参数问题
         logger.info(f"[ToolDispatcher] smart_rewrite 参数检查: "
                     f"chapter_id={tool_args.get('chapter_id', '(空)')}, "
@@ -502,14 +492,6 @@ class ToolDispatcher:
             logger.info(f"[ToolDispatcher] 🧭 使用 locate_original_text ({len(locate_original_text)} 字符)")
             text_to_rewrite = locate_original_text
 
-        # 智能版本引用
-        last_versions = state.get("context", {}).get("last_rewrite_versions", {})
-        if base_version and last_versions:
-            resolved_version = resolve_version_reference(base_version, last_versions)
-            if resolved_version:
-                logger.info(f"[ToolDispatcher] 🔄 智能版本解析成功")
-                base_version = resolved_version
-
         logger.info(f"[ToolDispatcher] 🚀 准备调用 smart_rewrite")
 
         try:
@@ -518,7 +500,6 @@ class ToolDispatcher:
                 "text_to_rewrite": text_to_rewrite,
                 "chapter_content": chapter_content,
                 "user_requirement": user_requirement,
-                "base_version": base_version,
                 "user_id": state.get("user_id")
             })
 
@@ -537,7 +518,6 @@ class ToolDispatcher:
                 "text_to_rewrite": text_to_rewrite,
                 "chapter_content": chapter_content,
                 "user_requirement": user_requirement,
-                "base_version": base_version,
                 "user_id": state.get("user_id")
             })
 

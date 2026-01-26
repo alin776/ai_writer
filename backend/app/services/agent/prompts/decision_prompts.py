@@ -15,7 +15,7 @@ from .tool_descriptions import (
 )
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.40.0"  # 2026-01-23: 添加 operate_apply 统一操作工具描述
+PROMPT_VERSION = "v2.41.0"  # 2026-01-26: smart_rewrite 单结果输出，移除 base_version
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")
@@ -53,8 +53,8 @@ async def get_tool_decision_static_prompt() -> str:
 【第二步：如果需要工具，选择合适的工具】
 
 【编辑器工具 - 修改内容时优先使用】
-- smart_rewrite: 改写/修改章节内容（生成3个版本供选择）
-  参数: chapter_id, text_to_rewrite, user_requirement, base_version
+- smart_rewrite: 改写/修改章节内容（只生成1个改写结果）
+  参数: chapter_id, text_to_rewrite, user_requirement
 - smart_continue: 智能续写（根据上下文生成续写内容）
   参数: chapter_id, chapter_content, user_requirement, word_count
 - smart_insert: 智能插入（根据意图生成插入内容）

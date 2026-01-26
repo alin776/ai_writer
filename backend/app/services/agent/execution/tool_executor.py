@@ -297,16 +297,8 @@ class ToolExecutor:
             if not params.get("user_requirement"):
                 params["user_requirement"] = state.get("last_user_message", "")
 
-            # base_version: 默认空字符串（不是 None）
-            params.setdefault("base_version", "")
-            base_version = params.get("base_version")
-            if base_version is None:
-                params["base_version"] = ""
-            elif not isinstance(base_version, str):
-                if isinstance(base_version, (int, float)) and base_version == 0:
-                    params["base_version"] = ""
-                else:
-                    params["base_version"] = str(base_version)
+            # 清理不再使用的多版本参数（smart_rewrite 仅生成单个结果）
+            params.pop("base_version", None)
             params.setdefault("user_id", state.get("user_id"))
 
         elif tool_name == "smart_continue":

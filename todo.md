@@ -1,5 +1,79 @@
 # TODO
 
+## smart* 单输出提示修正（2026-01-26）
+
+### 待办清单
+
+- [x] 通读 smart_rewrite/smart_insert 的 Prompt 模板与 fallback prompt，找到多版本指令
+- [x] 将 Prompt 改为“仅生成一个内容”，禁止编号/版本列表
+- [x] 同步相关提示/文档中“多版本”描述（system/writing/decision/actions）
+- [x] 如与 base_version 移除冲突，一并调整
+- [x] 在 todo.md 添加 review，记录行为变化与兼容性风险
+
+### review
+
+- smart_rewrite/insert 的创作提示已改为单结果输出，明确禁止编号/版本列表，降低模型多版本输出概率（`backend/app/services/agent/tools/editor_tools.py` `backend/app/prompts/templates/creative_writing_prompt.yaml`）。
+- system/writing/decision/actions 相关提示同步为“只生成 1 个改写结果”，避免规划与执行误导（`backend/app/prompts/templates/system_agent_prompt.yaml` `backend/app/prompts/templates/writing_agent.yaml` `backend/app/services/agent/prompts/decision_prompts.py` `backend/app/services/agent/actions/*.py`）。
+- smart_rewrite 解析链路保留单结果兜底（JSON/对象/纯文本），若模型仍输出多条也会截断为第 1 条。
+- 兼容性说明：仍保留 `versions[0].content` 结构，前端可继续读取，不影响既有应用逻辑。
+
+## 移除 base_version 参数（2026-01-26）
+
+### 待办清单
+
+- [x] 通读 smart_rewrite 相关代码与入参定义，确认 base_version 使用范围
+- [x] 删除 base_version 参数与传递链路（工具输入/执行器/内部逻辑）
+- [x] 清理 smart_rewrite 调用链（tool_dispatcher/secondary_tool_handler/tool_executor）
+- [x] 同步文档与示例中的 base_version 描述
+- [x] 在 todo.md 添加 review，记录影响与兼容性风险
+
+### review
+
+- smart_rewrite 参数链路已去除 base_version，调用方不再解析“版本B/第二版”引用（`backend/app/services/agent/tools/editor_tools.py` `backend/app/services/agent/core/tool_dispatcher.py` `backend/app/services/agent/core/secondary_tool_handler.py`）。
+- tool_executor 会清理遗留的 base_version 字段，避免旧规划透传导致异常或误用（`backend/app/services/agent/execution/tool_executor.py`）。
+- 版本引用工具仍保留在 utils 中，但当前链路不再使用；若后续需要恢复多版本机制需重新接入。
+
+## 修复“生成两版/两条”导致插入双段（2026-01-26）
+
+### 待办清单
+
+- [x] 通读 smart_insert/smart_rewrite 的入参与后处理，确认“生成两版”触发路径
+- [x] 对 smart_insert 增加多版本意图清理与输出单段兜底（仅在检测到多版本意图时截断）
+- [x] 在规划/写作提示中明确“忽略多版本请求，仅生成单条内容”
+- [x] 在 todo.md 添加 review，记录行为变化与兼容性风险
+
+### review
+
+- smart_insert 增加“多版本意图”识别与单条截断兜底：当意图包含“多版本/两版/候选/方案”等，自动截取第 1 条并在描述中标记（`backend/app/services/agent/tools/editor_tools.py`）。
+- 规划提示新增“单结果规则”，避免任务描述出现“生成两版”并误导模型（`backend/app/services/agent/prompts/planning_prompts.py`）。
+- 工具说明补充“忽略多版本请求”规则，减少规划/调用层偏差（`backend/app/services/agent/prompts/tool_descriptions.py`）。
+
+## 修复第5章改写缺 chapter_id（2026-01-26）
+
+### 待办清单
+
+- [ ] 复核 Backend.md 中第5章任务的参数引用路径，定位 chapter_id 为空的直接来源
+- [ ] 规划/后处理补齐规则：smart_rewrite/operate_apply 的 chapter_id 必须引用 locate_content 顶层输出
+- [ ] 失败兜底：当 chapter_id 解析为 None 时 fail-fast 并提示“引用路径错误”，避免静默继续
+- [ ] 在 todo.md 添加 review，记录根因与修复点
+
+## smart* 仅输出单版本（2026-01-26）
+
+### 待办清单
+
+- [x] 通读 smart_rewrite/smart_insert 生成逻辑，确认多版本产生路径
+- [x] smart_rewrite 固定生成单版本（保留 versions 结构但仅 1 条）
+- [x] smart_insert 识别“版本一/版本二/编号列表”并仅保留第一条
+- [x] 如有必要，同步文档/提示规则（最小改动）
+- [x] 在 todo.md 添加 review，记录行为变化与兼容性风险
+
+### review
+
+- smart_rewrite 固定输出单版本，仍保留 versions 结构以避免下游引用断裂（`backend/app/services/agent/tools/editor_tools.py`）。
+- smart_insert 统一为单版本输出，若模型生成编号/版本列表仅保留第1条，避免插入两个版本的内容（`backend/app/services/agent/tools/editor_tools.py`）。
+- 文档同步：smart_rewrite 描述改为单版本，移除“版本选择”表述（`backend/app/services/agent/prompts/tool_descriptions.py`）。
+- 兼容性风险：仍保留 `versions[0].content` 引用路径，旧规划无需改动；若前端依赖“版本选择”UI，需要同步调整交互提示。
+
 ## 复核中期+长期方案改动（2026-01-26）
 
 ### 待办清单

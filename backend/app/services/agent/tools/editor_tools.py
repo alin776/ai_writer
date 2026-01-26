@@ -58,12 +58,10 @@ def _get_ai_service() -> HTTPAIService:
 async def _generate_rewrite_versions(
     original_text: str,
     chapter_content: str,
-    user_requirement: Optional[str] = None,
-    base_version: Optional[str] = None,
-    num_versions: int = 3
+    user_requirement: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
-    使用AI生成多个改写版本
+    使用AI生成单个改写结果
 
     成本追踪：通过请求上下文自动获取user_id（无需显式传递参数）
 
@@ -71,11 +69,10 @@ async def _generate_rewrite_versions(
         original_text: 要改写的原文
         chapter_content: 章节完整内容（用于分析风格）
         user_requirement: 用户的具体要求（如"加强情感描写"、"更简洁一些"）
-        base_version: 基准版本（如果用户要求"在第二版基础上改"，传入第二版内容）
-        num_versions: 生成的版本数量
+        返回单个改写版本
 
     Returns:
-        改写版本列表，每个包含 style_name, reason, content
+        改写结果列表（仅 1 条），每个包含 style_name, reason, content
     """
     # ✅ 2025-12-01: 全局ai_service会自动从请求上下文获取user_id
     ai_service = _get_ai_service()
@@ -84,6 +81,7 @@ async def _generate_rewrite_versions(
     from app.core.config import settings
     use_dual_prompt = settings.AGENT_USE_DUAL_PROMPT
 
+    response_text = ""
     if use_dual_prompt:
         # === 阶段2：使用创作层Prompt（重量级，包含Few-Shot） ===
         try:
@@ -103,7 +101,6 @@ async def _generate_rewrite_versions(
                 task_type="rewrite",
                 original_text=original_text,
                 user_requirement=user_requirement or "",
-                base_version=base_version or "",
                 style_reference=style_reference,
                 current_plot="",  # TODO: 如果有剧情状态可以传入
                 character_context=""  # TODO: 如果有角色信息可以传入
@@ -116,18 +113,8 @@ async def _generate_rewrite_versions(
 请严格按以下JSON格式返回（不要添加markdown代码块标记）：
 [
   {{
-    "style_name": "版本A",
-    "reason": "简短说明这个版本的特点（8-15字）",
-    "content": "改写后的内容"
-  }},
-  {{
-    "style_name": "版本B",
-    "reason": "简短说明这个版本的特点（8-15字）",
-    "content": "改写后的内容"
-  }},
-  {{
-    "style_name": "版本C",
-    "reason": "简短说明这个版本的特点（8-15字）",
+    "style_name": "改写内容",
+    "reason": "简短说明改写要点（8-15字）",
     "content": "改写后的内容"
   }}
 ]"""
@@ -155,23 +142,17 @@ async def _generate_rewrite_versions(
             # 取前500字作为风格参考
             style_context = f"\n\n【小说风格参考（前500字）】\n{chapter_content[:500]}"
 
-        # 如果有基准版本，说明用户要迭代改进
-        base_version_context = ""
-        if base_version:
-            base_version_context = f"\n\n【基准版本（用户要在此基础上改进）】\n{base_version}"
-
         # 如果有用户要求，添加到prompt
         user_requirement_context = ""
         if user_requirement:
-            user_requirement_context = f"\n\n【用户的具体要求】\n{user_requirement}\n\n请严格按照用户的要求进行改写，3个版本都要体现用户的要求。"
+            user_requirement_context = f"\n\n【用户的具体要求】\n{user_requirement}\n\n请严格按照用户的要求进行改写。"
 
-        # 构建生成3个版本的prompt
-        prompt = f"""你是专业的小说改写助手。任务：基于小说现有风格，生成3个改写版本。
+        # 构建单版本改写的 prompt
+        prompt = f"""你是专业的小说改写助手。任务：基于小说现有风格，生成1个改写结果。
 
 【待改写的原文】
 {original_text}
 {style_context}
-{base_version_context}
 {user_requirement_context}
 
 【改写要求】
@@ -179,30 +160,15 @@ async def _generate_rewrite_versions(
 2. **字数控制**：与原文长度相差不超过30%
 3. **不扩写**：只改写这部分内容，不要增加额外情节
 
-【版本命名】
-- 使用"版本A"、"版本B"、"版本C"这种中性命名
-- 不要使用"细腻描写版"、"简洁明快版"等风格标签
-
 【重要】：
-- 如果用户提出了具体要求，3个版本都必须满足用户的要求，只是实现方式稍有不同
-- 如果有基准版本，以基准版本为基础进行改进
-- 如果没有用户要求，生成3个不同表达方式的版本，保持风格一致
+- 如果用户提出了具体要求，必须满足用户的要求
+- 不要输出编号/版本列表，不要添加解释性文字
 
 请严格按以下JSON格式返回（不要添加markdown代码块标记）：
 [
   {{
-    "style_name": "版本A",
-    "reason": "简短说明这个版本的特点（8-15字）",
-    "content": "改写后的内容"
-  }},
-  {{
-    "style_name": "版本B",
-    "reason": "简短说明这个版本的特点（8-15字）",
-    "content": "改写后的内容"
-  }},
-  {{
-    "style_name": "版本C",
-    "reason": "简短说明这个版本的特点（8-15字）",
+    "style_name": "改写内容",
+    "reason": "简短说明改写要点（8-15字）",
     "content": "改写后的内容"
   }}
 ]"""
@@ -213,7 +179,7 @@ async def _generate_rewrite_versions(
         response_text = await ai_service.call_ai(
             system_prompt="你是专业的小说改写助手。",
             user_prompt=prompt,
-            max_tokens=4000,  # 需要足够的token来生成3个版本
+            max_tokens=4000,  # 需要足够的token来生成改写内容
             temperature=0.8,  # 稍高的温度以获得更多样化的结果
             task_type=TaskType.CONTENT_CREATION
         )
@@ -236,14 +202,25 @@ async def _generate_rewrite_versions(
             for v in versions:
                 if isinstance(v, dict) and "content" in v:
                     valid_versions.append({
-                        "style_name": v.get("style_name", f"版本{len(valid_versions)+1}"),
+                        "style_name": v.get("style_name", "改写内容"),
                         "reason": v.get("reason", ""),
                         "content": v.get("content", "")
                     })
 
             if valid_versions:
-                logger.info(f"[smart_rewrite] 成功生成{len(valid_versions)}个改写版本")
-                return valid_versions
+                logger.info(f"[smart_rewrite] 成功生成{len(valid_versions)}条改写结果")
+                return valid_versions[:1]
+
+        # 尝试解析单个JSON对象
+        obj_match = re.search(r'\{[\s\S]*\}', response_text)
+        if obj_match:
+            obj = json.loads(obj_match.group())
+            if isinstance(obj, dict) and obj.get("content"):
+                return [{
+                    "style_name": obj.get("style_name", "改写内容"),
+                    "reason": obj.get("reason", ""),
+                    "content": obj.get("content", "")
+                }]
 
         # 解析失败，返回默认提示
         logger.warning(f"[smart_rewrite] JSON解析失败，返回默认版本")
@@ -252,10 +229,18 @@ async def _generate_rewrite_versions(
         logger.error(f"[smart_rewrite] AI生成失败: {e}", exc_info=True)
 
     # 失败时返回原文作为唯一版本
+    candidates = _extract_numbered_candidates(response_text if isinstance(response_text, str) else "")
+    if candidates:
+        return [{
+            "style_name": "改写内容",
+            "reason": "",
+            "content": candidates[0]
+        }]
+    fallback_text = response_text.strip() if isinstance(response_text, str) else ""
     return [{
-        "style_name": "原文",
-        "reason": "AI生成失败，显示原文",
-        "content": original_text
+        "style_name": "改写内容",
+        "reason": "AI解析失败，返回原文",
+        "content": fallback_text or original_text
     }]
 
 
@@ -807,22 +792,21 @@ async def smart_continue(
 @register_as_tool(
     "smart_rewrite",
     "creative",
-    """生成改写版本（只生成，不写入编辑器）。返回3个改写版本供用户选择，由前端决定是否应用。
+    """生成改写内容（只生成，不写入编辑器）。返回1个改写结果，由前端决定是否应用。
 
     【重要】此工具只生成内容，不会修改编辑器。
 
     【使用步骤】：
     1. 先用read_chapter_tool读取章节内容
     2. 定位用户提到的文本
-    3. 调用本工具生成改写版本
-    4. 用户在前端选择版本后，由前端应用到编辑器"""
+    3. 调用本工具生成改写内容
+    4. 用户确认后，由前端应用到编辑器"""
 )
 async def smart_rewrite(
     chapter_id: str,
     text_to_rewrite: Optional[str] = None,
     chapter_content: Optional[str] = None,
     user_requirement: Optional[str] = None,
-    base_version: Optional[str] = None,
     user_id: Optional[str] = None
 ) -> str:
     """
@@ -835,11 +819,10 @@ async def smart_rewrite(
         text_to_rewrite: 要改写的文本。应该是从章节中提取的句子/段落，不要传入整章内容
         chapter_content: 章节完整内容（用于风格分析）
         user_requirement: 用户的具体要求（如"加强情感描写"、"更简洁"、"更有画面感"）
-        base_version: 基准版本内容（用户要在此基础上改进）
         user_id: 用户ID（可选，优先从请求上下文获取）
 
     Returns:
-        包含3个改写版本和确认请求的结果
+        包含改写结果和确认请求的结果
     """
     try:
         # ✅ 2025-12-01: 优先从请求上下文获取user_id
@@ -895,15 +878,13 @@ async def smart_rewrite(
         # 🆕 2026-01-10: 锚点定位职责已移交给 locate_content 工具
         # smart_rewrite 只负责创作，不再自动获取章节内容计算锚点
 
-        # ✅ 使用AI生成3个实际的改写版本
-        logger.info(f"[smart_rewrite] 开始生成改写版本，原文长度: {len(text_to_rewrite)}, 用户要求: {user_requirement}, 基准版本: {'有' if base_version else '无'}")
+        # ✅ 使用AI生成单个改写结果（固定单结果输出）
+        logger.info(f"[smart_rewrite] 开始生成改写结果，原文长度: {len(text_to_rewrite)}, 用户要求: {user_requirement}")
         # ✅ 2025-12-01: 成本追踪通过请求上下文自动完成，无需传递user_id
         versions = await _generate_rewrite_versions(
             original_text=text_to_rewrite,
             chapter_content=chapter_content or text_to_rewrite,
-            user_requirement=user_requirement,
-            base_version=base_version,
-            num_versions=3
+            user_requirement=user_requirement
         )
 
         # 🆕 2026-01-10: 锚点定位职责已移交给 locate_content 工具
@@ -915,7 +896,7 @@ async def smart_rewrite(
             "chapter_id": chapter_id,
             "original_text": text_to_rewrite,
             "versions": versions,
-            "description": f"AI改写：{len(text_to_rewrite)}字 → 生成{len(versions)}个版本"
+            "description": f"AI改写：{len(text_to_rewrite)}字 → 生成{len(versions)}条结果"
         }, ensure_ascii=False)
 
     except Exception as e:
@@ -923,9 +904,38 @@ async def smart_rewrite(
         return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 
+def _has_multi_version_intent(text: Optional[str]) -> bool:
+    if not text:
+        return False
+    pattern = re.compile(
+        r"(?:多|多个|两|二|三|四|五|六|七|八|九|十|\d+)\s*(?:版|版本|方案|候选|备选|选项)"
+        r"|(?:版本|方案)[一二三四五六七八九十ABCDabcd]"
+        r"|[ABCDabcd]版"
+    )
+    return bool(pattern.search(text))
+
+
+def _select_single_content(text: str) -> str:
+    if not text:
+        return text
+    candidates = _extract_numbered_candidates(text)
+    if candidates:
+        return candidates[0]
+    parts = [p.strip() for p in re.split(r"\n\s*\n+", text) if p.strip()]
+    if len(parts) >= 2:
+        return parts[0]
+    return text
+
+
 def _extract_numbered_candidates(text: str) -> List[str]:
     if not text:
         return []
+    # 支持“版本一/版本二”“方案一/方案二”以及“1. / 2.”编号格式
+    version_pattern = re.compile(r"(?:版本|方案)[一二三四五六七八九十]+(?:[:：]\s*)?")
+    if version_pattern.search(text):
+        parts = version_pattern.split(text)
+        candidates = [p.strip() for p in parts if p.strip()]
+        return candidates if len(candidates) >= 2 else []
     pattern = re.compile(r"(?:^|\s)(\d{1,2})[\.、\)]\s+")
     matches = list(pattern.finditer(text))
     if len(matches) < 2:
@@ -943,11 +953,7 @@ def _extract_numbered_candidates(text: str) -> List[str]:
     return candidates if len(candidates) >= 2 else []
 
 
-def _should_select_candidate(user_intent: str, candidates: List[str]) -> bool:
-    if not candidates:
-        return False
-    intent = user_intent or ""
-    return any(token in intent for token in ["候选", "备选", "2个", "两个", "两句"])
+# NOTE: multi-candidate selection disabled (single output only)
 
 
 @tool
@@ -1012,6 +1018,8 @@ async def smart_insert(
         ai_service = _get_ai_service()
 
         context_text = f"\n【插入点上下文】\n{insert_context}" if insert_context else ""
+        multi_version_intent = _has_multi_version_intent(user_intent)
+        single_rule = "\n5. 即使用户要求多版本，也只生成一条内容" if multi_version_intent else ""
 
         prompt = f"""你是专业的小说创作助手。请根据用户意图生成约{word_count}字的内容。
 
@@ -1026,6 +1034,8 @@ async def smart_insert(
 1. 符合用户意图
 2. 与上下文风格一致
 3. 约{word_count}字
+4. 只输出一段正文，不要编号/版本/列表
+{single_rule}
 
 请直接输出生成的内容，不要添加任何解释。"""
 
@@ -1040,25 +1050,18 @@ async def smart_insert(
         # CREATIVE 工具：应用输出过滤器，去除脏信息
         generated_content = creative_output_filter(generated_content)
 
-        candidates = _extract_numbered_candidates(generated_content)
-        if _should_select_candidate(user_intent, candidates):
-            versions = [
-                {
-                    "style_name": f"候选{idx + 1}",
-                    "reason": user_intent,
-                    "content": item
-                }
-                for idx, item in enumerate(candidates)
-            ]
-            generated_content = candidates[0]
-            description = f"AI生成插入候选：{len(candidates)}条，选用第1条"
-        else:
-            versions = [{
-                "style_name": "插入内容",
-                "reason": user_intent,
-                "content": generated_content
-            }]
-            description = f"AI生成插入内容：{len(generated_content)}字"
+        description = "AI生成插入内容"
+        if multi_version_intent or _extract_numbered_candidates(generated_content):
+            normalized = _select_single_content(generated_content)
+            if normalized != generated_content:
+                generated_content = normalized
+                description = "AI生成插入内容：已截取第1条"
+
+        versions = [{
+            "style_name": "插入内容",
+            "reason": user_intent,
+            "content": generated_content
+        }]
 
         # 🆕 2026-01-10: 锚点定位职责已移交给 locate_content 工具
         # smart_insert 只负责创作，不负责定位
@@ -1122,7 +1125,6 @@ class SmartRewriteInput(ToolInput):
     text_to_rewrite: Optional[str] = Field(default=None, description="要改写的文本")
     chapter_content: Optional[str] = Field(default=None, description="章节完整内容")
     user_requirement: Optional[str] = Field(default=None, description="用户的具体要求")
-    base_version: Optional[str] = Field(default=None, description="基准版本内容")
     user_id: Optional[str] = Field(default=None, description="用户ID")
 
 
@@ -1140,7 +1142,6 @@ async def smart_rewrite_executor(input_data: SmartRewriteInput) -> SmartRewriteO
             "text_to_rewrite": input_data.text_to_rewrite,
             "chapter_content": input_data.chapter_content,
             "user_requirement": input_data.user_requirement,
-            "base_version": input_data.base_version,
             "user_id": input_data.user_id
         })
 
@@ -1166,7 +1167,7 @@ async def smart_rewrite_executor(input_data: SmartRewriteInput) -> SmartRewriteO
 
 smart_rewrite_tool = StandardTool(
     name="smart_rewrite",
-    description="智能改写章节文本，生成3个版本供用户选择",
+    description="智能改写章节文本，生成1个改写结果",
     category=ToolCategory.CREATIVE,  # 修正：CREATIVE 而非 WRITING
     input_schema=SmartRewriteInput,
     output_schema=SmartRewriteOutput,

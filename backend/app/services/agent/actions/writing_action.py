@@ -262,7 +262,7 @@ class WritingAction(BaseAction):
 
 可用工具：
 - read_chapter_tool: 读取章节内容
-- smart_rewrite: 生成改写版本（3个版本供用户选择）
+- smart_rewrite: 生成改写内容（只生成1个结果）
 - operate_apply: 直接应用修改到章节
 - smart_continue: 追加内容到章节末尾（不生成内容，需要先有content）
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"时立即调用）
@@ -287,7 +287,7 @@ class WritingAction(BaseAction):
         Args:
             state: AgentState
             task_type: 任务类型 (rewrite/continue)
-            **kwargs: 动态参数（original_text, user_requirement, base_version等）
+            **kwargs: 动态参数（original_text, user_requirement等）
 
         Returns:
             str: 创作层Prompt
@@ -314,7 +314,7 @@ class WritingAction(BaseAction):
                 style_reference=style_reference,
                 current_plot=current_plot,
                 character_context=character_context,
-                **kwargs  # 包含original_text, user_requirement, base_version等
+                **kwargs  # 包含original_text, user_requirement等
             )
 
             self.logger.info(
@@ -426,7 +426,7 @@ class WritingAction(BaseAction):
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时立即调用）
 
 ## ✍️ 编辑器工具（直接修改编辑器内容 - 优先使用）
-- smart_rewrite: 改写/修改章节内容（会生成3个版本供用户选择）
+- smart_rewrite: 改写/修改章节内容（只生成1个改写结果）
   - 参数: chapter_id, text_to_rewrite, user_requirement
   - 用于: 用户说"修改"、"改写"、"重写"、"润色"、"优化"、"扩写"章节时
   - ⚠️ "扩写"= 把现有内容写得更丰富，属于改写场景，不是续写！

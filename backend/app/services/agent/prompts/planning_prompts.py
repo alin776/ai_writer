@@ -107,6 +107,10 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 - smart_rewrite → operate_apply(operation="replace")
 - smart_insert → operate_apply(operation="insert")
 
+⚠️ **单结果规则**：
+- smart_rewrite/smart_insert/smart_continue 只生成**单条内容**
+- 即使用户要求“多版本/多候选/两版”，任务描述也必须改成“生成一条内容”
+
 **什么时候需要写入编辑器？**
 - 用户说"续写"、"插入"、"改写"、"润色"、"扩写" → ✅ 需要！
 - 用户说"帮我写一段XX给我看看"、"生成一个大纲" → ❌ 不需要

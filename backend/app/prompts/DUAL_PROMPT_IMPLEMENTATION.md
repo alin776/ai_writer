@@ -143,7 +143,6 @@ if use_dual_prompt:
         task_type="rewrite",
         original_text=original_text,
         user_requirement=user_requirement or "",
-        base_version=base_version or "",
         style_reference=style_reference,
         current_plot="",
         character_context=""
@@ -168,7 +167,7 @@ else:
 **关键改进**：
 1. 自动提取章节风格参考（前500字，去除HTML标签）
 2. 使用创作层Prompt模板（包含10组Few-Shot示例）
-3. 支持动态注入用户要求、基准版本等参数
+3. 支持动态注入用户要求等参数
 4. 保留备用方案，配置关闭时自动回退
 
 ---
@@ -277,15 +276,7 @@ AGENT_USE_DUAL_PROMPT: bool = False
 2. 创作层Prompt根据用户要求生成3个版本
 3. 所有版本都强化情感元素
 
-### 测试场景3：迭代改进
-**用户输入**：\"在第二版基础上再改\"
-
-**预期行为**：
-1. Agent从对话历史中提取版本B内容
-2. 传入 `base_version=版本B内容`
-3. 创作层Prompt以版本B为基础生成3个改进版本
-
-### 测试场景4：用户给出最终版本
+### 测试场景3：用户给出最终版本
 **用户输入**：\"改成XXX 就按这个改吧\"
 
 **预期行为**：

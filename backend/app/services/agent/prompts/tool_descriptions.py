@@ -111,8 +111,8 @@ def _get_editor_tools_section() -> str:
 
 ---
 
-- smart_rewrite: 改写/修改章节内容（生成3个版本供选择）
-  参数: chapter_id, text_to_rewrite, user_requirement, base_version
+- smart_rewrite: 改写/修改章节内容（只生成1个改写结果）
+  参数: chapter_id, text_to_rewrite, user_requirement
   触发词: "修改"、"改写"、"重写"、"润色"、"优化"、"扩写"
   ⚠️ "扩写"= 把现有内容写得更丰富，属于改写场景，不是续写！
   ⚠️ 如果用户想把改写内容写入编辑器 → 后续调用 operate_apply(operation="replace")
@@ -120,6 +120,8 @@ def _get_editor_tools_section() -> str:
     * 如果用户指定了要改写的文本 → text_to_rewrite 填入该文本
     * 如果用户说"改写第X章" → 先用 get_writing_context 获取章节，再用 {"$ref": {"task_id": N, "path": "chapters[0].content"}} 引用
     * user_requirement 必须从用户消息中提取改写要求！
+  ⚠️ 输出只允许单段内容，不要编号/版本列表
+  ⚠️ 即使用户要求多版本/多候选，也只生成一条
 
 - smart_continue: 智能续写（只生成内容）
   参数: chapter_id, chapter_content, user_requirement, word_count
@@ -132,6 +134,8 @@ def _get_editor_tools_section() -> str:
   ⚠️ 如果用户想把插入内容写入编辑器 → 后续调用 operate_apply(operation="insert")
   ⚠️ **定位规则**：插入位置由 operate_apply 内部自动定位（传入 target_description）
   ⚠️ insert_context 可用于风格参考，从 explore_content 返回的章节内容中获取
+  ⚠️ 输出只允许单段内容，不要编号/版本列表
+  ⚠️ 即使用户要求多版本/多候选，也只生成一条
 
 ---
 
@@ -244,7 +248,7 @@ def _get_operation_tools_section() -> str:
 - update_chapter_content: 更新章节内容
   参数: chapter_id（支持章节序号如"1"、"2"，或UUID）, new_content, operation(replace/append/insert，默认replace)
   用途: 直接更新章节内容
-  ⚠️ 优先使用 smart_rewrite/smart_continue，它们有版本选择功能
+  ⚠️ 优先使用 smart_rewrite/smart_continue，它们会生成稳定的单版本内容
 
 - delete_chapter: 删除章节
   参数: chapter_id（支持章节序号如"1"、"2"，或UUID）

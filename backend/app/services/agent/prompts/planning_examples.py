@@ -819,7 +819,7 @@ def get_operate_apply_examples() -> str:
   "user_intent": "润色战斗场景",
   "tasks": [
     {"task_id": 1, "description": "获取第3章内容", "tool": "explore_content", "params": {"target_task": "润色第3章战斗场景，获取第3章内容"}, "depends_on": []},
-    {"task_id": 2, "description": "生成改写版本", "tool": "smart_rewrite", "params": {
+    {"task_id": 2, "description": "生成改写内容", "tool": "smart_rewrite", "params": {
       "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].id"}},
       "text_to_rewrite": {"$ref": {"task_id": 1, "path": "chapters[0].content"}},
       "chapter_content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}},
