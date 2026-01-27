@@ -22,13 +22,11 @@ def _get_new_aggregated_tools_section() -> str:
     - max_tool_calls: 工具调用上限（仅 tool_loop 生效）
     - max_read_paragraphs: 读取段落上限（仅 tool_loop 生效）
   返回: {
-    explore_summary,      # 收集到的信息摘要（供后续工具使用）
-    context_for_task,     # 可直接作为 chapter_content 的上下文
-    frontend_display,     # 前端展示结构
-    chapters,            # 相关章节原文（列表）
-    worldview            # 世界观设定
+    evidences,        # 证据原文列表（只读结果）
+    locate_targets    # 定位目标（chapter_id + query + node_id 等）
   }
-  ⚠️ 后续工具参数请引用 chapters[...] 或 explore_summary/context_for_task；frontend_display 仅用于展示
+  ⚠️ 默认返回完整字段（含 frontend_display/explore_summary）；如需精简，仅返回 evidences/locate_targets 时设置 output_mode="evidence_only"
+  ⚠️ 后续工具参数只允许引用 evidences / locate_targets；旧字段仅用于兼容
 
   ✅ **所有信息获取场景都用这个工具**:
     - 续写/改写前获取上下文 → explore_content(target_task="续写第5章，需要第4-5章内容和世界观")
@@ -40,7 +38,7 @@ def _get_new_aggregated_tools_section() -> str:
   ⚠️ **工作原理**（你不需要关心，explore_content 自动处理）:
     - 简单查询 → 首轮即返回
     - 复杂查询 → 自动多轮探索
-    - 信息收敛 → 自动停止
+    - LLM 自行决定停止或达到安全上限
 
   ⚠️ **禁止直接使用以下工具**（这些是内部工具）:
     - ❌ search_content（已整合到 explore_content）
@@ -121,7 +119,7 @@ def _get_editor_tools_section() -> str:
   ⚠️ 如果用户想把改写内容写入编辑器 → 后续调用 operate_apply(operation="replace")
   ⚠️ **参数填充规则**（极其重要！）：
     * 如果用户指定了要改写的文本 → text_to_rewrite 填入该文本
-    * 如果用户说"改写第X章" → 先用 get_writing_context 获取章节，再用 {"$ref": {"task_id": N, "path": "chapters[0].content"}} 引用
+    * 如果用户说"改写第X章" → 先用 explore_content 定位证据，再用 {"$ref": {"task_id": N, "path": "evidences[0].text"}} 引用
     * user_requirement 必须从用户消息中提取改写要求！
   ⚠️ 输出只允许单段内容，不要编号/版本列表
   ⚠️ 即使用户要求多版本/多候选，也只生成一条

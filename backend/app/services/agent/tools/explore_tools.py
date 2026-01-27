@@ -996,12 +996,14 @@ def _get_round_title(round_idx: int) -> str:
 
 def _get_review_status(round_data: ExploreRound) -> str:
     """获取审查状态"""
-    return "停止" if round_data.sufficient else "继续检索"
+    # 仅用于前端展示，不参与判停逻辑
+    return ""
 
 
 def _get_status_text(round_data: ExploreRound) -> str:
     """获取状态文本（灰色显示）"""
-    return "停止检索" if round_data.sufficient else ""
+    # 仅用于前端展示，不参与判停逻辑
+    return ""
 
 
 def _scopes_cache_key(scopes: List[Tuple[int, int]]) -> str:
@@ -2149,127 +2151,12 @@ class ContentExplorer:
         return result
 
     async def explore(self) -> ExploreResult:
-        """
-        执行探索（重构：只读收集器 + LLM 自检循环）
-
-        流程：
-        1) 精确搜索（确定性）
-        2) LLM 自检决定是否继续探索
-        3) 若继续，执行语义搜索+定位+原文读取
-        4) 每轮结束后再次自检，直到停止或收敛
-        """
-        logger.info(f"[ContentExplorer] 开始探索 V4: work_id={self.work_id}, target={self.target_task[:50]}...")
-
-        stop_reason = "达到最大轮次"
-
-        # ========== 阶段1：精确搜索（确定性，无 AI 调用）==========
-        exact_search_success = await self._execute_exact_search_phase()
-        exact_evidence_count = len(self.state.evidences)
-        exact_paragraph_count = len(self.state.paragraphs)
-
-        # 记录精确搜索轮次（不做规则验收）
-        if exact_search_success and exact_evidence_count > 0:
-            exact_search_round = ExploreRound(
-                round_idx=0,
-                title="精确搜索",
-                tool_calls=[],
-                new_evidences_count=exact_evidence_count,
-                new_paragraphs_count=exact_paragraph_count,
-                missing_items=[],
-                sufficient=False,
-                reason="精确搜索",
-                coverage="",
-                summary="",
-                next_action=""
-            )
-            self.state.rounds.append(exact_search_round)
-            if self.emit_callback:
-                await self._emit_round_event(exact_search_round)
-
-        # LLM 自检决定是否继续
-        try:
-            decision = await self._ai_self_check(0)
-        except Exception as e:
-            logger.warning(f"[ContentExplorer] LLM 自检失败，使用默认查询: {e}")
-            fallback_query = self.target_task[:30] if self.target_task else ""
-            fallback_query = fallback_query.strip()
-            next_queries = [fallback_query] if fallback_query else []
-            decision = SelfCheckDecision(
-                continue_search=bool(next_queries),
-                next_queries=next_queries,
-                reason="自检失败，使用默认查询"
-            )
-
-        # 限制自检循环轮次（上限由 max_rounds 控制）
-        max_selfcheck_rounds = self.max_rounds
-
-        if not decision.continue_search:
-            stop_reason = decision.reason or "自检停止"
-        else:
-            for round_idx in range(1, max_selfcheck_rounds + 1):
-                round_plan = RoundPlan(
-                    exact_keywords=[],
-                    semantic_queries=decision.next_queries,
-                    chapters_to_read=[],
-                    paragraphs_to_read=[],
-                    reason=decision.reason or ""
-                )
-
-                round_data = await self._execute_round_with_plan(round_idx, round_plan)
-                self.state.rounds.append(round_data)
-
-                if self.emit_callback:
-                    await self._emit_round_event(round_data)
-
-                # 自检决定是否继续
-                try:
-                    decision = await self._ai_self_check(round_idx)
-                except Exception as e:
-                    logger.warning(f"[ContentExplorer] LLM 自检失败，停止探索: {e}")
-                    decision = SelfCheckDecision(
-                        continue_search=False,
-                        next_queries=[],
-                        reason="自检失败，停止探索"
-                    )
-
-                round_data.reason = decision.reason or round_data.reason
-                round_data.sufficient = not decision.continue_search
-
-                if not decision.continue_search or not decision.next_queries:
-                    stop_reason = decision.reason or "自检停止"
-                    break
-
-                # 收敛判定：连续无新增信息
-                if self.state.check_convergence():
-                    stop_reason = "信息收敛"
-                    break
-
-        # 生成分析
-        analysis = await self._generate_analysis()
-
-        # 计算总耗时
-        total_duration_ms = int((get_utc_now() - self.start_time).total_seconds() * 1000)
-
-        result = ExploreResult(
-            evidences=self.state.evidences,
-            search_hits=self.state.search_hits,
-            paragraphs=self.state.paragraphs,
-            chapters=self.state.chapters,
-            worldview=self.state.worldview,
-            analysis=analysis,
-            stats=self.state.get_stats(),
-            rounds=self.state.rounds,
-            stop_reason=stop_reason,
-            total_duration_ms=total_duration_ms
+        """执行探索（pipeline 已弃用，统一走 tool_loop）"""
+        logger.info(
+            f"[ContentExplorer] pipeline 已弃用，改为 tool_loop: work_id={self.work_id}, "
+            f"target={self.target_task[:50]}..."
         )
-
-        # 发射汇总事件
-        if self.emit_callback:
-            await self._emit_summary_event(result)
-
-        logger.info(f"[ContentExplorer] 探索完成: {len(self.state.rounds)}轮, 原因={stop_reason}")
-
-        return result
+        return await self.explore_tool_loop()
 
     # ==================== LLM 自检 ====================
 
@@ -2285,6 +2172,10 @@ class ContentExplorer:
         collected_summary = self._build_collected_summary()
         searched_hint = ", ".join(list(self.state.searched_queries)[:10]) if self.state.searched_queries else "无"
 
+        keywords_hint = ""
+        if self.search_keywords:
+            keywords_hint = f"\n规划提供的关键词（仅供参考）：{', '.join(self.search_keywords[:10])}\n"
+
         prompt = f"""你是信息收集自检器，只负责判断是否需要继续搜索。
 
 目标任务：{self.target_task}
@@ -2294,6 +2185,7 @@ class ContentExplorer:
 {collected_summary}
 
 已搜索过的关键词（避免重复）：{searched_hint}
+{keywords_hint}
 
 请判断是否还存在明显缺口：
 - 若需要继续搜索，请给出 1-3 个下一轮搜索要点（语义短语），避免与已搜索过重复。
@@ -2325,19 +2217,6 @@ class ContentExplorer:
         next_queries = next_queries[:3]
         reason = result.get("reason", "") if isinstance(result, dict) else ""
 
-        if self.search_keywords:
-            missing_keywords = []
-            for kw in self.search_keywords:
-                if not kw:
-                    continue
-                hit = any(kw in e.text or kw in e.query for e in self.state.evidences)
-                if not hit:
-                    missing_keywords.append(kw)
-            if continue_flag:
-                next_queries = [kw for kw in missing_keywords if self.state.should_search(kw)][:3]
-            if continue_flag and not next_queries:
-                continue_flag = False
-
         if continue_flag and not next_queries:
             continue_flag = False
 
@@ -2358,9 +2237,6 @@ class ContentExplorer:
         if self.chapter_scopes:
             lines.append(f"- 任务章节范围：{_format_scope_ranges(self.chapter_scopes)}")
         lines.append(f"- 工具调用剩余：{tool_calls_left}，可读段落剩余：{reads_left}")
-        lines.append(
-            f"- 证据数：{len(self.state.evidences)}，候选数：{len(self.state.search_hits)}，已读段落：{len(self.state.paragraphs)}"
-        )
         if self.state.searched_queries:
             lines.append(f"- 已搜索关键词：{', '.join(list(self.state.searched_queries)[:8])}")
         if last_tool_name:
@@ -2773,48 +2649,24 @@ class ContentExplorer:
         return tool_call, result_preview, reads_used
 
     def _build_collected_summary(self) -> str:
-        """构建已收集信息的摘要（V3.3：增加关键词覆盖统计）"""
+        """构建已收集信息的摘要（仅提供样本，不做统计驱动）"""
         lines = []
 
         if self.chapter_scopes:
             lines.append(f"- 任务章节范围：{_format_scope_ranges(self.chapter_scopes)}")
 
-        # 🆕 V3.3: 关键词覆盖统计（让 AI 明确知道每个关键词的命中情况）
-        if self.search_keywords and self.state.evidences:
-            lines.append("- 【关键词覆盖统计】")
-            for kw in self.search_keywords[:10]:  # 最多展示 10 个关键词
-                # 同时检查 e.text 和 e.query（query 包含精确搜索匹配的关键词）
-                # 这样即使文本被截断，也能通过 query 检测到匹配
-                count = sum(1 for e in self.state.evidences if kw in e.text or kw in e.query)
-                status = "✓" if count > 0 else "✗"
-                lines.append(f"    · \"{kw}\": {count} 条 {status}")
-            lines.append("")  # 空行分隔
-
-        # 证据统计（按章节分组，显示段落号）
+        # 证据样本（不展示数量统计）
         if self.state.evidences:
-            evidence_chapters = set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0)
-            lines.append(f"- 证据片段：{len(self.state.evidences)} 条，来自章节：{sorted(evidence_chapters)}")
-
-            # 按章节分组展示证据
-            by_chapter: Dict[int, List[Evidence]] = {}
-            for e in self.state.evidences:
-                if e.chapter_order > 0:
-                    if e.chapter_order not in by_chapter:
-                        by_chapter[e.chapter_order] = []
-                    by_chapter[e.chapter_order].append(e)
-
-            for chapter_order in sorted(by_chapter.keys()):
-                evidences = by_chapter[chapter_order]
-                lines.append(f"  第{chapter_order}章 ({len(evidences)}条):")
-                for e in evidences[:3]:  # 每章最多显示3条
-                    para_label = f"第{e.paragraph_index}段" if isinstance(e.paragraph_index, int) else "段落未知"
-                    lines.append(f"    · [{para_label}] {e.text[:60]}...")
+            lines.append("- 证据片段样本：")
+            for e in self.state.evidences[:8]:
+                para_label = f"第{e.paragraph_index}段" if isinstance(e.paragraph_index, int) else "段落未知"
+                lines.append(f"  · 第{e.chapter_order}章{para_label}: {e.text[:60]}...")
         else:
-            lines.append("- 证据片段：0 条")
+            lines.append("- 证据片段：无")
 
-        # 段落读取详情
+        # 段落读取样本
         if self.state.paragraphs:
-            lines.append(f"- 已读段落：{len(self.state.paragraphs)} 段")
+            lines.append("- 已读段落样本：")
             for p in self.state.paragraphs[:5]:
                 lines.append(f"  · 第{p.chapter_order}章第{p.paragraph_index}段: {p.text[:50]}...")
 
@@ -3423,10 +3275,10 @@ async def explore_content(
         target_task: 目标任务描述（如"续写第6章，需要了解主角性格和当前剧情"）
         search_keywords: 搜索关键词列表（由规划阶段直接提供，优先使用）
         max_rounds: 最大探索轮次（默认10轮）
-        explore_mode: 探索模式（pipeline/tool_loop，默认pipeline）
+        explore_mode: 探索模式（仅 tool_loop 生效，pipeline 已弃用）
         max_tool_calls: 工具调用上限（仅 tool_loop 生效）
         max_read_paragraphs: 读取段落上限（仅 tool_loop 生效）
-        output_mode: 输出模式（full/evidence_only，默认full）
+        output_mode: 输出模式（evidence_only/full，默认 full；full 返回前端展示字段）
         user_id: 用户ID（可选）
         conversation_id: 会话ID（可选，用于共享缓存）
 
@@ -3436,25 +3288,14 @@ async def explore_content(
     logger.info(f"[explore_content] 开始: work_id={work_id}, target={target_task[:50]}...")
     if search_keywords:
         logger.info(f"[explore_content] 规划传入关键词: {search_keywords[:10]}")
-    output_mode_norm = (output_mode or "full").strip().lower()
+    output_mode_norm = (output_mode or "evidence_only").strip().lower()
     evidence_only_output = output_mode_norm in ("evidence", "evidence_only", "minimal")
 
+    # 工具内事件：若有 stream handler，则由工具实时发射
     stream_handler = get_stream_event_handler()
-    step_id = get_explore_step_id()
-    step_id_value = None
-    if step_id is not None:
-        try:
-            step_id_value = int(step_id)
-        except (TypeError, ValueError):
-            step_id_value = None
-
-    events_emitted = False
-    emit_callback = None
-    if stream_handler and stream_handler.has_flow_event_callback():
-        async def emit_callback(event: dict) -> None:
-            nonlocal events_emitted
-            if await stream_handler.emit_flow_event(event):
-                events_emitted = True
+    emit_callback = stream_handler.emit_flow_event if stream_handler else None
+    step_id_value = get_explore_step_id()
+    events_emitted = emit_callback is not None
 
     chapter_scopes = _parse_chapter_scopes(target_task)
     shared_cache_key = _build_explore_shared_key(
@@ -3490,10 +3331,8 @@ async def explore_content(
         )
 
     try:
-        if explorer.explore_mode in ("tool_loop", "tool", "opencode"):
-            result = await explorer.explore_tool_loop()
-        else:
-            result = await explorer.explore()
+        # pipeline 已弃用：统一走 tool_loop（LLM 自由调只读工具）
+        result = await explorer.explore_tool_loop()
 
         if shared_cache_key:
             cached_state = _EXPLORE_SHARED_CACHE.get(shared_cache_key)
@@ -3503,10 +3342,65 @@ async def explore_content(
             else:
                 _EXPLORE_SHARED_CACHE.set(shared_cache_key, _clone_explore_state(explorer.state))
 
-        # 构建 explore_summary - 供后续工具（如 analyze_content）使用的文本摘要
-        explore_summary = _build_explore_summary(result)
+        node_id_map = _build_node_id_map(result)
 
-        # 2026-01-18: 构建兼容 get_writing_context 的 chapters 数组
+        # 最小章节映射（用于 locate_targets 的 chapter_id）
+        chapters_by_order: Dict[int, Dict[str, Any]] = {}
+
+        def _add_min_chapter(chapter_order: int, chapter_id: str = "", chapter_title: str = "") -> None:
+            if not chapter_order:
+                return
+            entry = chapters_by_order.get(chapter_order)
+            if not entry:
+                entry = {
+                    "id": "",
+                    "chapter_id": "",
+                    "title": "",
+                    "order": chapter_order
+                }
+            if chapter_id and not entry.get("id"):
+                entry["id"] = chapter_id
+            if chapter_title and not entry.get("title"):
+                entry["title"] = chapter_title
+            if entry.get("id") and not entry.get("chapter_id"):
+                entry["chapter_id"] = entry["id"]
+            chapters_by_order[chapter_order] = entry
+
+        for e in result.evidences:
+            _add_min_chapter(e.chapter_order, e.chapter_id, e.chapter_title)
+
+        for p in result.paragraphs:
+            _add_min_chapter(p.chapter_order, "", p.chapter_title)
+
+        if work_id and chapters_by_order:
+            try:
+                from app.services.agent.langgraph_tools import resolve_chapter_id
+                for chapter_order, entry in chapters_by_order.items():
+                    if entry.get("id"):
+                        continue
+                    resolved_id, _ = await resolve_chapter_id(work_id, str(chapter_order))
+                    if resolved_id:
+                        entry["id"] = resolved_id
+                        entry["chapter_id"] = resolved_id
+            except Exception:
+                pass
+
+        locate_targets = _build_locate_targets(
+            result,
+            chapters_by_order,
+            node_id_map=node_id_map,
+            candidates=getattr(result, "search_hits", None)
+        )
+        evidences_output = _build_evidences_output(result, node_id_map=node_id_map)
+
+        if evidence_only_output:
+            return json.dumps({
+                "success": True,
+                "evidences": evidences_output,
+                "locate_targets": locate_targets
+            }, ensure_ascii=False, indent=2)
+
+        # full 输出（兼容旧字段）
         chapters_list = [
             {
                 "id": str(ch.id) if ch.id else "",
@@ -3616,7 +3510,6 @@ async def explore_content(
                 entry.get("content", "")
             )
 
-        # 2026-01-18: 构建兼容 get_writing_context 的 worldview 对象
         worldview_dict = {}
         for category, items in result.worldview.items():
             worldview_dict[category] = [
@@ -3624,44 +3517,12 @@ async def explore_content(
                 for item in items
             ]
 
-        node_id_map = _build_node_id_map(result)
-        locate_targets = _build_locate_targets(
-            result,
-            chapters_by_order,
-            node_id_map=node_id_map,
-            candidates=getattr(result, "search_hits", None)
-        )
-        evidences_output = _build_evidences_output(result, node_id_map=node_id_map)
-
-        if evidence_only_output:
-            return json.dumps({
-                "success": True,
-                "work_id": work_id,
-                "target_task": target_task,
-                "evidences": evidences_output,
-                "locate_targets": locate_targets,
-                "events_emitted": events_emitted
-            }, ensure_ascii=False, indent=2)
-
+        explore_summary = _build_explore_summary(result)
         frontend_display = to_frontend_display(result)
         search_results = _build_search_results(result, node_id_map=node_id_map)
-        if search_results and work_id:
-            try:
-                from app.services.agent.langgraph_tools import resolve_chapter_id
-                for item in search_results:
-                    chapter_order = item.get("chapter_order")
-                    if not item.get("chapter_id") and chapter_order:
-                        resolved_id, _ = await resolve_chapter_id(work_id, str(chapter_order))
-                        if resolved_id:
-                            item["chapter_id"] = resolved_id
-                    if not item.get("chapter_title") and chapter_order:
-                        item["chapter_title"] = f"第{chapter_order}章"
-            except Exception:
-                pass
         frontend_display["search_results"] = search_results
         frontend_display["locate_targets"] = locate_targets
 
-        # 转换为JSON
         return json.dumps({
             "success": True,
             "work_id": work_id,
@@ -3672,16 +3533,13 @@ async def explore_content(
             "total_duration_ms": result.total_duration_ms,
             "frontend_display": frontend_display,
             "context_for_task": build_context_for_task(result),
-            "events_emitted": events_emitted,
-            # 添加 explore_summary 字段，便于 ParameterResolver 解析
             "explore_summary": explore_summary,
-            # 新增：证据与定位目标（对外输出）
             "evidences": evidences_output,
             "locate_targets": locate_targets,
-            # 2026-01-18: 添加兼容字段，支持 $ref 引用
             "chapters": chapters_list,
             "results": chapters_list,
-            "worldview": worldview_dict
+            "worldview": worldview_dict,
+            "events_emitted": events_emitted
         }, ensure_ascii=False, indent=2)
 
     except Exception as e:

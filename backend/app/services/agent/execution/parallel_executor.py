@@ -667,13 +667,18 @@ class ParallelExecutor:
             return result_data, json.dumps(result_data, ensure_ascii=False)
 
         # 发射 explore_round 和 explore_summary 事件
-        if not result_data.get("events_emitted"):
+        if result_data.get("frontend_display") and not result_data.get("events_emitted"):
             await self._emit_explore_events(result_data, step_id or task_id)
 
         # 提取 explore_summary 供后续工具使用
         explore_summary = result_data.get("explore_summary", "")
         if not explore_summary:
             explore_summary = result_data.get("context_for_task", "")
+        if not explore_summary:
+            try:
+                explore_summary = json.dumps(result_data, ensure_ascii=False)
+            except Exception:
+                explore_summary = ""
 
         # 返回 explore_summary 作为结果（供 ParameterResolver 解析）
         # 但保留完整 result_data 作为 raw_result（供调试）

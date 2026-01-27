@@ -216,8 +216,8 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 - replace 操作：传入 original_text，operate_apply 内部自动 text_match 定位
 - insert 操作：传入 target_description，operate_apply 内部自动 semantic 定位
 
-⚠️ **参数引用规则**：后续工具参数只允许引用 explore_content 的 `chapters[...]` / `explore_summary` / `context_for_task`
-（`frontend_display` 仅用于展示，禁止作为参数来源）
+⚠️ **参数引用规则**：后续工具参数只允许引用 explore_content 的 `evidences` / `locate_targets`
+（默认输出完整字段；如需精简，请显式传 output_mode="evidence_only"）
 
 ⚠️ **locate_content 输出字段规则**：
 - locate_content 的输出字段在顶层：`chapter_id` / `paragraph_index` / `node_id` / `text` / `before_anchor` / `after_anchor`
@@ -338,7 +338,7 @@ def _get_output_format() -> str:
   "task_id": 2,
   "tool": "analyze_content",
   "params": {
-    "content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}
+    "content": {"$ref": {"task_id": 1, "path": "evidences[0].text"}}
   },
   "depends_on": [1]
 }

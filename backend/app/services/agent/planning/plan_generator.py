@@ -803,6 +803,9 @@ tool_policy: {tool_policy}
         if constraints:
             tasks = self._apply_constraints_to_tasks(tasks, constraints)
 
+        # 验证4: 旧链路兼容（自动补齐 explore_content output_mode）
+        tasks = self._auto_set_explore_output_mode(tasks)
+
         plan_data["tasks"] = tasks
         return plan_data
 
@@ -884,6 +887,86 @@ tool_policy: {tool_policy}
             task["params"] = params
 
         return tasks
+
+    @staticmethod
+    def _auto_set_explore_output_mode(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """旧链路兼容：当下游参数引用旧字段时，自动为 explore_content 补 output_mode=full。"""
+        if not tasks:
+            return tasks
+
+        task_by_id: Dict[int, Dict[str, Any]] = {}
+        for task in tasks:
+            try:
+                task_id = int(task.get("task_id", 0))
+            except (TypeError, ValueError):
+                continue
+            task_by_id[task_id] = task
+
+        legacy_ref_task_ids: set[int] = set()
+        for task in tasks:
+            params = task.get("params") or {}
+            legacy_ref_task_ids.update(PlanGenerator._find_legacy_ref_task_ids(params))
+
+        if not legacy_ref_task_ids:
+            return tasks
+
+        for task_id in legacy_ref_task_ids:
+            target_task = task_by_id.get(task_id)
+            if not target_task or target_task.get("tool") != "explore_content":
+                continue
+            params = target_task.get("params") or {}
+            if params.get("output_mode"):
+                continue
+            params["output_mode"] = "full"
+            target_task["params"] = params
+
+        return tasks
+
+    @staticmethod
+    def _find_legacy_ref_task_ids(value: Any) -> set[int]:
+        """在参数中查找旧字段引用并返回 task_id 集合。"""
+        legacy_keywords = (
+            "chapters",
+            "context_for_task",
+            "explore_summary",
+            "frontend_display",
+            "front_end",
+        )
+
+        def _contains_legacy(text: str) -> bool:
+            return any(keyword in text for keyword in legacy_keywords)
+
+        task_ids: set[int] = set()
+
+        if isinstance(value, dict):
+            ref_obj = value.get("$ref") or value.get("ref")
+            if isinstance(ref_obj, dict):
+                ref_path = ref_obj.get("path") or ""
+                ref_task_id = ref_obj.get("task_id")
+                if isinstance(ref_path, str) and _contains_legacy(ref_path):
+                    try:
+                        task_ids.add(int(ref_task_id))
+                    except (TypeError, ValueError):
+                        pass
+            for nested_value in value.values():
+                task_ids.update(PlanGenerator._find_legacy_ref_task_ids(nested_value))
+            return task_ids
+
+        if isinstance(value, list):
+            for item in value:
+                task_ids.update(PlanGenerator._find_legacy_ref_task_ids(item))
+            return task_ids
+
+        if isinstance(value, str):
+            if "$TASK_" in value and _contains_legacy(value):
+                for match in re.finditer(r"\$TASK_(\d+)", value):
+                    try:
+                        task_ids.add(int(match.group(1)))
+                    except (TypeError, ValueError):
+                        continue
+            return task_ids
+
+        return task_ids
 
     def _validate_search_before_read(self, tasks: List[Dict], message: str) -> List[Dict]:
         """

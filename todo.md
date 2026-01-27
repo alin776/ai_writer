@@ -25,6 +25,10 @@
 - [x] 冒烟自检：记录无法运行的原因
 
 - opencode 的“先找再读”来自**提示词与权限约束**，不是硬编码流程；子代理只读（Glob/Grep/Read/Bash）并返回绝对路径，策略由上层子任务 prompt 指定。`opencode/packages/opencode/src/agent/prompt/explore.txt` `opencode/packages/opencode/src/agent/agent.ts`
+- opencode **没有“硬规则验收/证据数”**：Explore 只遵循“调用方给的 thoroughness”，停止/是否足够由主 agent 主观判断，不在代码中强制。依据：
+  - `opencode/packages/opencode/src/agent/prompt/explore.txt`：第13行明确“Adapt…thoroughness level specified by the caller”。 
+  - `opencode/packages/opencode/src/agent/agent.ts`：第146行要求调用方指定 quick/medium/very thorough。
+  - `opencode/packages/opencode/src/session/prompt.ts`：第1262–1271行只规定“启动 explore”，没有验收规则。
 - 我们要复刻的不是“子代理形式”，而是**确定性检索链路**：先找范围（类似 List），再做文本级筛选（类似 Grep），最后用 Read 读取原文并输出定位信息。
 - 工具对标（文件系统 → 章节内容）：
   - Glob/List → 章节范围/清单：优先用 `explore_tools` 的范围解析与 scope 过滤；必要时用 `get_writing_context` 拿章节内容或新增轻量章节清单工具。`backend/app/services/agent/tools/explore_tools.py` `backend/app/services/agent/langgraph_tools.py`
@@ -119,6 +123,29 @@
 - [ ] 增加章节覆盖统计并输出到日志/summary，便于验收
 - [ ] 冒烟检查并更新 review（记录无法运行的原因）
 
+#### 计划（改为 opencode 式“LLM 主观判断”，去硬规则）
+
+- [x] 逐项定位 Explore 中“硬规则判停/补漏”逻辑（证据数/覆盖率/自动补漏/固定阶段）
+- [x] 删除或绕过“证据数/覆盖率”驱动的 sufficiency 判定，仅保留 LLM 自检决定是否继续
+- [x] 把 auto-read / 固定阶段（精确→语义）改为**可选**且仅由 LLM 决定是否调用
+- [x] 保留安全上限（最大轮次/工具调用/读取数）但不参与“够不够”判断，仅作熔断
+- [x] 输出收敛：移除 sufficiency/coverage/统计驱动字段，输出只保留证据与定位元数据
+- [ ] 冒烟检查并更新 review（记录无法运行的原因）
+
+#### 计划（旧链路自动补 output_mode="full"）
+
+- [x] 扫描规划任务参数中的旧字段引用（$ref/$TASK_ 里出现 chapters/context_for_task/explore_summary/frontend_display）
+- [x] 在 PlanGenerator._validate_and_fix_plan 后处理：为被引用的 explore_content 任务自动补 output_mode="full"
+- [x] 仅在 params 未显式设置 output_mode 时才补，避免覆盖新链路
+- [x] 更新工具提示：需要旧字段时显式 output_mode="full"
+- [x] 更新 review（记录影响与风险）
+
+#### 计划（默认启用 output_mode="full" 以恢复前端轨迹）
+
+- [x] 将 explore_content 默认 output_mode 改为 "full"
+- [x] 更新提示词/工具说明中关于默认输出的描述
+- [x] 更新 review（记录影响与风险）
+
 ### review
 
 - 已删除 todo.md 其余记录，仅保留“### 讨论记录（详细）”及其内容。
@@ -150,3 +177,22 @@
 - 已将 V5 工具调用上限从 20 提升到 200，以降低早停概率。
 - 已读取《人在诸天，摆烂成帝》素材并据此生成 2 条大跨度测试 prompt。
 - 已修复范围解析：规划侧与 Explore 侧均支持“第X章至第Y章/第X–Y章/第X–第Y章”，含 en dash（–）。
+- 已去掉自检输入中的“证据数/覆盖统计”，并移除 keyword 覆盖强制逻辑，改为纯 LLM 主观判断。
+- 已移除自检循环的“信息收敛”硬停机规则，仅保留安全上限作为熔断。
+- 已将前端轮次状态文案与 sufficiency 脱钩（仅展示，不参与判停）。
+- 已强制 explore_content 统一走 tool_loop（pipeline 弃用），固定阶段/自动补漏不再执行。
+- 已收敛 explore_content 输出为最小字段（仅 evidences + locate_targets），并更新提示词参数规则。
+- 已调整 explore_content 结果处理：无 frontend_display 时不再尝试发射事件；无 explore_summary 时回退为最小 JSON 文本。
+- 已批量替换规划示例中的旧字段引用（chapters/context_for_task）为 evidences/locate_targets，并补充新字段说明。
+- 已更新工具说明中的停止条件描述（不再提“信息收敛自动停止”）。
+- 已更新写作行动提示：改为使用 evidences/locate_targets 作为改写/续写/插入的输入来源。
+- 已禁用 explore_round/explore_summary 事件（不再创建 emit_callback，结果标记 events_emitted=true）。
+- 已恢复 output_mode 分支：默认最小输出；output_mode="full" 才返回旧字段（chapters/context_for_task/frontend_display/explore_summary）。
+- 已补回 locate_targets 的 chapter_id 解析（最小章节映射 + resolve_chapter_id），避免最小输出下定位目标为空。
+- 已补充 opencode 的“判定标准”结论：无硬规则，仅依赖调用方指定的 thoroughness + 主 agent 主观判断停止。
+- 已在规划后处理阶段自动补齐 explore_content 的 output_mode="full"：当下游参数引用旧字段（chapters/context_for_task/explore_summary/frontend_display）时生效，且不覆盖显式设置。
+- 工具提示已包含 output_mode 使用说明（无需额外改动）。
+- 已恢复 full 输出的前端事件发射：当 output_mode="full" 时返回 events_emitted=false，交由 parallel_executor 发射 explore_round/explore_summary。
+- 已改回 explore_content 默认 output_mode="full"，以恢复前端 Explore 轨迹展示。
+- 已更新提示词说明：默认输出完整字段，需精简时显式 output_mode="evidence_only"。
+- 已恢复工具内事件实时发射：当存在 stream handler 时，explore_content 直接发 explore_round/explore_summary，并标记 events_emitted=true。

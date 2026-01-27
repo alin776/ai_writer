@@ -768,7 +768,7 @@ class ToolDispatcher:
         if not result_data.get("success"):
             return tool_result if isinstance(tool_result, str) else json.dumps(result_data, ensure_ascii=False)
 
-        if not result_data.get("events_emitted"):
+        if result_data.get("frontend_display") and not result_data.get("events_emitted"):
             await self._emit_explore_events(result_data, step_id)
 
         explore_summary = result_data.get("explore_summary") or result_data.get("context_for_task", "")
