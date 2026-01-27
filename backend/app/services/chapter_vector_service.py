@@ -101,6 +101,26 @@ class ChapterVectorService:
 
         return paragraphs
 
+    def _split_by_paragraph_nodes(
+        self,
+        content: str,
+        max_paragraphs: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        按段落切分内容，保留 node_id（与 locate_tools._split_paragraphs 对齐）
+        """
+        try:
+            from app.services.agent.tools.locate_tools import _split_paragraphs
+            paragraphs = _split_paragraphs(content)
+        except Exception:
+            paragraphs = []
+
+        if max_paragraphs is not None and len(paragraphs) > max_paragraphs:
+            logger.warning(f"段落数量 {len(paragraphs)} 超过上限 {max_paragraphs}，将截断")
+            paragraphs = paragraphs[:max_paragraphs]
+
+        return paragraphs
+
     def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
         """
         计算余弦相似度
@@ -138,17 +158,18 @@ class ChapterVectorService:
             await self.db.execute(stmt)
             await self.db.flush()
 
-            # 2) 按段落切分（与编辑器结构对齐）
-            paragraphs = self._split_by_paragraphs(content, max_paragraphs=max_chunks or self.MAX_CHUNKS)
+            # 2) 按段落切分（与编辑器结构对齐，保留 node_id）
+            paragraphs = self._split_by_paragraph_nodes(content, max_paragraphs=max_chunks or self.MAX_CHUNKS)
+            text_list = [p.get("text", "") for p in paragraphs if isinstance(p, dict)]
 
-            if len(paragraphs) == 0:
+            if len(text_list) == 0:
                 logger.warning(f"Skip vectorizing (no valid paragraphs): {chapter_title}")
                 await self.db.commit()
                 return 0
 
             # 3) encode
             model = self._get_model()
-            embeddings = model.encode(paragraphs, normalize_embeddings=True)
+            embeddings = model.encode(text_list, normalize_embeddings=True)
 
             # 4) batch insert
             from uuid import UUID
@@ -156,22 +177,28 @@ class ChapterVectorService:
             chapter_uuid = UUID(chapter_id) if isinstance(chapter_id, str) else chapter_id
 
             vectors = []
-            for idx, (para_text, embedding) in enumerate(zip(paragraphs, embeddings)):
+            for idx, (para, embedding) in enumerate(zip(paragraphs, embeddings)):
+                if not isinstance(para, dict):
+                    continue
+                para_text = para.get("text", "")
+                node_id = para.get("node_id")
+                chunk_index = para.get("index", idx)
                 vectors.append(NovelChapterVector(
                     work_id=work_uuid,
                     chapter_id=chapter_uuid,
                     chapter_order=chapter_order,
                     chapter_title=chapter_title,
-                    chunk_index=idx,  # chunk_index 即为 paragraph_index
+                    chunk_index=chunk_index,  # chunk_index 即为 paragraph_index
                     chunk_text=para_text,
+                    node_id=node_id,
                     embedding=embedding.tolist()
                 ))
 
             self.db.add_all(vectors)
             await self.db.commit()
 
-            logger.info(f"Stored chapter vectors: {chapter_title} ({len(paragraphs)} paragraphs)")
-            return len(paragraphs)
+            logger.info(f"Stored chapter vectors: {chapter_title} ({len(text_list)} paragraphs)")
+            return len(text_list)
 
         except Exception as e:
             logger.error(f"store_chapter_vector failed: {e}", exc_info=True)
@@ -235,6 +262,7 @@ class ChapterVectorService:
                         'chapter_order': vector.chapter_order,
                         'paragraph_index': vector.chunk_index,  # 新增：chunk_index 即 paragraph_index
                         'chunk_text': vector.chunk_text,
+                        'node_id': vector.node_id,
                         'similarity': float(similarity)
                     })
 
@@ -409,6 +437,8 @@ class ChapterVectorService:
                     "chapter_title": v.chapter_title,
                     "paragraph_index": v.chunk_index,
                     "text": v.chunk_text,
+                    "snippet": v.chunk_text[:200] + "..." if len(v.chunk_text) > 200 else v.chunk_text,
+                    "node_id": v.node_id,
                     "matched_keywords": matched,
                     "match_count": len(matched)
                 })

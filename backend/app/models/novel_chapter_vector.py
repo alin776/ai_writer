@@ -31,6 +31,7 @@ class NovelChapterVector(Base):
     # 内容分段
     chunk_index = Column(Integer, nullable=False, default=0)  # 段落索引
     chunk_text = Column(Text, nullable=False)  # 原文内容
+    node_id = Column(String(64), nullable=True)  # 编辑器节点ID（可选）
 
     # 向量数据
     embedding = Column(Vector(384), nullable=False)  # 384维向量（MiniLM模型）

@@ -326,6 +326,7 @@ class HybridRetriever:
                 "chapter_title": r["chapter_title"],
                 "chapter_order": r["chapter_order"],
                 "paragraph_index": r.get("paragraph_index"),  # 新增
+                "node_id": r.get("node_id"),
                 "content": chunk_text,
                 "similarity": float(r["similarity"]),
                 "source": "vector",

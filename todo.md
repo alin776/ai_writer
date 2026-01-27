@@ -65,6 +65,60 @@
   - **注意点**：`locate_content` 没有 `paragraph_index` 参数；只有段落号时需转成“第N段”或直接用原文片段作为 query。  
   - **推荐调用**：`locate_content(chapter_id=target.chapter_id, query=target.query, node_id=target.node_id?, nodes_info=target.nodes_info?, allow_global_fallback=false)`。
 
+#### 计划（opencode 风格 Explore 改造）
+
+- [x] 评估现有 `explore_content/ContentExplorer` 流程与调用点，确定 “opencode 风格” 开关参数与兼容策略（保留旧流程默认行为）
+- [x] 新增只读工具：`list_chapters`（章节清单）、`list_paragraphs`（章节段落索引/片段，支持 offset/limit）、`read_paragraphs`（批量读取）
+- [x] 在 `explore_tools.py` 中实现 “LLM 工具调用循环”（LLM 产出 tool+args+stop），仅允许 List/Grep/Read；默认禁用语义检索，并加预算限制（最大工具调用/最大读取段落）
+- [x] `explore_content` 接入新模式（如 `explore_mode="tool_loop"`），输出结构保持兼容（evidences/locate_targets 等），并继续强制范围锁定 + 只读证据
+- [x] 必要时更新工具描述/提示词（`tool_descriptions.py`/`planning_prompts.py`）以反映新模式的可用只读工具与约束
+- [x] 冒烟检查与记录（若无法运行说明原因），更新 review 汇总变更与影响
+
+#### 计划（补齐缺口：chapter_id / 段落数 / node_id）
+
+- [x] read_paragraph 支持 chapter_id（无 chapter_order 时自动解析）并在返回中补齐 chapter_id
+- [x] list_chapters 补充段落数（paragraph_count），与编辑器拆段一致
+- [x] 向量索引补齐 node_id：模型新增字段 + 向量化写入 node_id + 检索返回 node_id + migrate/回填脚本说明
+- [x] explore/tool_loop 对接 node_id（候选/证据/locate_targets 中透出）
+- [x] 冒烟检查并更新 review（记录无法运行的原因）
+
+#### 计划（默认启用 V5 tool_loop）
+
+- [x] 将 explore_content 的默认 explore_mode 改为 tool_loop（保留显式 pipeline 可选）
+- [x] 同步工具描述提示“默认 tool_loop”，避免误解
+- [x] 冒烟检查并更新 review（记录无法运行的原因）
+
+#### 计划（Backend.md 四条测试日志验收）
+
+- [x] 抽取四条测试 prompt 对应的 explore_content 日志片段
+- [x] 对照 V5 预期：确认 tool_loop、仅 read_paragraph、是否触发语义检索
+- [x] 检查范围锁定是否正确（第X章至第Y章 / 第1–30章）
+
+#### 计划（扩大 V5 工具调用上限）
+
+- [x] 将 TOOL_LOOP_MAX_CALLS_DEFAULT 从 20 提升到 200
+- [x] 冒烟检查并更新 review（记录无法运行的原因）
+
+#### 计划（基于小说素材生成大跨度测试 Prompt）
+
+- [x] 阅读素材文件，提取关键角色/事件/体系/场景范围
+- [x] 设计 2 条“章节跨度大 + 信息跨度大”的复杂测试 prompt（严格原文证据要求）
+- [x] 回填 review（记录未能执行的原因）
+
+#### 计划（修复章节范围约束丢失）
+
+- [x] 扩展规划阶段范围解析（支持“第X章至第Y章/第X–Y章/第X–第Y章”等）
+- [x] 确保 explore_content 的范围解析兼容上述格式（含 en dash）
+- [x] 冒烟检查并更新 review（记录无法运行的原因）
+
+#### 计划（重构工具循环的章节覆盖策略）
+
+- [ ] 增加“覆盖度优先”硬规则：同一章节连续读取上限 + 未覆盖章节优先
+- [ ] 在 tool_loop 决策提示中加入“跨章覆盖”要求（必须先覆盖范围内多个章节）
+- [ ] 读取策略改为“跨章批量读”：优先 list_chapters/list_paragraphs 再分散 read_paragraphs
+- [ ] 增加章节覆盖统计并输出到日志/summary，便于验收
+- [ ] 冒烟检查并更新 review（记录无法运行的原因）
+
 ### review
 
 - 已删除 todo.md 其余记录，仅保留“### 讨论记录（详细）”及其内容。
@@ -81,4 +135,18 @@
 - 已改为“只用 read_paragraph 原文入证据”，search_content/exact_search 只驱动定位与阅读。
 - 已统一 locate_content 禁跨章降级（allow_global_fallback=false），并在 locate_targets 透出。
 - 已新增 output_mode（evidence_only）输出收敛开关，按需仅返回证据+定位元数据。
-- 冒烟：尝试 `python -m py_compile` 失败（环境无 python），未运行自动化测试。
+- 已新增只读工具：`list_chapters`/`list_paragraphs`/`read_paragraphs`，用于对标 List/Grep/Read 的章节数据源映射。
+- 已实现 opencode 风格工具循环：LLM 产出 tool+args+stop，仅允许 List/Grep/Read，语义检索默认禁用，并加入工具/读取预算上限。
+- 已为 `explore_content` 增加 `explore_mode` 与预算参数，`tool_loop` 模式可选启用，默认保留旧流程。
+- 已更新 `tool_descriptions.py`，补充 explore_content 新参数说明。
+- 冒烟：`python -m py_compile` 失败（环境无 python），未运行自动化测试。
+- 已为 `read_paragraph` 增加 chapter_id 支持（无 chapter_order 时自动解析），返回中补齐 chapter_id。
+- 已在 `list_chapters` 输出 paragraph_count（与编辑器拆段一致）。
+- 已为向量索引新增 node_id 字段并写入/检索透出，Hybrid/semantic 搜索结果同步携带 node_id。
+- 已新增迁移脚本说明（重跑 `migrate_chapter_vectors.py` 回填 node_id），并添加 Alembic 迁移文件。
+- 已将 explore_content 默认模式切到 tool_loop（V5），并更新工具描述。
+- 冒烟：未运行自动化测试（环境无 python）。
+- 日志验收：V5 已启用且以 exact_search + read_paragraph 为主，但范围解析对“第X章至第Y章”和“第1–30章”存在识别问题，出现“第5章、第20章”或 range=None 的锁定结果。
+- 已将 V5 工具调用上限从 20 提升到 200，以降低早停概率。
+- 已读取《人在诸天，摆烂成帝》素材并据此生成 2 条大跨度测试 prompt。
+- 已修复范围解析：规划侧与 Explore 侧均支持“第X章至第Y章/第X–Y章/第X–第Y章”，含 en dash（–）。
