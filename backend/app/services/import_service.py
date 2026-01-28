@@ -585,12 +585,12 @@ class ImportService:
         """
         chapters = []
         
-        # 模式1: 第X章
-        pattern1 = r'第[零一二三四五六七八九十百千万\d]+章[\s：:]+(.+)?'
-        # 模式2: Chapter X
-        pattern2 = r'Chapter\s+\d+[\s：:]*(.+)?'
-        # 模式3: Markdown标题
-        pattern3 = r'^##\s+(.+)$'
+        # 模式1: 第X章（允许无空格/括号/破折号等分隔符）
+        pattern1 = r'^第[零一二三四五六七八九十百千万\d]+章(?:\s*[:：\-—–·．、~～\[\(（【]?\s*(.+))?$'
+        # 模式2: Chapter X（允许常见分隔符）
+        pattern2 = r'^Chapter\s+\d+(?:\s*[:：\-—–·．、~～]?\s*(.+))?$'
+        # 模式3: Markdown标题（支持#到######）
+        pattern3 = r'^#{1,6}\s+(.+)$'
         
         lines = text.split('\n')
         current_chapter = None
