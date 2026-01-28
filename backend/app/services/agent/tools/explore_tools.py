@@ -591,6 +591,25 @@ class ToolCall:
 
 
 @dataclass
+class SearchRecord:
+    """搜索记录（类似 OpenCode 的 ToolPart）
+
+    设计原则（来自 OpenCode）：
+    - 元数据永久保留（query, tool, chapters）
+    - 摘要智能压缩（hits_summary）
+    - AI 决策时可见完整搜索历史
+    """
+    query: str                      # 搜索关键词
+    tool: str                       # 工具名称
+    hits_count: int                 # 命中数量
+    hits_summary: str               # 结果摘要（关键信息，≤100字符）
+    chapters_covered: List[int]     # 覆盖的章节号
+    round_idx: int                  # 第几轮搜索的
+    timestamp: datetime = field(default_factory=get_utc_now)
+    compacted: bool = False         # 是否已被压缩（旧记录）
+
+
+@dataclass
 class ExploreRound:
     """单轮探索记录"""
     round_idx: int
@@ -655,6 +674,11 @@ class ExploreState:
 
     rounds: List[ExploreRound] = field(default_factory=list)
     # 每轮的执行记录
+
+    # ========== 搜索历史（类似 OpenCode 的 ToolPart 历史）==========
+
+    search_history: List['SearchRecord'] = field(default_factory=list)
+    # 完整的搜索历史，包含每次搜索的结果摘要
 
     # ========== 去重方法 ==========
 
@@ -948,6 +972,58 @@ class ExploreState:
             "rounds_count": len(self.rounds)
         }
 
+    # ========== 搜索历史管理（类似 OpenCode 的 Compaction）==========
+
+    def add_search_record(self, record: 'SearchRecord') -> None:
+        """添加搜索记录，并执行智能压缩"""
+        self.search_history.append(record)
+        self._compact_old_records()
+
+    def _compact_old_records(self, keep_recent: int = 10) -> None:
+        """压缩旧的搜索记录（类似 OpenCode 的 Prune）
+
+        策略：
+        - 保留最近 keep_recent 条记录的完整摘要
+        - 旧记录标记为 compacted，摘要被简化
+        """
+        if len(self.search_history) <= keep_recent:
+            return
+
+        # 标记旧记录为已压缩
+        for record in self.search_history[:-keep_recent]:
+            if not record.compacted:
+                record.compacted = True
+                # 简化摘要，只保留关键数字
+                record.hits_summary = f"命中{record.hits_count}条"
+
+    def get_search_history_summary(self) -> str:
+        """获取搜索历史摘要（用于 AI 决策）
+
+        类似 OpenCode 的 toModelMessages，为 AI 构建可见的搜索历史
+        """
+        if not self.search_history:
+            return ""
+
+        lines = []
+
+        # 1. 最近的详细展示（未压缩）
+        recent = [r for r in self.search_history if not r.compacted]
+        if recent:
+            lines.append("【近期搜索】")
+            for r in recent[-6:]:  # 最多显示6条
+                chapters_str = ""
+                if r.chapters_covered:
+                    chapters_str = f" 第{min(r.chapters_covered)}-{max(r.chapters_covered)}章"
+                lines.append(f"  · {r.query}: {r.hits_summary}{chapters_str}")
+
+        # 2. 旧记录的压缩展示
+        compacted = [r for r in self.search_history if r.compacted]
+        if compacted:
+            queries = [r.query for r in compacted]
+            lines.append(f"【历史搜索】已搜过: {', '.join(queries)}")
+
+        return "\n".join(lines)
+
 
 # ==================== 输出结果 ====================
 
@@ -1029,6 +1105,7 @@ def _clone_explore_state(state: ExploreState) -> ExploreState:
         read_chapter_orders=set(state.read_chapter_orders),
         read_worldview_categories=set(),
         rounds=[],
+        search_history=list(state.search_history),  # 保留搜索历史
     )
 
 
@@ -1037,6 +1114,12 @@ def _merge_explore_states(base: ExploreState, incoming: ExploreState) -> Explore
     merged.searched_queries |= incoming.searched_queries
     merged.read_paragraph_positions |= incoming.read_paragraph_positions
     merged.read_chapter_orders |= incoming.read_chapter_orders
+    # 合并搜索历史（去重，基于 query）
+    seen_queries = {r.query for r in merged.search_history}
+    for record in incoming.search_history:
+        if record.query not in seen_queries:
+            merged.search_history.append(record)
+            seen_queries.add(record.query)
     return merged
 
 def build_context_for_task(result: ExploreResult) -> str:
@@ -2249,8 +2332,16 @@ class ContentExplorer:
         if self.chapter_scopes:
             lines.append(f"- 任务章节范围：{_format_scope_ranges(self.chapter_scopes)}")
         lines.append(f"- 工具调用剩余：{tool_calls_left}，可读段落剩余：{reads_left}")
-        if self.state.searched_queries:
-            lines.append(f"- 已搜索关键词：{', '.join(list(self.state.searched_queries)[:8])}")
+
+        # 优先展示搜索历史摘要（核心改进：类似 OpenCode 的 toModelMessages）
+        search_summary = self.state.get_search_history_summary()
+        if search_summary:
+            lines.append(f"- 搜索历史：\n{search_summary}")
+        elif self.state.searched_queries:
+            # 兼容旧逻辑：如果没有搜索历史，显示已搜索词
+            all_queries = list(self.state.searched_queries)
+            lines.append(f"- 已搜索关键词（{len(all_queries)}个）：{', '.join(all_queries)}")
+
         if last_tool_name:
             lines.append(f"- 上一次工具：{last_tool_name}")
         if last_tool_result:
@@ -2276,16 +2367,17 @@ class ContentExplorer:
             reads_left
         )
 
+        # 🔧 2026-01-28: 隐藏 work_id 参数，由代码自动注入，避免 AI 误将参数名当作值
         tools_desc = """可用工具（只读）：
-1) list_chapters(work_id)
+1) list_chapters()
    - 作用：列出章节清单
-2) list_paragraphs(work_id, chapter_order|chapter_id, offset, limit, preview_len)
+2) list_paragraphs(chapter_order, offset, limit, preview_len)
    - 作用：列出某章段落索引（仅预览）
-3) exact_search_paragraphs(work_id, keywords, match_mode, limit)
+3) exact_search_paragraphs(keywords, match_mode, limit)
    - 作用：精确关键词匹配（Grep），返回候选段落
-4) read_paragraph(work_id, chapter_order|chapter_id, paragraph_index, context_before, context_after)
+4) read_paragraph(chapter_order, paragraph_index, context_before, context_after)
    - 作用：读取指定段落原文
-5) read_paragraphs(work_id, items, context_before, context_after)
+5) read_paragraphs(items, context_before, context_after)
    - 作用：批量读取多个段落原文
 
 禁止使用 search_content（语义检索）。
@@ -2318,6 +2410,13 @@ class ContentExplorer:
 - 读取原文证据只能来自 read_paragraph/read_paragraphs。
 - read_paragraph/read_paragraphs 必须提供 chapter_order + paragraph_index（可用 list_paragraphs 的 index/paragraph_index）。
 - 不要使用 chapter_id/node_id 直接作为 read_paragraphs 的定位字段。
+- 不要搜索已搜索过的关键词或其变体（检查"已搜索关键词"列表）。
+
+何时应选择 action="stop"：
+1. 目标任务所需的关键信息已获取足够
+2. 已搜索的关键词已覆盖目标概念（不要反复搜索同义词/变体）
+3. 可读段落剩余不足 30 时，应优先停止而非继续搜索
+4. 连续多轮搜索未发现新的有价值信息
 """
 
         try:
@@ -2405,8 +2504,8 @@ class ContentExplorer:
 
         tool_name = (tool_name or "").strip()
         params = dict(args or {})
-        if "work_id" not in params:
-            params["work_id"] = self.work_id
+        # 🔧 2026-01-28: 无条件覆盖 work_id，防止 AI 生成错误值（如 "work_id" 字面字符串）
+        params["work_id"] = self.work_id
         reads_used = 0
         start = get_utc_now()
 
@@ -2666,6 +2765,22 @@ class ContentExplorer:
                     "hits": len(results),
                     "results": _preview_results(results)
                 }
+
+                # 新增：记录搜索历史（类似 OpenCode 的 ToolPart）
+                chapters_in_results = list(set(
+                    r.get("chapter_order") for r in results
+                    if isinstance(r.get("chapter_order"), int)
+                ))
+                hits_summary = self._generate_hits_summary(results, keywords)
+                self.state.add_search_record(SearchRecord(
+                    query=",".join(keywords[:3]),
+                    tool="exact_search_paragraphs",
+                    hits_count=len(results),
+                    hits_summary=hits_summary,
+                    chapters_covered=chapters_in_results,
+                    round_idx=round_idx
+                ))
+
                 logger.info(
                     "[ExploreTool] done=%s success=%s hits=%s keywords=%s",
                     tool_name,
@@ -3377,6 +3492,43 @@ class ContentExplorer:
         )
 
     # ==================== 辅助方法 ====================
+
+    def _generate_hits_summary(self, results: List[Dict], keywords: List[str]) -> str:
+        """生成搜索结果摘要（类似 OpenCode 的 output truncation）
+
+        策略：
+        - 提取关键信息（章节、段落、内容片段）
+        - 限制在 100 字符以内
+        - 突出与目标任务相关的信息
+        """
+        if not results:
+            return "无命中"
+
+        # 统计章节分布
+        chapters = set()
+        snippets = []
+        for r in results[:5]:  # 只看前5条
+            ch = r.get("chapter_order")
+            if isinstance(ch, int):
+                chapters.add(ch)
+            snippet = r.get("snippet") or r.get("content") or r.get("text") or ""
+            if snippet:
+                snippets.append(snippet[:40])
+
+        # 生成摘要
+        parts = []
+        parts.append(f"{len(results)}条命中")
+        if chapters:
+            if len(chapters) == 1:
+                parts.append(f"第{list(chapters)[0]}章")
+            else:
+                parts.append(f"覆盖第{min(chapters)}-{max(chapters)}章")
+        if snippets:
+            preview = snippets[0][:30] + "..." if len(snippets[0]) > 30 else snippets[0]
+            parts.append(f"如「{preview}」")
+
+        summary = ", ".join(parts)
+        return summary[:100]  # 限制长度
 
     def _determine_chapters_to_read(self) -> List[int]:
         """确定需要读取的章节"""
