@@ -1502,7 +1502,19 @@ def _format_tool_calls_for_frontend(round_data: ExploreRound) -> List[Dict[str, 
                 "type": "ListParagraphs",
                 "value": "列段落预览"
             })
-        if tc.tool_name == "search_content":
+        elif tc.tool_name == "exact_search_paragraphs":
+            # 精确关键词搜索
+            keywords = tc.params.get("keywords", "")
+            if isinstance(keywords, list):
+                keywords = ", ".join(keywords[:3])
+            elif isinstance(keywords, str) and "|" in keywords:
+                keywords = ", ".join(keywords.split("|")[:3])
+            tags.append({
+                "type": "Search",
+                "value": keywords[:30] + ("..." if len(keywords) > 30 else ""),
+                "highlight": keywords[:30]
+            })
+        elif tc.tool_name == "search_content":
             query = tc.params.get("query", "")
             tags.append({
                 "type": "Search",
@@ -1542,6 +1554,17 @@ def _format_tool_calls_for_frontend(round_data: ExploreRound) -> List[Dict[str, 
                 "type": "ReadParagraph",
                 "value": f"第{chapter}章 · 第{para}段"
             })
+        elif tc.tool_name == "read_paragraphs":
+            # 批量段落读取：显示读取数量
+            items = tc.params.get("items", [])
+            count = len(items) if isinstance(items, list) else 0
+            if count > 0:
+                first = items[0] if items else {}
+                chapter = first.get("chapter_order", "?")
+                tags.append({
+                    "type": "ReadParagraph",
+                    "value": f"第{chapter}章 · {count}段"
+                })
         elif tc.tool_name == "get_chapter_by_order_tool":
             # 整章阅读：仅在未禁止时使用
             chapter = tc.params.get("chapter_order", "?")
@@ -1564,12 +1587,6 @@ def _format_tool_calls_for_frontend(round_data: ExploreRound) -> List[Dict[str, 
                     "type": "Worldview",
                     "value": "世界观设定"
                 })
-
-    # 添加 Review 标签
-    tags.append({
-        "type": "Review",
-        "value": _get_review_status(round_data)
-    })
 
     return tags
 
@@ -1654,6 +1671,7 @@ class ContentExplorer:
         self.state = ExploreState()
         self.start_time = get_utc_now()
         self.chapter_list_cache: Optional[List[Dict[str, Any]]] = None
+        self.paragraph_node_id_cache: Dict[int, Dict[str, int]] = {}
         self.flow_listed_chapters = False
         self.flow_listed_paragraphs: set[int] = set()
         if self.require_paragraph_index:
@@ -1739,6 +1757,25 @@ class ContentExplorer:
             if ch.get("order") == chapter_order:
                 return ch
         return {}
+
+    def _cache_paragraph_index_map(self, chapter_order: int, result_data: Dict[str, Any]) -> None:
+        if not isinstance(chapter_order, int):
+            return
+        paragraphs = result_data.get("paragraphs") if isinstance(result_data, dict) else None
+        if not isinstance(paragraphs, list):
+            return
+        node_map = self.paragraph_node_id_cache.setdefault(chapter_order, {})
+        for para in paragraphs:
+            if not isinstance(para, dict):
+                continue
+            idx = para.get("paragraph_index")
+            if idx is None:
+                idx = para.get("index")
+            if isinstance(idx, str) and idx.isdigit():
+                idx = int(idx)
+            node_id = para.get("node_id") or ""
+            if isinstance(idx, int) and node_id and node_id not in node_map:
+                node_map[node_id] = idx
 
     async def _get_allowed_chapter_orders(self) -> List[int]:
         await self._ensure_scope_mapping()
@@ -2279,6 +2316,8 @@ class ContentExplorer:
 注意：
 - 必须遵守章节范围约束（如有）。
 - 读取原文证据只能来自 read_paragraph/read_paragraphs。
+- read_paragraph/read_paragraphs 必须提供 chapter_order + paragraph_index（可用 list_paragraphs 的 index/paragraph_index）。
+- 不要使用 chapter_id/node_id 直接作为 read_paragraphs 的定位字段。
 """
 
         try:
@@ -2429,6 +2468,7 @@ class ContentExplorer:
                 result_data = json.loads(result) if isinstance(result, str) else result
                 if isinstance(result_data, dict) and result_data.get("success") and isinstance(chapter_order, int):
                     self.flow_listed_paragraphs.add(chapter_order)
+                    self._cache_paragraph_index_map(chapter_order, result_data)
             logger.info(
                 "[ExploreTool] done=%s success=%s chapter=%s offset=%s limit=%s approximate=%s",
                 tool_name,
@@ -2441,10 +2481,27 @@ class ContentExplorer:
 
         elif tool_name == "exact_search_paragraphs":
             raw_keywords = params.get("keywords") or params.get("keyword") or params.get("query") or []
+            def _split_keywords(text: str) -> List[str]:
+                parts = [text]
+                for sep in ("|", "｜", "/", "，", "、", ";", "；"):
+                    new_parts: List[str] = []
+                    for part in parts:
+                        if sep in part:
+                            new_parts.extend(part.split(sep))
+                        else:
+                            new_parts.append(part)
+                    parts = new_parts
+                return [p.strip() for p in parts if p.strip()]
+
             if isinstance(raw_keywords, str):
-                keywords = [raw_keywords.strip()]
+                keywords = _split_keywords(raw_keywords)
             elif isinstance(raw_keywords, list):
-                keywords = [str(k).strip() for k in raw_keywords if str(k).strip()]
+                keywords = []
+                for item in raw_keywords:
+                    text = str(item).strip()
+                    if not text:
+                        continue
+                    keywords.extend(_split_keywords(text))
             else:
                 keywords = []
             if not keywords:
@@ -2699,15 +2756,48 @@ class ContentExplorer:
             if read_budget <= 0:
                 result_data = {"success": False, "error": "读取预算已用尽"}
             else:
+                chapter_id_map: Optional[Dict[str, int]] = None
                 filtered_items = []
                 for item in items:
                     if not isinstance(item, dict):
                         continue
                     chapter_order = item.get("chapter_order") or item.get("chapter")
+                    chapter_id = item.get("chapter_id") or params.get("chapter_id") or ""
                     if isinstance(chapter_order, str) and chapter_order.isdigit():
                         chapter_order = int(chapter_order)
                         item["chapter_order"] = chapter_order
-                    if isinstance(chapter_order, int) and (not self.chapter_scopes or self._is_chapter_in_scope(chapter_order)):
+                    if not isinstance(chapter_order, int) and chapter_id:
+                        if chapter_id_map is None:
+                            chapters = await self._get_chapter_list()
+                            chapter_id_map = {}
+                            for ch in chapters:
+                                order_val = ch.get("order")
+                                if not isinstance(order_val, int):
+                                    continue
+                                for key in (ch.get("id"), ch.get("chapter_id")):
+                                    if key:
+                                        chapter_id_map[str(key)] = order_val
+                        chapter_order = chapter_id_map.get(str(chapter_id))
+                        if isinstance(chapter_order, int):
+                            item["chapter_order"] = chapter_order
+
+                    paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
+                    if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                        paragraph_index = int(paragraph_index)
+                    if not isinstance(paragraph_index, int):
+                        node_id = item.get("node_id") or ""
+                        if node_id and isinstance(chapter_order, int):
+                            mapped_index = self.paragraph_node_id_cache.get(chapter_order, {}).get(node_id)
+                            if isinstance(mapped_index, int):
+                                paragraph_index = mapped_index
+                    if isinstance(paragraph_index, int):
+                        item["paragraph_index"] = paragraph_index
+
+                    if (
+                        isinstance(chapter_order, int)
+                        and isinstance(paragraph_index, int)
+                        and (not self.chapter_scopes or self._is_chapter_in_scope(chapter_order))
+                    ):
                         filtered_items.append(item)
                 items = filtered_items
                 if read_budget < len(items):

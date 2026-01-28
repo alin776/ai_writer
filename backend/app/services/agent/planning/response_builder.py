@@ -112,6 +112,51 @@ class ResponseBuilder:
         """设置流式事件处理器"""
         self._stream_event_handler = handler
 
+    async def _generate_summarization_reason(
+        self,
+        message: str,
+        task_results: List[Dict[str, Any]]
+    ) -> str:
+        """生成 AI 整合分析的简短理由（用于前端展示）"""
+        try:
+            tasks = []
+            for task in task_results[:6]:
+                tool = str(task.get("tool", "")).strip() or "unknown_tool"
+                desc = str(task.get("description", "")).strip()
+                snippet = str(task.get("result", "")).strip().replace("\n", " ")
+                if len(snippet) > 60:
+                    snippet = snippet[:60] + "…"
+                if desc and snippet:
+                    tasks.append(f"{tool}：{desc}｜{snippet}")
+                elif desc:
+                    tasks.append(f"{tool}：{desc}")
+                elif snippet:
+                    tasks.append(f"{tool}｜{snippet}")
+                else:
+                    tasks.append(tool)
+            tasks_text = "；".join(tasks)
+            prompt = (
+                "请基于【任务摘要】输出一段中文“任务结果摘要”（50字以内），"
+                "必须包含任务中出现的具体名词或事件，不要空泛表述。\n"
+                f"用户请求：{message}\n"
+                f"任务数：{len(task_results)}\n"
+                f"任务摘要：{tasks_text}\n"
+                "只输出摘要本身，不要其他内容。"
+            )
+            response = await self.ai_service.call_ai(
+                system_prompt="你是任务整合助手，只输出一句中文理由。",
+                user_prompt=prompt,
+                max_tokens=60,
+                temperature=0.2,
+                task_type=TaskType.SIMPLE_QA
+            )
+            reason = (response or "").strip()
+            logger.info(f"[Summarization] reason生成: len={len(reason)} content={reason}")
+            return reason
+        except Exception as e:
+            logger.warning(f"[Summarization] 生成理由失败: {e}")
+            return ""
+
     async def build_final_response(
         self,
         task_results: List[Dict],
@@ -376,6 +421,7 @@ class ResponseBuilder:
         # 发送 Summarization 开始事件
         if self._stream_event_handler:
             logger.info("[Summarization] 准备发送 summarization_start 事件")
+            reason = await self._generate_summarization_reason(message, task_results)
             task_classification = {
                 "input_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in classified["input_tasks"]],
                 "output_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in classified["output_tasks"]],
@@ -387,7 +433,7 @@ class ResponseBuilder:
                 "mode": "流式生成"
             }
             await self._stream_event_handler.emit_summarization_start(
-                task_classification, context_stats
+                task_classification, context_stats, reason
             )
             logger.info("[Summarization] summarization_start 事件已发送")
         else:

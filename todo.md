@@ -1,5 +1,19 @@
 # TODO
 
+#### 本次问题复盘计划（未确认）
+
+- [x] 阅读 `Backend.md` 与 `INFO.md`，标注“未找到原文证据”对应的工具调用与结果
+- [x] 核对 `explore_content`/tool_loop 的 `exact_search_paragraphs` 关键词解析与入参格式（是否因 `|` 拼接导致未命中）
+- [x] 核对证据生成条件（必须 `read_paragraph(s)`）与本次日志是否满足
+- [x] 输出 review：回答“是否已解决/为什么会这样/不是搜索到了吗”，给出原因与建议
+- [x] 在 `todo.md` 追加 review 小结
+
+#### 本次修复计划（待确认）
+
+- [x] 复核 `explore_tools.py` 中 `exact_search_paragraphs` 的关键词解析路径（tool_loop）
+- [x] 拆分含分隔符的关键词（`|/，/、/;/｜`），确保传给向量精确匹配的是关键词数组
+- [x] 更新 `todo.md` review（记录改动与影响）
+
 ### 讨论记录（详细）
 
 #### 待办清单
@@ -146,6 +160,14 @@
 - [x] 更新提示词/工具说明中关于默认输出的描述
 - [x] 更新 review（记录影响与风险）
 
+#### 计划（排查“读取两章内容/读了100+次”问题）
+
+- [x] 通读 Backend.md + INFO.md，整理“读两章/高频调用”的关键时间段与触发条件
+- [x] 追踪 explore_content → ContentExplorer → ExploreTool.read_paragraphs 参数流，定位失败原因
+- [x] 修正 read_paragraphs 对 items 的兼容（chapter_id/node_id → chapter_order/paragraph_index 映射或兜底）
+- [x] 校准 tool_loop 提示/参数约束，避免 LLM 生成无效 items 导致重复调用
+- [x] 记录复现路径与修复结果，补充 todo.md 的 review
+
 ### review
 
 - 已删除 todo.md 其余记录，仅保留“### 讨论记录（详细）”及其内容。
@@ -196,3 +218,12 @@
 - 已改回 explore_content 默认 output_mode="full"，以恢复前端 Explore 轨迹展示。
 - 已更新提示词说明：默认输出完整字段，需精简时显式 output_mode="evidence_only"。
 - 已恢复工具内事件实时发射：当存在 stream handler 时，explore_content 直接发 explore_round/explore_summary，并标记 events_emitted=true。
+- 已定位“读两章/高频调用”原因：tool_loop 生成的 read_paragraphs items 使用 chapter_id/node_id（或 index），而 ExploreTool 仅识别 chapter_order/paragraph_index，导致 read_paragraphs 过滤为空并反复重试。
+- 已为 list_paragraphs 增加 paragraph_index 字段，并在 ExploreTool 内缓存 node_id→paragraph_index 映射以兜底。
+- 已在 ExploreTool.read_paragraphs 兼容 chapter_id/node_id/index → chapter_order/paragraph_index 的映射，避免空列表反复调用。
+- 已更新 tool_loop 提示，要求 read_paragraph/read_paragraphs 使用 chapter_order+paragraph_index，降低 LLM 生成无效 items 的概率。
+- 本次日志确实“调用了搜索”，但 `exact_search_paragraphs` 收到的是带 `|` 的**单字符串**关键词（如“世界观体量|遮天|一人之下|主线任务|摆烂”），未拆分时会按**字面包含 `|`** 进行匹配，导致命中为 0。
+- 日志显示未发生成功的 `read_paragraph(s)` 读取，因此 `evidences` 为空，最终只能返回“未找到任何原文证据”。
+- 任务范围锁定在第1–2章，且 tool_loop 禁用语义检索，仅做精确匹配；若原文措辞不同，也会出现“搜索过但无证据”的结果。
+- 建议：在 `exact_search_paragraphs` 或调用侧拆分 `|/，/空格` 为数组；必要时加入低成本兜底（list_paragraphs→read_paragraph）或允许语义检索作为辅助。
+- 已在 explore 工具侧对 `exact_search_paragraphs` 的关键词做分隔符拆分（`|/，/、/;/｜`），避免单字符串精确匹配导致 0 命中。

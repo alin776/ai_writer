@@ -170,7 +170,8 @@ class FlowEventBuilder:
     @staticmethod
     def summarization_start(
         task_classification: Dict[str, List[Dict[str, Any]]],
-        context_stats: Dict[str, Any]
+        context_stats: Dict[str, Any],
+        reason: str = ""
     ) -> dict:
         """构建AI整合分析开始事件
 
@@ -185,11 +186,13 @@ class FlowEventBuilder:
                 "compressed_length": 5643,
                 "mode": "流式生成"
             }
+            reason: AI 生成的简短理由（可为空）
         """
         return {
             "type": "summarization_start",
             "task_classification": task_classification,
             "context_stats": context_stats,
+            "reason": reason,
             "status": "running",
             "timestamp": get_utc_now().isoformat()
         }

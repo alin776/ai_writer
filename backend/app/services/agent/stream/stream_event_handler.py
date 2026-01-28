@@ -141,12 +141,17 @@ class StreamEventHandler:
     async def emit_summarization_start(
         self,
         task_classification: Dict[str, List[Dict[str, Any]]],
-        context_stats: Dict[str, Any]
+        context_stats: Dict[str, Any],
+        reason: str = ""
     ):
         """发送AI整合分析开始事件"""
-        logger.info(f"[StreamEventHandler] emit_summarization_start 被调用, _on_flow_event={self._on_flow_event is not None}")
+        logger.info(
+            "[StreamEventHandler] emit_summarization_start 被调用, "
+            f"_on_flow_event={self._on_flow_event is not None}, "
+            f"reason_len={len(reason)}, reason={reason}"
+        )
         await self.emit_flow_event(FlowEventBuilder.summarization_start(
-            task_classification, context_stats
+            task_classification, context_stats, reason
         ))
 
     async def emit_summarization_complete(self):

@@ -503,6 +503,7 @@ export interface CompletionFlowData {
  */
 export interface SummarizationFlowData {
   status: 'running' | 'done';
+  reason?: string;
   taskClassification: {
     inputTasks: Array<{ tool: string; description: string }>;
     outputTasks: Array<{ tool: string; description: string }>;
@@ -587,7 +588,7 @@ export interface RevisionFlowData {
  * Explore 工具调用标签
  */
 export interface ExploreToolCall {
-  type: 'Search' | 'Locate' | 'ReadRaw' | 'Review';
+  type: 'Search' | 'Locate' | 'ReadRaw' | 'ReadParagraph' | 'ListChapters' | 'ListParagraphs' | 'Worldview';
   value: string;
   highlight?: string;  // Search 类型的高亮关键词
 }

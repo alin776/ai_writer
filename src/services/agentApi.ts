@@ -353,6 +353,7 @@ class AgentApiService {
                   type: 'summarization_start',
                   task_classification: data.task_classification,
                   context_stats: data.context_stats,
+                  reason: data.reason,
                   status: data.status,
                   timestamp: data.timestamp
                 };

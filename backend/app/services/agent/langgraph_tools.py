@@ -1606,6 +1606,7 @@ async def list_paragraphs(
                 text = para.get("text", "")
                 sliced.append({
                     "index": para.get("index", i),
+                    "paragraph_index": para.get("index", i),
                     "preview": text[:preview_len] + ("..." if len(text) > preview_len else ""),
                     "node_id": para.get("node_id") or ""
                 })
@@ -1680,7 +1681,7 @@ async def read_paragraphs(
             errors += 1
             continue
         chapter_order = item.get("chapter_order") or item.get("chapter")
-        paragraph_index = item.get("paragraph_index") or item.get("paragraph")
+        paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
         if isinstance(chapter_order, str) and chapter_order.isdigit():
             chapter_order = int(chapter_order)
         if isinstance(paragraph_index, str) and paragraph_index.isdigit():

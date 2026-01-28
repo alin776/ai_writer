@@ -951,6 +951,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     type: 'summarization',
                     data: {
                       status: 'running',
+                      reason: event.reason,
                       taskClassification: {
                         inputTasks: event.task_classification?.input_tasks || [],
                         outputTasks: event.task_classification?.output_tasks || [],
