@@ -105,13 +105,15 @@ class PlanGenerator:
         plan_data = None
 
         try:
+            response_format = {"type": "json_object"}
             for retry_attempt in range(self.MAX_PLANNING_RETRIES):
                 # 🔧 2025-12-29: 规划任务需要理解对话上下文，使用 STORY_PLANNING 选择更强模型
                 plan_result = await self.agent._generate_text(
                     prompt=plan_prompt_base,
                     temperature=0.3 + (retry_attempt * 0.1),
                     max_tokens=2000,
-                    task_type=TaskType.STORY_PLANNING
+                    task_type=TaskType.STORY_PLANNING,
+                    response_format=response_format
                 )
                 plan_text = plan_result.get("text", "").strip()
 
@@ -137,6 +139,7 @@ class PlanGenerator:
                             break
                     else:
                         logger.warning(f"[Planning] 第{retry_attempt + 1}次尝试: JSON解析失败")
+                        logger.warning(f"[Planning] JSON解析失败原文: {plan_text}")
                 else:
                     logger.warning(f"[Planning] 第{retry_attempt + 1}次尝试: AI返回空响应")
 
@@ -407,20 +410,23 @@ tool_policy: {tool_policy}
         return ""
 
     def _build_chapter_hint(self, work_id: Optional[str], chapter_id: Optional[str]) -> str:
-        """构建章节上下文提示"""
+        """构建章节上下文提示
+
+        🔧 2026-01-28: 移除硬编码的 UUID 值，避免 AI 复制错误的 ID
+        """
         if not chapter_id:
             return ""
 
-        return f"""
+        return """
 
 ⚠️ 【章节上下文提示】：
-- 当前用户在章节聊天面板中（chapter_id={chapter_id}）
+- 当前用户在章节聊天面板中
 - 用户要求修改/润色本章内容时，必须使用以下流程：
-  1. 任务1: 调用 read_chapter_tool(work_id="{work_id}", chapter_id="{chapter_id}") 读取章节完整内容
+  1. 任务1: 调用 explore_content 或 read_chapter_tool 读取章节内容
   2. 任务2: 调用 analyze_content 分析原文中该句话的场景、情绪、角色状态（analysis_types="text"）
-  3. 任务3: 基于分析结果，给出符合场景的多个修改建议（用 analyze_content 输出）
-- ✅ 正确示例：read_chapter_tool → analyze_content(focus="场景情绪分析", analysis_types="text")
-- ⚠️ focus 参数必须简洁（15字以内）
+  3. 任务3: 基于分析结果，给出符合场景的修改建议
+- ⚠️ 重要：chapter_id 和 work_id 应从 explore_content 或 read_chapter_tool 的返回结果中获取，不要硬编码
+- ✅ 使用 $TASK_N.chapter_id$ 引用前置任务返回的章节ID
 """
 
     def _handle_planning_error(self, e: Exception) -> Optional[Dict[str, Any]]:
