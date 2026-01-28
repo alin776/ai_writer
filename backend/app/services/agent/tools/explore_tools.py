@@ -505,7 +505,7 @@ def _get_ai_service():
     global _ai_service
     if _ai_service is None:
         from app.services.ai.http_ai_service import HTTPAIService
-        _ai_service = HTTPAIService()
+        _ai_service = HTTPAIService(model="gemini-2.5-flash", enable_model_selector=False)
     return _ai_service
 
 
@@ -519,14 +519,6 @@ class RoundPlan:
     chapters_to_read: List[int]       # 本轮要读的章节
     paragraphs_to_read: List[Dict]    # 本轮要读的段落 [{"chapter": 3, "paragraph": 15}]
     reason: str                       # AI 决策理由
-
-
-@dataclass
-class SelfCheckDecision:
-    """LLM 自检结果（是否继续 + 下一轮搜索方向）"""
-    continue_search: bool
-    next_queries: List[str]
-    reason: str = ""
 
 
 @dataclass
@@ -1657,6 +1649,8 @@ class ContentExplorer:
         self.state = ExploreState()
         self.start_time = get_utc_now()
         self.chapter_list_cache: Optional[List[Dict[str, Any]]] = None
+        self.flow_listed_chapters = False
+        self.flow_listed_paragraphs: set[int] = set()
         if self.require_paragraph_index:
             logger.info("[ContentExplorer] 启用严格段落号模式")
         if self.chapter_scopes_raw:
@@ -1988,7 +1982,8 @@ class ContentExplorer:
                         "chapter_order": chapter_order,
                         "paragraph_index": paragraph_index,
                         "context_before": 2,
-                        "context_after": 2
+                        "context_after": 2,
+                        "index_base": "zero"
                     })
                     read_data = json.loads(read_result) if isinstance(read_result, str) else read_result
                     if read_data.get("success"):
@@ -2066,13 +2061,56 @@ class ContentExplorer:
             return result
 
         while tool_calls_left > 0:
-            decision = await self._ai_tool_loop_decide(
-                round_idx=round_idx + 1,
-                last_tool_name=last_tool_name,
-                last_tool_result=last_tool_result,
-                tool_calls_left=tool_calls_left,
-                reads_left=reads_left
-            )
+            decision: Optional[ToolLoopDecision] = None
+            if not self.flow_listed_chapters:
+                reason = await self._ai_generate_forced_reason("list_chapters", {})
+                decision = ToolLoopDecision(
+                    action="tool",
+                    tool="list_chapters",
+                    args={},
+                    reason=reason
+                )
+            elif not self.flow_listed_paragraphs:
+                chapter_order = None
+                if self.chapter_scopes:
+                    chapter_order = self.chapter_scopes[0][0]
+                else:
+                    chapters = await self._get_chapter_list()
+                    if chapters:
+                        chapter_order = chapters[0].get("order")
+                if isinstance(chapter_order, int):
+                    chapter_order = self._map_title_order_if_needed(chapter_order)
+                    reason = await self._ai_generate_forced_reason(
+                        "list_paragraphs",
+                        {
+                            "chapter_order": chapter_order,
+                            "offset": 0,
+                            "limit": 50,
+                            "preview_len": 80
+                        }
+                    )
+                    decision = ToolLoopDecision(
+                        action="tool",
+                        tool="list_paragraphs",
+                        args={
+                            "chapter_order": chapter_order,
+                            "offset": 0,
+                            "limit": 50,
+                            "preview_len": 80
+                        },
+                        reason=reason
+                    )
+
+            if decision:
+                logger.info("[ContentExplorer] 强制流程步骤: %s", decision.tool)
+            else:
+                decision = await self._ai_tool_loop_decide(
+                    round_idx=round_idx + 1,
+                    last_tool_name=last_tool_name,
+                    last_tool_result=last_tool_result,
+                    tool_calls_left=tool_calls_left,
+                    reads_left=reads_left
+                )
             if decision.action == "stop":
                 stop_reason = decision.reason or "LLM 停止"
                 break
@@ -2160,72 +2198,6 @@ class ContentExplorer:
 
     # ==================== LLM 自检 ====================
 
-    async def _ai_self_check(self, round_idx: int) -> SelfCheckDecision:
-        """
-        LLM 自检：判断是否继续探索，并给出下一轮搜索方向
-
-        仅用于内部循环，不对外输出。
-        """
-        from app.services.agent.model_selector import TaskType
-
-        ai_service = _get_ai_service()
-        collected_summary = self._build_collected_summary()
-        searched_hint = ", ".join(list(self.state.searched_queries)[:10]) if self.state.searched_queries else "无"
-
-        keywords_hint = ""
-        if self.search_keywords:
-            keywords_hint = f"\n规划提供的关键词（仅供参考）：{', '.join(self.search_keywords[:10])}\n"
-
-        prompt = f"""你是信息收集自检器，只负责判断是否需要继续搜索。
-
-目标任务：{self.target_task}
-当前轮次：第 {round_idx} 轮
-
-已收集信息：
-{collected_summary}
-
-已搜索过的关键词（避免重复）：{searched_hint}
-{keywords_hint}
-
-请判断是否还存在明显缺口：
-- 若需要继续搜索，请给出 1-3 个下一轮搜索要点（语义短语），避免与已搜索过重复。
-- 若不需要继续搜索，next_queries 置空。
-
-只输出 JSON：
-{{
-  "continue": true,
-  "next_queries": ["下一轮要搜的要点1", "要点2"],
-  "reason": "一句话说明为何继续或停止"
-}}"""
-
-        response = await ai_service.call_ai(
-            system_prompt="你是信息收集自检器。只输出 JSON，不要有其他内容。",
-            user_prompt=prompt,
-            max_tokens=400,
-            temperature=0.2,
-            task_type=TaskType.SIMPLE_QA
-        )
-
-        result = self._parse_json_response(response)
-        raw_continue = result.get("continue", False)
-        if isinstance(raw_continue, str):
-            continue_flag = raw_continue.strip().lower() in ("true", "yes", "1", "是")
-        else:
-            continue_flag = bool(raw_continue)
-        next_queries = [q for q in result.get("next_queries", []) if q and isinstance(q, str)]
-        next_queries = [q for q in next_queries if self.state.should_search(q)]
-        next_queries = next_queries[:3]
-        reason = result.get("reason", "") if isinstance(result, dict) else ""
-
-        if continue_flag and not next_queries:
-            continue_flag = False
-
-        return SelfCheckDecision(
-            continue_search=continue_flag,
-            next_queries=next_queries,
-            reason=reason
-        )
-
     def _build_tool_loop_summary(
         self,
         last_tool_name: str,
@@ -2289,6 +2261,10 @@ class ContentExplorer:
 
 {tools_desc}
 
+固定流程（尽量遵守）：
+1) list_chapters → 2) list_paragraphs → 3) exact_search_paragraphs → 4) read_paragraph/read_paragraphs
+说明：只有在已经明确范围或已知段落时，才允许跳过前面的步骤。
+
 请输出 JSON（不要其他内容）：
 {{
   "action": "tool" 或 "stop",
@@ -2336,6 +2312,39 @@ class ContentExplorer:
 
         return ToolLoopDecision(action="tool", tool=tool_name, args=args, reason=reason)
 
+    async def _ai_generate_forced_reason(
+        self,
+        tool_name: str,
+        args: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """为强制流程步骤生成 LLM 理由（避免硬编码展示）"""
+        from app.services.agent.model_selector import TaskType
+
+        ai_service = _get_ai_service()
+        args = args or {}
+        prompt = f"""你是只读探索器。请为当前强制步骤生成一句简短理由（不超过20字），用于UI展示。
+
+目标任务：{self.target_task}
+当前强制工具：{tool_name}
+参数：{json.dumps(args, ensure_ascii=False)}
+
+输出要求：
+- 只输出一句中文理由
+- 不要包含“forced”等英文
+"""
+        try:
+            response = await ai_service.call_ai(
+                system_prompt="你是只读探索器。只输出一句中文理由。",
+                user_prompt=prompt,
+                max_tokens=80,
+                temperature=0.2,
+                task_type=TaskType.SIMPLE_QA
+            )
+            return (response or "").strip()
+        except Exception as e:
+            logger.warning(f"[ContentExplorer] 强制步骤理由生成失败: {e}")
+            return ""
+
     async def _execute_tool_action(
         self,
         tool_name: str,
@@ -2372,6 +2381,11 @@ class ContentExplorer:
             return preview
 
         result_data: Any = {"success": False, "error": "未执行"}
+        logger.info(
+            "[ExploreTool] call=%s params=%s",
+            tool_name,
+            _truncate_text(json.dumps(params, ensure_ascii=False), 800)
+        )
 
         if tool_name == "list_chapters":
             chapters = await self._get_chapter_list()
@@ -2382,6 +2396,13 @@ class ContentExplorer:
                 "count": len(chapters),
                 "chapters": chapters
             }
+            self.flow_listed_chapters = True
+            logger.info(
+                "[ExploreTool] done=%s success=%s count=%s",
+                tool_name,
+                True,
+                len(chapters)
+            )
 
         elif tool_name == "list_paragraphs":
             chapter_order = params.get("chapter_order") or params.get("chapter")
@@ -2403,6 +2424,17 @@ class ContentExplorer:
                 params["chapter_order"] = chapter_order
                 result = await list_paragraphs.ainvoke(params)
                 result_data = json.loads(result) if isinstance(result, str) else result
+                if isinstance(result_data, dict) and result_data.get("success") and isinstance(chapter_order, int):
+                    self.flow_listed_paragraphs.add(chapter_order)
+            logger.info(
+                "[ExploreTool] done=%s success=%s chapter=%s offset=%s limit=%s approximate=%s",
+                tool_name,
+                bool(result_data.get("success")) if isinstance(result_data, dict) else False,
+                chapter_order,
+                params.get("offset"),
+                params.get("limit"),
+                result_data.get("approximate") if isinstance(result_data, dict) else None
+            )
 
         elif tool_name == "exact_search_paragraphs":
             raw_keywords = params.get("keywords") or params.get("keyword") or params.get("query") or []
@@ -2415,6 +2447,19 @@ class ContentExplorer:
             if not keywords:
                 result_data = {"success": False, "error": "缺少 keywords"}
             else:
+                expanded = []
+                seen_kw = set()
+                for kw in keywords:
+                    cleaned = kw.strip().strip("\"'“”‘’《》")
+                    variants = [kw, cleaned, cleaned.replace(" ", ""), cleaned.replace("　", "")]
+                    for item in variants:
+                        if not item:
+                            continue
+                        if item in seen_kw:
+                            continue
+                        seen_kw.add(item)
+                        expanded.append(item)
+                keywords = expanded
                 # 去重 & 过滤已搜索
                 deduped = []
                 for kw in keywords:
@@ -2491,12 +2536,83 @@ class ContentExplorer:
                         chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
                     )
 
+                # 命中后置验证：强制读取原文
+                if results and read_budget > 0:
+                    for item in results:
+                        if read_budget <= 0:
+                            break
+                        chapter_order = item.get("chapter_order")
+                        paragraph_index = item.get("paragraph_index")
+                        if isinstance(chapter_order, str) and chapter_order.isdigit():
+                            chapter_order = int(chapter_order)
+                        if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                            paragraph_index = int(paragraph_index)
+                        if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                            continue
+                        if self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                            continue
+                        if not self.state.should_read_paragraph(chapter_order, paragraph_index):
+                            continue
+                        try:
+                            read_result = await read_paragraph.ainvoke({
+                                "work_id": self.work_id,
+                                "chapter_order": chapter_order,
+                                "paragraph_index": paragraph_index,
+                                "context_before": 2,
+                                "context_after": 2,
+                                "index_base": "zero"
+                            })
+                            read_data = json.loads(read_result) if isinstance(read_result, str) else read_result
+                            if isinstance(read_data, dict) and read_data.get("success"):
+                                self.state.record_paragraph_read(chapter_order, paragraph_index)
+                                target_text, context_before, context_after = _extract_read_paragraph(read_data)
+                                chapter_info = await self._get_chapter_info_by_order(chapter_order)
+                                chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
+                                chapter_title = read_data.get("chapter_title") or chapter_info.get("title") or ""
+                                paragraph_data = {
+                                    "chapter_order": chapter_order,
+                                    "chapter_title": chapter_title,
+                                    "paragraph_index": paragraph_index,
+                                    "text": target_text,
+                                    "context_before": context_before,
+                                    "context_after": context_after,
+                                    "node_id": read_data.get("node_id") or ""
+                                }
+                                self.state.add_paragraph(paragraph_data, round_idx)
+                                self.state.add_evidence(
+                                    {
+                                        "snippet": target_text,
+                                        "content": target_text,
+                                        "chapter_order": chapter_order,
+                                        "paragraph_index": paragraph_index,
+                                        "source": "read_paragraph",
+                                        "similarity": 1.0,
+                                        "chapter_id": chapter_id,
+                                        "chapter_title": chapter_title
+                                    },
+                                    query=query,
+                                    round_idx=round_idx,
+                                    require_paragraph_index=self.require_paragraph_index,
+                                    chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
+                                )
+                                reads_used += 1
+                                read_budget -= 1
+                        except Exception:
+                            continue
+
                 result_data = {
                     "success": True,
                     "keywords": keywords,
                     "hits": len(results),
                     "results": _preview_results(results)
                 }
+                logger.info(
+                    "[ExploreTool] done=%s success=%s hits=%s keywords=%s",
+                    tool_name,
+                    True,
+                    len(results),
+                    ",".join(keywords[:6])
+                )
 
         elif tool_name == "read_paragraph":
             if read_budget <= 0:
@@ -2525,44 +2641,53 @@ class ContentExplorer:
                     params["work_id"] = self.work_id
                     params["chapter_order"] = chapter_order
                     params["paragraph_index"] = paragraph_index
+                    params["index_base"] = "zero"
                     if chapter_id:
                         params["chapter_id"] = chapter_id
                     result = await read_paragraph.ainvoke(params)
                     result_data = json.loads(result) if isinstance(result, str) else result
+                logger.info(
+                    "[ExploreTool] done=%s success=%s chapter=%s paragraph=%s index_base=%s",
+                    tool_name,
+                    bool(result_data.get("success")) if isinstance(result_data, dict) else False,
+                    chapter_order,
+                    paragraph_index,
+                    params.get("index_base")
+                )
 
-                    if isinstance(result_data, dict) and result_data.get("success"):
-                        self.state.record_paragraph_read(chapter_order, paragraph_index)
-                        target_text, context_before, context_after = _extract_read_paragraph(result_data)
-                        chapter_info = await self._get_chapter_info_by_order(chapter_order)
-                        chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
-                        chapter_title = result_data.get("chapter_title") or chapter_info.get("title") or ""
-                        paragraph_data = {
+                if isinstance(result_data, dict) and result_data.get("success"):
+                    self.state.record_paragraph_read(chapter_order, paragraph_index)
+                    target_text, context_before, context_after = _extract_read_paragraph(result_data)
+                    chapter_info = await self._get_chapter_info_by_order(chapter_order)
+                    chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
+                    chapter_title = result_data.get("chapter_title") or chapter_info.get("title") or ""
+                    paragraph_data = {
+                        "chapter_order": chapter_order,
+                        "chapter_title": chapter_title,
+                        "paragraph_index": paragraph_index,
+                        "text": target_text,
+                        "context_before": context_before,
+                        "context_after": context_after,
+                        "node_id": result_data.get("node_id") or ""
+                    }
+                    self.state.add_paragraph(paragraph_data, round_idx)
+                    self.state.add_evidence(
+                        {
+                            "snippet": target_text,
+                            "content": target_text,
                             "chapter_order": chapter_order,
-                            "chapter_title": chapter_title,
                             "paragraph_index": paragraph_index,
-                            "text": target_text,
-                            "context_before": context_before,
-                            "context_after": context_after,
-                            "node_id": result_data.get("node_id") or ""
-                        }
-                        self.state.add_paragraph(paragraph_data, round_idx)
-                        self.state.add_evidence(
-                            {
-                                "snippet": target_text,
-                                "content": target_text,
-                                "chapter_order": chapter_order,
-                                "paragraph_index": paragraph_index,
-                                "source": "read_paragraph",
-                                "similarity": 1.0,
-                                "chapter_id": chapter_id,
-                                "chapter_title": chapter_title
-                            },
-                            query=str(params.get("query") or ""),
-                            round_idx=round_idx,
-                            require_paragraph_index=self.require_paragraph_index,
-                            chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
-                        )
-                        reads_used = 1
+                            "source": "read_paragraph",
+                            "similarity": 1.0,
+                            "chapter_id": chapter_id,
+                            "chapter_title": chapter_title
+                        },
+                        query=str(params.get("query") or ""),
+                        round_idx=round_idx,
+                        require_paragraph_index=self.require_paragraph_index,
+                        chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
+                    )
+                    reads_used = 1
 
         elif tool_name == "read_paragraphs":
             items = params.get("items") or []
@@ -2589,50 +2714,58 @@ class ContentExplorer:
                 else:
                     params["work_id"] = self.work_id
                     params["items"] = items
+                    params["index_base"] = "zero"
                     result = await read_paragraphs.ainvoke(params)
                     result_data = json.loads(result) if isinstance(result, str) else result
-                    results_list = result_data.get("results", []) if isinstance(result_data, dict) else []
-                    for entry in results_list:
-                        if not isinstance(entry, dict) or not entry.get("success"):
-                            continue
-                        chapter_order = entry.get("chapter_order")
-                        paragraph_index = entry.get("paragraph_index")
-                        if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
-                            continue
-                        if self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
-                            continue
-                        self.state.record_paragraph_read(chapter_order, paragraph_index)
-                        target_text, context_before, context_after = _extract_read_paragraph(entry)
-                        chapter_info = await self._get_chapter_info_by_order(chapter_order)
-                        chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
-                        chapter_title = entry.get("chapter_title") or chapter_info.get("title") or ""
-                        paragraph_data = {
+                logger.info(
+                    "[ExploreTool] done=%s success=%s count=%s index_base=%s",
+                    tool_name,
+                    bool(result_data.get("success")) if isinstance(result_data, dict) else False,
+                    len(items) if isinstance(items, list) else 0,
+                    params.get("index_base")
+                )
+                results_list = result_data.get("results", []) if isinstance(result_data, dict) else []
+                for entry in results_list:
+                    if not isinstance(entry, dict) or not entry.get("success"):
+                        continue
+                    chapter_order = entry.get("chapter_order")
+                    paragraph_index = entry.get("paragraph_index")
+                    if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                        continue
+                    if self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                        continue
+                    self.state.record_paragraph_read(chapter_order, paragraph_index)
+                    target_text, context_before, context_after = _extract_read_paragraph(entry)
+                    chapter_info = await self._get_chapter_info_by_order(chapter_order)
+                    chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
+                    chapter_title = entry.get("chapter_title") or chapter_info.get("title") or ""
+                    paragraph_data = {
+                        "chapter_order": chapter_order,
+                        "chapter_title": chapter_title,
+                        "paragraph_index": paragraph_index,
+                        "text": target_text,
+                        "context_before": context_before,
+                        "context_after": context_after,
+                        "node_id": entry.get("node_id") or ""
+                    }
+                    self.state.add_paragraph(paragraph_data, round_idx)
+                    self.state.add_evidence(
+                        {
+                            "snippet": target_text,
+                            "content": target_text,
                             "chapter_order": chapter_order,
-                            "chapter_title": chapter_title,
                             "paragraph_index": paragraph_index,
-                            "text": target_text,
-                            "context_before": context_before,
-                            "context_after": context_after,
-                            "node_id": entry.get("node_id") or ""
-                        }
-                        self.state.add_paragraph(paragraph_data, round_idx)
-                        self.state.add_evidence(
-                            {
-                                "snippet": target_text,
-                                "content": target_text,
-                                "chapter_order": chapter_order,
-                                "paragraph_index": paragraph_index,
-                                "source": "read_paragraph",
-                                "similarity": 1.0,
-                                "chapter_id": chapter_id,
-                                "chapter_title": chapter_title
-                            },
-                            query="",
-                            round_idx=round_idx,
-                            require_paragraph_index=self.require_paragraph_index,
-                            chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
-                        )
-                        reads_used += 1
+                            "source": "read_paragraph",
+                            "similarity": 1.0,
+                            "chapter_id": chapter_id,
+                            "chapter_title": chapter_title
+                        },
+                        query="",
+                        round_idx=round_idx,
+                        require_paragraph_index=self.require_paragraph_index,
+                        chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
+                    )
+                    reads_used += 1
 
         else:
             result_data = {"success": False, "error": f"不支持的工具: {tool_name}"}
@@ -2938,7 +3071,8 @@ class ContentExplorer:
                                 "chapter_order": chapter_order,
                                 "paragraph_index": paragraph_index,
                                 "context_before": 2,
-                                "context_after": 2
+                                "context_after": 2,
+                                "index_base": "zero"
                             })
                             read_data = json.loads(read_result) if isinstance(read_result, str) else read_result
 
@@ -3055,7 +3189,8 @@ class ContentExplorer:
                     "chapter_order": chapter_order,
                     "paragraph_index": paragraph_index,
                     "context_before": 2,
-                    "context_after": 2
+                    "context_after": 2,
+                    "index_base": "zero"
                 })
                 result_data = json.loads(result) if isinstance(result, str) else result
 

@@ -1208,7 +1208,8 @@ async def read_paragraph(
     paragraph_index: int,
     chapter_id: str = "",
     context_before: int = 2,
-    context_after: int = 2
+    context_after: int = 2,
+    index_base: str = "auto"
 ) -> str:
     """精确读取段落原文 + 上下文
 
@@ -1218,7 +1219,7 @@ async def read_paragraph(
     Args:
         work_id: 作品ID（UUID格式，必需）
         chapter_order: 章节序号（1-based，必需）
-        paragraph_index: 段落索引（0-based，必需）
+        paragraph_index: 段落索引（默认 auto，支持 0-based/1-based）
         chapter_id: 章节ID（可选，优先于 chapter_order）
         context_before: 向前读取段落数（默认2）
         context_after: 向后读取段落数（默认2）
@@ -1227,7 +1228,7 @@ async def read_paragraph(
         JSON格式的段落原文列表
 
     使用示例:
-        # 读取第3章第18段及前后2段
+        # 读取第3章第18段及前后2段（默认 auto）
         read_paragraph(work_id="xxx", chapter_order=3, paragraph_index=18)
 
         # 读取第5章第7段及前后5段上下文
@@ -1316,18 +1317,26 @@ async def read_paragraph(
             content_provider = ChapterContentProvider()
             content = content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
 
-            # 大章节分块处理
-            if len(content) > MAX_CHAPTER_SIZE:
-                # 估算目标位置，只解析附近 10K 字符
-                avg_para_len = 500
-                start_pos = max(0, paragraph_index * avg_para_len - 5000)
-                end_pos = min(len(content), paragraph_index * avg_para_len + 5000)
-                content = content[start_pos:end_pos]
-                # 调整索引
-                paragraph_index = min(paragraph_index, 10)
-
             # 复用现有段落解析（支持 HTML 和纯文本）
             paragraphs = _split_paragraphs(content)
+            if not paragraphs:
+                rough = []
+                for idx, part in enumerate([p for p in content.split("\n\n") if p.strip()]):
+                    rough.append({
+                        "index": idx,
+                        "text": part.strip(),
+                        "node_id": ""
+                    })
+                if not rough:
+                    chunk_size = 500
+                    parts = [content[i:i + chunk_size] for i in range(0, len(content), chunk_size) if content[i:i + chunk_size].strip()]
+                    for idx, part in enumerate(parts):
+                        rough.append({
+                            "index": idx,
+                            "text": part.strip(),
+                            "node_id": ""
+                        })
+                paragraphs = rough
 
             if not paragraphs:
                 return json.dumps({
@@ -1335,13 +1344,34 @@ async def read_paragraph(
                     "error": "章节内容为空或无法解析段落"
                 }, ensure_ascii=False, indent=2)
 
+            index_corrected = False
+            original_index = paragraph_index
+            assumed_base = "zero"
+            base_raw = str(index_base or "auto").strip().lower()
+            if base_raw in ("one", "1", "1-based", "1based", "one-based"):
+                paragraph_index = max(0, paragraph_index - 1)
+                index_corrected = True
+                assumed_base = "one"
+            elif base_raw in ("zero", "0", "0-based", "0based", "zero-based"):
+                assumed_base = "zero"
+            else:
+                if paragraph_index > 0:
+                    paragraph_index = max(0, paragraph_index - 1)
+                    index_corrected = True
+                    assumed_base = "one"
+
             if paragraph_index >= len(paragraphs):
-                return json.dumps({
-                    "success": False,
-                    "error": f"段落索引 {paragraph_index} 超出范围",
-                    "total_paragraphs": len(paragraphs),
-                    "valid_range": f"0-{len(paragraphs) - 1}"
-                }, ensure_ascii=False, indent=2)
+                paragraph_index = len(paragraphs) - 1
+                index_corrected = True
+
+            logger.info(
+                "[read_paragraph] index_base=%s assumed=%s original=%s corrected=%s final=%s",
+                index_base,
+                assumed_base,
+                original_index,
+                index_corrected,
+                paragraph_index
+            )
 
             # 计算范围
             start_idx = max(0, paragraph_index - context_before)
@@ -1369,6 +1399,8 @@ async def read_paragraph(
                 "paragraph_index": paragraph_index,        # 段落索引
                 "node_id": target_node_id,                 # 节点ID（如果有）
                 "chapter_id": str(chapter.id) if chapter.id else "",
+                "index_corrected": index_corrected,
+                "index_base_assumed": assumed_base,
                 # 原有字段
                 "work_id": work_id,
                 "chapter_order": chapter_order,
@@ -1538,11 +1570,31 @@ async def list_paragraphs(
             content_provider = ChapterContentProvider()
             content = content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
             if len(content) > MAX_CHAPTER_SIZE:
+                window_size = 800
+                total = (len(content) + window_size - 1) // window_size
+                end = min(total, offset + limit)
+                sliced = []
+                for i in range(offset, end):
+                    start_pos = i * window_size
+                    end_pos = min(len(content), start_pos + window_size)
+                    preview = content[start_pos:end_pos]
+                    sliced.append({
+                        "index": i,
+                        "preview": preview[:preview_len] + ("..." if len(preview) > preview_len else ""),
+                        "node_id": ""
+                    })
+
                 return json.dumps({
-                    "success": False,
-                    "error": "章节过大，无法列出全部段落",
-                    "message": "请改用 exact_search_paragraphs + read_paragraph",
-                    "chapter_order": chapter.order
+                    "success": True,
+                    "work_id": work_id,
+                    "chapter_id": str(chapter.id) if chapter.id else "",
+                    "chapter_order": chapter.order,
+                    "chapter_title": chapter.title or "",
+                    "total_paragraphs": total,
+                    "offset": offset,
+                    "limit": limit,
+                    "approximate": True,
+                    "paragraphs": sliced
                 }, ensure_ascii=False, indent=2)
 
             paragraphs = _split_paragraphs(content)
@@ -1585,7 +1637,8 @@ async def read_paragraphs(
     work_id: str,
     items: List[Dict[str, Any]],
     context_before: int = 2,
-    context_after: int = 2
+    context_after: int = 2,
+    index_base: str = "auto"
 ) -> str:
     """批量读取段落原文
 
@@ -1594,6 +1647,7 @@ async def read_paragraphs(
         items: 段落列表 [{"chapter_order": 3, "paragraph_index": 18}, ...]
         context_before: 默认前文段落数
         context_after: 默认后文段落数
+        index_base: 段落索引基准（auto/0-based/1-based）
 
     Returns:
         JSON格式段落原文列表
@@ -1616,6 +1670,11 @@ async def read_paragraphs(
 
     results = []
     errors = 0
+    logger.info(
+        "[read_paragraphs] start items=%s index_base=%s",
+        len(items),
+        index_base
+    )
     for item in items:
         if not isinstance(item, dict):
             errors += 1
@@ -1631,13 +1690,15 @@ async def read_paragraphs(
             continue
         cb = item.get("context_before", context_before)
         ca = item.get("context_after", context_after)
+        item_base = item.get("index_base", index_base)
         try:
             result = await read_paragraph.ainvoke({
                 "work_id": work_id,
                 "chapter_order": chapter_order,
                 "paragraph_index": paragraph_index,
                 "context_before": cb,
-                "context_after": ca
+                "context_after": ca,
+                "index_base": item_base
             })
             result_data = json.loads(result) if isinstance(result, str) else result
             results.append(result_data)

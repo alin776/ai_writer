@@ -490,6 +490,7 @@ class TaskRunner:
                 "paragraph_index": int(paragraph_index),
                 "context_before": params.get("context_before") or 2,
                 "context_after": params.get("context_after") or 2,
+                "index_base": params.get("index_base") or "zero",
             })
         else:
             return f"任务 {tool_name} 需要手动处理"
