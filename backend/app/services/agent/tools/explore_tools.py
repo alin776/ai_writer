@@ -978,12 +978,7 @@ class ExploreResult:
 
 def _get_round_title(round_idx: int) -> str:
     """生成轮次标题"""
-    titles = {
-        1: "初次检索与定位",
-        2: "补漏检索与二次定位",
-        3: "交叉验证与收敛",
-    }
-    return titles.get(round_idx, f"深度探索（第{round_idx}轮）")
+    return f"深度探索（{round_idx}）"
 
 
 def _get_review_status(round_data: ExploreRound) -> str:
@@ -1497,6 +1492,16 @@ def _format_tool_calls_for_frontend(round_data: ExploreRound) -> List[Dict[str, 
     tags = []
 
     for tc in round_data.tool_calls:
+        if tc.tool_name == "list_chapters":
+            tags.append({
+                "type": "ListChapters",
+                "value": "列章节"
+            })
+        elif tc.tool_name == "list_paragraphs":
+            tags.append({
+                "type": "ListParagraphs",
+                "value": "列段落预览"
+            })
         if tc.tool_name == "search_content":
             query = tc.params.get("query", "")
             tags.append({
@@ -2056,8 +2061,7 @@ class ContentExplorer:
                 stop_reason=stop_reason,
                 total_duration_ms=total_duration_ms
             )
-            if self.emit_callback:
-                await self._emit_summary_event(result)
+            # 不再发射探索总结事件（避免前端冗余模块）
             return result
 
         while tool_calls_left > 0:
@@ -2182,8 +2186,7 @@ class ContentExplorer:
             total_duration_ms=total_duration_ms
         )
 
-        if self.emit_callback:
-            await self._emit_summary_event(result)
+        # 不再发射探索总结事件（避免前端冗余模块）
 
         logger.info(f"[ContentExplorer] 探索完成(工具循环): {len(self.state.rounds)}轮, 原因={stop_reason}")
         return result
@@ -2317,12 +2320,12 @@ class ContentExplorer:
         tool_name: str,
         args: Optional[Dict[str, Any]] = None
     ) -> str:
-        """为强制流程步骤生成 LLM 理由（避免硬编码展示）"""
+        """为强制流程步骤生成 LLM 理由（用于描述行，不影响胶囊）"""
         from app.services.agent.model_selector import TaskType
 
         ai_service = _get_ai_service()
         args = args or {}
-        prompt = f"""你是只读探索器。请为当前强制步骤生成一句简短理由（不超过20字），用于UI展示。
+        prompt = f"""你是只读探索器。请为当前强制步骤生成一句简短理由（不超过20字），用于UI描述。
 
 目标任务：{self.target_task}
 当前强制工具：{tool_name}
@@ -2330,7 +2333,7 @@ class ContentExplorer:
 
 输出要求：
 - 只输出一句中文理由
-- 不要包含“forced”等英文
+- 不要包含英文或工具名
 """
         try:
             response = await ai_service.call_ai(
@@ -3308,6 +3311,10 @@ class ContentExplorer:
             if last_round.summary:
                 return last_round.summary
 
+        summary, _ = await self._generate_summary_and_next_action()
+        if summary:
+            return summary
+
         # 兜底：生成硬编码统计信息
         stats = self.state.get_stats()
 
@@ -3326,6 +3333,53 @@ class ContentExplorer:
             analysis += f"已读取章节：{', '.join(chapter_titles)}\n"
 
         return analysis
+
+    async def _generate_summary_and_next_action(self) -> Tuple[str, str]:
+        """使用 LLM 生成探索总结与下一步行动"""
+        from app.services.agent.model_selector import TaskType
+
+        ai_service = _get_ai_service()
+        stats = self.state.get_stats()
+        summary_context = self._build_collected_summary()
+        prompt = f"""你是只读探索器，请基于以下信息生成「探索总结」与「下一步行动」。
+
+目标任务：{self.target_task}
+统计信息：轮次{stats.get('rounds_count', 0)}，证据{stats.get('total_evidences', 0)}，段落{stats.get('total_paragraphs', 0)}，章节{stats.get('total_chapters', 0)}。
+
+已收集信息摘要：
+{summary_context}
+
+输出要求：
+1) 输出两行：
+探索总结：<一句话总结>
+下一步行动：<一句话行动>
+2) 只输出上述两行，不要其他内容。
+"""
+        try:
+            response = await ai_service.call_ai(
+                system_prompt="你是只读探索器。只输出两行总结与行动。",
+                user_prompt=prompt,
+                max_tokens=200,
+                temperature=0.2,
+                task_type=TaskType.SIMPLE_QA
+            )
+        except Exception as e:
+            logger.warning(f"[ContentExplorer] 总结生成失败: {e}")
+            return "", ""
+
+        text = (response or "").strip()
+        summary = ""
+        next_action = ""
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("探索总结："):
+                summary = line.replace("探索总结：", "").strip()
+            elif line.startswith("下一步行动："):
+                next_action = line.replace("下一步行动：", "").strip()
+
+        if not summary and text:
+            summary = text[:200]
+        return summary, next_action
 
     async def _emit_round_event(self, round_data: ExploreRound):
         """发射轮次事件"""
@@ -3362,17 +3416,18 @@ class ContentExplorer:
             "evidences": len(result.evidences)
         }
 
-        # 使用 AI 生成的总结和下一步行动（如果有的话）
+        # 使用 AI 生成的总结（如果有的话）
         summary = result.analysis  # 默认使用硬编码的分析
-        next_action = "基于这些背景信息，我将执行后续任务。"  # 默认值
+        next_action = ""  # 不展示下一步行动
 
         if last_round:
             # 优先使用 AI 生成的总结
             if last_round.summary:
                 summary = last_round.summary
-            # 优先使用 AI 生成的下一步行动
-            if last_round.next_action:
-                next_action = last_round.next_action
+        else:
+            auto_summary, auto_next = await self._generate_summary_and_next_action()
+            if auto_summary:
+                summary = auto_summary
 
         event = FlowEventBuilder.explore_summary(
             step_id=self.step_id,

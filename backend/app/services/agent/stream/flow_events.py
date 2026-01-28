@@ -345,11 +345,12 @@ class FlowEventBuilder:
             "step_id": step_id,
             "total_rounds": total_rounds,
             "summary": summary,
-            "next_action": next_action,
             "next_tool": next_tool,
             "stats": stats,
             "timestamp": get_utc_now().isoformat()
         }
+        if next_action:
+            event["next_action"] = next_action
         if sufficient is not None:
             event["sufficient"] = sufficient
         if coverage is not None:

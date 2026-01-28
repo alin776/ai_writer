@@ -451,12 +451,6 @@ export function ExploreSummaryCard({
             {/* 探索总结 */}
             {summary && (
               <div className="mb-[10px]">
-                <div className="flex items-center gap-[6px] mb-1">
-                  <span className="text-gray-500 dark:text-slate-400 flex items-center">
-                    <FileSearch size={12} />
-                  </span>
-                  <span className="text-[12px] text-gray-600 dark:text-slate-400 font-medium">探索总结</span>
-                </div>
                 <div className="text-[12px] text-gray-600 dark:text-slate-300 leading-[1.7] pl-[18px]">
                   {summary}
                 </div>
@@ -474,24 +468,6 @@ export function ExploreSummaryCard({
                 </div>
                 <div className="text-[12px] text-gray-600 dark:text-slate-300 leading-[1.7] pl-[18px]">
                   {coverage}
-                </div>
-              </div>
-            )}
-
-            {/* 下一步行动 */}
-            {nextAction && (
-              <div className="mb-[10px]">
-                <div className="flex items-center gap-[6px] mb-1">
-                  <span className="text-gray-500 dark:text-slate-400 flex items-center">
-                    <ArrowRightCircle size={12} />
-                  </span>
-                  <span className="text-[12px] text-gray-600 dark:text-slate-400 font-medium">下一步行动</span>
-                </div>
-                <div className="text-[12px] text-gray-600 dark:text-slate-300 leading-[1.7] pl-[18px]">
-                  {nextAction}
-                  {nextTool && (
-                    <span className="ml-1 text-[#5c9eff] dark:text-[#7db3ff] font-mono text-[11px]">{nextTool}</span>
-                  )}
                 </div>
               </div>
             )}
