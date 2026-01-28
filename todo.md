@@ -259,6 +259,41 @@
 - 扩展 `ImportService._split_chapters` 的分章正则：`第X章` 允许无空格、括号/破折号等分隔符；`Chapter X` 同步放宽；Markdown 标题支持 `#`–`######`。
 - 该改动只影响文本/Markdown 导入的章节切分，不影响已有章节读取。
 
+#### Operate 工具清单整理计划（未确认）
+
+- [x] 定位 Operate 相关实现与路由表，确认实际调用的工具集合
+- [x] 核对定位/执行阶段是否额外依赖 locate 工具
+- [x] 输出 Operate 类工具清单并在 todo.md 补充 review
+
+#### Operate 工具清单
+
+- `operate_apply`（Operate 入口工具，支持 append/replace/insert/content/create/title）。
+- 其底层路由会调用：`apply_chapter_edit`、`create_chapter`、`update_chapter_title`。
+- replace/insert 需要定位时，内部会调用 `locate_content`（direct/text_match/semantic）。
+
+#### “读取上限”提示排查计划（未确认）
+
+- [x] 搜索前端/后端该提示的文案来源与触发条件
+- [x] 追踪与“探索/读取上限”相关的参数（如最大读取段落/轮次/调用上限）
+- [x] 给出含义解释与调整建议（如提升上限/分批读取/缩小范围）
+- [x] 更新 todo.md review 记录结论
+
+#### “读取上限”提示含义
+
+- 该提示对应 Explore 工具循环中的 `stop_reason=达到读取上限`（tool_loop 读取预算耗尽后停止）。
+- 读取预算由 `max_read_paragraphs` 控制，默认值为 `TOOL_LOOP_MAX_READS_DEFAULT=60`；当 `read_paragraph/read_paragraphs` 继续调用且 `reads_left<=0` 时触发停止。
+- 解决思路：缩小任务范围/分批探索，或在调用 `explore_content` 时显式提高 `max_read_paragraphs`，或提升默认常量。
+
+#### 提升默认读取上限到 200（未确认）
+
+- [x] 定位 `TOOL_LOOP_MAX_READS_DEFAULT` 常量定义位置
+- [x] 将默认值从 60 调整为 200
+- [x] 更新 todo.md review 记录改动
+
+#### 默认读取上限调整
+
+- 将 `TOOL_LOOP_MAX_READS_DEFAULT` 从 60 提升为 200，以降低探索因读取预算耗尽而提前停止的概率。
+
 #### 章节数不一致排查结论
 
 - 2026-01-27 19:03:57 后端日志显示文本导入完成仅 **77 章**（work_id=5fe6c67d-8a1b-48c1-ad56-a5281eb22e21）。
