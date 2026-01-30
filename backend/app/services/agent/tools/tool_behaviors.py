@@ -114,6 +114,7 @@ def creative_output_filter(content: str) -> str:
     1. 提取 BODY 块（如果有协议格式）
     2. 去除开头的提示语（"好的，我来帮你..."）
     3. 去除结尾的总结语（"以上是..."）
+    4. 去除 HTML 标签（AI 可能因参考 HTML 格式内容而输出 <p> 等标签）
 
     Args:
         content: 原始 AI 生成内容
@@ -140,7 +141,17 @@ def creative_output_filter(content: str) -> str:
     for pattern in _DIRTY_PATTERNS_END:
         content = re.sub(pattern, '', content, flags=re.IGNORECASE)
 
-    # 4. 清理多余空白
+    # 4. 去除 HTML 标签（保底措施：AI 可能因参考 HTML 内容而输出标签）
+    if re.search(r'</?(?:p|div|br|span)\b[^>]*>', content, re.IGNORECASE):
+        # 将 </p><p> 转为换行（段落分隔）
+        content = re.sub(r'</p>\s*<p[^>]*>', '\n', content, flags=re.IGNORECASE)
+        # 将 <br> 转为换行
+        content = re.sub(r'<br\s*/?>', '\n', content, flags=re.IGNORECASE)
+        # 去除剩余的 HTML 标签
+        content = re.sub(r'</?(?:p|div|span)\b[^>]*>', '', content, flags=re.IGNORECASE)
+        logger.info(f"[creative_filter] 去除 HTML 标签")
+
+    # 5. 清理多余空白
     content = content.strip()
 
     # 记录过滤效果

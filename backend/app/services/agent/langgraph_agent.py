@@ -538,7 +538,8 @@ class WritingAgentGraph:
         messages: Optional[List] = None,  # ✅ 新增：支持消息列表（修复记忆问题）
         temperature: float = 0.7,
         max_tokens: int = 1000,
-        task_type: Optional[TaskType] = None
+        task_type: Optional[TaskType] = None,
+        response_format: Optional[dict] = None
     ) -> dict:
         """生成文本的辅助方法（使用HTTPAIService）
 
@@ -578,7 +579,8 @@ class WritingAgentGraph:
                     messages=http_messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    task_type=task_type  # ← 传递task_type
+                    task_type=task_type,  # ← 传递task_type
+                    response_format=response_format
                 ):
                     if chunk:
                         generated_text += chunk

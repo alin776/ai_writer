@@ -152,7 +152,9 @@ class HTTPAIService:
         messages: list,
         max_tokens: int = 1000,
         temperature: float = 0.7,
-        task_type: Optional[TaskType] = None
+        task_type: Optional[TaskType] = None,
+        response_format: Optional[dict] = None,
+        _allow_response_format_fallback: bool = True
     ) -> AsyncGenerator[tuple[str, dict | None], None]:
         """
         通用流式聊天方法
@@ -287,6 +289,8 @@ class HTTPAIService:
             "max_tokens": max_tokens,
             "stream": True
         }
+        if response_format:
+            payload["response_format"] = response_format
 
         logger.info(
             f"开始调用 AI API: model={model}, "  # ← 记录实际模型
@@ -305,7 +309,29 @@ class HTTPAIService:
                     error_text = await response.aread()
                     error_msg = error_text.decode('utf-8', errors='ignore')[:500]
                     logger.error(f"API 错误: {response.status_code}, {error_msg}")
-                    raise Exception(f"API 请求失败: {response.status_code}")
+                    if response_format and _allow_response_format_fallback and response.status_code in (400, 422):
+                        lower_msg = error_msg.lower()
+                        if (
+                            "response_format" in lower_msg
+                            or "json_schema" in lower_msg
+                            or "json schema" in lower_msg
+                            or "unknown field" in lower_msg
+                            or "unsupported" in lower_msg
+                        ):
+                            logger.warning(
+                                "[ResponseFormat] 服务不支持 response_format，自动降级重试"
+                            )
+                            async for chunk in self._stream_chat(
+                                messages=messages,
+                                max_tokens=max_tokens,
+                                temperature=temperature,
+                                task_type=task_type,
+                                response_format=None,
+                                _allow_response_format_fallback=False
+                            ):
+                                yield chunk
+                            return
+                    raise Exception(f"API 请求失败: {response.status_code}, {error_msg}")
 
                 logger.info("API 流式响应已建立，开始接收数据...")
                 chunk_count = 0

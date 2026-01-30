@@ -1209,7 +1209,7 @@ async def read_paragraph(
     chapter_id: str = "",
     context_before: int = 2,
     context_after: int = 2,
-    index_base: str = "auto"
+    index_base: str = "one"
 ) -> str:
     """精确读取段落原文 + 上下文
 
@@ -1219,7 +1219,7 @@ async def read_paragraph(
     Args:
         work_id: 作品ID（UUID格式，必需）
         chapter_order: 章节序号（1-based，必需）
-        paragraph_index: 段落索引（默认 auto，支持 0-based/1-based）
+        paragraph_index: 段落索引（默认 1-based，支持 0-based/1-based）
         chapter_id: 章节ID（可选，优先于 chapter_order）
         context_before: 向前读取段落数（默认2）
         context_after: 向后读取段落数（默认2）
@@ -1228,7 +1228,7 @@ async def read_paragraph(
         JSON格式的段落原文列表
 
     使用示例:
-        # 读取第3章第18段及前后2段（默认 auto）
+        # 读取第3章第18段及前后2段（默认 1-based）
         read_paragraph(work_id="xxx", chapter_order=3, paragraph_index=18)
 
         # 读取第5章第7段及前后5段上下文
@@ -1385,6 +1385,7 @@ async def read_paragraph(
                 para = paragraphs[i]
                 result_paragraphs.append({
                     "index": i,
+                    "display_index": i + 1,
                     "text": para["text"],
                     "is_target": i == paragraph_index
                 })
@@ -1397,6 +1398,7 @@ async def read_paragraph(
                 # 🔧 新增字段：方便规划层直接使用
                 "content": target_text,                    # 目标段落文本（别名）
                 "paragraph_index": paragraph_index,        # 段落索引
+                "display_index": paragraph_index + 1,
                 "node_id": target_node_id,                 # 节点ID（如果有）
                 "chapter_id": str(chapter.id) if chapter.id else "",
                 "index_corrected": index_corrected,
@@ -1580,6 +1582,7 @@ async def list_paragraphs(
                     preview = content[start_pos:end_pos]
                     sliced.append({
                         "index": i,
+                        "display_index": i + 1,
                         "preview": preview[:preview_len] + ("..." if len(preview) > preview_len else ""),
                         "node_id": ""
                     })
@@ -1604,9 +1607,13 @@ async def list_paragraphs(
             for i in range(offset, end):
                 para = paragraphs[i]
                 text = para.get("text", "")
+                index_val = para.get("index", i)
+                if not isinstance(index_val, int):
+                    index_val = i
                 sliced.append({
-                    "index": para.get("index", i),
-                    "paragraph_index": para.get("index", i),
+                    "index": index_val,
+                    "paragraph_index": index_val,
+                    "display_index": index_val + 1,
                     "preview": text[:preview_len] + ("..." if len(text) > preview_len else ""),
                     "node_id": para.get("node_id") or ""
                 })
@@ -1636,19 +1643,27 @@ async def list_paragraphs(
 @tool
 async def read_paragraphs(
     work_id: str,
-    items: List[Dict[str, Any]],
+    items: Optional[List[Dict[str, Any]]] = None,
     context_before: int = 2,
     context_after: int = 2,
-    index_base: str = "auto"
+    index_base: str = "one",
+    chapter_order: int = 0,
+    chapter_id: str = "",
+    offset: int = 0,
+    limit: int = 50
 ) -> str:
     """批量读取段落原文
 
     Args:
         work_id: 作品ID（UUID格式，必需）
-        items: 段落列表 [{"chapter_order": 3, "paragraph_index": 18}, ...]
+        items: 段落列表 [{"chapter_order": 3, "paragraph_index": 18}, ...]（可选）
         context_before: 默认前文段落数
         context_after: 默认后文段落数
-        index_base: 段落索引基准（auto/0-based/1-based）
+        index_base: 段落索引基准（默认 1-based）
+        chapter_order: 章节序号（分页模式使用）
+        chapter_id: 章节ID（分页模式使用）
+        offset: 起始段落索引（分页模式使用）
+        limit: 读取段落数量（分页模式使用）
 
     Returns:
         JSON格式段落原文列表
@@ -1663,14 +1678,135 @@ async def read_paragraphs(
     if uuid_error:
         return uuid_error
 
+    if items is None:
+        items = []
+    if not isinstance(items, list):
+        items = []
+    range_mode = False
+    range_meta: Dict[str, Any] = {}
+    if not items and (chapter_order or chapter_id):
+        range_mode = True
+        if chapter_id:
+            uuid_error = validate_uuid(chapter_id, "章节ID")
+            if uuid_error:
+                return uuid_error
+        if offset < 0:
+            offset = 0
+        if limit <= 0:
+            limit = 1
+        try:
+            from app.services.chapter_service import ChapterService
+            if chapter_id and (not isinstance(chapter_order, int) or chapter_order <= 0):
+                async with AsyncSessionLocal() as db:
+                    chapter_svc = ChapterService(db)
+                    chapter = await chapter_svc.get_chapter_by_id(chapter_id)
+                    if not chapter:
+                        return json.dumps({
+                            "success": False,
+                            "error": f"章节ID不存在: {chapter_id}"
+                        }, ensure_ascii=False, indent=2)
+                    if work_id and str(chapter.work_id) != str(work_id):
+                        return json.dumps({
+                            "success": False,
+                            "error": "chapter_id 与 work_id 不匹配"
+                        }, ensure_ascii=False, indent=2)
+                    chapter_order = chapter.order
+        except Exception as e:
+            return json.dumps({
+                "success": False,
+                "error": "解析章节失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+        if not isinstance(chapter_order, int):
+            return json.dumps({
+                "success": False,
+                "error": "缺少 chapter_order 或 chapter_id"
+            }, ensure_ascii=False, indent=2)
+
+        try:
+            list_result = await list_paragraphs.ainvoke({
+                "work_id": work_id,
+                "chapter_order": chapter_order,
+                "chapter_id": chapter_id,
+                "offset": offset,
+                "limit": limit,
+                "preview_len": 0
+            })
+            list_data = json.loads(list_result) if isinstance(list_result, str) else list_result
+        except Exception as e:
+            return json.dumps({
+                "success": False,
+                "error": "读取段落清单失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+        if not isinstance(list_data, dict) or not list_data.get("success"):
+            return json.dumps({
+                "success": False,
+                "error": list_data.get("error") if isinstance(list_data, dict) else "读取段落清单失败",
+                "message": list_data.get("message") if isinstance(list_data, dict) else ""
+            }, ensure_ascii=False, indent=2)
+
+        if list_data.get("approximate"):
+            return json.dumps({
+                "success": False,
+                "error": "章节过大，段落索引为 approximate，无法分页读取原文",
+                "approximate": True
+            }, ensure_ascii=False, indent=2)
+
+        paragraphs = list_data.get("paragraphs") or []
+        if isinstance(paragraphs, list):
+            for para in paragraphs:
+                if not isinstance(para, dict):
+                    continue
+                idx = para.get("paragraph_index")
+                if idx is None:
+                    idx = para.get("index")
+                if isinstance(idx, str) and idx.isdigit():
+                    idx = int(idx)
+                if isinstance(idx, int):
+                    items.append({
+                        "chapter_order": chapter_order,
+                        "paragraph_index": idx
+                    })
+        range_meta = {
+            "mode": "range",
+            "chapter_order": chapter_order,
+            "chapter_id": list_data.get("chapter_id") or chapter_id,
+            "offset": offset,
+            "limit": limit,
+            "total_paragraphs": list_data.get("total_paragraphs")
+        }
+        index_base = "zero"
+        range_meta["index_base"] = "zero"
+        if not items:
+            total_paragraphs = range_meta.get("total_paragraphs")
+            if isinstance(total_paragraphs, int) and total_paragraphs > 0 and offset >= total_paragraphs:
+                range_meta["empty_reason"] = "offset 超出段落总数"
+            elif isinstance(total_paragraphs, int) and total_paragraphs == 0:
+                range_meta["empty_reason"] = "章节无段落"
+            else:
+                range_meta["empty_reason"] = "范围内未读取到段落"
+
     if not isinstance(items, list) or not items:
+        empty_reason = range_meta.get("empty_reason") if range_mode else "items 不能为空"
         return json.dumps({
-            "success": False,
-            "error": "items 不能为空"
+            "success": True if range_mode else False,
+            "error": "" if range_mode else "items 不能为空",
+            "empty_reason": empty_reason,
+            "work_id": work_id,
+            "count": 0,
+            "errors": 0,
+            "invalid_items": 0,
+            "index_base": index_base,
+            "results": [],
+            **range_meta
         }, ensure_ascii=False, indent=2)
 
     results = []
     errors = 0
+    invalid_items = 0
     logger.info(
         "[read_paragraphs] start items=%s index_base=%s",
         len(items),
@@ -1679,6 +1815,7 @@ async def read_paragraphs(
     for item in items:
         if not isinstance(item, dict):
             errors += 1
+            invalid_items += 1
             continue
         chapter_order = item.get("chapter_order") or item.get("chapter")
         paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
@@ -1688,6 +1825,7 @@ async def read_paragraphs(
             paragraph_index = int(paragraph_index)
         if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
             errors += 1
+            invalid_items += 1
             continue
         cb = item.get("context_before", context_before)
         ca = item.get("context_after", context_after)
@@ -1717,7 +1855,10 @@ async def read_paragraphs(
         "work_id": work_id,
         "count": len(results),
         "errors": errors,
-        "results": results
+        "invalid_items": invalid_items,
+        "index_base": index_base,
+        "results": results,
+        **range_meta
     }, ensure_ascii=False, indent=2)
 
 # ==================== 工具列表 ====================

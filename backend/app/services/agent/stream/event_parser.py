@@ -386,7 +386,7 @@ class EventParser:
     @staticmethod
     def extract_json_from_text(text: str) -> Optional[dict]:
         """从文本中提取JSON对象（增强版，支持更多容错）"""
-        text = text.strip()
+        text = text.lstrip("\ufeff").strip()
         if not text:
             return None
 
@@ -422,13 +422,32 @@ class EventParser:
             try:
                 return json.loads(json_candidate)
             except json.JSONDecodeError:
-                # 方法5: 尝试修复常见JSON错误
+                # 方法5: 截断到最后一个完整闭合的JSON对象
+                truncated = EventParser._truncate_to_balanced_json(json_candidate)
+                if truncated and truncated != json_candidate:
+                    try:
+                        return json.loads(truncated)
+                    except json.JSONDecodeError:
+                        pass
+                # 方法6: 尝试修复常见JSON错误
                 fixed = EventParser._fix_common_json_errors(json_candidate)
                 if fixed:
                     try:
                         return json.loads(fixed)
                     except json.JSONDecodeError:
                         pass
+                # 方法7: 尝试补齐缺失的括号/方括号
+                balanced = EventParser._balance_json_braces(json_candidate)
+                if balanced and balanced != json_candidate:
+                    try:
+                        return json.loads(balanced)
+                    except json.JSONDecodeError:
+                        fixed_balanced = EventParser._fix_common_json_errors(balanced)
+                        if fixed_balanced:
+                            try:
+                                return json.loads(fixed_balanced)
+                            except json.JSONDecodeError:
+                                pass
 
         return None
 
@@ -460,3 +479,93 @@ class EventParser:
             i += 1
 
         return ''.join(result)
+
+    @staticmethod
+    def _truncate_to_balanced_json(text: str) -> Optional[str]:
+        """截断到最后一个完整闭合的JSON对象"""
+        if not text:
+            return None
+
+        stack = []
+        in_string = False
+        escape = False
+        last_balanced = None
+        started = False
+
+        for i, ch in enumerate(text):
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+
+            if ch == '"':
+                in_string = True
+                continue
+
+            if ch in '{[':
+                stack.append(ch)
+                started = True
+            elif ch in '}]':
+                if not stack:
+                    return None
+                top = stack[-1]
+                if (top == '{' and ch == '}') or (top == '[' and ch == ']'):
+                    stack.pop()
+                else:
+                    return None
+
+            if started and not stack:
+                last_balanced = i
+
+        if last_balanced is not None:
+            return text[:last_balanced + 1]
+        return None
+
+    @staticmethod
+    def _balance_json_braces(text: str) -> Optional[str]:
+        """补齐缺失的括号/方括号（尽量不破坏原有结构）"""
+        if not text:
+            return None
+
+        stack = []
+        in_string = False
+        escape = False
+
+        for ch in text:
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+
+            if ch == '"':
+                in_string = True
+                continue
+
+            if ch in '{[':
+                stack.append(ch)
+            elif ch in '}]':
+                if not stack:
+                    return None
+                top = stack[-1]
+                if (top == '{' and ch == '}') or (top == '[' and ch == ']'):
+                    stack.pop()
+                else:
+                    return None
+
+        if not stack:
+            return text
+
+        closing = []
+        while stack:
+            open_ch = stack.pop()
+            closing.append('}' if open_ch == '{' else ']')
+
+        return text + ''.join(closing)

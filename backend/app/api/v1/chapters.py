@@ -211,17 +211,6 @@ async def create_chapter(
     # 🔧 2025-12-02: P0修复 - 失效缓存
     _invalidate_chapter_cache(chapter_data.work_id)
 
-    # 🆕 2025-12-03: 后台向量化章节内容
-    if chapter.content and len(chapter.content.strip()) > 100:
-        background_tasks.add_task(
-            _vectorize_chapter_content,
-            work_id=str(chapter.work_id),
-            chapter_id=str(chapter.id),
-            chapter_order=chapter.order,
-            chapter_title=chapter.title,
-            content=chapter.content
-        )
-
     return chapter
 
 
@@ -288,17 +277,6 @@ async def update_chapter(
 
     # 🔧 2025-12-02: P0修复 - 失效缓存
     _invalidate_chapter_cache(work_id)
-
-    # 🆕 2025-12-03: 后台向量化章节内容
-    if updated_chapter.content and len(updated_chapter.content.strip()) > 100:
-        background_tasks.add_task(
-            _vectorize_chapter_content,
-            work_id=str(updated_chapter.work_id),
-            chapter_id=str(updated_chapter.id),
-            chapter_order=updated_chapter.order,
-            chapter_title=updated_chapter.title,
-            content=updated_chapter.content
-        )
 
     return updated_chapter
 

@@ -376,6 +376,11 @@ class ImportService:
         if index_updated:
             try:
                 await self.db.commit()
+                try:
+                    from app.services.chapter_vector_service import invalidate_vector_fresh_cache
+                    invalidate_vector_fresh_cache(str(work.id))
+                except Exception as exc:
+                    logger.warning(f"[ImportService] 向量新鲜度缓存失效失败: {exc}")
             except Exception as exc:
                 await self.db.rollback()
                 logger.warning(f"[ImportService] 提交索引失败: {exc}")
@@ -514,6 +519,11 @@ class ImportService:
         if index_updated:
             try:
                 await self.db.commit()
+                try:
+                    from app.services.chapter_vector_service import invalidate_vector_fresh_cache
+                    invalidate_vector_fresh_cache(str(work.id))
+                except Exception as exc:
+                    logger.warning(f"[ImportService] 向量新鲜度缓存失效失败: {exc}")
             except Exception as exc:
                 await self.db.rollback()
                 logger.warning(f"[ImportService] 提交索引失败: {exc}")

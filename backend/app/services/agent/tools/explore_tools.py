@@ -2944,11 +2944,67 @@ class ContentExplorer:
                         deduped.append(kw)
                 keywords = deduped or keywords
 
-                # 计算当前搜索范围
+                def _coerce_int(value: Any) -> Optional[int]:
+                    if isinstance(value, int):
+                        return value
+                    if isinstance(value, str) and value.strip().isdigit():
+                        return int(value.strip())
+                    return None
+
+                def _add_range(target: List[Tuple[int, int]], start: Any, end: Any) -> None:
+                    start_val = _coerce_int(start)
+                    end_val = _coerce_int(end)
+                    if start_val is None and end_val is None:
+                        return
+                    if start_val is None:
+                        start_val = end_val
+                    if end_val is None:
+                        end_val = start_val
+                    if start_val is None or end_val is None:
+                        return
+                    if start_val > end_val:
+                        start_val, end_val = end_val, start_val
+                    target.append((start_val, end_val))
+
+                def _parse_param_ranges(param_dict: Dict[str, Any]) -> List[Tuple[int, int]]:
+                    parsed: List[Tuple[int, int]] = []
+                    raw_range = param_dict.get("chapter_range")
+                    if raw_range:
+                        if isinstance(raw_range, str):
+                            nums = [int(n) for n in re.findall(r"\d+", raw_range)]
+                            if nums:
+                                start_num = nums[0]
+                                end_num = nums[1] if len(nums) > 1 else nums[0]
+                                _add_range(parsed, start_num, end_num)
+                        elif isinstance(raw_range, (list, tuple)) and len(raw_range) >= 2:
+                            _add_range(parsed, raw_range[0], raw_range[1])
+                        elif isinstance(raw_range, dict):
+                            _add_range(
+                                parsed,
+                                raw_range.get("chapter_order_start") or raw_range.get("start"),
+                                raw_range.get("chapter_order_end") or raw_range.get("end")
+                            )
+                    raw_ranges = param_dict.get("chapter_ranges")
+                    if raw_ranges and isinstance(raw_ranges, list):
+                        for item in raw_ranges:
+                            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                                _add_range(parsed, item[0], item[1])
+                            elif isinstance(item, dict):
+                                _add_range(
+                                    parsed,
+                                    item.get("chapter_order_start") or item.get("start"),
+                                    item.get("chapter_order_end") or item.get("end")
+                                )
+                    return parsed
+
+                param_ranges = _parse_param_ranges(params)
+                ranges_to_use = param_ranges or (self.chapter_scopes or [])
+
+                # 计算当前搜索范围（优先使用本次请求的范围）
                 current_scope: Optional[Tuple[int, int]] = None
-                if self.chapter_scopes:
-                    min_order = min(s[0] for s in self.chapter_scopes)
-                    max_order = max(s[1] for s in self.chapter_scopes)
+                if ranges_to_use:
+                    min_order = min(s[0] for s in ranges_to_use)
+                    max_order = max(s[1] for s in ranges_to_use)
                     current_scope = (min_order, max_order)
 
                 # 拦截检查：已穷尽或相同范围+0命中的关键词
@@ -3022,15 +3078,15 @@ class ContentExplorer:
                         vector_service = ChapterVectorService(db)
                         use_vector = await vector_service.are_vectors_fresh(
                             work_id=self.work_id,
-                            chapter_ranges=self.chapter_scopes or None
+                            chapter_ranges=ranges_to_use or None
                         )
                         search_fn = (
                             vector_service.exact_search_paragraphs
                             if use_vector
                             else vector_service.exact_search_paragraphs_from_content
                         )
-                        if self.chapter_scopes:
-                            for start_order, end_order in self.chapter_scopes:
+                        if ranges_to_use:
+                            for start_order, end_order in ranges_to_use:
                                 part = await search_fn(
                                     work_id=self.work_id,
                                     keywords=keywords,
@@ -3048,6 +3104,14 @@ class ContentExplorer:
                                 limit=limit
                             )
                             results.extend(chapter_results or [])
+
+                    if param_ranges:
+                        results = [
+                            r for r in results
+                            if isinstance(r, dict)
+                            and isinstance(r.get("chapter_order"), int)
+                            and any(start <= r.get("chapter_order") <= end for start, end in param_ranges)
+                        ]
 
                     # 章节范围过滤
                     if self.chapter_scopes:

@@ -911,7 +911,18 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         isPersistent?: boolean;
       }>;
 
-      const { type, original, replacement, position, revisionId, requestId, originalMessage, context, beforeAnchor, afterAnchor, nodeId, paragraphIndex, chapterId: targetChapterId, skipQueue, isPersistent } = customEvent.detail;
+      const { type, original, replacement: rawReplacement, position, revisionId, requestId, originalMessage, context, beforeAnchor, afterAnchor, nodeId, paragraphIndex, chapterId: targetChapterId, skipQueue, isPersistent } = customEvent.detail;
+
+      // 保底：清理 AI 可能输出的 HTML 标签（<p>、<br> 等），将段落标签转为换行符
+      let replacement = rawReplacement;
+      if (replacement && /<\/?(p|div|br|span)\b[^>]*>/i.test(replacement)) {
+        replacement = replacement
+          .replace(/<\/p>\s*<p[^>]*>/gi, '\n')   // </p><p> → 换行
+          .replace(/<br\s*\/?>/gi, '\n')           // <br> → 换行
+          .replace(/<\/?(p|div|span)\b[^>]*>/gi, '') // 去除剩余标签
+          .trim();
+        console.log('[NovelEditor] 清理了 replacement 中的 HTML 标签');
+      }
 
       if (!replacement) {
         console.error('[NovelEditor] 修订请求缺少内容');

@@ -137,15 +137,14 @@ def get_staged_execution_examples() -> str:
   "thinking": {
     "step1_output": "用户想续写5个章节，这是大型创作任务，应该分阶段执行",
     "step2_material": "需要先读取现有内容",
-    "step3_process": "第一阶段：分析现有内容并规划大纲，征求用户确认后再续写"
+    "step3_process": "第一阶段：获取现有内容后直接规划大纲，征求用户确认后再续写"
   },
   "user_intent": "续写后5章（分阶段执行）",
   "tasks": [
-    {"task_id": 1, "description": "获取最近章节和世界观", "tool": "explore_content", "params": {"target_task": "续写后5章准备，获取最近3章内容和世界观设定"}, "depends_on": []},
-    {"task_id": 2, "description": "分析情节走向并规划大纲", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "evidences[0].text"}}, "aspects": ["plot", "structure"], "depth": "deep"}, "depends_on": [1]}
+    {"task_id": 1, "description": "获取最近章节和世界观", "tool": "explore_content", "params": {"target_task": "续写后5章准备，获取最近3章内容和世界观设定"}, "depends_on": []}
   ]
 }
-⚠️ 注意：这个任务只生成了分析阶段，执行完成后 AI 会在响应中说："我分析了现有内容，这是后5章的大纲规划...你觉得这个方向可以吗？确认后我会开始续写第一章。"
+⚠️ 注意：这个任务只生成取证阶段，执行完成后 AI 会在响应中直接给出后5章大纲并征求确认。
 
 用户: "可以，先写第6章"
 {
@@ -227,12 +226,11 @@ def get_creation_request_examples() -> str:
   "thinking": {
     "step1_output": "用户想看到概括性文字，了解第三章主要内容，不是要原文",
     "step2_material": "需要第三章原文",
-    "step3_process": "获取后进行概括总结"
+    "step3_process": "获取后直接概括总结"
   },
   "user_intent": "概括第三章内容",
   "tasks": [
-    {"task_id": 1, "description": "获取第三章", "tool": "explore_content", "params": {"target_task": "获取第三章内容用于概括"}, "depends_on": []},
-    {"task_id": 2, "description": "概括内容", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "evidences[0].text"}}, "aspects": ["plot"], "depth": "normal"}, "depends_on": [1]}
+    {"task_id": 1, "description": "获取第三章", "tool": "explore_content", "params": {"target_task": "获取第三章内容用于概括"}, "depends_on": []}
   ]
 }
 
@@ -268,12 +266,11 @@ def get_creation_request_examples() -> str:
   "thinking": {
     "step1_output": "用户想看到第5-9章的大纲规划（章节标题+主要剧情），不是正文",
     "step2_material": "需要前四章内容作为参考",
-    "step3_process": "获取前文后创作大纲结构（大纲是创作！）"
+    "step3_process": "获取前文后直接输出大纲结构（不写入编辑器）"
   },
   "user_intent": "创作第5-9章大纲",
   "tasks": [
-    {"task_id": 1, "description": "批量获取前四章", "tool": "explore_content", "params": {"target_task": "创作大纲准备，获取前四章内容和世界观"}, "depends_on": []},
-    {"task_id": 2, "description": "创作大纲", "tool": "smart_continue", "params": {"context": {"$ref": {"task_id": 1, "path": "evidences[0].text"}}, "requirements": "基于前四章的人物、情节、伏笔，为第5-9章设计详细大纲：章节标题、主要剧情、涉及角色、伏笔设置", "target_words": 1500}, "depends_on": [1]}
+    {"task_id": 1, "description": "批量获取前四章", "tool": "explore_content", "params": {"target_task": "创作大纲准备，获取前四章内容和世界观"}, "depends_on": []}
   ]
 }
 """
@@ -457,12 +454,11 @@ def get_multi_chapter_examples() -> str:
   "thinking": {
     "step1_output": "用户需要对比两个章节中的内容",
     "step2_material": "需要同时读取第3章和第7章的内容",
-    "step3_process": "使用 explore_content 一次性读取多个章节，然后用 analyze_content 进行对比分析"
+    "step3_process": "使用 explore_content 一次性读取多个章节，然后直接输出对比分析"
   },
   "user_intent": "对比分析多个章节的心理变化",
   "tasks": [
-    {"task_id": 1, "description": "批量读取第3章和第7章", "tool": "explore_content", "params": {"target_task": "对比分析第3章和第7章主角心理变化"}, "depends_on": []},
-    {"task_id": 2, "description": "对比分析主角心理变化", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "evidences[0].text"}}, "aspects": ["character"], "depth": "deep"}, "depends_on": [1]}
+    {"task_id": 1, "description": "批量读取第3章和第7章", "tool": "explore_content", "params": {"target_task": "对比分析第3章和第7章主角心理变化"}, "depends_on": []}
   ]
 }
 """
@@ -551,18 +547,13 @@ explore_content 会自动判断任务复杂度：
   "thinking": {
     "step1_output": "用户要分析跨多章节的人物关系发展",
     "step2_material": "⚠️ explore_content 会自动收集多章节中的相关描写",
-    "step3_process": "explore_content 深度探索 → analyze_content 汇总分析"
+    "step3_process": "explore_content 深度探索 → 直接输出分析"
   },
   "user_intent": "分析多章节中的人物关系发展",
   "tasks": [
     {"task_id": 1, "description": "深度探索主角与师兄关系", "tool": "explore_content", "params": {
       "target_task": "分析主角与师兄的关系，包括：首次见面、互动场景、情感变化、关键转折点"
-    }, "depends_on": []},
-    {"task_id": 2, "description": "汇总分析关系发展", "tool": "analyze_content", "params": {
-      "content": {"$ref": {"task_id": 1, "path": "evidences[0].text"}},
-      "aspects": ["character"],
-      "depth": "deep"
-    }, "depends_on": [1]}
+    }, "depends_on": []}
   ]
 }
 
@@ -603,6 +594,60 @@ explore_content 会自动判断任务复杂度：
   ]
 }
 ✅ 简单查询 explore_content 首轮即返回
+
+---
+【场景6：生成分析文档（世界观/角色卡/伏笔表）】⚠️ 取证后直接输出，不用 smart_continue/analyze_content
+
+用户: "输出一份完整的世界观设定文档"
+{
+  "thinking": {
+    "step1_output": "用户需要结构化的世界观设定文档，不是故事正文",
+    "step2_material": "需要从作品中收集世界观相关信息",
+    "step3_process": "收集证据后直接输出设定文档"
+  },
+  "user_intent": "生成世界观设定文档",
+  "output_title": "世界观设定",
+  "tasks": [
+    {"task_id": 1, "description": "收集世界观相关内容", "tool": "explore_content", "params": {
+      "target_task": "收集作品的世界观设定：包括世界背景、修炼体系、势力分布、地理环境等"
+    }, "depends_on": []}
+  ]
+}
+⚠️ 注意：世界观文档、角色卡、伏笔表等分析类文档：explore_content 取证后**直接输出**，不写入编辑器！
+
+用户: "帮我生成主角的角色卡"
+{
+  "thinking": {
+    "step1_output": "用户需要角色卡文档，不是故事正文",
+    "step2_material": "需要收集主角相关描写",
+    "step3_process": "收集证据后直接输出角色卡"
+  },
+  "user_intent": "生成主角角色卡",
+  "output_title": "角色卡",
+  "tasks": [
+    {"task_id": 1, "description": "收集主角相关描写", "tool": "explore_content", "params": {
+      "target_task": "收集主角的外貌、性格、能力、背景、人际关系等描写"
+    }, "depends_on": []}
+  ]
+}
+
+用户: "整理前5章的伏笔追踪表"
+{
+  "thinking": {
+    "step1_output": "用户需要伏笔追踪表，不是故事正文",
+    "step2_material": "需要读取前5章内容",
+    "step3_process": "收集证据后直接输出伏笔追踪表"
+  },
+  "user_intent": "生成伏笔追踪表",
+  "output_title": "伏笔追踪",
+  "tasks": [
+    {"task_id": 1, "description": "读取前5章内容", "tool": "explore_content", "params": {
+      "target_task": "读取第1-5章，收集所有伏笔和悬念"
+    }, "depends_on": []}
+  ]
+}
+❌ 错误做法：用 smart_continue 生成世界观文档（会输出故事内容而非分析文档）
+✅ 正确做法：explore_content 取证后直接输出（按指定格式整理）
 """
 
 
@@ -614,37 +659,33 @@ def get_agent_mode_examples() -> str:
 示例1 - 简单查询（无checkpoint）：
 用户: "叶凡是什么体质？"
 {
-  "thinking": {"step1_output": "描述体质", "step2_material": "统一用 explore_content 获取相关内容", "step3_process": "explore_content → analyze_content 总结"},
+  "thinking": {"step1_output": "描述体质", "step2_material": "统一用 explore_content 获取相关内容", "step3_process": "explore_content → 直接输出"},
   "user_intent": "查询叶凡体质",
   "tasks": [
     {"task_id": 1, "description": "获取叶凡体质相关描写", "tool": "explore_content",
-     "params": {"target_task": "查询叶凡体质相关描写"}, "checkpoint": false, "depends_on": []},
-    {"task_id": 2, "description": "总结体质特点", "tool": "analyze_content",
-     "params": {"content": {"$ref": {"task_id": 1, "path": "evidences[0].text"}}, "aspects": ["character"], "depth": "normal"}, "checkpoint": false, "depends_on": [1]}
+     "params": {"target_task": "查询叶凡体质相关描写"}, "checkpoint": false, "depends_on": []}
   ]
 }
 
 示例2 - 多章节分析（使用批量读取）：
 用户: "分析前5章的情节发展"
 {
-  "thinking": {"step1_output": "分析报告", "step2_material": "5个章节内容", "step3_process": "批量读取后汇总分析"},
+  "thinking": {"step1_output": "分析报告", "step2_material": "5个章节内容", "step3_process": "批量读取后直接输出分析"},
   "user_intent": "分析前5章情节",
   "output_title": "分析结果",
   "tasks": [
-    {"task_id": 1, "description": "获取前5章内容", "tool": "explore_content", "params": {"target_task": "分析前5章情节发展，获取第1-5章内容"}, "checkpoint": false, "depends_on": []},
-    {"task_id": 2, "description": "汇总分析情节发展", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "evidences[0].text"}}, "aspects": ["plot", "structure"], "depth": "deep"}, "checkpoint": false, "depends_on": [1]}
+    {"task_id": 1, "description": "获取前5章内容", "tool": "explore_content", "params": {"target_task": "分析前5章情节发展，获取第1-5章内容"}, "checkpoint": false, "depends_on": []}
   ]
 }
 
 示例3 - 单任务（无checkpoint）：
 用户: "第3章讲了什么"
 {
-  "thinking": {"step1_output": "概括", "step2_material": "第3章", "step3_process": "读取并概括"},
+  "thinking": {"step1_output": "概括", "step2_material": "第3章", "step3_process": "读取后直接概括"},
   "user_intent": "概括第3章",
   "output_title": "章节概括",
   "tasks": [
-    {"task_id": 1, "description": "获取第3章内容", "tool": "explore_content", "params": {"target_task": "概括第3章内容"}, "checkpoint": false, "depends_on": []},
-    {"task_id": 2, "description": "概括内容", "tool": "analyze_content", "params": {"content": {"$ref": {"task_id": 1, "path": "evidences[0].text"}}, "aspects": ["plot"], "depth": "shallow"}, "checkpoint": false, "depends_on": [1]}
+    {"task_id": 1, "description": "获取第3章内容", "tool": "explore_content", "params": {"target_task": "概括第3章内容"}, "checkpoint": false, "depends_on": []}
   ]
 }
 """

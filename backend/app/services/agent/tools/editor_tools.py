@@ -26,6 +26,7 @@ from app.core.database import AsyncSessionLocal
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType
 from app.services.agent.tools.operation_log import OperationLogManager
+from app.utils.text_cleaner import TextCleaner
 
 logger = logging.getLogger(__name__)
 
@@ -88,12 +89,12 @@ async def _generate_rewrite_versions(
             from app.prompts import get_prompt_manager
             prompt_manager = get_prompt_manager()
 
-            # 提取风格参考（前500字）
+            # 提取风格参考（前500字）- 清理 HTML 标签避免 AI 输出 HTML
             style_reference = ""
             if chapter_content and len(chapter_content) > 100:
-                import re
-                text = re.sub(r'<[^>]+>', '', chapter_content)
-                style_reference = text[:500]
+                # 使用 TextCleaner 清理 HTML，保留段落结构
+                clean_text = TextCleaner.html_to_clean_text(chapter_content, preserve_structure=False)
+                style_reference = clean_text[:500]
 
             # 渲染创作层Prompt
             creative_prompt = prompt_manager.render(
@@ -136,11 +137,12 @@ async def _generate_rewrite_versions(
 
     if not use_dual_prompt:
         # === 原有单Prompt架构（备用方案） ===
-        # 分析原文风格特点
+        # 分析原文风格特点 - 清理 HTML 标签避免 AI 输出 HTML
         style_context = ""
         if chapter_content and len(chapter_content) > 100:
-            # 取前500字作为风格参考
-            style_context = f"\n\n【小说风格参考（前500字）】\n{chapter_content[:500]}"
+            # 取前500字作为风格参考，使用 TextCleaner 清理 HTML
+            clean_text = TextCleaner.html_to_clean_text(chapter_content, preserve_structure=False)
+            style_context = f"\n\n【小说风格参考（前500字）】\n{clean_text[:500]}"
 
         # 如果有用户要求，添加到prompt
         user_requirement_context = ""
@@ -745,8 +747,9 @@ async def smart_continue(
         # 使用AI生成续写内容
         ai_service = _get_ai_service()
 
-        # 取最后1000字作为上下文
-        context = chapter_content[-1000:] if len(chapter_content) > 1000 else chapter_content
+        # 取最后1000字作为上下文 - 清理 HTML 标签避免 AI 输出 HTML
+        clean_content = TextCleaner.html_to_clean_text(chapter_content, preserve_structure=False)
+        context = clean_content[-1000:] if len(clean_content) > 1000 else clean_content
 
         requirement_text = f"\n用户要求：{user_requirement}" if user_requirement else ""
 
@@ -887,6 +890,11 @@ async def smart_rewrite(
             user_requirement=user_requirement
         )
 
+        # CREATIVE 工具：应用输出过滤器，去除脏信息和 HTML 标签
+        for v in versions:
+            if v.get("content"):
+                v["content"] = creative_output_filter(v["content"])
+
         # 🆕 2026-01-10: 锚点定位职责已移交给 locate_content 工具
         # smart_rewrite 只负责创作，不负责定位
 
@@ -1017,9 +1025,17 @@ async def smart_insert(
         # 使用AI生成插入内容
         ai_service = _get_ai_service()
 
-        context_text = f"\n【插入点上下文】\n{insert_context}" if insert_context else ""
+        # 清理 HTML 标签避免 AI 输出 HTML
+        clean_insert_context = TextCleaner.html_to_clean_text(insert_context, preserve_structure=False) if insert_context else ""
+        context_text = f"\n【插入点上下文】\n{clean_insert_context}" if clean_insert_context else ""
         multi_version_intent = _has_multi_version_intent(user_intent)
         single_rule = "\n5. 即使用户要求多版本，也只生成一条内容" if multi_version_intent else ""
+
+        # 清理章节内容参考
+        clean_chapter_content = ""
+        if chapter_content:
+            clean_chapter_content = TextCleaner.html_to_clean_text(chapter_content, preserve_structure=False)
+            clean_chapter_content = clean_chapter_content[:1500] if len(clean_chapter_content) > 1500 else clean_chapter_content
 
         prompt = f"""你是专业的小说创作助手。请根据用户意图生成约{word_count}字的内容。
 
@@ -1028,7 +1044,7 @@ async def smart_insert(
 {context_text}
 
 【章节内容参考】
-{chapter_content[:1500] if chapter_content and len(chapter_content) > 1500 else chapter_content or "无"}
+{clean_chapter_content or "无"}
 
 【生成要求】
 1. 符合用户意图

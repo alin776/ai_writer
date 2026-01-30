@@ -1,11 +1,13 @@
 from typing import List, Optional
+import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update as sql_update
 from sqlalchemy.orm.attributes import set_committed_value
 import re
 import logging
 
 from app.models.chapter import Chapter, ChapterStatus
+from app.models.novel_chapter_vector import NovelChapterVector
 from app.schemas.chapter import ChapterCreate, ChapterUpdate
 from app.utils.cache import CacheInvalidator
 from app.core.redis import redis_client, CacheKey, CacheExpire
@@ -56,6 +58,57 @@ class ChapterService:
         self.db = db
         self.content_provider = ChapterContentProvider()
         self.index_service = ChapterContentIndexService(db)
+
+    def _schedule_vectorization(self, chapter: Chapter, content: str) -> None:
+        if not content or not content.strip():
+            return
+
+        expected_version = getattr(chapter, "version", None)
+
+        async def _run_vectorization():
+            try:
+                from app.core.database import async_session_maker
+                from app.services.chapter_vector_service import ChapterVectorService
+                from app.models.chapter import Chapter
+
+                async with async_session_maker() as db:
+                    if expected_version is not None:
+                        result = await db.execute(
+                            select(Chapter.version).where(Chapter.id == chapter.id)
+                        )
+                        current_version = result.scalar_one_or_none()
+                        if current_version is None or current_version != expected_version:
+                            logger.info(
+                                "[ChapterService] 向量化跳过: 版本已更新 chapter_id=%s expected=%s current=%s",
+                                chapter.id,
+                                expected_version,
+                                current_version
+                            )
+                            return
+                    service = ChapterVectorService(db)
+                    await service.store_chapter_vector(
+                        work_id=str(chapter.work_id),
+                        chapter_id=str(chapter.id),
+                        chapter_order=chapter.order,
+                        chapter_title=chapter.title,
+                        content=content
+                    )
+            except Exception as exc:
+                logger.error(f"[ChapterService] 自动向量化失败: {exc}", exc_info=True)
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.warning("[ChapterService] 未找到运行中的事件循环，跳过自动向量化")
+            return
+        loop.create_task(_run_vectorization())
+
+    def _invalidate_vector_fresh_cache(self, work_id: str) -> None:
+        try:
+            from app.services.chapter_vector_service import invalidate_vector_fresh_cache
+            invalidate_vector_fresh_cache(work_id)
+        except Exception as exc:
+            logger.warning(f"[ChapterService] 向量新鲜度缓存失效失败: {exc}")
     
     async def get_chapter_by_id(self, chapter_id: str) -> Optional[Chapter]:
         """根据 ID 获取章节"""
@@ -159,11 +212,15 @@ class ChapterService:
             chapter_storage.write_content(
                 str(chapter.work_id), str(chapter.id), content_text
             )
-            await self.index_service.upsert_from_content(
+            index_updated = await self.index_service.upsert_from_content(
                 str(chapter.work_id), str(chapter.id), content_text
             )
+            if index_updated:
+                self._invalidate_vector_fresh_cache(str(chapter.work_id))
         except Exception as exc:
             logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
+
+        self._schedule_vectorization(chapter, content_text)
 
         # 记录历史，便于后续增量统计
         history_service = ChapterHistoryService(self.db)
@@ -256,11 +313,14 @@ class ChapterService:
                 chapter_storage.write_content(
                     str(chapter.work_id), str(chapter.id), content_text
                 )
-                await self.index_service.upsert_from_content(
+                index_updated = await self.index_service.upsert_from_content(
                     str(chapter.work_id), str(chapter.id), content_text
                 )
+                if index_updated:
+                    self._invalidate_vector_fresh_cache(str(chapter.work_id))
             except Exception as exc:
                 logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
+            self._schedule_vectorization(chapter, content_text)
             return chapter
 
         # 否则使用标准创建流程
@@ -318,11 +378,14 @@ class ChapterService:
                 chapter_storage.write_content(
                     str(chapter.work_id), str(chapter.id), new_content
                 )
-                await self.index_service.upsert_from_content(
+                index_updated = await self.index_service.upsert_from_content(
                     str(chapter.work_id), str(chapter.id), new_content
                 )
+                if index_updated:
+                    self._invalidate_vector_fresh_cache(str(chapter.work_id))
             except Exception as exc:
                 logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
+            self._schedule_vectorization(chapter, new_content)
         
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
@@ -392,6 +455,7 @@ class ChapterService:
             await self.index_service.delete_index(chapter_id)
         except Exception as exc:
             logger.warning(f"[ChapterService] 删除章节文件或索引失败: {exc}")
+        self._invalidate_vector_fresh_cache(str(work_id))
         
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id_str)
@@ -400,12 +464,29 @@ class ChapterService:
     
     async def reorder_chapters(self, work_id: str, chapter_ids: List[str]) -> bool:
         """重新排序章节"""
+        updated_pairs = []
         for index, chapter_id in enumerate(chapter_ids):
             chapter = await self.get_chapter_by_id(chapter_id)
             if chapter and chapter.work_id == work_id:
                 chapter.order = index + 1
+                updated_pairs.append((chapter_id, index + 1))
 
         await self.db.commit()
+
+        if updated_pairs:
+            try:
+                for chapter_id, chapter_order in updated_pairs:
+                    stmt = (
+                        sql_update(NovelChapterVector)
+                        .where(NovelChapterVector.chapter_id == chapter_id)
+                        .values(chapter_order=chapter_order)
+                    )
+                    await self.db.execute(stmt)
+                await self.db.commit()
+            except Exception as exc:
+                await self.db.rollback()
+                logger.warning(f"[ChapterService] 重排向量顺序失败: {exc}")
+        self._invalidate_vector_fresh_cache(str(work_id))
         return True
 
     async def update_chapter_with_lock(
@@ -479,11 +560,14 @@ class ChapterService:
                 chapter_storage.write_content(
                     str(chapter.work_id), str(chapter.id), new_content
                 )
-                await self.index_service.upsert_from_content(
+                index_updated = await self.index_service.upsert_from_content(
                     str(chapter.work_id), str(chapter.id), new_content
                 )
+                if index_updated:
+                    self._invalidate_vector_fresh_cache(str(chapter.work_id))
             except Exception as exc:
                 logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
+            self._schedule_vectorization(chapter, new_content)
 
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
@@ -555,9 +639,11 @@ class ChapterService:
             chapter_storage.write_content(
                 str(chapter.work_id), str(chapter.id), new_content
             )
-            await self.index_service.upsert_from_content(
+            index_updated = await self.index_service.upsert_from_content(
                 str(chapter.work_id), str(chapter.id), new_content
             )
+            if index_updated:
+                self._invalidate_vector_fresh_cache(str(chapter.work_id))
         except Exception as exc:
             logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
 

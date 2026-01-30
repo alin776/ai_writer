@@ -30,7 +30,7 @@ def _get_new_aggregated_tools_section() -> str:
 
   ✅ **所有信息获取场景都用这个工具**:
     - 续写/改写前获取上下文 → explore_content(target_task="续写第5章，需要第4-5章内容和世界观")
-    - 分析人物/情节 → explore_content(target_task="分析主角性格特点，收集相关描写")
+    - 分析人物/情节 → explore_content(target_task="分析主角性格特点，收集相关描写")（取证后直接回答，不用 analyze_content）
     - 搜索/查找内容 → explore_content(target_task="找出所有关于XX的描写")
     - 获取世界观设定 → explore_content(target_task="获取世界观和角色设定")
     - 批量读取章节 → explore_content(target_task="读取第1-5章内容")
@@ -47,7 +47,7 @@ def _get_new_aggregated_tools_section() -> str:
 
 ---
 
-- analyze_content: 🔴 一站式内容分析
+- analyze_content: 🔴 结构化评估/报告专用
   参数:
     - content: 待分析文本（必需）
     - analysis_types: 分析类型列表（可选）
@@ -67,9 +67,13 @@ def _get_new_aggregated_tools_section() -> str:
     - context: 上下文信息（可选）
   返回: {analysis, summary, scores, issues[], suggestions[]}
 
+  ⚠️ **使用边界**：
+    - 仅用于**明确的结构化评估/报告**（一致性/风格/质量/打分）
+    - 其余“概括/分析/推演/大纲/设定补充/伏笔整理”等 → explore_content 取证后**直接输出**
+
   ✅ 使用示例：
-    - 检查问题: analyze_content(content="...", aspects=["grammar", "logic"])
-    - 深度分析: analyze_content(content="...", aspects=["style", "structure"], depth="deep")
+    - 一致性检查: analyze_content(content="...", analysis_types=["consistency"])
+    - 质量评估: analyze_content(content="...", analysis_types=["quality"])
     - 风格分析: analyze_content(content="...", analysis_types=["style"])
 """
 
@@ -261,7 +265,7 @@ def _get_operation_tools_section() -> str:
 def _get_analysis_tools_section() -> str:
     """分析工具描述（一致性检查、风格分析）"""
     return """
-【分析工具】⚠️ 已有聚合工具，请优先使用 analyze_content
+【分析工具】⚠️ 已有聚合工具，请优先使用 analyze_content（仅用于一致性/风格/质量/打分等结构化评估）
 - check_story_consistency_tool: 故事一致性检查（兼容）
   参数: work_id, chapters_json(章节JSON，默认"[]"), characters_json(角色JSON，默认"[]"), worldview_json(世界观JSON，默认"{}")
   用途: 检查故事中的逻辑漏洞、人设矛盾、时间线错误

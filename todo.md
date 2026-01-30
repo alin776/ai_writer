@@ -1,5 +1,143 @@
 # TODO
 
+#### 修复：limit 负数 / 章节范围生效 / 空读取可诊断（待确认）
+
+- [x] 限制 exact_search_paragraphs 的 limit 最小为 1（避免负数触发 SQL 错误）
+- [x] 章节范围强制生效：优先使用本次请求 chapter_range(s)，避免回退全局范围
+- [x] read_paragraphs 空结果输出原因（越界/上限/过滤/索引基准），提高可诊断性
+
+#### Explore 测试 prompts 设计（待确认）
+
+- [x] 阅读素材《一夕千悟，从杂役弟子开始》前几章，提取可用于定位的角色/事件/术语
+- [x] 设计 5 个复杂测试 prompts，覆盖分页读取、items 批量读取、范围锁定与证据回读
+- [x] 输出可直接用于 Explore 测试的 prompts
+
+#### Backend.md 问题排查与归因（待确认）
+
+- [x] 读取 Backend.md 中最新日志区段，标注关键异常/警告/重复行为
+- [x] 对照代码路径定位触发链路，归因到具体模块或参数
+- [x] 汇总“核心问题 + 直接证据 + 影响面”，给出直白结论
+
+#### Backend.md 扩展问题复盘（待确认）
+
+- [x] 复扫 Backend.md 其余区段（非 22:19 段）标注异常/重复/不一致日志
+- [x] 对照当前代码改动点，判断是否为已修复问题或新问题
+- [x] 给出“问题清单 + 证据位置 + 当前状态（已修复/待修复/无法复现）”
+
+#### 修复 explore_tool_loop None 预算比较错误（待确认）
+
+- [x] 定位 `reads_left <= 0` 的无保护比较
+- [x] 增加 None 判断，避免 `None <= 0` TypeError
+- [x] 记录修复与影响范围到 review
+
+#### 修复关键词拆分与搜索拦截误判（待确认）
+
+- [x] exact_search_paragraphs 关键词拆分加入英文逗号 `,`
+- [x] should_block_search 避免把“未拆分的逗号串”误判为已搜单词
+- [x] 更新 review 记录修复与影响
+
+#### 图片逻辑问题总结 + Backend.md 全量复盘（待确认）
+
+- [x] 先基于 6 张截图总结前端反馈中的逻辑问题（不读日志）
+- [x] 完整通读 Backend.md（约2000行），逐段标注异常/误判/矛盾点
+- [x] 对照日志给出“原因归类 + 证据行号 + 可能修复方向”
+
+#### chapter_vector_service.py 语法错误修复计划（待确认）
+
+- [x] 定位 `exact_search_content` 中的语法错误位置并还原应有分支逻辑
+- [x] 修复缩进/分支结构，保证 match_mode 分支完整
+- [x] 复核附近逻辑无新的语法问题，记录是否能运行语法检查
+
+#### Create 板块工具清单（待确认）
+
+- [ ] 定位 Create/创作板块来源（侧边栏导航配置），确认具体文件与字段
+- [ ] 核对工具显示名称（i18n 文案）与数量
+- [ ] 汇总工具列表并回复
+
+#### Agent 创作 smart* 工具数量（待确认）
+
+- [x] 定位 smart_* 工具定义与注册位置
+- [x] 统计 smart_* 工具数量，并核对“创作/创建阶段”描述
+- [x] 汇总数量与对应工具名并回复
+
+#### Create 阶段“分析型需求”工具匹配说明（待确认）
+
+- [x] 核对创作阶段与分析/探索阶段的工具职责（smart_* / analyze_content / explore_content / operate_apply）
+- [x] 结合用户示例需求，给出“该用什么工具、不写入章节”的解释
+- [x] 汇总答复并更新 review
+
+#### Explore 之后直接回答的规则改造（待确认）
+
+- [x] 梳理规划提示词中“分析/文档类任务”的默认路由（planning_prompts.py / decision_prompts.py）
+- [x] 调整规则：Explore 获取证据后优先 direct_answer，只有明确要求结构化评估时才用 analyze_content
+- [x] 补充 1 条示例（Explore → direct_answer）避免遗漏
+- [x] 更新 todo.md review 总结影响范围
+
+#### 路由规则遗漏核对（待确认）
+
+- [x] 全局搜索 analyze_content/smart_* 的提示词与示例，确认是否还有需要同步的路由说明
+- [x] 重点核对 planning_examples.py / tool_descriptions.py / actions 相关文档是否需要补充
+- [x] 如有遗漏，做最小改动并更新 review
+- [x] 汇总核对结论补充到 todo.md review
+
+#### review
+
+- 二次复核本次三项修复：未发现新增异常风险；范围优先级、limit 夹持、read_paragraphs 空结果原因均符合预期。
+- 已修复精确搜索负数 limit：向量/正文两路统一限流为最小 1，避免 SQL 报错。
+- 精确搜索强制使用本次请求的 chapter_range(s)，并对结果二次按参数范围过滤，避免回退全局范围。
+- read_paragraphs 空结果补充原因与诊断字段（empty_reason/invalid_items/index_base），提升可观测性。
+- 已确认创作阶段 smart_* 工具仅 3 个：smart_continue、smart_rewrite、smart_insert（定义在 backend/app/services/agent/tools/editor_tools.py，提示词说明在 backend/app/services/agent/prompts/tool_descriptions.py 与 planning_prompts.py）。
+- 本次只更新 todo.md 的进度与记录，无代码逻辑改动。
+- 已核对规划规则：分析/整理类文档用 analyze_content，证据检索用 explore_content，正文创作才用 smart_*；是否写入章节由 operate_apply 决定。
+- 已更新提示词规则：Explore 取证后默认直接输出分析/推演/大纲/设定补充；只有明确的结构化评估（一致性/风格/质量/打分）才使用 analyze_content，并补充示例。
+- 已补齐遗漏：planning_examples.py 的大纲/概括/分析文档/多章分析示例改为 explore_content 后直接输出；tool_descriptions.py 补充 analyze_content 的使用边界；planning_prompts.py 更新选中文本路由规则。
+- 已梳理 ai_summarization 架构：调用链路、触发条件、上下文压缩、流式事件与最终输出策略（含失败回退与事件时序）。
+- 已将 ai_summarization 的 max_tokens 从 2000 提升到 20000（影响最终整合输出长度上限）。
+- 已核对段落索引来源：向量入库使用 `locate_tools._split_paragraphs`，`chunk_index` 即 `paragraph_index`，与 `read_paragraph/list_paragraphs` 共享同一拆段规则。
+- 已确认索引不一致场景：章节内容更新未重建向量、`index_base` 0/1 混用、超大章 `list_paragraphs` 进入 800 字近似模式、段落数超过向量上限（MAX_CHUNKS=2000）导致后续段落未入索引。
+- 已将章节向量化移到 `ChapterService` 统一触发（create/update/update_with_lock），覆盖 API/Agent/HITL 写入路径；API 层原有 background_tasks 调用已移除避免重复。
+- 已补齐 `create_chapter_simple` 的向量化触发，并增加版本校验，避免多次保存导致旧任务覆盖新索引。
+- 已新增实时正文精确搜索：Explore 的 exact_search_paragraphs 改为直接读取最新章节内容切段匹配，确保保存后的段落定位与正文一致（不依赖向量索引）。
+- 已知限制：该路径会扫描章节正文，章节越大越慢；语义检索仍依赖向量索引（异步更新），仅精确搜索/段落定位保证实时。
+- 已增加向量新鲜度判断（基于 ChapterContentIndex.updated_at vs vector.updated_at），向量最新时走向量精确搜索，过期时走正文兜底，并加短 TTL 缓存减少高频查询。
+- 已添加大章性能优化：正文精确搜索先做章节级关键词预判，命中才切段；达到全局 limit 立即停止继续扫描。
+- 已移除自动向量化的 `content > 100` 门槛，短章也会触发向量化（仍为异步）。
+- 已在章节重排时同步更新 `novel_chapter_vectors.chapter_order`，避免向量顺序滞后影响检索排序。
+- 已对超大正文的精确搜索改为“流式切段+提前过滤+早停”，减少全量切段的 CPU/内存开销。
+- 已修复实时精确搜索的缩进错误，避免模块加载失败影响 Explore。
+- 已将向量新鲜度缓存改为“绝对 TTL + 正文更新时主动失效”，降低高频访问导致的过期判断失真。
+- 已在 ChapterService 与 ImportService 的正文落库路径补上新鲜度缓存失效，避免导入/批量写入后仍使用旧判断。
+- 已在章节删除与重排后主动失效新鲜度缓存，避免章节范围变化时短暂使用旧判定。
+- 已在新鲜度判断中加入“向量截断”判定：当向量数量达到 MAX_CHUNKS 时视为过期，优先走正文兜底保证准确性（代价是更频繁的兜底扫描）。
+
+#### ai_summarization 架构说明（待确认）
+
+- [x] 定位 ai_summarization 调用链路与触发条件（langgraph_agent.py / response_builder.py）
+- [x] 梳理上下文压缩与输入拼装（context_builder.py）
+- [x] 梳理流式事件与输出阶段（stream_event_handler / flow_events）
+- [x] 用直白详细的语言输出架构说明与执行流程
+
+#### 调整 ai_summarization 输出上限（待确认）
+
+- [x] 搜索 ai_summarization 的 max_tokens 设置与可能的相关上限
+- [x] 将 max_tokens 提升到指定值（最小改动）
+- [x] 更新 todo.md review 记录影响范围
+
+#### 规划 JSON 强制输出改造计划（待确认）
+
+- [x] 阅读规划链路与 AI 调用参数（planning_prompts / plan_generator / http_ai_service）
+- [x] 规划调用启用 JSON 模式或响应格式约束（仅影响 story_planning）
+- [x] 增强规划提示词的“仅 JSON 输出”约束（避免代码块/自然语言前后缀）
+- [x] 规划解析失败时尝试 JSON 修复/重排（不改变原始意图）
+- [x] 更新 todo.md review（记录改动与影响范围）
+
+#### Backend.md 最新日志分析计划（待确认）
+
+- [x] 定位并读取 `Backend.md` 最新追加日志区段（确认时间与上下文）
+- [x] 提取 planning 阶段关键日志（计划生成/解析失败/重试/降级条件）
+- [x] 对照“默认两步计划”触发条件，给出结论与证据
+- [x] 在 todo.md 追加 review（结论/时间点/建议）
+
 #### 章节数不一致排查计划（未确认）
 
 - [x] 通读后端导入与章节列表链路（ImportService / ChapterService / Chapters API），确认前端取数路径
@@ -34,6 +172,62 @@
 - [x] 复核 `explore_tools.py` 中 `exact_search_paragraphs` 的关键词解析路径（tool_loop）
 - [x] 拆分含分隔符的关键词（`|/，/、/;/｜`），确保传给向量精确匹配的是关键词数组
 - [x] 更新 `todo.md` review（记录改动与影响）
+
+#### 段落索引对应性核对计划（待确认）
+
+- [x] 查找段落切分规则与索引来源（`locate_tools._split_paragraphs` / `chapter_vector_service.store_chapter_vector`）
+- [x] 核对 `read_paragraph`/`list_paragraphs` 的 index_base 与大章近似模式
+- [x] 汇总“向量 paragraph_index ↔ UI 段落”对应关系与不一致场景
+- [x] 更新 todo.md review 并输出答复
+
+#### 取消向量段落上限（待确认）
+
+- [ ] 定位 MAX_CHUNKS 使用点与相关保护逻辑（`ChapterVectorService`）
+- [ ] 移除/放开 MAX_CHUNKS 限制并保持最小改动
+- [ ] 评估与记录影响范围（入库耗时/内存/存储/检索性能）
+- [ ] 更新 todo.md review 并输出答复
+
+#### 统一段落解析仅 <p>（待确认）
+
+- [ ] 核对后端段落切分入口与调用链（`locate_tools._split_paragraphs` / 向量入库 / read_paragraph）
+- [ ] 将段落解析规则收敛为仅 <p>（保留纯文本回退），并评估对 locate/阅读工具影响
+- [ ] 同步前端解析规则以保持段落序号一致（`useContentParser`）
+- [ ] 记录需要重建向量索引的注意事项，更新 todo.md review 并回复
+
+#### 保存后自动重建章节向量（待确认）
+
+- [x] 核对所有写入链路（API/Agent/HITL/工具）是否统一走 ChapterService.update_* 
+- [x] 在统一入口处触发向量化（后台任务或异步），避免遗漏
+- [x] 保持最小改动并评估性能影响（频繁保存/大章）
+- [x] 更新 todo.md review 并回复现状与改动
+
+#### 方案二：Explore 精确搜索使用最新正文（待确认）
+
+- [x] 在 ChapterVectorService 增加“基于最新正文切段”的精确搜索实现（保留原向量路径）
+- [x] Explore 调用 exact_search_paragraphs 时切换到最新正文路径
+- [x] 评估性能与边界（大章/无范围/limit），记录已知限制
+- [x] 更新 todo.md review 并回复变更影响
+
+#### 方案二优化：向量新鲜度判断 + 大章性能 + 去掉长度门槛（待确认）
+
+- [x] 设计并实现向量新鲜度判断（基于 content_hash 或章节版本）仅过期时走正文兜底
+- [x] 增加大章精确搜索性能策略（按章节范围/分页扫描，避免全量切段）
+- [x] 去掉自动向量化的 content > 100 门槛（短章也向量化）
+- [x] 记录性能权衡与限制，更新 todo.md review 并回复
+
+#### 方案二补强：新鲜度/重排/缓存（待确认）
+
+- [x] 仅基于正文索引更新时间判断新鲜度，避免非内容更新触发兜底
+- [x] 重排章节时同步更新向量的 chapter_order（不重建向量）
+- [x] 向量新鲜度判断加短 TTL 缓存，降低 Explore 频繁调用负担
+- [x] 更新 todo.md review，记录影响范围与边界
+
+#### 方案二复核修补（待确认）
+
+- [x] 修复实时精确搜索的缩进/语法问题，避免模块加载失败
+- [x] 将新鲜度缓存改为绝对 TTL，并在正文更新时主动失效
+- [x] 新鲜度判断补充“向量截断”判定（MAX_CHUNKS 命中则视为过期）
+- [x] 更新 todo.md review，记录修补点与残余风险
 
 ### 讨论记录（详细）
 
@@ -150,11 +344,62 @@
 - [x] 确保 explore_content 的范围解析兼容上述格式（含 en dash）
 - [x] 冒烟检查并更新 review（记录无法运行的原因）
 
+#### 计划（修复"世界观文档"被误派给续写工具的问题）
+
+**问题背景**：
+- 用户请求"输出一份完整的《世界观设定补充文档》"时，系统错误地使用了 `smart_continue`（续写工具）
+- `smart_continue` 的 prompt 是为小说续写设计的，导致输出了故事内容而非分析文档
+- 生成的内容还被自动 `operate_apply(append)` 到了当前章节
+
+**根因**：
+- `planning_prompts.py:196` 规定：`创作新内容（包括大纲/规划/设定）→ smart_continue`
+- "设定文档"被归类为"创作"，但实际应该是"分析/整理"
+
+**修复方案**：修改规则，明确区分工具职责
+- **故事正文创作**（写入编辑器的小说内容）→ `smart_continue` / `smart_rewrite` / `smart_insert`
+- **其他所有非正文需求**（世界观文档、角色卡、分析报告、伏笔追踪、大纲规划等）→ `analyze_content`
+
+**待办**：
+- [x] 修改 `planning_prompts.py` 中的工具选择规则，区分"故事正文"与"分析文档"
+- [x] 在 `planning_examples.py` 中增加"世界观文档/角色卡/分析报告"使用 `analyze_content` 的示例
+- [ ] 确保 `analyze_content` 能输出结构化文档（检查其 prompt 是否需要调整）
+- [ ] 冒烟检查并更新 review
+
+#### 计划（修复 read_paragraphs 批量读取缺少去重检查的问题）
+
+**问题背景**：
+- 日志显示 AI 使用 `read_paragraphs` 批量读取时，同一段落被反复读取多次
+- 例如：第1章第57-87段在连续3轮中被重复读取
+
+**根因**：
+- `read_paragraph`（单个读取）有前置去重检查（`should_read_paragraph`）
+- `read_paragraphs`（批量读取）**没有前置去重检查**，直接调用底层工具
+- 调用链：`ExploreTool → langgraph_tools.read_paragraphs`，后者没有任何去重逻辑
+- 结果处理时只是记录已读（`record_paragraph_read`），但读取已经发生了
+
+**代码位置**：
+- 缺陷位置：`explore_tools.py` 第3099-3142行（`read_paragraphs` 分支）
+- 对比参考：`explore_tools.py` 第2995-2996行（`read_paragraph` 有前置检查）
+
+**补充发现 - 结果截断导致 AI 误判**：
+- `TOOL_LOOP_RESULT_PREVIEW_LIMIT = 1200` 字符
+- 38个段落的读取结果远超 1200 字符，AI 只能看到前几个段落
+- AI 误以为后面的段落没读到，所以每轮都重新请求读取
+- 日志证据：AI 每轮微调起点（50→52→54→57），但终点始终是 87，说明它知道前面的读了，但不确定后面的
+
+**待办**：
+- [x] 在 `ExploreTool._execute_tool` 的 `read_paragraphs` 分支中增加前置去重检查
+- [x] 过滤掉 `items` 中已读取的段落（调用 `should_read_paragraph`）
+- [x] 在 `_build_tool_loop_summary` 中增加"已读段落列表"摘要，告诉 AI 哪些段落已读
+- [ ] 考虑优化结果预览策略（如：只返回段落号列表，不返回内容）
+- [x] 将 `MAX_ROUNDS` 从 10 提升到 200（`explore_tools.py:1786`）
+- [ ] 冒烟检查并更新 review
+
 #### 计划（重构工具循环的章节覆盖策略）
 
-- [ ] 增加“覆盖度优先”硬规则：同一章节连续读取上限 + 未覆盖章节优先
-- [ ] 在 tool_loop 决策提示中加入“跨章覆盖”要求（必须先覆盖范围内多个章节）
-- [ ] 读取策略改为“跨章批量读”：优先 list_chapters/list_paragraphs 再分散 read_paragraphs
+- [ ] 增加"覆盖度优先"硬规则：同一章节连续读取上限 + 未覆盖章节优先
+- [ ] 在 tool_loop 决策提示中加入"跨章覆盖"要求（必须先覆盖范围内多个章节）
+- [ ] 读取策略改为"跨章批量读"：优先 list_chapters/list_paragraphs 再分散 read_paragraphs
 - [ ] 增加章节覆盖统计并输出到日志/summary，便于验收
 - [ ] 冒烟检查并更新 review（记录无法运行的原因）
 
@@ -189,6 +434,64 @@
 - [x] 校准 tool_loop 提示/参数约束，避免 LLM 生成无效 items 导致重复调用
 - [x] 记录复现路径与修复结果，补充 todo.md 的 review
 
+#### Explore 搜索可见性问题 review（待确认）
+
+- [x] 定位 Explore 工具链路中搜索结果的存储与证据规则（search_hits/evidences）
+- [x] 确认 AI 决策上下文可见内容（search_history/last_tool_result/证据原文）
+- [x] 给出结论：AI 是否能看到搜索返回原文、哪些是片段、哪些是证据，并更新 todo.md review
+
+#### opencode Explore 搜索流程剖析计划（待确认）
+
+- [x] 通读 opencode Explore 入口（explore prompt / agent 注册 / Task 调用）
+- [x] 梳理搜索工具链路（glob/grep/read）与输出截断/权限，明确 AI 能看到的内容
+- [x] 解释“探索结果如何返回主 AI”，形成深度剖析结论并更新 todo.md review
+
+#### Explore 命中回显扩展计划（待确认）
+
+- [x] 扩展搜索命中回显长度与条数（对标 grep 100 条 × 2000 字）
+- [x] 在自检摘要中展示“最近一轮 exact_search 命中列表”，避免仅靠短预览
+- [x] 更新 todo.md review 记录改动与影响
+
+#### Explore 命中列表上限与过滤优化计划（待确认）
+
+- [x] 命中列表增加总字符上限，超出提示“剩余条目省略”
+- [x] 仅展示最新 query 的 Top-N 命中，避免混入旧轮次
+- [x] 更新 todo.md review 记录改动与影响
+
+#### Explore 命中定位可回溯性计划（待确认）
+
+- [x] 命中无段落号时标记“不可直接读取”，提示先 list_paragraphs 获取 index（tool_loop 不用 locate）
+- [x] 命中列表展示 chapter_id/node_id（如有），并在摘要中保留位置线索
+- [x] 更新 todo.md review 记录改动与影响
+
+#### 段落索引准确性与 UI 一致性 review 计划（待确认）
+
+- [x] 复核段落拆分规则与索引基准（list_paragraphs/read_paragraphs/index_base）
+- [x] 对照 UI 渲染与后端拆段规则，判断“UI 所见即段落索引”的一致性
+- [x] 输出结论与风险，并更新 todo.md review
+
+#### 段落索引对外 1-based 兼容方案（待确认）
+
+- [x] 对外 API 默认 1-based（list_paragraphs/read_paragraph/read_paragraphs），内部仍 0-based
+- [x] list_paragraphs 输出 display_index = index + 1（含 approximate 模式）
+- [x] read_paragraph/read_paragraphs 默认 index_base=one，内部显式 zero 调用保持不变
+- [x] read_paragraph/read_paragraphs 返回 display_index（便于 UI/AI 对齐）
+- [x] 更新 todo.md review 记录改动与影响
+
+#### Explore 读取预算按章限制计划（待确认）
+
+- [x] 新增 per-chapter 读取上限（动态上限：按段落数比例/最小/最大值），避免单章耗尽预算
+- [x] 取消默认全局上限（如需保留则改为可选），并在工具摘要中显示每章剩余预算
+- [x] 调整 read_paragraph/read_paragraphs/exact_search 自动读的预算扣减逻辑
+- [x] 更新 todo.md review 记录改动与影响
+
+#### read_paragraphs 分页读取优化计划（待确认）
+
+- [x] read_paragraphs 新增 offset/limit + chapter_order/chapter_id 参数，内部自动 list_paragraphs→read_paragraph
+- [x] 保持 items 批量模式兼容（未传 offset/limit 时走原逻辑）
+- [x] 更新 explore 工具提示语（说明可用分页参数）
+- [x] 更新 todo.md review 记录改动与影响
+
 ### review
 
 - 已删除 todo.md 其余记录，仅保留“### 讨论记录（详细）”及其内容。
@@ -198,6 +501,8 @@
 - 已打通 node_id：`ParagraphRead` 记录 node_id，构建 node_id 映射并用于 evidences/search_results/locate_targets。
 - 已移除/隐藏 sufficiency/coverage 输出字段，前端展示改为“继续检索/停止检索”语义。
 - 已修复 `ParagraphRead` 字段顺序错误，避免 dataclass 导入时报错。
+- Backend.md 最新日志显示：2026-01-28 21:15:58 开始 planning；21:17:03 第1次 JSON 解析失败（模型输出为非 JSON 的完整内容）；21:17:54 第2次重试成功并生成 3 个任务。日志中未出现“默认两步计划/降级两步”触发记录，说明本次并非走两步降级，而是一次解析失败后重试成功。
+- 规划 JSON 强制输出已加强：planning 调用加入 `response_format={"type":"json_object"}` 并在不支持时自动降级重试；提示词追加“禁止 ```json 代码块”；JSON 提取增加 BOM 处理，解析更稳。
 - 已在 read_paragraph 回填 node_id，并为仅有 paragraphs 的章节补齐 chapter_id（含 resolve）。
 - 已恢复 max_rounds=10 的自检循环上限（不再硬封顶 3 轮）。
 - 已清理旧规则评估与 AI 规划相关死代码，保留当前自检驱动路径。
@@ -212,6 +517,8 @@
 - 冒烟：`python -m py_compile` 失败（环境无 python），未运行自动化测试。
 - 已为 `read_paragraph` 增加 chapter_id 支持（无 chapter_order 时自动解析），返回中补齐 chapter_id。
 - 已在 `list_chapters` 输出 paragraph_count（与编辑器拆段一致）。
+- 已扩展搜索命中回显：命中列表追加 chapter_id/node_id；无段落号时标记“先 list_paragraphs”；搜索历史摘要加入“首条第X章第Y段”位置提示。
+- 已完成对外 1-based 兼容：list_paragraphs 增加 display_index（含 approximate）；read_paragraph/read_paragraphs 默认 1-based 并返回 display_index，内部调用仍显式 zero。
 - 已为向量索引新增 node_id 字段并写入/检索透出，Hybrid/semantic 搜索结果同步携带 node_id。
 - 已新增迁移脚本说明（重跑 `migrate_chapter_vectors.py` 回填 node_id），并添加 Alembic 迁移文件。
 - 已将 explore_content 默认模式切到 tool_loop（V5），并更新工具描述。
@@ -248,6 +555,32 @@
 - 任务范围锁定在第1–2章，且 tool_loop 禁用语义检索，仅做精确匹配；若原文措辞不同，也会出现“搜索过但无证据”的结果。
 - 建议：在 `exact_search_paragraphs` 或调用侧拆分 `|/，/空格` 为数组；必要时加入低成本兜底（list_paragraphs→read_paragraph）或允许语义检索作为辅助。
 - 已在 explore 工具侧对 `exact_search_paragraphs` 的关键词做分隔符拆分（`|/，/、/;/｜`），避免单字符串精确匹配导致 0 命中。
+
+#### 2026-01-29 修复：explore_content 重复读取与工具选择问题
+
+**问题1：read_paragraphs 批量读取缺少去重检查**
+- 根因：`read_paragraphs` 分支没有调用 `should_read_paragraph` 进行前置去重检查
+- 补充发现：`TOOL_LOOP_RESULT_PREVIEW_LIMIT=1200` 导致 AI 只能看到部分结果，误以为后面的段落没读到
+- 修复：在 `explore_tools.py:3097` 增加 `self.state.should_read_paragraph()` 检查
+
+**问题2：AI 不知道哪些段落已读**
+- 根因：`_build_tool_loop_summary` 没有告诉 AI 已读段落列表
+- 修复：在 `explore_tools.py:2451-2468` 增加已读段落摘要（按章节分组显示）
+
+**问题3：MAX_ROUNDS 过小**
+- 修复：将 `MAX_ROUNDS` 从 10 提升到 200（`explore_tools.py:1786`），与其他预算参数保持一致
+
+**问题4：世界观文档被误派给续写工具**
+- 根因：`planning_prompts.py:196` 规定"创作新内容（包括设定）→ smart_continue"
+- 修复：区分"故事正文"与"分析文档"
+  - `planning_prompts.py:196-202`：明确 smart_continue 只用于故事正文，analyze_content 用于分析文档
+  - `planning_examples.py:607-677`：新增场景6示例（世界观文档/角色卡/伏笔表）
+
+**深度验证后的额外修复**（2026-01-29）：
+- 修复：`explore_content` 函数参数默认值 `max_rounds=10` 改为 `200`，与 `MAX_ROUNDS=200` 保持一致
+- 修复：已读段落摘要增加长度限制（最大500字符），避免占用过多 token
+- 修复：`planning_examples.py` 中 `aspects: ["worldview"]` 改为 `aspects: ["structure"]`（因为 `worldview` 不是有效 aspect）
+- 修复：示例中增加 `focus` 参数，明确指定输出格式要求
 
 #### 《人在诸天，摆烂成帝.txt》章节统计
 
@@ -294,6 +627,32 @@
 
 - 将 `TOOL_LOOP_MAX_READS_DEFAULT` 从 60 提升为 200，以降低探索因读取预算耗尽而提前停止的概率。
 
+#### “默认两步计划”原因分析计划（未确认）
+
+- [x] 阅读 `Backend.md` 中对应时间段的规划日志，定位触发兜底的直接原因
+- [x] 对照 `PlanGenerator` 的兜底分支条件（JSON解析失败/空响应/无tasks）核验
+- [x] 输出结论与改进建议（提示词约束/JSON封装/失败回退策略）
+- [x] 更新 todo.md review 记录结论
+
+#### “默认两步计划”原因结论
+
+- `Backend.md` 显示在 2026-01-28 20:56:38 与 20:57:21 两次规划尝试均出现 “JSON解析失败” 警告，且日志中 AI 返回文本包含自然语言 + 未闭合的 JSON 片段，导致解析失败。
+- `PlanGenerator` 在连续两次解析失败后触发 `_create_default_plan()` 兜底，因此生成了固定的两步计划（get_context → analyze_content）。
+- 改进建议：增强规划提示词的 JSON 约束（只输出 JSON）、提高最大 tokens 或开启更严格的 JSON 修复；必要时将解析失败的原始文本记录到单独字段便于调试。
+
+#### 规划 JSON 输出修复计划（未确认）
+
+- [x] 收紧规划提示词：仅允许输出 JSON（禁止自然语言/解释），覆盖 planning_static_prompt 与 agent_mode_prompt
+- [x] 增强 JSON 修复/截断补全策略（提取失败时尝试补齐闭合括号/引号等）
+- [x] 记录解析失败的原始文本到日志字段，便于定位具体坏片段
+- [x] 更新 todo.md review 记录改动与影响范围
+
+#### 规划 JSON 输出修复（完成）
+
+- Prompt 层：在规划输出格式中新增“仅输出 JSON、禁止任何非 JSON 内容”，并在静态/Agent 模式提示尾部再次强约束。
+- 解析层：新增 JSON 截断与括号补齐策略（`_truncate_to_balanced_json` / `_balance_json_braces`），并在修复失败时继续尝试解析。
+- 观测层：规划 JSON 解析失败时记录原始文本日志，便于定位坏片段。
+
 #### 章节数不一致排查结论
 
 - 2026-01-27 19:03:57 后端日志显示文本导入完成仅 **77 章**（work_id=5fe6c67d-8a1b-48c1-ad56-a5281eb22e21）。
@@ -302,3 +661,21 @@
 - 前端列表来自 `/api/v1/chapters/work/{work_id}`，未做过滤；数量显示与后端真实章节数一致，问题不在前端。
 - 最可能根因：`_split_chapters` 的正则仅匹配“第X章+空白/冒号”，对“第X章【标题】/第X章-标题/第X章·标题/无分隔符”等格式命中失败，导致 23 处章节标题未被识别而被合并。
 - 解决建议：扩展分章正则（允许 `【】()（）[]`、破折号、点号、空白可选），重新导入或做补偿拆分迁移；若使用 Markdown，建议放宽 `##` 为 `#{1,6}`。
+- Explore 搜索可见性结论：搜索/精确搜索结果只进入 `search_hits` 与 `search_history` 的摘要或预览，不作为证据；AI 在决策时只能看到摘要/截断片段（`hits_summary` + 上一次结果预览），完整原文只来自 `read_paragraph` 并进入 `evidences`。
+- opencode Explore 结论：Explore 是独立子代理（`explore`），主代理通过 Task 工具创建新会话并传入提示；子代理用 Glob/Grep/Read 搜索与阅读，工具输出各自有截断（glob/grep 限 100 条、read 2000 行或 50KB），截断时提示继续 read/offset；子代理看到完整工具输出后自行总结并返回**单条文本**给主代理（Task 只回传子代理最终文本 + session 元数据），要求返回绝对路径。
+- 已将搜索命中回显扩展到对标 grep 规格：`search_hits` 单条保存上限改为 2000 字，自检摘要新增“最近一轮命中列表”（最多 100 条、每条 2000 字），减少仅靠短预览做决策。
+- 已加入命中列表总字符上限（20k）与最少展示条数（5条），超出会提示省略；同时改为优先展示“最新 query”的 Top-N 命中，避免混入旧轮次。
+- 段落索引准确性结论：AI 读取的段落索引是以 `_split_paragraphs` 解析 HTML/纯文本的顺序为准，匹配 Tiptap 的块级节点（p/h1-6/blockquote/pre/li）并解析 data-id；在章节内容 < 200k 时准确，但超大章节 `list_paragraphs` 会进入 approximate 模式（800 字窗口），UI 与索引可能不一致；另外 `read_paragraph` 的 index_base=auto 会把正数当 1-based，下游若传 0-based 且未显式声明会出现偏移。
+- 已改为按章动态读取上限（默认按段落数比例+最小/最大值），并取消默认全局上限；工具摘要显示各章读取进度；read_paragraph/read_paragraphs/精确搜索自动读均受按章预算约束。
+- 已为 read_paragraphs 增加分页读取模式（chapter_order/chapter_id + offset/limit），内部先 list_paragraphs 再批量 read_paragraph，且 range 模式强制使用 0-based 索引。
+- Explore tool_loop 已支持 read_paragraphs 的分页参数，并在提示语中说明 items/分页双模式；按章预算与全局预算会裁剪分页 limit。
+- read_paragraphs 的结果返回补充 range 元数据（mode/offset/limit/total_paragraphs/index_base），便于调用侧对齐显示。
+- 已基于《一夕千悟，从杂役弟子开始》前几章设计 5 个复杂测试 prompts，覆盖分页读取、items 批量读取、范围锁定与证据回读。
+- Backend.md 最新段落存在两类硬错误：`get_writing_context` 未定义导致世界观获取失败，以及 `chapter_vector_service.py` 语法错误导致 explore_content 直接崩溃，任务被提前终止并返回“工具执行失败”提示。
+- 已修复 `chapter_vector_service.py` 中 `match_mode` 分支的缩进语法错误（else 块缺缩进），恢复 exact_search_content 的判断逻辑。
+- 未能运行 `python -m py_compile`（环境无 python）。
+- 已在 explore_tool_loop 内部补回 `get_writing_context` 的局部导入，修复“name 'get_writing_context' is not defined”导致的世界观读取失败。
+- 已修复 `reads_left` 为 None 时仍执行 `<= 0` 比较导致的 TypeError，避免 Explore 在 list_chapters 后崩溃。
+- 已修复关键词拆分：支持英文逗号 `,`；并跳过对含逗号未拆分关键词的阻断，避免“0 命中”被错误复用。
+- 已调整 should_block_search：对“多关键词组合且 0 命中”的历史记录不再阻断单个关键词搜索，避免旧错误记录持续误判。
+- 已通读 Backend.md（2021 行）并复盘：主要问题集中在精确搜索过于字面、搜索拦截误判、read_paragraphs 多次返回空、以及负数 limit 触发 SQL 错误。

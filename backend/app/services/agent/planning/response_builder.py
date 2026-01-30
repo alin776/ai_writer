@@ -534,7 +534,7 @@ class ResponseBuilder:
         result = await self._generate_text_stream(
             prompt=summary_prompt,
             on_chunk=stream_callback,
-            max_tokens=2000,
+            max_tokens=20000,
             temperature=0.7,
             task_type=TaskType.SUMMARIZATION,
             buffer_size=1
