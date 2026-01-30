@@ -1106,3 +1106,18 @@
 
 - ToolExecutor 增加 evidence_context 类型强制转换：smart_rewrite/smart_continue/smart_insert 只要发现非字符串就转换并打警告，避免 Pydantic 直接失败。`backend/app/services/agent/execution/tool_executor.py`
 - 转换逻辑优先提取 list/dict 中的 text/content/snippet 字段，无法提取时回退为 JSON 文本，保持可读性并保留证据。
+
+#### 追加内容写错章节（第1章→第2章）排查（待确认）
+
+- [x] 通读 Backend.md 最新日志，定位 append/operate_apply 的 chapter_id 来源
+- [x] 核对 planning/parameter_resolver/tool_executor 是否发生章节降级或引用越界
+- [x] 查明“应写第1章但写到第2章”的触发条件（上下文 chapter_id、locate_targets、task依赖）
+- [x] 输出证据清单（行号 + 文件路径）并给出直白结论
+- [x] 更新 todo.md review（结论与风险）
+
+#### review
+
+- 证据1（读的确是第1章）：explore_content 在第1章读取段落（`Backend.md:61-66`），并明确“已收集到第一章所有段落（18/18）”（`Backend.md:67`），说明探索目标确实是第1章末尾。
+- 证据2（写入却是第2章）：operate_apply/ apply_chapter_edit 实际写入 chapter_id=a82095aa...（`Backend.md:86-88`），这与界面中“第2章”被选中且内容落在第2章末尾一致（截图）。
+- 直接根因：**chapter_id 没有从“第1章”目标显式传到写入阶段**，写入工具使用了当前上下文/前端活跃章节的 chapter_id（第2章）。因为这一轮没有 locate_content 任务（仅 explore_content），`plan_generator._ensure_chapter_id_from_locate` 不会覆写章节ID；而 ToolExecutor 对 smart_continue/operate_apply 在 chapter_id 缺失或解析失败时会默认使用 state.chapter_id（当前章节）。`backend/app/services/agent/execution/tool_executor.py:360-392`、`backend/app/services/agent/planning/plan_generator.py:1227-1253`
+- 结论（直白）：**你写错章不是定位漂移，而是“章节ID来源错了”**——计划/参数没有把“第1章”的 chapter_id 绑定到写入阶段，最终沿用当前界面所在章节（第2章）。
