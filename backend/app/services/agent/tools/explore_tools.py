@@ -45,6 +45,7 @@ KEYWORD_COVERAGE_MAX = 20
 SEARCH_HIT_PREVIEW_LIMIT = 100
 SEARCH_HIT_TOTAL_CHAR_LIMIT = 20000
 SEARCH_HIT_MIN_ITEMS = 5
+LIST_PARAGRAPHS_PAGE_SIZE = 50
 PER_CHAPTER_READ_CAP_RATIO = 0.2
 PER_CHAPTER_READ_CAP_MIN = 10
 PER_CHAPTER_READ_CAP_MAX = 30
@@ -72,6 +73,14 @@ PARAGRAPH_REQUIRED_KEYWORDS = (
     "只允许精确段落读取",
     "只读段落",
     "仅段落",
+    "改写",
+    "替换",
+    "润色",
+    "插入",
+    "扩写",
+    "优化",
+    "smart_rewrite",
+    "smart_insert",
 )
 
 UNREACHABLE_MISSING_KEYWORDS = (
@@ -1572,24 +1581,6 @@ def _build_locate_targets(
             node_id=p.node_id or node_id_map.get((p.chapter_order, p.paragraph_index), "")
         )
 
-    # 兜底：用证据片段生成定位目标
-    fallback_items = candidates
-    if fallback_items is None:
-        fallback_items = result.search_hits if getattr(result, "search_hits", None) else result.evidences
-    for e in fallback_items:
-        chapter_id = e.chapter_id or ""
-        if not chapter_id:
-            entry = chapters_by_order.get(e.chapter_order, {})
-            chapter_id = entry.get("id") or entry.get("chapter_id") or ""
-        _add_target(
-            chapter_order=e.chapter_order,
-            paragraph_index=e.paragraph_index,
-            chapter_id=chapter_id,
-            query=e.text,
-            reason="检索片段需定位",
-            node_id=node_id_map.get((e.chapter_order, e.paragraph_index), "")
-        )
-
     return targets
 
 
@@ -1932,6 +1923,7 @@ class ContentExplorer:
         self.start_time = get_utc_now()
         self.chapter_list_cache: Optional[List[Dict[str, Any]]] = None
         self.paragraph_node_id_cache: Dict[int, Dict[str, int]] = {}
+        self.paragraph_list_ranges: Dict[int, List[Tuple[int, int]]] = {}
         self.allowed_chapter_orders: List[int] = []
         self.chapter_paragraph_counts: Dict[int, int] = {}
         self.chapter_read_caps: Dict[int, int] = {}
@@ -2043,6 +2035,42 @@ class ContentExplorer:
             node_id = para.get("node_id") or ""
             if isinstance(idx, int) and node_id and node_id not in node_map:
                 node_map[node_id] = idx
+
+    def _record_listed_paragraph_range(
+        self,
+        chapter_order: int,
+        offset: Optional[int],
+        limit: Optional[int],
+        total: Optional[int],
+        approximate: bool = False
+    ) -> None:
+        if approximate:
+            return
+        if not isinstance(chapter_order, int):
+            return
+        if not isinstance(offset, int):
+            offset = 0
+        if not isinstance(limit, int) or limit <= 0:
+            return
+        start = max(0, offset)
+        end = start + limit - 1
+        if isinstance(total, int) and total > 0:
+            end = min(end, total - 1)
+        ranges = self.paragraph_list_ranges.setdefault(chapter_order, [])
+        # 避免重复记录完全覆盖的范围
+        for existing_start, existing_end in ranges:
+            if existing_start <= start and existing_end >= end:
+                return
+        ranges.append((start, end))
+
+    def _is_paragraph_index_listed(self, chapter_order: int, paragraph_index: int) -> bool:
+        ranges = self.paragraph_list_ranges.get(chapter_order)
+        if not ranges:
+            return False
+        for start, end in ranges:
+            if start <= paragraph_index <= end:
+                return True
+        return False
 
     def _calc_read_cap(self, total_paragraphs: Optional[int]) -> int:
         if not isinstance(total_paragraphs, int) or total_paragraphs <= 0:
@@ -2974,6 +3002,22 @@ class ContentExplorer:
                 if isinstance(result_data, dict) and result_data.get("success") and isinstance(chapter_order, int):
                     self.flow_listed_paragraphs.add(chapter_order)
                     self._cache_paragraph_index_map(chapter_order, result_data)
+                    approx = bool(result_data.get("approximate"))
+                    offset_val = params.get("offset")
+                    limit_val = params.get("limit")
+                    if isinstance(offset_val, str) and offset_val.isdigit():
+                        offset_val = int(offset_val)
+                    if isinstance(limit_val, str) and limit_val.isdigit():
+                        limit_val = int(limit_val)
+                    if not isinstance(limit_val, int) or limit_val <= 0:
+                        limit_val = LIST_PARAGRAPHS_PAGE_SIZE
+                    self._record_listed_paragraph_range(
+                        chapter_order=chapter_order,
+                        offset=offset_val if isinstance(offset_val, int) else 0,
+                        limit=limit_val,
+                        total=result_data.get("total_paragraphs"),
+                        approximate=approx
+                    )
             logger.info(
                 "[ExploreTool] done=%s success=%s chapter=%s offset=%s limit=%s approximate=%s",
                 tool_name,
@@ -3667,6 +3711,49 @@ class ContentExplorer:
                                 result = await read_paragraphs.ainvoke(params)
                                 result_data = json.loads(result) if isinstance(result, str) else result
                 else:
+                    # 确保 list_paragraphs 覆盖候选段落区间（用于 node_id/范围校验）
+                    try:
+                        missing_ranges: Dict[int, Set[int]] = {}
+                        for item in items:
+                            if not isinstance(item, dict):
+                                continue
+                            chapter_order = item.get("chapter_order") or item.get("chapter")
+                            paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
+                            if isinstance(chapter_order, str) and chapter_order.isdigit():
+                                chapter_order = int(chapter_order)
+                            if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                                paragraph_index = int(paragraph_index)
+                            if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                                continue
+                            if self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                                continue
+                            if self._is_paragraph_index_listed(chapter_order, paragraph_index):
+                                continue
+                            offset = (paragraph_index // LIST_PARAGRAPHS_PAGE_SIZE) * LIST_PARAGRAPHS_PAGE_SIZE
+                            missing_ranges.setdefault(chapter_order, set()).add(offset)
+                        for chapter_order, offsets in missing_ranges.items():
+                            for offset in sorted(offsets):
+                                list_params = {
+                                    "work_id": self.work_id,
+                                    "chapter_order": chapter_order,
+                                    "offset": offset,
+                                    "limit": LIST_PARAGRAPHS_PAGE_SIZE,
+                                    "preview_len": 0
+                                }
+                                list_result = await list_paragraphs.ainvoke(list_params)
+                                list_data = json.loads(list_result) if isinstance(list_result, str) else list_result
+                                if isinstance(list_data, dict) and list_data.get("success"):
+                                    self.flow_listed_paragraphs.add(chapter_order)
+                                    self._cache_paragraph_index_map(chapter_order, list_data)
+                                    self._record_listed_paragraph_range(
+                                        chapter_order=chapter_order,
+                                        offset=offset,
+                                        limit=LIST_PARAGRAPHS_PAGE_SIZE,
+                                        total=list_data.get("total_paragraphs"),
+                                        approximate=bool(list_data.get("approximate"))
+                                    )
+                    except Exception:
+                        pass
                     filtered_items = []
                     remaining_by_chapter: Dict[int, Optional[int]] = {}
                     for item in items:
@@ -4719,6 +4806,19 @@ async def explore_content(
             candidates=getattr(result, "search_hits", None)
         )
         evidences_output = _build_evidences_output(result, node_id_map=node_id_map)
+
+        if explorer.require_paragraph_index and not locate_targets:
+            message = "探索未产出可定位段落（缺少 paragraph_index/node_id），请先用 list_paragraphs/read_paragraphs 精确读取目标段落。"
+            result_payload = {
+                "success": False,
+                "error": "missing_locate_targets",
+                "message": message,
+                "evidences": evidences_output,
+                "locate_targets": locate_targets
+            }
+            if use_cache and cache_key:
+                await _set_cached_explore_result(cache_key, result_payload)
+            return json.dumps(result_payload, ensure_ascii=False, indent=2)
 
         if evidence_only_output:
             result_payload = {

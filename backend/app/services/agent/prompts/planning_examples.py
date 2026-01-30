@@ -291,11 +291,11 @@ def get_search_examples() -> str:
   "tasks": [
     {"task_id": 1, "description": "定位吞噬器灵场景", "tool": "locate_content", "params": {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}, "depends_on": []},
     {"task_id": 2, "description": "改写场景描写", "tool": "smart_rewrite", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}}, "text_to_rewrite": {"$ref": {"task_id": 1, "path": "text"}}, "user_requirement": "优化场景描写，增强画面感"}, "depends_on": [1]},
-    {"task_id": 3, "description": "应用到编辑器", "tool": "operate_apply", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}}, "operation": "replace", "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}}, "original_text": {"$ref": {"task_id": 2, "path": "original_text"}}, "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}}, "node_id": {"$ref": {"task_id": 1, "path": "node_id"}}}, "depends_on": [1, 2]}
+    {"task_id": 3, "description": "应用到编辑器", "tool": "operate_apply", "params": {"chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}}, "operation": "replace", "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}}, "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}}, "node_id": {"$ref": {"task_id": 1, "path": "node_id"}}}, "depends_on": [1, 2]}
   ]
 }
 ⚠️ 关键：用户要**修改**内容时，必须用 locate_content 定位；检索信息统一用 explore_content！
-⚠️ 跨章节支持：smart_rewrite 和 operate_apply 的 chapter_id 必须使用 {"$ref": {"task_id": 1, "path": "chapter_id"}}（locate_content 返回的章节ID），支持跨章节修改！
+⚠️ 章节必须明确：locate_content 不跨章节，chapter_id 必须来自明确章节或用户指定！
 
 用户: "找一下主角觉醒的描写"
 {
@@ -348,7 +348,6 @@ def get_smart_rewrite_examples() -> str:
       "chapter_id": {"$ref": {"task_id": 1, "path": "chapter_id"}},
       "operation": "replace",
       "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
-      "original_text": {"$ref": {"task_id": 2, "path": "original_text"}},
       "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}},
       "node_id": {"$ref": {"task_id": 1, "path": "node_id"}}
     }, "depends_on": [1, 2]}
@@ -361,7 +360,7 @@ def get_smart_rewrite_examples() -> str:
   "thinking": {
     "step1_output": "用户指定了要改写的文本，使用 smart_rewrite 并应用到编辑器",
     "step2_material": "用户已提供文本",
-    "step3_process": "⚠️ 创作类→操作类：smart_rewrite 生成 → operate_apply 应用（用 original_text 定位）"
+    "step3_process": "⚠️ 创作类→操作类：smart_rewrite 生成 → locate_content 定位 → operate_apply 应用"
   },
   "user_intent": "改写指定文本使其更有画面感",
   "tasks": [
@@ -370,12 +369,14 @@ def get_smart_rewrite_examples() -> str:
       "text_to_rewrite": "天色未明，青冥中尚悬着几颗残星。",
       "user_requirement": "更有画面感"
     }, "depends_on": []},
-    {"task_id": 2, "description": "应用到编辑器", "tool": "operate_apply", "params": {
+    {"task_id": 2, "description": "定位原文位置", "tool": "locate_content", "params": {"chapter_id": "$CHAPTER_ID$", "query": "天色未明，青冥中尚悬着几颗残星。"}, "depends_on": [1]},
+    {"task_id": 3, "description": "应用到编辑器", "tool": "operate_apply", "params": {
       "chapter_id": "$CHAPTER_ID$",
       "operation": "replace",
       "content": {"$ref": {"task_id": 1, "path": "versions[0].content"}},
-      "original_text": {"$ref": {"task_id": 1, "path": "original_text"}}
-    }, "depends_on": [1]}
+      "paragraph_index": {"$ref": {"task_id": 2, "path": "paragraph_index"}},
+      "node_id": {"$ref": {"task_id": 2, "path": "node_id"}}
+    }, "depends_on": [1, 2]}
   ]
 }
 
@@ -399,11 +400,12 @@ def get_smart_rewrite_examples() -> str:
       "chapter_id": {"$ref": {"task_id": 1, "path": "locate_targets[0].chapter_id"}},
       "operation": "replace",
       "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
-      "original_text": {"$ref": {"task_id": 2, "path": "original_text"}}
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "locate_targets[0].paragraph_index"}},
+      "node_id": {"$ref": {"task_id": 1, "path": "locate_targets[0].node_id"}}
     }, "depends_on": [1, 2]}
   ]
 }
-⚠️ 关键：扩写/润色/优化 都用 smart_rewrite → operate_apply（用 original_text 定位）！
+⚠️ 关键：扩写/润色/优化 都用 smart_rewrite → operate_apply（必须传 node_id/paragraph_index）！
 """
 
 
@@ -802,21 +804,18 @@ def get_operate_apply_examples() -> str:
     """operate_apply 统一入口示例（🆕 推荐使用）"""
     return """【operate_apply 统一入口示例】🆕 推荐使用 operate_apply 统一入口
 
-⚠️⚠️⚠️ **极其重要 - operate_apply 会自动处理定位！** ⚠️⚠️⚠️
+⚠️⚠️⚠️ **极其重要 - operate_apply 不再自动定位！** ⚠️⚠️⚠️
 
-**不需要单独调用 locate_content！** operate_apply 内部会根据参数自动定位：
-- replace 操作：传入 original_text → 自动 text_match 定位
-- insert 操作：传入 target_description → 自动 semantic 定位
+必须先用 locate_content 或 list_paragraphs/read_paragraphs 获取 node_id/paragraph_index。
 
-✅ 正确流程：smart_rewrite → operate_apply(operation="replace", original_text="要替换的原文")
-❌ 错误流程：locate_content → smart_rewrite → operate_apply（不要分步调用！）
+✅ 正确流程：先定位 → smart_rewrite → operate_apply(operation="replace", paragraph_index=..., node_id=...)
 
 ⚠️ operate_apply 支持 6 种操作：
 | operation | 说明 | 使用场景 |
 |-----------|------|---------|
 | append | 续写 | smart_continue 后追加到章节末尾 |
-| replace | 改写 | smart_rewrite 后替换指定段落（自动定位） |
-| insert | 插入 | smart_insert 后在指定位置插入（自动定位） |
+| replace | 改写 | smart_rewrite 后替换指定段落（需精确定位） |
+| insert | 插入 | smart_insert 后在指定位置插入（需精确定位） |
 | content | 整章替换 | 重写整章内容 |
 | create | 创建章节 | 写新章节（需要 work_id 和 title） |
 | title | 修改标题 | 改进章节标题 |
@@ -849,14 +848,14 @@ def get_operate_apply_examples() -> str:
 }
 
 ---
-【场景2：改写 - 使用 operate_apply（自动定位！）】
+【场景2：改写 - 使用 operate_apply（精确定位）】
 
 用户: "润色第3章的战斗场景"
 {
   "thinking": {
     "step1_output": "用户要润色/改写，内容需要写入编辑器",
     "step2_material": "需要第3章内容",
-    "step3_process": "获取章节 → smart_rewrite 生成 → operate_apply(replace) 应用（自动定位！）"
+    "step3_process": "获取章节 → smart_rewrite 生成 → operate_apply(replace) 应用（精确定位）"
   },
   "user_intent": "润色战斗场景",
   "tasks": [
@@ -871,21 +870,22 @@ def get_operate_apply_examples() -> str:
       "operation": "replace",
       "chapter_id": {"$ref": {"task_id": 1, "path": "locate_targets[0].chapter_id"}},
       "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
-      "original_text": {"$ref": {"task_id": 2, "path": "original_text"}}
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "locate_targets[0].paragraph_index"}},
+      "node_id": {"$ref": {"task_id": 1, "path": "locate_targets[0].node_id"}}
     }, "depends_on": [1, 2]}
   ]
 }
-⚠️ replace 操作传 original_text，operate_apply 会自动 text_match 定位！
+⚠️ replace 操作必须传 node_id/paragraph_index
 
 ---
-【场景3：插入 - 使用 operate_apply（自动定位！）】
+【场景3：插入 - 使用 operate_apply（精确定位）】
 
 用户: "在战斗结束后加一段心理描写"
 {
   "thinking": {
     "step1_output": "用户要在特定位置插入内容",
     "step2_material": "需要章节内容",
-    "step3_process": "获取章节 → smart_insert 生成 → operate_apply(insert) 应用（自动语义定位！）"
+    "step3_process": "获取章节 → smart_insert 生成 → operate_apply(insert) 应用（精确定位）"
   },
   "user_intent": "在战斗结束后插入心理描写",
   "tasks": [
@@ -900,11 +900,12 @@ def get_operate_apply_examples() -> str:
       "operation": "insert",
       "chapter_id": {"$ref": {"task_id": 1, "path": "locate_targets[0].chapter_id"}},
       "content": {"$ref": {"task_id": 2, "path": "content"}},
-      "target_description": "战斗结束后"
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "locate_targets[0].paragraph_index"}},
+      "node_id": {"$ref": {"task_id": 1, "path": "locate_targets[0].node_id"}}
     }, "depends_on": [1, 2]}
   ]
 }
-⚠️ insert 操作传 target_description，operate_apply 会自动语义定位！若定位失败会降级为 append
+⚠️ insert 操作必须传 node_id/paragraph_index（不允许降级）
 
 ---
 【场景4：整章替换 - 使用 operate_apply(content)】
@@ -1019,7 +1020,7 @@ locate_content 只接受以下参数：
 ⚠️ locate_content 输出字段在顶层：chapter_id / paragraph_index / node_id / text / before_anchor / after_anchor
 ❌ 禁止引用 results / found_paragraphs / frontend_display.locations（默认不返回 frontend_display）
 
-⚠️ insert 默认不允许降级 append；只有用户明确允许时，operate_apply 才能设置 allow_append_fallback: true
+⚠️ insert 降级已禁用（不允许 append fallback）
 
 ❌ 绝对禁止传入 work_id 参数！locate_content 不接受 work_id！
 ✅ 正确: {"chapter_id": "$CHAPTER_ID$", "query": "吞噬器灵"}
@@ -1051,10 +1052,7 @@ locate_content 只接受以下参数：
       "operation": "replace",
       "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
       "node_id": {"$ref": {"task_id": 1, "path": "node_id"}},
-      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}},
-      "before_anchor": {"$ref": {"task_id": 1, "path": "before_anchor"}},
-      "after_anchor": {"$ref": {"task_id": 1, "path": "after_anchor"}},
-      "original_text": {"$ref": {"task_id": 1, "path": "text"}}
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}}
     }, "depends_on": [1, 2]}
   ]
 }
@@ -1118,12 +1116,11 @@ locate_content 只接受以下参数：
       "operation": "insert",
       "content": {"$ref": {"task_id": 2, "path": "content"}},
       "node_id": {"$ref": {"task_id": 1, "path": "node_id"}},
-      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}},
-      "before_anchor": {"$ref": {"task_id": 1, "path": "after_anchor"}}
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}}
     }, "depends_on": [1, 2]}
   ]
 }
-⚠️ 注意：smart_insert 不再接收锚点参数，定位由 locate_content 完成，锚点传给 operate_apply
+⚠️ 注意：smart_insert 不再接收锚点参数，operate_apply 只接受 node_id/paragraph_index
 
 ---
 【场景4：定位特定内容】
@@ -1151,13 +1148,12 @@ locate_content 只接受以下参数：
       "operation": "replace",
       "content": {"$ref": {"task_id": 2, "path": "versions[0].content"}},
       "node_id": {"$ref": {"task_id": 1, "path": "node_id"}},
-      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}},
-      "original_text": {"$ref": {"task_id": 1, "path": "text"}}
+      "paragraph_index": {"$ref": {"task_id": 1, "path": "paragraph_index"}}
     }, "depends_on": [1, 2]}
   ]
 }
 ⚠️ locate_content 支持语义搜索，可以定位"主角出场"、"战斗场景"等描述性内容
-⚠️ 跨章节支持：smart_rewrite 和 operate_apply 的 chapter_id 必须使用 {"$ref": {"task_id": 1, "path": "chapter_id"}}（locate_content 返回的章节ID）
+⚠️ locate_content 不跨章节，请确保 chapter_id 正确
 
 ---
 【场景4.5：未指定章节的修改】⚠️ 用户描述内容但没有章节信息
@@ -1186,8 +1182,7 @@ locate_content 只接受以下参数：
       "operation": "replace",
       "content": {"$ref": {"task_id": 3, "path": "versions[0].content"}},
       "node_id": {"$ref": {"task_id": 2, "path": "node_id"}},
-      "paragraph_index": {"$ref": {"task_id": 2, "path": "paragraph_index"}},
-      "original_text": {"$ref": {"task_id": 2, "path": "text"}}
+      "paragraph_index": {"$ref": {"task_id": 2, "path": "paragraph_index"}}
     }, "depends_on": [2, 3]}
   ]
 }
@@ -1219,8 +1214,7 @@ locate_content 只接受以下参数：
       "operation": "replace",
       "content": {"$ref": {"task_id": 3, "path": "versions[0].content"}},
       "node_id": {"$ref": {"task_id": 2, "path": "node_id"}},
-      "paragraph_index": {"$ref": {"task_id": 2, "path": "paragraph_index"}},
-      "original_text": {"$ref": {"task_id": 2, "path": "text"}}
+      "paragraph_index": {"$ref": {"task_id": 2, "path": "paragraph_index"}}
     }, "depends_on": [2, 3]}
   ]
 }
@@ -1243,7 +1237,7 @@ def get_all_planning_examples() -> str:
         get_operation_tools_examples() +
         get_editor_workflow_examples()
         # ⚠️ 以下已移除（2026-01-23）：与 operate_apply 流程冲突
-        # get_locate_content_examples()  - operate_apply 内部自动定位
+        # get_locate_content_examples()  - operate_apply 不再自动定位
         # get_search_examples()  - 搜索+修改场景已在 operate_apply 示例中覆盖
         # get_smart_rewrite_examples()  - 改写场景已在 operate_apply 示例中覆盖
     )

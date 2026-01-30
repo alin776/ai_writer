@@ -103,7 +103,7 @@ def _get_editor_tools_section() -> str:
 
 🆕 **推荐：使用 operate_apply 统一入口**
 - operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作
-- 优先使用 operate_apply，它会自动处理定位和路由
+- operate_apply 只负责写入，不再自动定位（replace/insert 必须传 node_id/paragraph_index）
 
 ⚠️ **什么时候需要调用操作类工具？**
 - 用户说"续写"、"插入"、"改写"、"润色" → 需要！（内容要写入编辑器）
@@ -117,7 +117,7 @@ def _get_editor_tools_section() -> str:
 ---
 
 - smart_rewrite: 改写/修改章节内容（只生成1个改写结果）
-  参数: chapter_id, text_to_rewrite, user_requirement
+  参数: chapter_id, text_to_rewrite, user_requirement, evidence_context
   触发词: "修改"、"改写"、"重写"、"润色"、"优化"、"扩写"
   ⚠️ "扩写"= 把现有内容写得更丰富，属于改写场景，不是续写！
   ⚠️ 如果用户想把改写内容写入编辑器 → 后续调用 operate_apply(operation="replace")
@@ -129,15 +129,15 @@ def _get_editor_tools_section() -> str:
   ⚠️ 即使用户要求多版本/多候选，也只生成一条
 
 - smart_continue: 智能续写（只生成内容）
-  参数: chapter_id, chapter_content, user_requirement, word_count
+  参数: chapter_id, chapter_content, user_requirement, evidence_context, word_count
   触发词: "续写"、"继续写"、"往后写"
   ⚠️ 如果用户想把续写内容写入编辑器 → 后续调用 operate_apply(operation="append")
 
 - smart_insert: 智能插入（只生成内容）
-  参数: chapter_id, user_intent, chapter_content, insert_context, word_count
+  参数: chapter_id, user_intent, chapter_content, insert_context, evidence_context, word_count
   触发词: "插入"、"在...处添加"、"在...后面加"
   ⚠️ 如果用户想把插入内容写入编辑器 → 后续调用 operate_apply(operation="insert")
-  ⚠️ **定位规则**：插入位置由 operate_apply 内部自动定位（传入 target_description）
+  ⚠️ **定位规则**：先用 locate_content/list_paragraphs/read_paragraphs 获取 node_id/paragraph_index
   ⚠️ insert_context 可用于风格参考，从 explore_content 返回的章节内容中获取
   ⚠️ 输出只允许单段内容，不要编号/版本列表
   ⚠️ 即使用户要求多版本/多候选，也只生成一条
@@ -157,28 +157,22 @@ def _get_editor_tools_section() -> str:
     - work_id: 作品ID（create 时必需）
     - content: AI生成的内容
     - title: AI生成的标题（create/title 时使用）
-    - original_text: 原文（replace 时用于定位）
-    - target_description: 目标位置描述（insert 时用于语义定位）
+    - original_text: 原文（仅用于描述，不参与定位）
+    - target_description: 目标位置描述（仅用于描述，不参与定位）
     - paragraph_index: 段落索引（优先级最高的定位方式）
     - node_id: 节点ID（优先级最高的定位方式）
-    - allow_append_fallback: insert 定位失败是否允许降级追加（默认 false）
+    - allow_append_fallback: 已禁用（不再允许降级追加）
 
   ✅ **推荐使用场景**：
     * smart_continue 后续写 → operate_apply(operation="append", chapter_id=..., content=...)
-    * smart_rewrite 后替换 → operate_apply(operation="replace", chapter_id=..., content=..., original_text=...)
-    * smart_insert 后插入 → operate_apply(operation="insert", chapter_id=..., content=..., target_description=...)
+    * smart_rewrite 后替换 → operate_apply(operation="replace", chapter_id=..., content=..., paragraph_index=..., node_id=...)
+    * smart_insert 后插入 → operate_apply(operation="insert", chapter_id=..., content=..., paragraph_index=..., node_id=...)
     * 重写整章 → operate_apply(operation="content", chapter_id=..., content=...)
     * 创建新章节 → operate_apply(operation="create", work_id=..., title=..., content=...)
     * 修改标题 → operate_apply(operation="title", chapter_id=..., title=...)
 
-  ⚠️ **定位优先级**：
-    1. DIRECT: 提供 paragraph_index 或 node_id（最高优先级）
-    2. TEXT_MATCH: replace + original_text（精确文本匹配）
-    3. SEMANTIC: insert + target_description（语义定位）
-
-  ⚠️ **降级策略**：
-    * insert 定位失败 → 默认返回错误（需显式 allow_append_fallback 才能降级为 append）
-    * replace 定位失败 → 返回错误
+  ⚠️ **定位要求**：
+    * replace/insert 必须提供 node_id 或 paragraph_index
 
 ---
 
@@ -186,15 +180,12 @@ def _get_editor_tools_section() -> str:
   参数: chapter_id, operation, content, paragraph_index(整数), node_id, before_anchor, after_anchor, original_text
   operation: "append"(续写) | "insert"(插入) | "replace"(替换)
   ⚠️ 推荐使用 operate_apply 代替直接调用此工具
-  ⚠️ operate_apply 会自动处理定位并调用此工具
+  ⚠️ operate_apply 不会自动定位，必须传 node_id/paragraph_index
 
-- locate_content: ⚠️ **内部定位工具（由 operate_apply 自动调用，通常不需要直接使用！）**
+- locate_content: ⚠️ **内部定位工具（不会被 operate_apply 自动调用）**
   参数: chapter_id, query, nodes_info(可选)
-  ⚠️ **重要：operate_apply 会自动调用 locate_content，你不需要单独调用！**
-  ⚠️ operate_apply 的定位策略：
-    * replace 操作：传入 original_text → 自动 text_match 定位
-    * insert 操作：传入 target_description → 自动 semantic 定位
-    * 直接提供 paragraph_index/node_id → direct 定位（最高优先级）
+  ⚠️ **重要：需要先调用 locate_content 或 list_paragraphs/read_paragraphs 获取 node_id/paragraph_index**
+  ⚠️ 跨章节降级已禁用（allow_global_fallback=false）
   ⚠️ **唯一例外**：如果用户未指定章节，需要先用 explore_content 找到章节，再传给 operate_apply
 """
 

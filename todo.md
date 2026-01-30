@@ -5,7 +5,13 @@
 - [x] 深入核对“切章→读 tab →无则新建”的链路与证据（useTabManager / tabStorage / useConversationPersistence）
 - [x] 增加“tab 恢复”兜底：章节 tab 为空或无效时，从已保存的会话列表按 chapterId 重建 tabs
 - [x] 补充 localStorage 配额失败处理：tab 写入失败时清理+重试，并抛出统一提示事件
-- [ ] 做最小回归：切换章节/切回、历史恢复、空章节首次进入不新增新问题
+- [x] 做最小回归：切换章节/切回、历史恢复、空章节首次进入不新增新问题
+
+#### review
+
+- 增加章节会话恢复兜底：当 chapter_tabs_map 为空时，先从已存 tab 重建，再从会话列表/上下文映射重建，最后才新建。
+- 新增存储配额保护：tab/map 写入失败时清理旧会话后重试，并派发统一提示事件。
+- 本地会话缺失时新增后端回填：打开 tab 时若本地无消息，尝试从后端拉取并写回本地，避免切章回来看见空会话。
 
 #### 章节会话迁移修复（待确认）
 
@@ -1008,24 +1014,95 @@
 
 #### 严格定位写入（去降级）（待确认）
 
-- [ ] 修改 operate_apply：replace/insert 仅接受 node_id/paragraph_index，移除定位失败降级与跨章节降级逻辑
-- [ ] 修改 apply_chapter_edit：replace/insert 必须 node_id/paragraph_index；移除 original_text/anchor 兜底与自动 locate
-- [ ] 修改 ChapterRevisionService：确认写入阶段只按 node_id/paragraph_index 精确写入（补齐 <li> 解析）
-- [ ] 同步提示词说明：operate_apply 不再自动定位，必须带精确定位参数
-- [ ] 更新 todo.md review（改动与影响）
+- [x] 修改 operate_apply：replace/insert 仅接受 node_id/paragraph_index，移除定位失败降级与跨章节降级逻辑
+- [x] 修改 apply_chapter_edit：replace/insert 必须 node_id/paragraph_index；移除 original_text/anchor 兜底与自动 locate
+- [x] 修改 ChapterRevisionService：确认写入阶段只按 node_id/paragraph_index 精确写入（补齐 <li> 解析）
+- [x] 同步提示词说明：operate_apply 不再自动定位，必须带精确定位参数
+- [x] 更新 todo.md review（改动与影响）
 
 #### smart* 注入 Explore 证据（待确认）
 
-- [ ] 梳理 Explore→Create 调用链，确认 smart_* 参数注入点（planning / task_runner / tool_executor）
-- [ ] 在 smart_continue/smart_rewrite/smart_insert 调用前，自动合并 Explore evidences/locate_targets 作为上下文参考
-- [ ] 限制注入长度与格式，避免 prompt 失控（如证据摘要 + 关键段落拼接）
-- [ ] 更新提示词说明：smart_* 必须基于 explore 证据创作（否则拒绝/先探索）
-- [ ] 更新 todo.md review（改动与影响）
+- [x] 梳理 Explore→Create 调用链，确认 smart_* 参数注入点（planning / task_runner / tool_executor）
+- [x] 在 smart_continue/smart_rewrite/smart_insert 调用前，自动合并 Explore evidences/locate_targets 作为上下文参考
+- [x] 限制注入长度与格式，避免 prompt 失控（如证据摘要 + 关键段落拼接）
+- [x] 更新提示词说明：smart_* 必须基于 explore 证据创作（否则拒绝/先探索）
+- [x] 更新 todo.md review（改动与影响）
 
 #### 打通 Explore→Create→Operate 精确链路（待确认）
 
-- [ ] Explore 阶段强制“证据 + 定位候选”：要求 list_paragraphs/read_paragraphs 产出 node_id/paragraph_index
-- [ ] Create 阶段强制注入 Explore 证据 + 目标段落上下文（写入前校验）
-- [ ] Operate 阶段强制 node_id/paragraph_index 写回（无定位直接失败）
-- [ ] 统一失败提示：引导用户“先定位段落/先探索证据”
-- [ ] 更新 todo.md review（链路打通与影响）
+- [x] Explore 阶段强制“证据 + 定位候选”：要求 list_paragraphs/read_paragraphs 产出 node_id/paragraph_index
+- [x] Create 阶段强制注入 Explore 证据 + 目标段落上下文（写入前校验）
+- [x] Operate 阶段强制 node_id/paragraph_index 写回（无定位直接失败）
+- [x] 统一失败提示：引导用户“先定位段落/先探索证据”
+- [x] 更新 todo.md review（链路打通与影响）
+
+#### review
+
+- operate_apply/ apply_chapter_edit/ ChapterRevisionService 全部改为“只接受 node_id/paragraph_index”，移除 original_text/anchor/跨章节降级与 append 降级，确认写入不再用首匹配替换。
+- locate_content 默认禁用全局降级；工具提示与规划示例同步更新为“必须先定位”。
+- explore_content 在写作类任务强制段落号模式，并在缺少定位候选时直接报错提示“先定位段落”。
+- 严格段落号关键词已收敛（不含“续写/写入”），避免 append 场景因无段落而失败。
+- locate_content 缓存键加入 chapter.version，避免章节内容更新后仍命中旧定位。
+- ChapterRevisionService 对旧修订缺定位信息直接返回 missing_locator，提示需重新定位生成。
+
+#### 修复伪定位导致漂移（待确认）
+
+- [x] locate_targets 仅来自 read_paragraphs 成功结果（禁止 search_hits 兜底）
+- [x] read_paragraphs 失败时直接返回 missing_locate_targets，禁止继续创作/写入
+- [x] 分页读取修正：确保 list_paragraphs 覆盖候选段落区间，避免索引越界
+- [x] 规划参数修正：smart_rewrite 只用 evidences[0].text，不再引用 locate_targets[0].text
+- [x] operate_apply 追加校验：paragraph_index 超出范围或 node_id 为空直接失败
+- [x] 更新 todo.md review（改动与影响）
+- smart_* 新增 evidence_context 注入，ToolExecutor 自动拼接探索证据与定位候选并限长注入。
+
+#### review
+
+- locate_targets 现在只基于 read_paragraph/read_paragraphs 成功返回的原文段落生成，搜索命中不再伪装“可定位”。
+- read_paragraphs 未读到原文时，严格模式会返回 missing_locate_targets，阻断后续 smart_* 与写回。
+- read_paragraphs items 模式会自动补齐 list_paragraphs 覆盖范围，避免候选段落落在未分页区间导致索引失配。
+- operate_apply/ apply_chapter_edit 增加空 node_id 兜底清空与段落越界错误，定位异常不再静默降级。
+- planning_prompts 明确 smart_rewrite 必须引用 evidences[0].text，避免 locate_targets[0].text 造成空原文改写。
+
+#### 再次深度 Review（待确认）
+
+- [x] 核对“伪定位修复”改动是否引入新问题（定位候选缺失、性能、兼容性）
+- [x] 验证是否真正解决漂移根因（结合 Backend.md/截图链路核验）
+- [x] 检查修改完整性（prompt/规划/执行/写回/日志 是否一致）
+- [x] 逻辑一致性复核（严格定位模式、read_paragraphs 分页、node_id 约束）
+- [x] 更深入验证：确认问题是否真实存在、是否有遗漏问题
+- [x] 更新 todo.md review（结论与风险）
+
+#### review
+
+- Backend.md 明确显示“读原文失败但仍自称定位成功”的链路：read_paragraphs 失败（`Backend.md` 第144–149行），随后依然输出“已收集到相关证据”（第150行），并出现 ParameterResolver 对 `locate_targets[0].text` 的缺字段降级（第155行），最终 smart_rewrite 原文长度仅 13（第159行）且 operate_apply 直接使用 para=20/node=tdb57sw8（第176行）——这就是漂移根因证据。
+- 伪定位已被阻断：`explore_tools._build_locate_targets` 只用 `result.paragraphs`（不再用 search_hits/evidences），且 `explore_content` 在严格模式下 locate_targets 为空即返回 missing_locate_targets，能直接阻断“未读原文却写回”的流程。`backend/app/services/agent/tools/explore_tools.py`
+- 分页覆盖修复降低索引越界：read_paragraphs(items) 会按 paragraph_index 计算页并补齐 list_paragraphs 覆盖范围，避免候选索引落在未分页区间导致“全部为空”的情况。`backend/app/services/agent/tools/explore_tools.py`
+- 写回阶段新增硬校验：空 node_id 会清空；段落索引越界直接失败，防止 silent drift。`backend/app/services/agent/tools/operate_tools.py`、`backend/app/services/agent/tools/editor_tools.py`
+- 规划层逻辑一致性已补齐：smart_rewrite 明确只能用 `evidences[0].text`，消除“locate_targets[0].text 不存在导致空改写”的问题。`backend/app/services/agent/prompts/planning_prompts.py`
+- 残留风险：若 Explore 未读到任何段落，且任务不触发严格段落号模式（如“续写”），locate_targets 可能为空 → 计划仍可能引用 locate_targets[0].chapter_id 失败并触发 ToolExecutor 的“降级使用当前章节”。这不会漂移到别段，但可能写错章节，需要后续增加“无定位就终止写回/必须先读段落”的更强约束。
+
+#### smart_insert 失败（content 为空）排查（待确认）
+
+- [x] 通读 Backend.md 对应时间段日志，定位 smart_insert 失败原因与参数
+- [x] 核对 smart_insert 参数生成链路（planning → tool_executor → editor_tools）
+- [x] 检查 operate_apply 的 content 空判定与失败路径
+- [x] 给出“根因+证据+结论（直白）”
+- [x] 更新 todo.md review（结论与影响）
+
+#### review
+
+- 根因：smart_insert 的 evidence_context 被传成 **list**（explore_content 的 evidences 结构），而 SmartInsertInput 要求 **string**，导致 Pydantic 校验失败 → smart_insert 未产出 content → operate_apply 传入 content=None 再次校验失败。`Backend.md:76–85`、`Backend.md:97–103`
+- 直接证据：日志显示 SmartInsertInput 验证错误 “evidence_context Input should be a valid string ... input_type=list”（`Backend.md:77–85`），随后 operate_apply 报 “content Input should be a valid string ... input_type=NoneType”（`Backend.md:97–103`）。
+- 链路一致性：tool_executor 只在 params 未提供 evidence_context 时才注入字符串证据，因此当规划阶段显式传了 list（例如 `$ref` 指向 evidences）就不会被自动纠正。`backend/app/services/agent/execution/tool_executor.py:374-409`
+- 结论（直白）：这次失败不是“定位漂移”，而是**smart_insert 入参类型错误**导致创作阶段直接崩溃，内容根本没生成，后续写回自然失败。
+
+#### 修复 smart_insert evidence_context 类型错误（待确认）
+
+- [x] 只在 smart_insert/smart_rewrite/smart_continue 的 evidence_context 非字符串时，统一转换为字符串（并保留警告日志）
+- [x] 确保转换不影响正常 evidence_context 注入逻辑（已有字符串不改动）
+- [x] 更新 todo.md review（结论与影响）
+
+#### review
+
+- ToolExecutor 增加 evidence_context 类型强制转换：smart_rewrite/smart_continue/smart_insert 只要发现非字符串就转换并打警告，避免 Pydantic 直接失败。`backend/app/services/agent/execution/tool_executor.py`
+- 转换逻辑优先提取 list/dict 中的 text/content/snippet 字段，无法提取时回退为 JSON 文本，保持可读性并保留证据。

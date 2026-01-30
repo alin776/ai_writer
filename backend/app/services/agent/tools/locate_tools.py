@@ -540,7 +540,7 @@ def _apply_location_fields(result: Dict[str, Any]) -> None:
 - chapter_id: 章节ID
 - query: 定位描述，如"第三段"、"开头"、"结尾"、具体文本片段
 - nodes_info: [可选] 前端传入的节点列表
-- allow_global_fallback: [可选] 是否允许跨章节全局降级（默认 True）
+- allow_global_fallback: [可选] 是否允许跨章节全局降级（默认 False，已禁用）
 
 【输出】：
 - node_id: 节点ID（如果前端传了nodes_info）
@@ -555,7 +555,7 @@ async def locate_content(
     node_id: Optional[str] = None,  # node_id (front-end structural hint)
     before_anchor: Optional[str] = None,  # 兼容参数，避免多余字段导致调用失败
     after_anchor: Optional[str] = None,  # 兼容参数，避免多余字段导致调用失败
-    allow_global_fallback: bool = True,  # 是否允许跨章节全局降级
+    allow_global_fallback: bool = False,  # 是否允许跨章节全局降级（默认关闭）
     user_id: Optional[str] = None
 ) -> str:
     """
@@ -567,7 +567,7 @@ async def locate_content(
         nodes_info: 前端传入的节点列表（JSON字符串）
         before_anchor: 兼容参数（可选）
         after_anchor: 兼容参数（可选）
-        allow_global_fallback: 是否允许跨章节全局降级（默认True）
+        allow_global_fallback: 是否允许跨章节全局降级（默认 False）
         user_id: 用户ID
 
     Returns:
@@ -580,19 +580,9 @@ async def locate_content(
             query = before_anchor or after_anchor or ""
 
         query = _normalize_locate_query(query)
-        cache_key = None
-        tool_cache_ctx = None
-        if chapter_id and query and not nodes_info and not node_id:
-            cache_key = f"{chapter_id}:{'1' if allow_global_fallback else '0'}:{query}"
-            cached = _LOCATE_CACHE.get(cache_key)
-            if cached is not None:
-                logger.info(
-                    "[locate_content] 命中缓存: chapter_id=%s, query=%s",
-                    chapter_id,
-                    query[:80]
-                )
-                return cached
-
+        if allow_global_fallback:
+            logger.warning("[locate_content] 全局降级已禁用，已强制关闭 allow_global_fallback")
+            allow_global_fallback = False
         logger.info(f"[locate_content] 开始定位: chapter_id={chapter_id}, query={query}")
 
         # 解析 nodes_info
@@ -608,6 +598,7 @@ async def locate_content(
         chapter_content = ""
         work_id = None  # 用于全局降级
         chapter_title = ""
+        chapter_version = None
         async with AsyncSessionLocal() as db:
             from app.services.chapter_service import ChapterService
             chapter_svc = ChapterService(db)
@@ -616,6 +607,7 @@ async def locate_content(
                 chapter_content = chapter.content
                 work_id = str(chapter.work_id) if chapter.work_id else None
                 chapter_title = chapter.title or ""
+                chapter_version = getattr(chapter, "version", None)
 
         if not chapter_content:
             return json.dumps({
@@ -624,11 +616,26 @@ async def locate_content(
                 "message": f"章节内容为空: {chapter_id}"
             }, ensure_ascii=False)
 
+        cache_key = None
+        tool_cache_ctx = None
+        version_token = chapter_version if chapter_version is not None else ""
+        if chapter_id and query and not nodes_info and not node_id:
+            cache_key = f"{chapter_id}:{version_token}:{'1' if allow_global_fallback else '0'}:{query}"
+            cached = _LOCATE_CACHE.get(cache_key)
+            if cached is not None:
+                logger.info(
+                    "[locate_content] 命中缓存: chapter_id=%s, query=%s",
+                    chapter_id,
+                    query[:80]
+                )
+                return cached
+
         # ToolCache 跨进程缓存命中检查（有 work_id 才可用）
         if chapter_id and work_id and query and not nodes_info and not node_id:
             cache_params = {
                 "work_id": work_id,
                 "chapter_id": chapter_id,
+                "chapter_version": version_token,
                 "query": query,
                 "allow_global_fallback": allow_global_fallback,
                 "user_id": user_id,

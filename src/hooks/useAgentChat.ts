@@ -198,6 +198,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   }, [sessionId, sessionManager]);
 
   useEffect(() => {
+    let cancelled = false;
     // 先确保会话存在，再更新数据
     sessionManager.getOrCreateSession(sessionId, { mode: 'plan' });
 
@@ -222,6 +223,30 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         mode: persisted.mode || 'plan',
         tasks: restoredTasks  // 恢复任务列表
       });
+    } else if (useBackendSessions) {
+      (async () => {
+        try {
+          const backendMessages = await agentApi.getSessionMessages(sessionId, { order: 'asc', limit: 200 });
+          if (cancelled || backendMessages.length === 0) return;
+
+          const mapped = backendMessages.map((m: any) => ({
+            role: (m.role === 'assistant' ? 'agent' : m.role) as Message['role'],
+            content: m.content,
+            metadata: m.metadata,
+            timestamp: m.created_at || new Date().toISOString()
+          }));
+
+          sessionManager.updateSession(sessionId, {
+            messages: mapped as Message[],
+            conversationId: sessionId,
+            mode: 'plan'
+          });
+          saveSessionRef.current(mapped as Message[], sessionId, { mode: 'plan', workId, chapterId });
+          refreshSessionSnapshot();
+        } catch (error) {
+          console.warn('[useAgentChat] Failed to hydrate session from backend:', error);
+        }
+      })();
     }
     refreshSessionSnapshot();
 
@@ -233,6 +258,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     });
 
     return () => {
+      cancelled = true;
       unsubscribe();
       // 组件卸载时强制持久化当前状态，确保切换章节时数据不丢失
       const currentSession = sessionManager.getSession(sessionId);
@@ -244,7 +270,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         );
       }
     };
-  }, [loadSession, refreshSessionSnapshot, sessionId, sessionManager]);
+  }, [chapterId, loadSession, refreshSessionSnapshot, sessionId, sessionManager, useBackendSessions, workId]);
 
   const sendMessage = useCallback(
     async (request: AgentChatRequest): Promise<AgentChatResponse | null> => {

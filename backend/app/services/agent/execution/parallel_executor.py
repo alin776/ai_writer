@@ -556,6 +556,10 @@ class ParallelExecutor:
                     raw_result, result_text = await self._handle_explore_content_result(
                         result, task_id, step_id
                     )
+                    if isinstance(shared_state, dict) and isinstance(raw_result, dict):
+                        if raw_result.get("success"):
+                            shared_state["last_explore_result"] = raw_result
+                            shared_state["last_explore_summary"] = result_text
 
                 # 注册任务结果（保留结构体）
                 await resolver.register_result(task_id, raw_result)

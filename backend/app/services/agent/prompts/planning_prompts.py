@@ -218,22 +218,22 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 | 插入 | smart_insert | operate_apply(operation="insert") |
 | 整章重写 | smart_rewrite | operate_apply(operation="content") |
 
-⚠️ **operate_apply 会自动处理定位**！不需要单独调用 locate_content！
-- replace 操作：传入 original_text，operate_apply 内部自动 text_match 定位
-- insert 操作：传入 target_description，operate_apply 内部自动 semantic 定位
+⚠️ **operate_apply 不再自动定位**！
+- replace/insert 必须传 node_id 或 paragraph_index
+- 需要先用 locate_content 或 list_paragraphs/read_paragraphs 精确定位
 
 ⚠️ **参数引用规则**：后续工具参数只允许引用 explore_content 的 `evidences` / `locate_targets`
 （默认输出完整字段；如需精简，请显式传 output_mode="evidence_only"）
+⚠️ smart_* 必须注入 explore 证据（evidence_context），否则不允许创作写入
+⚠️ smart_rewrite 的 text_to_rewrite **必须**引用 `evidences[0].text`（禁止使用 locate_targets[0].text）
 
 ⚠️ **locate_content 输出字段规则**：
 - locate_content 的输出字段在顶层：`chapter_id` / `paragraph_index` / `node_id` / `text` / `before_anchor` / `after_anchor`
 - ❌ 禁止引用 `results` / `found_paragraphs` / `frontend_display.locations`
 
-⚠️ **insert 降级规则**：
-- insert 默认 **不允许** 降级为 append
-- 只有用户明确允许“找不到就追加到末尾”时，operate_apply 参数才可设置 `allow_append_fallback: true`
+⚠️ **insert 降级规则**：已禁用（不允许降级）
 
-✅ 正确流程：smart_rewrite → operate_apply(operation="replace", original_text="要替换的原文")
+✅ 正确流程：smart_rewrite → operate_apply(operation="replace", paragraph_index=..., node_id=...)
 ❌ 错误流程：smart_rewrite 后未通过 operate_apply 写入（不要分步调用！）
 
 ---
