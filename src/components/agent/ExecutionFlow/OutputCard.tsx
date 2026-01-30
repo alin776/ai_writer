@@ -76,7 +76,7 @@ export function OutputCard({
   const fix = (line: string) => {
     const bracketed = line.match(/^(\s*)[（(]\s*([0-9]+)\s*[）)]\s*(.+)$/);
     if (bracketed) {
-      if (isYearish(bracketed[2]) && isNoticeLine(bracketed[3])) return line;
+      if (isYearish(bracketed[2]) || isNoticeLine(bracketed[3])) return line;
       return `${bracketed[1]}${bracketed[2]}. ${bracketed[3]}`;
     }
 
@@ -84,7 +84,8 @@ export function OutputCard({
     if (!numbered) return line;
     const value = toNumber(numbered[2]);
     if (value === null) return line;
-    if (isYearish(String(value)) && isNoticeLine(numbered[3])) return line;
+    if (isYearish(String(value)) || isNoticeLine(numbered[3])) return line;
+    if (/^\s*[0-9]+\s*[\.．]\s*[0-9]/.test(line)) return line;
     return `${numbered[1]}${value}. ${numbered[3]}`;
   };
 

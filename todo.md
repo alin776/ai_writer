@@ -1,5 +1,24 @@
 # TODO
 
+#### 上下文对话 AI 上下文记忆说明（待确认）
+
+- [x] 深度检索前后端与文档：定位“上下文/记忆/会话”相关实现（ContextManager、MemoryManager、LongTermMemory、UserProfile、前端会话持久化）
+- [x] 梳理“上下文记忆”具体包含的数据范围与层级（短期对话、摘要、长期向量记忆/MemoryPack、用户偏好、写作风格、用户画像、近期对话摘要）
+- [x] 对照 API 与前端入口，说明“上下文对话/记忆”板块的调用链路与数据流（/memory/context、useConversationPersistence、SessionStateManager、AI 对话面板）
+- [x] 输出证据清单（文件路径+关键片段），给出直白详细结论
+
+#### review
+
+- 已完成“上下文对话 AI 上下文记忆”深度检索与证据整理，并形成结论与调用链路说明。
+- 已完成 INFO.md 复盘与“重复探索/再次追问”根因定位：规划规则强制每次涉及作品内容都调用 explore_content，且工具结果不写入持久上下文；共享缓存仅进程内 20 分钟且依赖 conversation_id，无法保证复用。
+
+#### INFO.md 对话与重复探索原因排查（待确认）
+
+- [x] 阅读 INFO.md 中用户与 AI 的两轮对话原文，整理时间线与关键语句
+- [x] 深度检索后端/前端/提示词：定位“重复探索/再次追问”触发条件（planning/agent 路由、上下文/记忆读取链路）
+- [x] 对照证据给出核心原因与结论（直白说明“为什么没有记住/为什么又探索”）
+- [x] 在 todo.md 追加 review（结论+证据路径）
+
 #### 核心问题复盘（最新 Backend.md + 截图）（待确认）
 
 - [x] 通读最新 Backend.md，定位与“未找到证据/误判”相关的搜索与读取链路
@@ -118,6 +137,8 @@
 - 已将 ai_summarization 的 max_tokens 从 2000 提升到 20000（影响最终整合输出长度上限）。
 - 已在 OutputCard 增加表格上下间距（12px）并补齐 h3/h4 字号与间距，避免子标题过小与表格贴近问题。
 - 已在 OutputCard 增加编号样式归一化：将 1、/（1）/一、 等常见格式转换为 Markdown 有序列表，确保显示 1/2/3 序号。
+- 已将编号归一化同步到 ContentPreviewModal，并增加过滤规则：年份行与公告/编号/版本/通知类行不再被错误转换。
+- 已在格式规范与 ai_summarization 提示词中强制要求编号列表使用 Markdown `1.`，禁止 `1、/（1）/一、`。
 - 已核对段落索引来源：向量入库使用 `locate_tools._split_paragraphs`，`chunk_index` 即 `paragraph_index`，与 `read_paragraph/list_paragraphs` 共享同一拆段规则。
 - 已确认索引不一致场景：章节内容更新未重建向量、`index_base` 0/1 混用、超大章 `list_paragraphs` 进入 800 字近似模式、段落数超过向量上限（MAX_CHUNKS=2000）导致后续段落未入索引。
 - 已将章节向量化移到 `ChapterService` 统一触发（create/update/update_with_lock），覆盖 API/Agent/HITL 写入路径；API 层原有 background_tasks 调用已移除避免重复。
@@ -175,9 +196,15 @@
 
 #### 编号归一化完善（待确认）
 
-- [ ] 同步编号归一化到 ContentPreviewModal
-- [ ] 增加过滤规则：跳过年份/公告编号类行
-- [ ] 更新 todo.md review 记录影响范围
+- [x] 同步编号归一化到 ContentPreviewModal
+- [x] 增加过滤规则：跳过年份/公告编号类行
+- [x] 更新 todo.md review 记录影响范围
+
+#### 编号列表格式约束（待确认）
+
+- [x] 明确 AI 输出编号列表必须使用 Markdown `1.` 格式
+- [x] 更新 format_guidelines 与 ai_summarization 提示词
+- [x] 更新 todo.md review 记录影响范围
 
 #### 规划 JSON 强制输出改造计划（待确认）
 
