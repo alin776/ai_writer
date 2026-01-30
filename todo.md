@@ -1,10 +1,27 @@
 # TODO
 
+#### 核心问题复盘（最新 Backend.md + 截图）（待确认）
+
+- [x] 通读最新 Backend.md，定位与“未找到证据/误判”相关的搜索与读取链路
+- [x] 对照截图中的原文位置，查找日志里对应的 search/read 调用与返回
+- [x] 汇总核心问题 + 证据行号 + 影响结论（直白）
+
 #### 修复：limit 负数 / 章节范围生效 / 空读取可诊断（待确认）
 
 - [x] 限制 exact_search_paragraphs 的 limit 最小为 1（避免负数触发 SQL 错误）
 - [x] 章节范围强制生效：优先使用本次请求 chapter_range(s)，避免回退全局范围
 - [x] read_paragraphs 空结果输出原因（越界/上限/过滤/索引基准），提高可诊断性
+
+#### 修复：chapter_order 也锁范围 + 空读日志可见（待确认）
+
+- [x] exact_search_paragraphs 在传 chapter_order 时强制转为范围 (order, order)
+- [x] read_paragraphs 失败/空结果时记录 empty_reason/error/invalid_items/index_base 到日志
+
+#### 修复：关键词覆盖与最小证据读取（待确认）
+
+- [x] 精确搜索合并规划关键词，强制覆盖（总搜 + 缺失补搜）
+- [x] 每个关键词优先读至少 1 条证据（按预算优先）
+- [x] 输出 missing_keywords，避免“无证据却下结论”
 
 #### Explore 测试 prompts 设计（待确认）
 
@@ -82,6 +99,12 @@
 
 #### review
 
+- 已调整关键词覆盖逻辑：规划关键词不再被历史拦截，缺失关键词以“实际读取到的原文”判定。
+- 已增强关键词覆盖：精确搜索合并规划关键词，未命中词补搜，优先为每个关键词读取至少1条原文证据，并输出 missing_keywords。
+- 已复盘最新 Backend.md：在“赵穆/孔斌/李充/张征区别对待”任务中，仅执行了对“赵穆”的 exact_search/read，未对孔斌/李充/张征进行搜索或读取，导致证据缺失与结论不一致。
+- 已补齐空读日志：read_paragraphs 即使 success=True 但 count=0 也会打印 empty_reason 等诊断字段。
+- 已补齐范围锁定：当 exact_search_paragraphs 仅传 chapter_order 时，自动锁为 (order, order)。
+- 已增强空读日志：read_paragraphs 失败时打印 empty_reason/error/invalid_items/index_base。
 - 二次复核本次三项修复：未发现新增异常风险；范围优先级、limit 夹持、read_paragraphs 空结果原因均符合预期。
 - 已修复精确搜索负数 limit：向量/正文两路统一限流为最小 1，避免 SQL 报错。
 - 精确搜索强制使用本次请求的 chapter_range(s)，并对结果二次按参数范围过滤，避免回退全局范围。
@@ -93,6 +116,8 @@
 - 已补齐遗漏：planning_examples.py 的大纲/概括/分析文档/多章分析示例改为 explore_content 后直接输出；tool_descriptions.py 补充 analyze_content 的使用边界；planning_prompts.py 更新选中文本路由规则。
 - 已梳理 ai_summarization 架构：调用链路、触发条件、上下文压缩、流式事件与最终输出策略（含失败回退与事件时序）。
 - 已将 ai_summarization 的 max_tokens 从 2000 提升到 20000（影响最终整合输出长度上限）。
+- 已在 OutputCard 增加表格上下间距（12px）并补齐 h3/h4 字号与间距，避免子标题过小与表格贴近问题。
+- 已在 OutputCard 增加编号样式归一化：将 1、/（1）/一、 等常见格式转换为 Markdown 有序列表，确保显示 1/2/3 序号。
 - 已核对段落索引来源：向量入库使用 `locate_tools._split_paragraphs`，`chunk_index` 即 `paragraph_index`，与 `read_paragraph/list_paragraphs` 共享同一拆段规则。
 - 已确认索引不一致场景：章节内容更新未重建向量、`index_base` 0/1 混用、超大章 `list_paragraphs` 进入 800 字近似模式、段落数超过向量上限（MAX_CHUNKS=2000）导致后续段落未入索引。
 - 已将章节向量化移到 `ChapterService` 统一触发（create/update/update_with_lock），覆盖 API/Agent/HITL 写入路径；API 层原有 background_tasks 调用已移除避免重复。
@@ -109,6 +134,13 @@
 - 已在 ChapterService 与 ImportService 的正文落库路径补上新鲜度缓存失效，避免导入/批量写入后仍使用旧判断。
 - 已在章节删除与重排后主动失效新鲜度缓存，避免章节范围变化时短暂使用旧判定。
 - 已在新鲜度判断中加入“向量截断”判定：当向量数量达到 MAX_CHUNKS 时视为过期，优先走正文兜底保证准确性（代价是更频繁的兜底扫描）。
+- 已将高频日志降级为 debug：API 请求完成、缓存命中/保存、世界观缓存、预加载元数据、章节向量化、字数增量、世界观同步内容预览与 AI 响应等，默认 INFO 输出显著减少。
+- 已补充第三方库降噪：apscheduler/redisvl/langgraph 统一提升到 WARNING。
+- 已调整 API 请求完成日志策略：仅 4xx/5xx 或慢请求（>=500ms）记录，常规 2xx/3xx 不再输出。
+- Backend.md 最新段落未出现“API请求完成”流水，说明慢请求/错误请求策略生效；但仍有大量按段落/按调用明细日志（read_paragraph 缓存写入、ExploreTool call/done、AI 成本追踪/积分豁免/AI响应成功等），在高频任务下仍偏冗余。
+- 已将 read_paragraph 逐段日志降为 debug（缓存命中/索引修正/缓存写入），减少每段刷屏。
+- 已将 http_ai_service 的成本追踪/积分扣除/成功记录日志降为 debug，并把流式/非流式调用开始与成功日志降级。
+- 已将“非流式调用未启用/未传 task_type”警告改为仅首次提示，后续降级为 debug。
 
 #### ai_summarization 架构说明（待确认）
 
@@ -122,6 +154,30 @@
 - [x] 搜索 ai_summarization 的 max_tokens 设置与可能的相关上限
 - [x] 将 max_tokens 提升到指定值（最小改动）
 - [x] 更新 todo.md review 记录影响范围
+
+#### OutputCard 表格间距调整（待确认）
+
+- [x] 定位 OutputCard 的 Markdown 样式容器
+- [x] 为 table 与相邻内容增加上下间距（12px）
+- [x] 更新 todo.md review 记录影响范围
+
+#### OutputCard 子标题字号调整（待确认）
+
+- [x] 确认 h3/h4 未设置字号的渲染位置（OutputCard）
+- [x] 为 h3/h4 增加字号与间距（不影响 h1/h2）
+- [x] 更新 todo.md review 记录影响范围
+
+#### 有序列表编号自动修正（待确认）
+
+- [x] 定位输出渲染入口（OutputCard）
+- [x] 将常见编号样式（1、/（1）/一、）转换为 Markdown 有序列表
+- [x] 更新 todo.md review 记录影响范围
+
+#### 编号归一化完善（待确认）
+
+- [ ] 同步编号归一化到 ContentPreviewModal
+- [ ] 增加过滤规则：跳过年份/公告编号类行
+- [ ] 更新 todo.md review 记录影响范围
 
 #### 规划 JSON 强制输出改造计划（待确认）
 
@@ -198,6 +254,32 @@
 
 - [x] 核对所有写入链路（API/Agent/HITL/工具）是否统一走 ChapterService.update_* 
 - [x] 在统一入口处触发向量化（后台任务或异步），避免遗漏
+
+#### 后台日志冗余精简（待确认）
+
+- [x] 通读后端日志输出点（按 Backend.md 里的高频样式定位文件与函数）
+- [x] 汇总可移除/降级/采样的日志清单（附路径与理由）
+- [x] 给出最小改动方案（保留必要告警/错误）
+- [x] 依确认执行日志精简并回填 review
+
+#### 慢请求/错误请求日志策略调整（待确认）
+
+- [x] 明确记录策略与阈值（慢请求=500ms；仅 4xx/5xx 或慢请求记录）
+- [x] 调整 MonitoringMiddleware 日志级别与条件
+- [x] 简要复核对现有日志的影响并回填 review
+
+#### Backend.md 日志符合预期评估（待确认）
+
+- [x] 读取 Backend.md 最新日志区段并对照当前日志策略
+- [x] 判断是否仍存在高频冗余日志并给出具体例子
+- [x] 给出“是否符合预期 + 冗余程度”结论与建议
+
+#### 继续降噪：read_paragraph 与 AI 调用日志（待确认）
+
+- [x] 降级 read_paragraph 逐段 INFO（改为 DEBUG 或聚合摘要）
+- [x] 合并/降级 http_ai_service 成本/积分/记录/成功日志
+- [x] 将“非流式未启用”告警改为仅提示一次或降级
+- [x] 更新 todo.md review 记录调整与影响
 - [x] 保持最小改动并评估性能影响（频繁保存/大章）
 - [x] 更新 todo.md review 并回复现状与改动
 

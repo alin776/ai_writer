@@ -55,6 +55,9 @@ class HTTPAIService:
     ```
     """
 
+    _warned_non_streaming_no_selector = False
+    _warned_non_streaming_no_task_type = False
+
     def __init__(
         self,
         model: str = None,
@@ -292,7 +295,7 @@ class HTTPAIService:
         if response_format:
             payload["response_format"] = response_format
 
-        logger.info(
+        logger.debug(
             f"开始调用 AI API: model={model}, "  # ← 记录实际模型
             f"max_tokens={max_tokens}, temp={temperature}, task_type={task_type}"
         )
@@ -333,7 +336,7 @@ class HTTPAIService:
                             return
                     raise Exception(f"API 请求失败: {response.status_code}, {error_msg}")
 
-                logger.info("API 流式响应已建立，开始接收数据...")
+                logger.debug("API 流式响应已建立，开始接收数据...")
                 chunk_count = 0
                 total_content = ""
                 usage_info = None  # 用于存储最终的usage信息
@@ -351,7 +354,7 @@ class HTTPAIService:
 
                         # 结束标记
                         if data_str == "[DONE]":
-                            logger.info(
+                            logger.debug(
                                 f"API 响应完成，共接收 {chunk_count} 个数据块，总长度: {len(total_content)}"
                             )
 
@@ -369,7 +372,7 @@ class HTTPAIService:
 
                             # 记录usage统计
                             if usage_info:
-                                logger.info(
+                                logger.debug(
                                     "流式响应Token统计: "
                                     f"{usage_info.get('total_tokens', 0)} "
                                     f"(prompt={usage_info.get('prompt_tokens', 0)}, "
@@ -1014,11 +1017,11 @@ class HTTPAIService:
 
             # 记录user_id来源（用于调试）
             source = "实例" if self.user_id else "上下文"
-            logger.info(f"[成本追踪] user_id来源: {source}, user_id={user_id}")
+            logger.debug(f"[成本追踪] user_id来源: {source}, user_id={user_id}")
 
             # ✅ 2025-12-18: 使用实际调用的模型（ModelSelector选择的），而不是默认模型
             model_to_track = actual_model or self.model
-            logger.info(f"[成本追踪] 记录模型: {model_to_track} (actual_model={actual_model}, self.model={self.model})")
+            logger.debug(f"[成本追踪] 记录模型: {model_to_track} (actual_model={actual_model}, self.model={self.model})")
 
             # 提取token使用情况
             prompt_tokens = usage_info.get('prompt_tokens', 0)
@@ -1127,12 +1130,12 @@ class HTTPAIService:
 
                         if transaction:  # 非管理员才有交易记录
                             credits_deducted = credits_to_deduct  # 记录扣除金额（用于退款）
-                            logger.info(
+                            logger.debug(
                                 f"[积分扣除] 用户 {user_id}: 扣除 {float(credits_to_deduct)} 积分, "
                                 f"余额: {float(transaction.balance_before)} → {float(transaction.balance_after)}"
                             )
                         else:
-                            logger.info(f"[积分扣除] 管理员 {user_id} 豁免积分扣除")
+                            logger.debug(f"[积分扣除] 管理员 {user_id} 豁免积分扣除")
 
                         # 注意：邀请激活逻辑已移至注册阶段（注册即激活模式）
                         # 此处不再需要检查消费激活条件
@@ -1178,7 +1181,7 @@ class HTTPAIService:
                     logger.warning("[积分扣除] 扣除失败，但AI调用日志已记录")
                 # ================================================
 
-            logger.info(
+            logger.debug(
                 f"[AILogService] API调用已记录到数据库 (来源:{source}): "
                 f"tokens={prompt_tokens + completion_tokens}, "
                 f"cost=${cost_data['total_cost']:.6f}, "
@@ -1256,9 +1259,17 @@ class HTTPAIService:
         else:
             model = self.model
             if not self.model_selector:
-                logger.warning(f"[ModelSelector] ⚠️ 非流式调用未启用，使用默认模型: {model}")
+                if not self.__class__._warned_non_streaming_no_selector:
+                    logger.warning(f"[ModelSelector] ⚠️ 非流式调用未启用，使用默认模型: {model}")
+                    self.__class__._warned_non_streaming_no_selector = True
+                else:
+                    logger.debug(f"[ModelSelector] 非流式调用未启用，使用默认模型: {model}")
             elif not task_type:
-                logger.warning(f"[ModelSelector] ⚠️ 非流式调用未传递task_type，使用默认模型: {model}")
+                if not self.__class__._warned_non_streaming_no_task_type:
+                    logger.warning(f"[ModelSelector] ⚠️ 非流式调用未传递task_type，使用默认模型: {model}")
+                    self.__class__._warned_non_streaming_no_task_type = True
+                else:
+                    logger.debug(f"[ModelSelector] 非流式调用未传递task_type，使用默认模型: {model}")
 
         payload = {
             "model": model,  # ✅ 使用动态选择的模型
@@ -1283,7 +1294,7 @@ class HTTPAIService:
                     )
                     await asyncio.sleep(wait_time)
 
-                logger.info(
+                logger.debug(
                     f"开始非流式AI调用: max_tokens={max_tokens}, temp={temperature}, "
                     f"尝试={attempt + 1}/{max_retries}, task_type={task_type}"
                 )
@@ -1361,7 +1372,7 @@ class HTTPAIService:
                                 f"错误={type(refund_error).__name__}: {str(refund_error)}"
                             )
 
-                logger.info(
+                logger.debug(
                     f"AI响应成功, 长度={len(content) if content else 0}, "
                     f"尝试次数={attempt + 1}"
                 )

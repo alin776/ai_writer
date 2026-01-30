@@ -190,7 +190,7 @@ class ChapterVectorService:
         按段落生成向量，chunk_index 即为 paragraph_index。
         """
         try:
-            logger.info(f"Vectorizing chapter: {chapter_title} (order={chapter_order})")
+            logger.debug(f"Vectorizing chapter: {chapter_title} (order={chapter_order})")
 
             # 1) delete old vectors (idempotent)
             stmt = sql_delete(NovelChapterVector).where(
@@ -238,7 +238,7 @@ class ChapterVectorService:
             self.db.add_all(vectors)
             await self.db.commit()
 
-            logger.info(f"Stored chapter vectors: {chapter_title} ({len(text_list)} paragraphs)")
+            logger.debug(f"Stored chapter vectors: {chapter_title} ({len(text_list)} paragraphs)")
             return len(text_list)
 
         except Exception as e:

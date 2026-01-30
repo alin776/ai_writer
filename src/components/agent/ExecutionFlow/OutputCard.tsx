@@ -28,6 +28,85 @@ export function OutputCard({
 }: OutputCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
 
+  const toNumber = (value: string) => {
+    const cleaned = value.trim();
+    if (!cleaned) return null;
+    if (/^\d+$/.test(cleaned)) return parseInt(cleaned, 10);
+    const map: Record<string, number> = {
+      '零': 0,
+      '一': 1,
+      '二': 2,
+      '两': 2,
+      '三': 3,
+      '四': 4,
+      '五': 5,
+      '六': 6,
+      '七': 7,
+      '八': 8,
+      '九': 9,
+      '十': 10
+    };
+    if (cleaned === '十') return 10;
+    if (cleaned.includes('十')) {
+      const parts = cleaned.split('十');
+      const tens = parts[0] ? (map[parts[0]] ?? 0) : 1;
+      const ones = parts[1] ? (map[parts[1]] ?? 0) : 0;
+      return tens * 10 + ones;
+    }
+    const single = map[cleaned];
+    if (single === undefined) return null;
+    return single;
+  };
+
+  // Normalize common numbered prefixes to Markdown ordered lists.
+  const isYearish = (value: string) => {
+    const trimmed = value.trim();
+    if (!/^(19|20)\d{2}$/.test(trimmed)) return false;
+    const year = parseInt(trimmed, 10);
+    if (year < 1900 || year > 2100) return false;
+    return true;
+  };
+
+  const isNoticeLine = (text: string) => {
+    if (!text) return false;
+    const haystack = text.trim();
+    return /(公告|编号|版本|通知|更新|修订|说明|通告|第[一二三四五六七八九十]+号)/.test(haystack);
+  };
+
+  const fix = (line: string) => {
+    const bracketed = line.match(/^(\s*)[（(]\s*([0-9]+)\s*[）)]\s*(.+)$/);
+    if (bracketed) {
+      if (isYearish(bracketed[2]) && isNoticeLine(bracketed[3])) return line;
+      return `${bracketed[1]}${bracketed[2]}. ${bracketed[3]}`;
+    }
+
+    const numbered = line.match(/^(\s*)([0-9]+|[一二三四五六七八九十两]+)\s*[、\.．\)\]）:：]\s*(.+)$/);
+    if (!numbered) return line;
+    const value = toNumber(numbered[2]);
+    if (value === null) return line;
+    if (isYearish(String(value)) && isNoticeLine(numbered[3])) return line;
+    return `${numbered[1]}${value}. ${numbered[3]}`;
+  };
+
+  const normalize = (value: string) => {
+    const lines = value.split(/\r?\n/);
+    const result = lines.reduce(
+      (state, line) => {
+        const trimmed = line.trim();
+        const isFence = trimmed.startsWith('```');
+        if (isFence) {
+          return { inCode: !state.inCode, lines: [...state.lines, line] };
+        }
+        if (state.inCode) {
+          return { inCode: true, lines: [...state.lines, line] };
+        }
+        return { inCode: false, lines: [...state.lines, fix(line)] };
+      },
+      { inCode: false, lines: [] as string[] }
+    );
+    return result.lines.join('\n');
+  };
+
   // 渲染介绍文字，支持高亮
   const renderIntro = () => {
     if (!intro) return null;
@@ -65,9 +144,9 @@ export function OutputCard({
             <span>正在生成...</span>
           </div>
         ) : (
-          <div className="text-[14px] text-gray-600 dark:text-slate-300 leading-[1.8] [&_p]:mb-2.5 [&_p]:indent-8 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-gray-300 [&_th]:dark:border-slate-600 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-100 [&_th]:dark:bg-slate-700 [&_td]:border [&_td]:border-gray-300 [&_td]:dark:border-slate-600 [&_td]:px-3 [&_td]:py-2">
+          <div className="text-[14px] text-gray-600 dark:text-slate-300 leading-[1.8] [&_p]:mb-2.5 [&_p]:indent-8 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-[15px] [&_h3]:font-medium [&_h3]:mb-2 [&_h4]:text-[14px] [&_h4]:font-medium [&_h4]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_th]:border [&_th]:border-gray-300 [&_th]:dark:border-slate-600 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-100 [&_th]:dark:bg-slate-700 [&_td]:border [&_td]:border-gray-300 [&_td]:dark:border-slate-600 [&_td]:px-3 [&_td]:py-2">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {content}
+              {normalize(content)}
             </ReactMarkdown>
           </div>
         )}

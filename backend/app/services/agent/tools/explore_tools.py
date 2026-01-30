@@ -38,6 +38,8 @@ TOOL_LOOP_MAX_CALLS_DEFAULT = 200
 TOOL_LOOP_MAX_READS_DEFAULT = 200
 TOOL_LOOP_RESULT_PREVIEW_LIMIT = 1200
 SEARCH_HIT_TEXT_LIMIT = 2000
+KEYWORD_READ_MAX_PER_TERM = 1
+KEYWORD_COVERAGE_MAX = 20
 SEARCH_HIT_PREVIEW_LIMIT = 100
 SEARCH_HIT_TOTAL_CHAR_LIMIT = 20000
 SEARCH_HIT_MIN_ITEMS = 5
@@ -2922,6 +2924,14 @@ class ContentExplorer:
             if not keywords:
                 result_data = {"success": False, "error": "缺少 keywords"}
             else:
+                required_keywords: List[str] = []
+                if self.search_keywords:
+                    for item in self.search_keywords:
+                        text = str(item).strip()
+                        if not text:
+                            continue
+                        required_keywords.extend(_split_keywords(text))
+
                 expanded = []
                 seen_kw = set()
                 for kw in keywords:
@@ -2934,13 +2944,41 @@ class ContentExplorer:
                             continue
                         seen_kw.add(item)
                         expanded.append(item)
+                required_expanded = []
+                for kw in required_keywords:
+                    cleaned = str(kw).strip().strip("\"'“”‘’《》")
+                    variants = [kw, cleaned, cleaned.replace(" ", ""), cleaned.replace("　", "")]
+                    for item in variants:
+                        if not item:
+                            continue
+                        if item in seen_kw:
+                            continue
+                        seen_kw.add(item)
+                        required_expanded.append(item)
+
                 keywords = expanded
+                force_set = set(required_expanded)
+                if required_expanded:
+                    merged = []
+                    for kw in keywords + required_expanded:
+                        if kw in merged:
+                            continue
+                        merged.append(kw)
+                        if len(merged) >= KEYWORD_COVERAGE_MAX:
+                            break
+                    keywords = merged
+                    if len(merged) >= KEYWORD_COVERAGE_MAX and len(required_expanded) > KEYWORD_COVERAGE_MAX:
+                        logger.info(
+                            "[ExploreTool] 关键词覆盖截断: %s -> %s",
+                            len(required_expanded),
+                            KEYWORD_COVERAGE_MAX
+                        )
                 # 去重 & 过滤已搜索
                 deduped = []
                 for kw in keywords:
                     if not kw:
                         continue
-                    if self.state.should_search(kw):
+                    if kw in force_set or self.state.should_search(kw):
                         deduped.append(kw)
                 keywords = deduped or keywords
 
@@ -2998,6 +3036,10 @@ class ContentExplorer:
                     return parsed
 
                 param_ranges = _parse_param_ranges(params)
+                if not param_ranges:
+                    chapter_order_param = _coerce_int(params.get("chapter_order") or params.get("chapter"))
+                    if isinstance(chapter_order_param, int):
+                        param_ranges = [(chapter_order_param, chapter_order_param)]
                 ranges_to_use = param_ranges or (self.chapter_scopes or [])
 
                 # 计算当前搜索范围（优先使用本次请求的范围）
@@ -3012,6 +3054,9 @@ class ContentExplorer:
                 allowed_keywords = []
                 for kw in keywords:
                     if "," in kw:
+                        allowed_keywords.append(kw)
+                        continue
+                    if kw in force_set:
                         allowed_keywords.append(kw)
                         continue
                     should_block, block_reason = self.state.should_block_search(kw, current_scope)
@@ -3073,6 +3118,21 @@ class ContentExplorer:
                                 "worldview_name": wv_item.get("name", "")
                             })
 
+                    def _extract_matched_keywords(item: Dict[str, Any], pool: List[str]) -> List[str]:
+                        matched_list = item.get("matched_keywords") if isinstance(item, dict) else None
+                        if isinstance(matched_list, list) and matched_list:
+                            return [kw for kw in matched_list if kw in pool]
+                        text = (
+                            item.get("text")
+                            or item.get("content")
+                            or item.get("snippet")
+                            or ""
+                        )
+                        if not text:
+                            return []
+                        text_lower = text.lower()
+                        return [kw for kw in pool if kw.lower() in text_lower]
+
                     # 2. 搜索章节原文
                     async with AsyncSessionLocal() as db:
                         vector_service = ChapterVectorService(db)
@@ -3104,6 +3164,45 @@ class ContentExplorer:
                                 limit=limit
                             )
                             results.extend(chapter_results or [])
+
+                        # 2.1 对未命中关键词补搜（单词级）
+                        coverage_pool = list(keywords)
+                        matched_set = set()
+                        for item in results:
+                            if not isinstance(item, dict):
+                                continue
+                            if item.get("source") == "worldview":
+                                continue
+                            for mk in _extract_matched_keywords(item, coverage_pool):
+                                matched_set.add(mk)
+                        missing_keywords = [kw for kw in coverage_pool if kw not in matched_set]
+                        if missing_keywords:
+                            supplement_limit = min(5, limit)
+                            for kw in missing_keywords:
+                                if not kw:
+                                    continue
+                                part: List[Dict[str, Any]] = []
+                                if ranges_to_use:
+                                    for start_order, end_order in ranges_to_use:
+                                        part.extend(
+                                            await search_fn(
+                                                work_id=self.work_id,
+                                                keywords=[kw],
+                                                chapter_range=(start_order, end_order),
+                                                match_mode="any",
+                                                limit=supplement_limit
+                                            ) or []
+                                        )
+                                else:
+                                    part = await search_fn(
+                                        work_id=self.work_id,
+                                        keywords=[kw],
+                                        chapter_range=None,
+                                        match_mode="any",
+                                        limit=supplement_limit
+                                    ) or []
+                                if part:
+                                    results.extend(part)
 
                     if param_ranges:
                         results = [
@@ -3151,8 +3250,65 @@ class ContentExplorer:
                         )
 
                     # 命中后置验证：强制读取原文（跳过世界观结果）
-                    if results and (read_budget is None or read_budget > 0):
+                    ordered_results = results
+                    if results and keywords:
+                        keyword_hits: Dict[str, List[Dict[str, Any]]] = {kw: [] for kw in keywords}
                         for item in results:
+                            if not isinstance(item, dict):
+                                continue
+                            if item.get("source") == "worldview":
+                                continue
+                            for mk in _extract_matched_keywords(item, keywords):
+                                keyword_hits.setdefault(mk, []).append(item)
+                        position_map: Dict[Tuple[int, int], Dict[str, Any]] = {}
+                        for item in results:
+                            if not isinstance(item, dict):
+                                continue
+                            if item.get("source") == "worldview":
+                                continue
+                            chapter_order = item.get("chapter_order")
+                            paragraph_index = item.get("paragraph_index")
+                            if isinstance(chapter_order, int) and isinstance(paragraph_index, int):
+                                position_map.setdefault((chapter_order, paragraph_index), item)
+                        priority_positions: List[Tuple[int, int]] = []
+                        used_positions: Set[Tuple[int, int]] = set()
+                        for kw, items_for_kw in keyword_hits.items():
+                            added = 0
+                            for item in items_for_kw:
+                                chapter_order = item.get("chapter_order")
+                                paragraph_index = item.get("paragraph_index")
+                                if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                                    continue
+                                key = (chapter_order, paragraph_index)
+                                if key in used_positions:
+                                    continue
+                                priority_positions.append(key)
+                                used_positions.add(key)
+                                added += 1
+                                if added >= KEYWORD_READ_MAX_PER_TERM:
+                                    break
+                        if priority_positions:
+                            priority_items = [
+                                position_map[pos]
+                                for pos in priority_positions
+                                if pos in position_map
+                            ]
+                            priority_set = set(priority_positions)
+                            tail_items = [
+                                item for item in results
+                                if not isinstance(item, dict)
+                                or item.get("source") == "worldview"
+                                or (
+                                    isinstance(item.get("chapter_order"), int)
+                                    and isinstance(item.get("paragraph_index"), int)
+                                    and (item.get("chapter_order"), item.get("paragraph_index")) not in priority_set
+                                )
+                            ]
+                            ordered_results = priority_items + tail_items
+
+                    read_keyword_hits: Set[str] = set()
+                    if ordered_results and (read_budget is None or read_budget > 0):
+                        for item in ordered_results:
                             if read_budget is not None and read_budget <= 0:
                                 break
                             if item.get("source") == "worldview":
@@ -3187,6 +3343,11 @@ class ContentExplorer:
                                     chapter_info = await self._get_chapter_info_by_order(chapter_order)
                                     chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
                                     chapter_title = read_data.get("chapter_title") or chapter_info.get("title") or ""
+                                    if target_text and keywords:
+                                        text_lower = target_text.lower()
+                                        for kw in keywords:
+                                            if kw and kw.lower() in text_lower:
+                                                read_keyword_hits.add(kw)
                                     paragraph_data = {
                                         "chapter_order": chapter_order,
                                         "chapter_title": chapter_title,
@@ -3223,13 +3384,19 @@ class ContentExplorer:
                     chapter_hits = [r for r in results if r.get("source") != "worldview"]
                     worldview_hits_count = len(worldview_matches) if worldview_matches else 0
 
+                    # 统计缺失关键词（以“实际读取到的原文”为准）
+                    missing_keywords = []
+                    if keywords:
+                        missing_keywords = [kw for kw in keywords if kw not in read_keyword_hits]
+
                     result_data = {
                         "success": True,
                         "keywords": keywords,
                         "hits": len(results),
                         "chapter_hits": len(chapter_hits),
                         "worldview_hits": worldview_hits_count,
-                        "results": _preview_results(results)
+                        "results": _preview_results(results),
+                        "missing_keywords": missing_keywords
                     }
 
                     # 记录搜索历史（类似 OpenCode 的 ToolPart）
@@ -3483,6 +3650,15 @@ class ContentExplorer:
                     count_hint,
                     params.get("index_base")
                 )
+                actual_count = result_data.get("count") if isinstance(result_data, dict) else None
+                if isinstance(result_data, dict) and (not result_data.get("success") or actual_count == 0):
+                    logger.info(
+                        "[ExploreTool] read_paragraphs failed details: empty_reason=%s error=%s invalid_items=%s index_base=%s",
+                        result_data.get("empty_reason"),
+                        result_data.get("error"),
+                        result_data.get("invalid_items"),
+                        result_data.get("index_base")
+                    )
                 results_list = result_data.get("results", []) if isinstance(result_data, dict) else []
                 for entry in results_list:
                     if not isinstance(entry, dict) or not entry.get("success"):

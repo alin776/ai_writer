@@ -1310,7 +1310,7 @@ async def read_paragraph(
                 context_after=context_after
             )
             if cached_result:
-                logger.info(f"[read_paragraph] 缓存命中: 第{chapter_order}章第{paragraph_index}段")
+                logger.debug(f"[read_paragraph] 缓存命中: 第{chapter_order}章第{paragraph_index}段")
                 return cached_result
 
             from app.services.chapter_content_provider import ChapterContentProvider
@@ -1364,7 +1364,7 @@ async def read_paragraph(
                 paragraph_index = len(paragraphs) - 1
                 index_corrected = True
 
-            logger.info(
+            logger.debug(
                 "[read_paragraph] index_base=%s assumed=%s original=%s corrected=%s final=%s",
                 index_base,
                 assumed_base,
@@ -1421,7 +1421,7 @@ async def read_paragraph(
                 context_before=context_before,
                 context_after=context_after
             )
-            logger.info(f"[read_paragraph] 缓存写入: 第{chapter_order}章第{paragraph_index}段")
+            logger.debug(f"[read_paragraph] 缓存写入: 第{chapter_order}章第{paragraph_index}段")
 
             return result
 
