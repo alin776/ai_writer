@@ -384,6 +384,11 @@ class ImportService:
             except Exception as exc:
                 await self.db.rollback()
                 logger.warning(f"[ImportService] 提交索引失败: {exc}")
+        try:
+            from app.services.agent.utils.explore_cache import invalidate_explore_result_cache
+            await invalidate_explore_result_cache(str(work.id))
+        except Exception as exc:
+            logger.warning(f"[ImportService] Explore 结果缓存失效失败: {exc}")
 
         # 汇总需异步向量化的章节
         vectorize_jobs: list[Dict[str, Any]] = []
@@ -527,6 +532,11 @@ class ImportService:
             except Exception as exc:
                 await self.db.rollback()
                 logger.warning(f"[ImportService] 提交索引失败: {exc}")
+        try:
+            from app.services.agent.utils.explore_cache import invalidate_explore_result_cache
+            await invalidate_explore_result_cache(str(work.id))
+        except Exception as exc:
+            logger.warning(f"[ImportService] Explore 结果缓存失效失败: {exc}")
 
         # 汇总需异步向量化的章节
         vectorize_jobs: list[Dict[str, Any]] = []

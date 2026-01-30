@@ -48,7 +48,8 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
       const resp = await agentApi.createSession({
         title: DEFAULT_TITLE,
         work_id: workId,
-        chapter_id: resolvedChapterId !== 'default' ? resolvedChapterId : undefined
+        chapter_id: resolvedChapterId !== 'default' ? resolvedChapterId : undefined,
+        conversation_id: sessionId
       });
       sessionId = resp.session_id || sessionId;
       conversationId = resp.conversation_id;

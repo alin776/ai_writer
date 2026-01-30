@@ -162,6 +162,12 @@ class ChapterHistoryService:
             # 不阻断恢复流程
             pass
 
+        try:
+            from app.services.agent.utils.explore_cache import invalidate_explore_result_cache
+            await invalidate_explore_result_cache(str(chapter.work_id))
+        except Exception:
+            pass
+
         return chapter
 
     async def get_latest_agent_edit(self, chapter_id: str) -> Optional[ChapterHistory]:

@@ -1,5 +1,62 @@
 # TODO
 
+#### 缓存失效 + 会话消息索引（待确认）
+
+- [x] 追踪 _persist_message / update / delete 是否已有会话缓存失效逻辑
+- [x] 在消息写入后失效会话列表与详情缓存
+- [x] 为 agent_session_messages 增加 (session_id, created_at) 索引迁移
+- [x] 在 todo.md 追加 review（改动与影响）
+
+#### review
+
+- 已将会话缓存失效下沉到 _persist_message：每次写入消息后都会清理会话详情缓存并失效会话列表缓存。
+- 已移除流式聊天中的重复缓存清理，避免重复逻辑。
+- 已新增 Alembic 迁移：为 agent_session_messages 增加 (session_id, created_at) 索引，优化列表统计查询性能。
+
+#### 会话绑定补丁 + 历史统计字段（待确认）
+
+- [x] 复核会话创建入口（createSession/agent_chat_stream）与 conversation_id 传递点
+- [x] 后端：创建会话时写入 conversation_id，避免“同一会话重复记录”
+- [x] 后端：会话列表补充 message_count 与 last_message_preview
+- [x] 在 todo.md 追加 review（改动与影响）
+
+#### review
+
+- createSession 现在支持传 conversation_id，前端 Tab/流式聊天/持久化创建都会携带会话ID，减少重复会话。
+- 后端 create_session 对同一 conversation_id 做幂等：已存在则直接返回，避免重复记录。
+- 会话列表增加 message_count 与 last_message_preview（按会话聚合统计），历史面板可直接使用后端统计。
+
+#### 会话绑定 + 历史列表修正 + 本地压缩（待确认）
+
+- [x] 核对 AgentChatRequest/上下文字段，确认 chat/stream 里可用的 work_id/chapter_id（避免创建会话缺字段）
+- [x] 后端：在 chat/stream 找不到 session 时创建 AgentSession 并写入 conversation_id（保证消息可持久化）
+- [x] 后端/前端二选一最小改动：补 message_count/last_message_preview 或放宽“无内容过滤”
+- [x] 前端：启用本地会话压缩（优先轻量压缩 flowItems）
+- [x] 在 todo.md 追加 review（改动与影响）
+
+#### review
+
+- 已确认 chat/stream 请求包含 work_id/chapter_id/conversation_id，可用于会话绑定。
+- 已在流式聊天中补齐会话绑定逻辑：优先用 conversation_id 查找；若 conversation_id 实为 session_id 则回填绑定；仍无会话则创建新 AgentSession。
+- 已放宽历史会话列表过滤：不再因 messageCount/preview 为空而隐藏会话，避免“看起来丢失”。
+- 已启用本地轻量压缩：保存会话时压缩 flowItems/长文本，降低 localStorage 体积与配额风险。
+
+#### 历史会话存储问题排查与结论（待确认）
+
+- [x] 核对前端本地会话持久化与历史列表逻辑（useConversationPersistence、HistoryPanel、ConversationHistory、WorkDetailView）
+- [x] 核对后端会话/消息存储与过期策略（agent sessions endpoints、_persist_message、expires_at 过滤）
+- [x] 识别“丢失/存储过度”的触发条件（本地上限/过滤规则/读取上限/清理缺失）
+- [x] 输出证据清单（文件路径+关键片段）并给出直白结论
+- [x] 在 todo.md 追加 review（结论+影响范围+可能修复方向）
+
+#### review
+
+- 已确认“历史会话丢失”的主因是后端会话未与 conversation_id 绑定，导致流式对话无法持久化消息；历史列表又会过滤“无内容”的会话。
+- 已确认“存储过度”来自前端持久化保存了完整消息+flowItems，且压缩逻辑被禁用，localStorage 容易超配额导致写入失败。
+- 已确认前端会话列表仅保留最近 N 个（useAgentChat 设置为 20），超出后在列表中不可见。
+- 已确认后端会话默认 30 天过期，过期后被列表接口过滤。
+- 已确认历史恢复拉取消息默认 limit=200，长会话会被截断。
+
 #### 上下文对话 AI 上下文记忆说明（待确认）
 
 - [x] 深度检索前后端与文档：定位“上下文/记忆/会话”相关实现（ContextManager、MemoryManager、LongTermMemory、UserProfile、前端会话持久化）
@@ -11,6 +68,7 @@
 
 - 已完成“上下文对话 AI 上下文记忆”深度检索与证据整理，并形成结论与调用链路说明。
 - 已完成 INFO.md 复盘与“重复探索/再次追问”根因定位：规划规则强制每次涉及作品内容都调用 explore_content，且工具结果不写入持久上下文；共享缓存仅进程内 20 分钟且依赖 conversation_id，无法保证复用。
+- 已为 explore_content 增加 Redis 结果缓存（TTL=1小时），并支持 use_cache/force_refresh；缓存键包含 work_id/user_id/范围/任务摘要/关键词/output_mode；超大结果跳过缓存；tool_executor 放行新参数。
 
 #### INFO.md 对话与重复探索原因排查（待确认）
 
@@ -18,6 +76,72 @@
 - [x] 深度检索后端/前端/提示词：定位“重复探索/再次追问”触发条件（planning/agent 路由、上下文/记忆读取链路）
 - [x] 对照证据给出核心原因与结论（直白说明“为什么没有记住/为什么又探索”）
 - [x] 在 todo.md 追加 review（结论+证据路径）
+
+#### explore_content 结果缓存（待确认）
+
+- [x] 设计缓存键与TTL（work_id + scope + task digest + search_keywords + schema_version）
+- [x] 在 explore_content 开始处读取 Redis 缓存；支持 force_refresh/use_cache 参数
+- [x] 在 explore_content 成功后写入 Redis 缓存；限制缓存体积与TTL
+- [x] 放行新参数到 tool_executor（避免被裁剪）
+- [x] 在 todo.md 追加 review（改动与影响）
+
+#### explore_content 缓存补强（待确认）
+
+- [x] ChapterService：create/update/delete/reorder/update_with_lock/apply_agent_edit 后失效 explore 结果缓存（避免陈旧结果）
+- [x] ImportService：_import_json/_import_text 成功后失效 explore 结果缓存
+- [x] planning_prompts：用户要求“重新读取/刷新/忽略缓存”时自动传 force_refresh（可选 use_cache=false）
+- [x] 更新 todo.md review（记录影响）
+
+#### review
+
+- 已在 ChapterService 的创建/更新/删除/重排/带锁更新/Agent 编辑路径中失效 explore 结果缓存，避免章节变更后仍命中旧结果。
+- 已在 ImportService 的 JSON/TXT 导入完成后失效 explore 结果缓存，确保导入内容可被最新探索读取。
+- 已补充规划提示词规则：当用户要求刷新/重新读取时自动传 `force_refresh: true`（可选 `use_cache:false`）。
+
+#### explore_content 缓存遗漏补齐（待确认）
+
+- [x] 章节历史恢复（restore_version）后失效 explore 结果缓存
+- [x] 更新 todo.md review（记录影响）
+
+#### review
+
+- 已在章节历史恢复（restore_version）后失效 explore 结果缓存，避免恢复后仍命中旧探索结果。
+
+#### 复杂测试 prompt 设计（待确认）
+
+- [x] 阅读素材《一夕千悟，从杂役弟子开始.txt》，提取关键人物/事件/术语
+- [x] 设计 5 个复杂测试 prompt，覆盖跨章检索、证据引用、刷新/忽略缓存、章节范围等场景
+- [x] 更新 todo.md review（记录覆盖点）
+
+#### review
+
+- 已基于《一夕千悟，从杂役弟子开始》前 5 章设计 5 个复杂测试 prompts，覆盖跨章检索、证据引用、章节范围锁定、刷新/忽略缓存等场景。
+
+#### Backend.md 复盘与改动深度 Review（待确认）
+
+- [x] 通读 Backend.md 最新日志，定位与 explore 缓存/刷新/规划规则相关的调用链
+- [x] 逐项核对本次改动是否引入新问题（缓存失效频率/错误吞没/性能影响）
+- [x] 验证是否真正解决“重复探索/陈旧结果”与“刷新需求”问题
+- [x] 检查改动完整性与一致性（章节更新/导入/恢复/重排路径是否覆盖）
+- [x] 汇总遗漏与下一步建议，并在 todo.md 追加 review
+
+#### review
+
+- Backend.md 显示 explore_content 多次执行且成功，但日志未出现 cache_hit/force_refresh 相关信息，无法直接从日志确认新缓存生效（仅能确认未引入运行时错误）。
+- 发现遗漏风险：explore_content 仍会复用进程内共享状态（Backend.md 有“复用共享状态”日志），但章节更新/导入/恢复只清 Redis 结果缓存，未清进程内共享状态，可能在同会话内复用过期状态。
+- 新增失效调用会触发 Redis `delete_pattern`（内部使用 KEYS），在高键量时存在潜在阻塞/延迟风险，但目前日志未体现性能问题。
+
+#### INFO.md 对话逻辑复核（待确认）
+
+- [x] 通读 INFO.md 原对话，标注“确认后仍追问/继续探索”关键片段
+- [x] 深度检索规划/执行/响应生成链路，定位“确认后仍追问”的规则或缺口
+- [x] 对照证据给出是否存在逻辑问题与根因（直白结论）
+- [x] 更新 todo.md review（记录证据与结论）
+
+#### review
+
+- INFO.md 中首次 Explore 后的“请确认是否开始分析”属于分阶段执行提示，但确认后再次进入 Explore 并输出“请问希望怎样创作/分析”的追问，显示“分阶段询问规则”在 AI 整合阶段触发，导致重复询问且偏离原问题。
+- 代码证据：ResponseBuilder.ai_summarization 强制“分阶段执行识别”，只要结果是“准备信息”就要求询问用户细节，而非直接输出分析结论，易导致“确认后仍追问”。`backend/app/services/agent/planning/response_builder.py:460-475`
 
 #### 核心问题复盘（最新 Backend.md + 截图）（待确认）
 

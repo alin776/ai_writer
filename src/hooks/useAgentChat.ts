@@ -399,7 +399,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           const resp = await agentApi.createSession({
             title: '新会话',
             work_id: workId,
-            chapter_id: chapterId
+            chapter_id: chapterId,
+            conversation_id: sessionId
           });
           streamConversationId = resp.conversation_id || resp.session_id || streamConversationId;
           sessionManager.updateSession(sessionId, { conversationId: streamConversationId });

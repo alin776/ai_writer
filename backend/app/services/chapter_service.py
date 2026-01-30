@@ -109,6 +109,13 @@ class ChapterService:
             invalidate_vector_fresh_cache(work_id)
         except Exception as exc:
             logger.warning(f"[ChapterService] 向量新鲜度缓存失效失败: {exc}")
+
+    async def _invalidate_explore_result_cache(self, work_id: str) -> None:
+        try:
+            from app.services.agent.utils.explore_cache import invalidate_explore_result_cache
+            await invalidate_explore_result_cache(work_id)
+        except Exception as exc:
+            logger.warning(f"[ChapterService] Explore 结果缓存失效失败: {exc}")
     
     async def get_chapter_by_id(self, chapter_id: str) -> Optional[Chapter]:
         """根据 ID 获取章节"""
@@ -221,6 +228,7 @@ class ChapterService:
             logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
 
         self._schedule_vectorization(chapter, content_text)
+        await self._invalidate_explore_result_cache(str(chapter.work_id))
 
         # 记录历史，便于后续增量统计
         history_service = ChapterHistoryService(self.db)
@@ -321,6 +329,7 @@ class ChapterService:
             except Exception as exc:
                 logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
             self._schedule_vectorization(chapter, content_text)
+            await self._invalidate_explore_result_cache(str(chapter.work_id))
             return chapter
 
         # 否则使用标准创建流程
@@ -389,6 +398,7 @@ class ChapterService:
         
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
+        await self._invalidate_explore_result_cache(work_id)
 
         # 记录历史，便于后续增量统计：先保存旧版本，再保存新版本
         try:
@@ -459,6 +469,7 @@ class ChapterService:
         
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id_str)
+        await self._invalidate_explore_result_cache(work_id_str)
         
         return True
     
@@ -487,6 +498,7 @@ class ChapterService:
                 await self.db.rollback()
                 logger.warning(f"[ChapterService] 重排向量顺序失败: {exc}")
         self._invalidate_vector_fresh_cache(str(work_id))
+        await self._invalidate_explore_result_cache(str(work_id))
         return True
 
     async def update_chapter_with_lock(
@@ -571,6 +583,7 @@ class ChapterService:
 
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
+        await self._invalidate_explore_result_cache(work_id)
 
         # 记录增量（delta = 新旧字数差）
         try:
@@ -649,6 +662,7 @@ class ChapterService:
 
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, str(chapter.work_id))
+        await self._invalidate_explore_result_cache(str(chapter.work_id))
 
         # 记录增量（delta = 新旧字数差）
         try:

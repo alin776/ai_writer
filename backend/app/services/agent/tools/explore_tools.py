@@ -14,6 +14,7 @@ Version: 2.0 - AI 驱动的 SubAgent 模式
 import json
 import logging
 import re
+import hashlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple, Any, Optional, Callable, Awaitable
 from datetime import datetime
@@ -24,6 +25,7 @@ from app.utils.datetime_utils import get_utc_now
 from app.services.agent.utils.tool_context import get_stream_event_handler, get_explore_step_id
 from app.services.agent.utils.performance import MemoryCache
 from app.core.database import AsyncSessionLocal
+from app.core.redis import RedisClient
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +58,9 @@ TOOL_LOOP_ALLOWED_TOOLS = (
 
 EXPLORE_SHARED_TTL_SECONDS = 20 * 60
 _EXPLORE_SHARED_CACHE = MemoryCache(max_size=50, default_ttl=EXPLORE_SHARED_TTL_SECONDS)
+EXPLORE_RESULT_CACHE_TTL_SECONDS = 60 * 60
+EXPLORE_RESULT_CACHE_MAX_CHARS = 200000
+EXPLORE_RESULT_CACHE_VERSION = "v1"
 
 PARAGRAPH_REQUIRED_KEYWORDS = (
     "段落号",
@@ -1177,6 +1182,89 @@ def _build_explore_shared_key(
     convo_part = str(conversation_id or "default").strip() or "default"
     scope_part = _scopes_cache_key(chapter_scopes)
     return f"{work_id}:{user_part}:{convo_part}:{scope_part}"
+
+
+def _normalize_search_keywords(keywords: Optional[List[str]]) -> List[str]:
+    if not keywords:
+        return []
+    normalized = []
+    for item in keywords:
+        value = str(item).strip()
+        if value:
+            normalized.append(value)
+    if not normalized:
+        return []
+    return sorted(set(normalized))
+
+
+def _build_explore_result_cache_key(
+    work_id: str,
+    user_id: Optional[str],
+    chapter_scopes: List[Tuple[int, int]],
+    target_task: str,
+    search_keywords: Optional[List[str]],
+    output_mode: str
+) -> str:
+    work_id = str(work_id or "").strip()
+    if not work_id:
+        return ""
+    user_part = str(user_id or "anonymous").strip() or "anonymous"
+    scope_part = _scopes_cache_key(chapter_scopes)
+    payload = {
+        "task": (target_task or "").strip(),
+        "keywords": _normalize_search_keywords(search_keywords),
+        "output_mode": (output_mode or "").strip().lower(),
+        "schema": EXPLORE_RESULT_CACHE_VERSION
+    }
+    digest = hashlib.sha1(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:16]
+    return f"explore:result:{EXPLORE_RESULT_CACHE_VERSION}:{work_id}:{user_part}:{scope_part}:{digest}"
+
+
+async def _get_cached_explore_result(cache_key: str) -> Optional[Dict[str, Any]]:
+    if not cache_key:
+        return None
+    try:
+        cached = await RedisClient.get(cache_key)
+    except Exception as e:
+        logger.debug(f"[explore_content] Redis缓存读取失败: {e}")
+        return None
+    if not cached:
+        return None
+    if isinstance(cached, dict):
+        return cached
+    if isinstance(cached, str):
+        try:
+            return json.loads(cached)
+        except Exception:
+            return None
+    return None
+
+
+async def _set_cached_explore_result(cache_key: str, payload: Dict[str, Any]) -> None:
+    if not cache_key:
+        return
+    try:
+        serialized = json.dumps(payload, ensure_ascii=False)
+        if len(serialized) > EXPLORE_RESULT_CACHE_MAX_CHARS:
+            logger.info(
+                "[explore_content] 缓存跳过：结果过大（%s chars > %s）",
+                len(serialized),
+                EXPLORE_RESULT_CACHE_MAX_CHARS
+            )
+            return
+        await RedisClient.set(cache_key, payload, expire=EXPLORE_RESULT_CACHE_TTL_SECONDS)
+    except Exception as e:
+        logger.debug(f"[explore_content] Redis缓存写入失败: {e}")
+
+
+def _decorate_cached_payload(payload: Dict[str, Any], cache_key: str) -> Dict[str, Any]:
+    data = dict(payload)
+    data["cache_hit"] = True
+    data["cache_key"] = cache_key
+    data["events_emitted"] = False
+    return data
 
 
 def _clone_explore_state(state: ExploreState) -> ExploreState:
@@ -4483,7 +4571,9 @@ async def explore_content(
     max_read_paragraphs: Optional[int] = None,
     output_mode: str = "full",
     user_id: Optional[str] = None,
-    conversation_id: Optional[str] = None
+    conversation_id: Optional[str] = None,
+    use_cache: bool = True,
+    force_refresh: bool = False
 ) -> str:
     """深度探索内容，收集完成任务所需的所有信息
 
@@ -4498,6 +4588,8 @@ async def explore_content(
         output_mode: 输出模式（evidence_only/full，默认 full；full 返回前端展示字段）
         user_id: 用户ID（可选）
         conversation_id: 会话ID（可选，用于共享缓存）
+        use_cache: 是否启用 Redis 结果缓存（默认 True）
+        force_refresh: 是否跳过缓存强制刷新（默认 False）
 
     Returns:
         JSON格式的探索结果
@@ -4507,6 +4599,8 @@ async def explore_content(
         logger.info(f"[explore_content] 规划传入关键词: {search_keywords[:10]}")
     output_mode_norm = (output_mode or "evidence_only").strip().lower()
     evidence_only_output = output_mode_norm in ("evidence", "evidence_only", "minimal")
+    use_cache = bool(use_cache)
+    force_refresh = bool(force_refresh)
 
     # 工具内事件：若有 stream handler，则由工具实时发射
     stream_handler = get_stream_event_handler()
@@ -4515,6 +4609,22 @@ async def explore_content(
     events_emitted = emit_callback is not None
 
     chapter_scopes = _parse_chapter_scopes(target_task)
+    cache_key = ""
+    if use_cache:
+        cache_key = _build_explore_result_cache_key(
+            work_id=work_id,
+            user_id=user_id,
+            chapter_scopes=chapter_scopes,
+            target_task=target_task,
+            search_keywords=search_keywords,
+            output_mode=output_mode_norm
+        )
+        if cache_key and not force_refresh:
+            cached_payload = await _get_cached_explore_result(cache_key)
+            if cached_payload:
+                cached_payload = _decorate_cached_payload(cached_payload, cache_key)
+                return json.dumps(cached_payload, ensure_ascii=False, indent=2)
+
     shared_cache_key = _build_explore_shared_key(
         work_id,
         user_id,
@@ -4611,11 +4721,14 @@ async def explore_content(
         evidences_output = _build_evidences_output(result, node_id_map=node_id_map)
 
         if evidence_only_output:
-            return json.dumps({
+            result_payload = {
                 "success": True,
                 "evidences": evidences_output,
                 "locate_targets": locate_targets
-            }, ensure_ascii=False, indent=2)
+            }
+            if use_cache and cache_key:
+                await _set_cached_explore_result(cache_key, result_payload)
+            return json.dumps(result_payload, ensure_ascii=False, indent=2)
 
         # full 输出（兼容旧字段）
         chapters_list = [
@@ -4740,7 +4853,7 @@ async def explore_content(
         frontend_display["search_results"] = search_results
         frontend_display["locate_targets"] = locate_targets
 
-        return json.dumps({
+        result_payload = {
             "success": True,
             "work_id": work_id,
             "target_task": target_task,
@@ -4757,7 +4870,10 @@ async def explore_content(
             "results": chapters_list,
             "worldview": worldview_dict,
             "events_emitted": events_emitted
-        }, ensure_ascii=False, indent=2)
+        }
+        if use_cache and cache_key:
+            await _set_cached_explore_result(cache_key, result_payload)
+        return json.dumps(result_payload, ensure_ascii=False, indent=2)
 
     except Exception as e:
         logger.error(f"[explore_content] 失败: {e}")

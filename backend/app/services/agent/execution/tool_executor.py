@@ -518,8 +518,14 @@ class ToolExecutor:
                 "target_task",
                 "search_keywords",
                 "max_rounds",
+                "explore_mode",
+                "max_tool_calls",
+                "max_read_paragraphs",
+                "output_mode",
                 "user_id",
                 "conversation_id",
+                "use_cache",
+                "force_refresh"
             }
             params = {key: value for key, value in params.items() if key in allowed_keys}
 
