@@ -1559,6 +1559,7 @@ def _build_locate_targets(
         seen.add(key)
         targets.append({
             "chapter_id": chapter_id,
+            "chapter_order": chapter_order,
             "query": query_text,
             "paragraph_index": paragraph_index,
             "node_id": node_id or "",

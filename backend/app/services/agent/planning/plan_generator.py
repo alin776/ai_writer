@@ -1230,6 +1230,7 @@ tool_policy: {tool_policy}
             return tasks
 
         last_locate_task_id: Optional[int] = None
+        last_explore_task_id: Optional[int] = None
         for task in tasks:
             tool = task.get("tool")
             task_id = task.get("task_id")
@@ -1241,6 +1242,12 @@ tool_policy: {tool_policy}
                 except (TypeError, ValueError):
                     last_locate_task_id = task_id
                 continue
+            if tool == "explore_content":
+                try:
+                    last_explore_task_id = int(task_id)
+                except (TypeError, ValueError):
+                    last_explore_task_id = task_id
+                continue
 
             if tool in {"smart_rewrite", "smart_insert", "smart_continue", "operate_apply", "apply_chapter_edit"}:
                 if last_locate_task_id and self._should_override_chapter_id(params.get("chapter_id"), last_locate_task_id):
@@ -1250,6 +1257,33 @@ tool_policy: {tool_policy}
                             "path": "chapter_id"
                         }
                     }
+                elif last_explore_task_id and self._should_override_chapter_id(params.get("chapter_id"), last_explore_task_id):
+                    params["chapter_id"] = {
+                        "$ref": {
+                            "task_id": last_explore_task_id,
+                            "path": "locate_targets[0].chapter_id",
+                            "default": params.get("chapter_id")
+                        }
+                    }
+                # 绑定写回目标章节（供执行阶段一致性校验）
+                # 优先使用 locate/explore 结果，避免显式 chapter_id 固化为错误章
+                if "__target_chapter_id" not in params:
+                    if last_locate_task_id:
+                        params["__target_chapter_id"] = {
+                            "$ref": {
+                                "task_id": last_locate_task_id,
+                                "path": "chapter_id"
+                            }
+                        }
+                    elif last_explore_task_id:
+                        params["__target_chapter_id"] = {
+                            "$ref": {
+                                "task_id": last_explore_task_id,
+                                "path": "locate_targets[0].chapter_id"
+                            }
+                        }
+                    elif params.get("chapter_id"):
+                        params["__target_chapter_id"] = params.get("chapter_id")
 
                 if tool in {"operate_apply", "apply_chapter_edit"}:
                     if params.get("operation") in {"replace", "insert"} and last_locate_task_id:

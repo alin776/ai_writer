@@ -1121,3 +1121,117 @@
 - 证据2（写入却是第2章）：operate_apply/ apply_chapter_edit 实际写入 chapter_id=a82095aa...（`Backend.md:86-88`），这与界面中“第2章”被选中且内容落在第2章末尾一致（截图）。
 - 直接根因：**chapter_id 没有从“第1章”目标显式传到写入阶段**，写入工具使用了当前上下文/前端活跃章节的 chapter_id（第2章）。因为这一轮没有 locate_content 任务（仅 explore_content），`plan_generator._ensure_chapter_id_from_locate` 不会覆写章节ID；而 ToolExecutor 对 smart_continue/operate_apply 在 chapter_id 缺失或解析失败时会默认使用 state.chapter_id（当前章节）。`backend/app/services/agent/execution/tool_executor.py:360-392`、`backend/app/services/agent/planning/plan_generator.py:1227-1253`
 - 结论（直白）：**你写错章不是定位漂移，而是“章节ID来源错了”**——计划/参数没有把“第1章”的 chapter_id 绑定到写入阶段，最终沿用当前界面所在章节（第2章）。
+
+#### 章节一致性硬约束（治本）（待确认）
+
+- [x] 规划阶段固化“目标章节”并传入 smart_continue/operate_apply（禁止仅靠 state 回退）
+- [x] ToolExecutor/operate_apply 写回前校验 chapter_id 与目标章节一致，不一致直接失败并提示
+- [x] 记录 chapter_id 来源（显式/locate/explore/回退）到日志，便于追踪
+- [x] 更新 todo.md review（结论与影响）
+
+#### review
+
+- 规划阶段新增 explore_content 兜底：当无 locate_content 时，smart_continue/operate_apply 的 chapter_id 优先引用 explore_content 的 `locate_targets[0].chapter_id`（带 default 兜底），避免落回当前界面章节。`backend/app/services/agent/planning/plan_generator.py`
+- 执行阶段固化目标章节：explore_content 成功后将 target_chapter_id 写入 shared_state，并记录来源（locate_targets/evidences/chapters）。`backend/app/services/agent/execution/parallel_executor.py`
+- 写回前硬校验：operate_apply/apply_chapter_edit 若 chapter_id 与目标章节不一致，直接返回 `chapter_id_mismatch` 阻止写入，并记录 source/expected/actual。`backend/app/services/agent/execution/tool_executor.py`
+- 追加日志：smart_continue/operate_apply 会输出 chapter_id 来源与是否采用目标章节，便于追踪“为什么写到某章”。
+
+#### 章节一致性修复再复核（待确认）
+
+- [x] 验证是否引入新问题（chapter_id_mismatch 误杀、旧流程兼容性）
+- [x] 验证是否真正解决“第1章写到第2章”的根因
+- [x] 检查修改完整性（planning → explore → executor → operate_apply）
+- [x] 逻辑一致性复核（目标章节来源、fallback 行为、日志一致性）
+- [x] 更深入验证：确认问题是否真实存在、是否有遗漏路径
+- [x] 更新 todo.md review（结论与风险）
+
+#### review
+
+- 逻辑完整性：规划层补了 explore_content 的 chapter_id 引用兜底，执行层固化 target_chapter_id，写回前强校验；链路已覆盖 planning → explore → executor → operate_apply。`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/agent/execution/parallel_executor.py`、`backend/app/services/agent/execution/tool_executor.py`
+- 原问题可被阻断：若写回目标与 explore_content 目标不一致，会直接返回 `chapter_id_mismatch`，避免“写到当前章”静默发生。`backend/app/services/agent/execution/tool_executor.py`
+- 兼容性风险（新增）：**多章节任务**场景下若同一计划包含多个 explore_content，当前仅保留“最后一次 explore”的 target_chapter_id，可能误判并拦截正确写回（误杀风险）。需要后续按任务依赖绑定 explore→write，或在规划阶段显式为每个写回任务绑定对应 explore 结果。
+- 仍需验证：若 explore_content 未产生 locate_targets/chapters/evidences（极少数异常），target_chapter_id 为空则不会触发校验，仍可能回退到当前章节；但这与原问题相比已显著收敛。
+- 兼容性补丁：写回校验支持“章节序号 vs UUID”等价匹配，避免因 chapter_id 为数字而被误杀。`backend/app/services/agent/execution/tool_executor.py`
+
+#### 按写回任务绑定目标章节（待确认）
+
+- [x] 规划阶段为写回类任务注入 __target_chapter_id（引用 locate/explore 或显式章节）
+- [x] 执行阶段解析 __target_chapter_id 并绑定到 task_state（不透传给工具）
+- [x] 更新 todo.md review（结论与影响）
+
+#### review
+
+- plan_generator 为 smart_* / operate_apply / apply_chapter_edit 注入 `__target_chapter_id`，用于**每个写回任务**绑定目标章节（避免全局 target 被后续 explore 覆盖）。`backend/app/services/agent/planning/plan_generator.py`
+- parallel_executor 解析并移除 `__target_chapter_id`，写入 task_state（source=task_binding），确保工具层只见到合法参数。`backend/app/services/agent/execution/parallel_executor.py`
+
+#### 章节一致性仍写错章复盘（待确认）
+
+- [x] 通读最新 Backend.md，定位 explore 目标章与写回章是否一致
+- [x] 对照任务绑定日志，确认 __target_chapter_id 的来源
+- [x] 核对 plan_generator 覆盖规则（显式 chapter_id 不会被 explore 覆盖）
+- [x] 输出证据与直白结论
+
+#### review
+
+- 日志显示 **explore 已固化目标章=f9f4...（第1章）**，但任务绑定章变成 **947b...（当前章）**：`Backend.md:01:24:38 目标章节已固化` → `Backend.md:01:24:38 任务2 绑定目标章节: 947b...` → `Backend.md:01:24:38 smart_continue chapter_id 来源=explicit value=947b...` → `Backend.md:01:25:05 operate_apply chapter_id 来源=explicit value=947b...`。
+- 根因：计划中已经带了显式 chapter_id（来自当前界面章节），而 `plan_generator._should_override_chapter_id` 只会在 **占位符/空值** 时覆盖，导致 explore 的“第1章”无法覆盖显式 UUID。`backend/app/services/agent/planning/plan_generator.py:1208-1253`
+- 结论（直白）：**不是执行阶段丢了章，而是规划阶段一开始就把“当前章节ID”写进任务参数，后续绑定沿用这个错误值，所以依然写错章。**
+
+#### 本次深度复核（待确认）
+
+- [x] 通读 Backend.md 最新日志，抽取“目标章→绑定→写回”的完整链路证据
+- [x] 复查相关代码（plan_generator/parallel_executor/tool_executor/operate_apply/editor_tools）与上次改动，确认是否引入新问题
+- [x] 核对 chapter_order / chapter_id 传递与覆盖逻辑，确认是否遗漏场景
+- [x] 判断是否真正解决“写错章/漂移”根因，列出仍可能触发的路径
+- [x] 更新 todo.md review（证据、结论、风险与建议）
+
+#### review
+
+- Backend.md 明确显示：Explore 固化目标章=f9f4...（第1章），但任务绑定/写回使用显式 chapter_id=947b...（当前章），smart_continue/operate_apply 全程走 explicit。证据：`Backend.md:67-74,90-96`。
+- 规划阶段的覆盖逻辑不足：`_should_override_chapter_id` 对“显式 UUID”直接返回 False，导致 explore 的目标章无法覆盖；同时 `__target_chapter_id` 优先取 params.chapter_id，进一步把“错误显式值”固化到任务绑定。`backend/app/services/agent/planning/plan_generator.py:1208-1272`
+- 执行阶段不会纠正显式值：`smart_continue` 对显式 chapter_id 只告警不覆盖（继续用 explicit），因此即便已知道目标章不同，也不会修正。`backend/app/services/agent/execution/tool_executor.py:390-433`
+- `locate_targets` 输出缺少 `chapter_order`，仅有 `chapter_id/paragraph_index/node_id`，导致下游无法用“章序号”做一致性校验。`backend/app/services/agent/tools/explore_tools.py:1544-1566`
+- 结论：**写错章的根因仍在“规划阶段把当前章 ID 写进任务参数，且后续不会覆盖显式值”**。因此本轮修复没有治本，只能记录告警与绑定日志，无法阻断错误写回。
+
+#### 章节写回目标修复（待确认）
+
+- [x] 调整 __target_chapter_id 绑定优先级：优先 locate/explore 结果，不再默认沿用显式 chapter_id（防止错误显式值固化）
+- [x] locate_targets 输出补充 chapter_order，便于一致性校验与诊断
+- [x] 更新 todo.md review（改动与影响）
+
+#### review
+
+- __target_chapter_id 现在优先绑定 locate_content/explore_content 的 chapter_id，只有两者都缺失时才回退到显式 chapter_id，避免“当前章显式值”固化为写回目标。`backend/app/services/agent/planning/plan_generator.py:1269-1285`
+- locate_targets 增加 chapter_order 字段，便于下游诊断与一致性校验。`backend/app/services/agent/tools/explore_tools.py:1560-1567`
+
+#### 本次复核（待确认）
+
+- [x] 通读 Backend.md 最新日志，验证目标章/绑定章/写回章是否一致
+- [x] 复查本次改动是否引入新问题（plan_generator / explore_tools）
+- [x] 检查是否真正解决“写错章/漂移”根因（显式 chapter_id 覆盖问题）
+- [x] 复核逻辑一致性（__target_chapter_id 优先级、chapter_order 补充字段）
+- [x] 深入验证是否仍有遗漏路径（多章节任务、无 locate/explore 的写回）
+- [x] 更新 todo.md review（证据、结论与风险）
+
+#### review
+
+- Backend.md 现有日志仍显示“目标章=第1章、绑定/写回=当前章”的旧问题，但这是**改动前**日志，无法用于判断新修复是否生效；需要复测后看是否仍出现 `chapter_id_mismatch` 或错误写回。`Backend.md:67-96`
+- 本次改动未触及执行层写回逻辑，仅调整任务绑定优先级与 locate_targets 输出字段；逻辑一致性良好，风险较低。`backend/app/services/agent/planning/plan_generator.py:1269-1285`、`backend/app/services/agent/tools/explore_tools.py:1560-1567`
+- 预期影响：只要计划中存在 explore/locate 任务，写回任务的 target_chapter_id 将优先绑定 explore/locate 结果，不再固化“当前章显式值”，从而减少写错章。
+- 仍可能遗漏路径：没有 explore/locate 的写回任务仍会用显式 chapter_id；多章节任务如果同一批次含多个 explore，仍需依赖任务级绑定正确性（当前已优先绑定最近的 locate/explore）。
+- 结论：修复方向正确，但**是否真正解决需复测**；若仍写错章，建议启用“expected≠explicit 直接阻断写回”的硬闸。
+
+#### 续写不换行问题复盘（待确认）
+
+- [x] 通读 Backend.md/前端日志，定位续写/写回的 operation 与段落定位参数（append/replace/insert）
+- [x] 深度检索写回链路（smart_continue → operate_apply → apply_chapter_edit），确认是否有“段落拼接/去换行”逻辑
+- [x] 追踪章节内容结构（HTML/段落标记），确认换行与段落切分的真实规则
+- [x] 复核 append 行为是否应该自动包裹成新段落（<p> / <li>）
+- [x] 输出证据清单与直白结论，更新 todo.md review
+
+#### review
+
+- 写回链路确认：续写走 `smart_continue → operate_apply(operation=append) → apply_chapter_edit(operation=append)`，append 分支直接 `old_content + actual_content`，**没有任何自动换行/段落包裹**。`backend/app/services/agent/tools/editor_tools.py:494-508`
+- insert 分支才会在 HTML 上下文中自动包 `<p>`，append 分支没有这个逻辑，因此纯文本续写会直接拼接到上一段末尾。`backend/app/services/agent/tools/editor_tools.py:521-527`
+- operate_apply 对 append 不要求 node_id/paragraph_index（也不会定位），因此默认是“追加到章节末尾”，不会“自动新段落”。`backend/app/services/agent/tools/operate_tools.py:401-412`
+- 结论（直白）：**不换行是因为 append 写回逻辑就是字符串拼接，没有包裹新段落，也没有自动插入换行**。要换行只能：1) 用 insert 写入下一段，或 2) append 时内容本身以 `<p>`/换行开头，或 3) 在 apply_chapter_edit 的 append 分支增加自动包段规则。

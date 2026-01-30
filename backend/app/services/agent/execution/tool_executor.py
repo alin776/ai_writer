@@ -131,6 +131,47 @@ class ToolExecutor:
             # 准备参数
             params = self.prepare_params(normalized_name, tool_args, state)
 
+            # 🛡️ 章节一致性校验：写回阶段必须与目标章节一致
+            expected_chapter_id, expected_source = self._get_target_chapter_id(state)
+            if normalized_name in {"operate_apply", "apply_chapter_edit"} and expected_chapter_id:
+                operation = params.get("operation")
+                if operation in {"append", "replace", "insert", "content", "replace_all"}:
+                    actual_chapter_id = params.get("chapter_id")
+                    if actual_chapter_id and str(actual_chapter_id) != str(expected_chapter_id):
+                        # 允许章节序号与UUID的等价匹配
+                        work_id = params.get("work_id") or state.get("work_id")
+                        actual_norm = str(actual_chapter_id)
+                        expected_norm = str(expected_chapter_id)
+                        if work_id:
+                            if is_chapter_order(actual_norm):
+                                resolved_actual, _ = await resolve_chapter_id(work_id, actual_norm)
+                                if resolved_actual:
+                                    actual_norm = str(resolved_actual)
+                            if is_chapter_order(expected_norm):
+                                resolved_expected, _ = await resolve_chapter_id(work_id, expected_norm)
+                                if resolved_expected:
+                                    expected_norm = str(resolved_expected)
+                        if actual_norm == expected_norm:
+                            logger.info(
+                                "[ToolExecutor] chapter_id 等价匹配通过: actual=%s expected=%s",
+                                actual_chapter_id,
+                                expected_chapter_id
+                            )
+                        else:
+                            logger.error(
+                                "[ToolExecutor] chapter_id 不一致，已阻止写回: actual=%s expected=%s source=%s",
+                                actual_chapter_id,
+                                expected_chapter_id,
+                                expected_source
+                            )
+                            return json.dumps({
+                                "error": "chapter_id_mismatch",
+                                "message": "写回章节与目标章节不一致，已阻止操作。",
+                                "expected_chapter_id": expected_chapter_id,
+                                "actual_chapter_id": actual_chapter_id,
+                                "expected_source": expected_source
+                            }, ensure_ascii=False)
+
             # 🔧 2026-01-26: fail-fast，避免 chapter_id 为空导致隐式失败
             if normalized_name in {"smart_rewrite", "smart_insert", "smart_continue"}:
                 if not params.get("chapter_id"):
@@ -349,8 +390,10 @@ class ToolExecutor:
         elif tool_name == "smart_continue":
             # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
             current_chapter_id = state.get("chapter_id", "")
+            expected_chapter_id, expected_source = self._get_target_chapter_id(state)
             param_chapter_id = params.get("chapter_id")
-            if param_chapter_id is None:
+            chapter_source = "explicit"
+            if param_chapter_id is None or (isinstance(param_chapter_id, str) and not param_chapter_id.strip()):
                 if "chapter_id" in params:
                     logger.error(
                         "[ToolExecutor] smart_continue chapter_id 引用解析失败（越界或路径错误），"
@@ -359,9 +402,36 @@ class ToolExecutor:
                     logger.warning(
                         "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致续写位置错误"
                     )
-                params["chapter_id"] = current_chapter_id
+                if expected_chapter_id:
+                    params["chapter_id"] = expected_chapter_id
+                    chapter_source = expected_source
+                    logger.info(
+                        "[ToolExecutor] smart_continue chapter_id 使用目标章节: %s (source=%s)",
+                        expected_chapter_id,
+                        expected_source
+                    )
+                else:
+                    params["chapter_id"] = current_chapter_id
+                    chapter_source = "state_fallback"
             else:
                 params.setdefault("chapter_id", current_chapter_id)
+                if not param_chapter_id:
+                    chapter_source = "state_fallback"
+                    params["chapter_id"] = current_chapter_id
+                else:
+                    chapter_source = "explicit"
+                if expected_chapter_id and str(param_chapter_id) != str(expected_chapter_id):
+                    logger.warning(
+                        "[ToolExecutor] smart_continue chapter_id 与目标章节不一致: actual=%s expected=%s source=%s",
+                        param_chapter_id,
+                        expected_chapter_id,
+                        expected_source
+                    )
+            logger.info(
+                "[ToolExecutor] smart_continue chapter_id 来源=%s value=%s",
+                chapter_source,
+                params.get("chapter_id")
+            )
             # 🔧 2026-01-12: 确保 chapter_content 是字符串类型
             chapter_content = params.get("chapter_content")
             if chapter_content is not None and not isinstance(chapter_content, str):
@@ -556,8 +626,10 @@ class ToolExecutor:
         elif tool_name == "operate_apply":
             # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
             current_chapter_id = state.get("chapter_id", "")
+            expected_chapter_id, expected_source = self._get_target_chapter_id(state)
             param_chapter_id = params.get("chapter_id")
-            if param_chapter_id is None:
+            chapter_source = "explicit"
+            if param_chapter_id is None or (isinstance(param_chapter_id, str) and not param_chapter_id.strip()):
                 if "chapter_id" in params:
                     logger.error(
                         "[ToolExecutor] operate_apply chapter_id 引用解析失败（越界或路径错误），"
@@ -566,9 +638,36 @@ class ToolExecutor:
                     logger.warning(
                         "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致操作位置错误"
                     )
-                params["chapter_id"] = current_chapter_id
+                if expected_chapter_id:
+                    params["chapter_id"] = expected_chapter_id
+                    chapter_source = expected_source
+                    logger.info(
+                        "[ToolExecutor] operate_apply chapter_id 使用目标章节: %s (source=%s)",
+                        expected_chapter_id,
+                        expected_source
+                    )
+                else:
+                    params["chapter_id"] = current_chapter_id
+                    chapter_source = "state_fallback"
             else:
                 params.setdefault("chapter_id", current_chapter_id)
+                if not param_chapter_id:
+                    chapter_source = "state_fallback"
+                    params["chapter_id"] = current_chapter_id
+                else:
+                    chapter_source = "explicit"
+                if expected_chapter_id and str(param_chapter_id) != str(expected_chapter_id):
+                    logger.warning(
+                        "[ToolExecutor] operate_apply chapter_id 与目标章节不一致: actual=%s expected=%s source=%s",
+                        param_chapter_id,
+                        expected_chapter_id,
+                        expected_source
+                    )
+            logger.info(
+                "[ToolExecutor] operate_apply chapter_id 来源=%s value=%s",
+                chapter_source,
+                params.get("chapter_id")
+            )
             params.setdefault("work_id", state.get("work_id", ""))
             params.setdefault("user_id", state.get("user_id", ""))
             params.setdefault("conversation_id", state.get("conversation_id", ""))
@@ -737,6 +836,38 @@ class ToolExecutor:
         if len(merged) > max_chars:
             return merged[:max_chars] + "..."
         return merged
+
+    @staticmethod
+    def _extract_target_chapter_id(explore_result: dict) -> tuple[str, str]:
+        """从 explore_content 结果中推断目标章节ID与来源。"""
+        if not isinstance(explore_result, dict):
+            return "", ""
+        locate_targets = explore_result.get("locate_targets")
+        if isinstance(locate_targets, list):
+            for item in locate_targets:
+                if isinstance(item, dict) and item.get("chapter_id"):
+                    return str(item.get("chapter_id")), "explore.locate_targets"
+        evidences = explore_result.get("evidences")
+        if isinstance(evidences, list):
+            for item in evidences:
+                if isinstance(item, dict) and item.get("chapter_id"):
+                    return str(item.get("chapter_id")), "explore.evidences"
+        chapters = explore_result.get("chapters")
+        if isinstance(chapters, list) and len(chapters) == 1:
+            entry = chapters[0]
+            if isinstance(entry, dict) and entry.get("id"):
+                return str(entry.get("id")), "explore.chapters"
+        return "", ""
+
+    def _get_target_chapter_id(self, state: dict) -> tuple[str, str]:
+        if not isinstance(state, dict):
+            return "", ""
+        target_id = state.get("target_chapter_id")
+        if isinstance(target_id, str) and target_id:
+            source = state.get("target_chapter_source") or "state"
+            return target_id, str(source)
+        explore_result = self._load_explore_result(state)
+        return self._extract_target_chapter_id(explore_result)
 
     @staticmethod
     def _coerce_evidence_context(value: Any) -> str:
