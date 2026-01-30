@@ -8,6 +8,7 @@ import clsx from 'clsx';
 interface SessionTabBarProps {
   tabs: Tab[];
   activeTabId: string;
+  isReady?: boolean;
   onSwitchTab: (tabId: string) => void;
   onCreateTab: (afterTabId?: string) => Promise<any>;
   onCloseTab: (tabId: string) => void;
@@ -29,6 +30,7 @@ interface SessionTabBarProps {
 export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   tabs,
   activeTabId,
+  isReady = true,
   onSwitchTab,
   onCreateTab,
   onCloseTab,
@@ -47,6 +49,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   const editorWasCollapsedRef = React.useRef<boolean | null>(null);
 
   const handleCreate = async () => {
+    if (!isReady) return;
     if (creating) return;
     setCreating(true);
     try {
@@ -154,10 +157,15 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
 
         {/* 5. 新增会话按钮 */}
         <button
-          className="p-1.5 rounded transition-all text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
+          className={clsx(
+            "p-1.5 rounded transition-all",
+            isReady
+              ? "text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-700"
+              : "text-gray-400 dark:text-slate-600 cursor-not-allowed"
+          )}
           onClick={handleCreate}
-          disabled={creating}
-          title={t('editor.sessionTab.addSession')}
+          disabled={creating || !isReady}
+          title={isReady ? t('editor.sessionTab.addSession') : t('common.loading')}
         >
           <SquarePen className="w-4 h-4" />
         </button>
@@ -202,7 +210,16 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           );
         })}
 
-        {tabs.length === 0 && <span className="text-sm text-slate-400 dark:text-slate-500 px-2">{t('editor.sessionTab.noSessions')}</span>}
+        {!isReady && (
+          <span className="text-sm text-slate-400 dark:text-slate-500 px-2">
+            {t('common.loading')}
+          </span>
+        )}
+        {isReady && tabs.length === 0 && (
+          <span className="text-sm text-slate-400 dark:text-slate-500 px-2">
+            {t('editor.sessionTab.noSessions')}
+          </span>
+        )}
       </div>
     </div>
   );

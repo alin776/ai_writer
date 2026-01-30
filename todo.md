@@ -1,5 +1,51 @@
 # TODO
 
+#### 章节切换会话仍变新修复（待确认）
+
+- [x] 深入核对“切章→读 tab →无则新建”的链路与证据（useTabManager / tabStorage / useConversationPersistence）
+- [x] 增加“tab 恢复”兜底：章节 tab 为空或无效时，从已保存的会话列表按 chapterId 重建 tabs
+- [x] 补充 localStorage 配额失败处理：tab 写入失败时清理+重试，并抛出统一提示事件
+- [ ] 做最小回归：切换章节/切回、历史恢复、空章节首次进入不新增新问题
+
+#### 章节会话迁移修复（待确认）
+
+- [x] 核对 tabStorage 的章节分组键与遗留 workId 分组
+- [x] 在 useTabManager 中加入“legacy key → 章节 key”的迁移逻辑（仅在章节 tab 为空时执行）
+- [x] 确保迁移后不再自动新建会话（优先恢复旧 tab）
+- [x] 在 todo.md 追加 review（改动与影响）
+
+#### review
+
+- 新增 tab 迁移：当章节 tab 为空时，从 legacy workId key 迁移到章节 key，并同步 activeTab。
+- 迁移只在 chapterId 就绪后触发，不会覆盖已有章节 tab。
+
+#### 章节切换会话恢复修复（待确认）
+
+- [x] 核对章节初始化流程，避免 currentChapterId 未就绪时创建 tab
+- [x] 优先使用章节级 key 恢复 tab；仅在确定无历史时创建新会话
+- [x] 保持最小改动，验证不会影响首次进入空章节
+- [x] 在 todo.md 追加 review（改动与影响）
+
+#### review
+
+- WorkDetailView 不再用 workId 作为 tab 分组兜底，currentChapterId 未就绪时传空字符串，避免误写到作品级 key。
+- useTabManager 增加“chapterId 未就绪”防护：不再自动创建新会话，也不会读写 localStorage，直到章节 ID 就绪。
+- SessionTabBar 在章节未就绪时禁用“新会话”按钮并显示加载提示，避免用户误触发新建。
+
+#### 切换章节后会话变新问题排查（待确认）
+
+- [x] 追踪章节切换逻辑与 tab/session 绑定（useTabManager/WorkDetailView/SessionContext）
+- [x] 复核会话恢复/持久化策略（useConversationPersistence、tabStorage、activeTab 逻辑）
+- [x] 定位“切回变新会话”的触发路径与条件
+- [x] 给出证据与直白结论（含修复方向）
+- [x] 在 todo.md 追加 review（结论与影响）
+
+#### review
+
+- 章节切换后会话变新，根因是“按章节分组的 tab 列表为空”时会自动创建新会话；触发点在 useTabManager 的 bootstrap（chapterTabs 为空即 createNewTab）。
+- 章节分组键来自 WorkDetailView：`useTabManager(currentChapterId || workId || 'work', workId)`，当 currentChapterId 未就绪/为 undefined 时会落到 workId 键，导致会话存到“作品级”而非章节级，切回章节后视为无 tabs 而新建。
+- 另一个高概率触发条件是 localStorage 写入失败（配额/异常）导致 tab 或 session 缺失，切回时被当作空列表处理。
+
 #### 缓存失效 + 会话消息索引（待确认）
 
 - [x] 追踪 _persist_message / update / delete 是否已有会话缓存失效逻辑
@@ -142,6 +188,34 @@
 
 - INFO.md 中首次 Explore 后的“请确认是否开始分析”属于分阶段执行提示，但确认后再次进入 Explore 并输出“请问希望怎样创作/分析”的追问，显示“分阶段询问规则”在 AI 整合阶段触发，导致重复询问且偏离原问题。
 - 代码证据：ResponseBuilder.ai_summarization 强制“分阶段执行识别”，只要结果是“准备信息”就要求询问用户细节，而非直接输出分析结论，易导致“确认后仍追问”。`backend/app/services/agent/planning/response_builder.py:460-475`
+
+#### 修复“确认后仍追问/继续探索”（待确认）
+
+- [x] 在 ResponseBuilder 的 AI 整合提示中增加“仅创作类才允许追问”的门槛（分析/推演/设定补充直接输出）
+- [x] 更新 todo.md review（记录影响）
+
+#### review
+
+- 已在 ResponseBuilder 的 AI 整合提示中增加“仅创作类才允许追问”的门槛，分析/推演/设定补充任务不再引导续写或询问创作风格。
+
+#### opencode Explore 阶段处理机制复核（待确认）
+
+- [x] 通读 opencode 的 Explore 相关提示与子代理实现（agent/prompt/explore.txt、agent/agent.ts）
+- [x] 查找 Explore 工具输出如何被保存/截断/回传（tool/truncation.ts、session/prompt.ts 等）
+- [x] 确认 Explore 结果是否写入主会话上下文（是否仅返回最终文本/是否保存到会话消息）
+- [x] 汇总证据并在 todo.md 追加 review 结论
+
+#### review
+
+- opencode 的 Explore 是子代理（subagent），通过 Task 工具调用。主会话只拿到子代理**最终文本**作为 Task 工具输出；搜索/读取的原始工具输出保留在子代理会话内，不会完整写入主会话上下文。
+- 工具输出若过长会被 Truncate 截断并写入磁盘文件，提示改用 Task→Explore 继续 Grep/Read，以减少上下文占用。
+
+#### Explore 结果持久化（待确认）
+
+- [ ] 新增 Explore Artifact 存储（落盘 JSON，包含元数据 + 完整结果）
+- [ ] explore_content 返回 artifact_id + 摘要信息，便于后续对话引用
+- [ ] 新增读取工具 load_explore_artifact（按 artifact_id 取回完整结果）
+- [ ] 更新 todo.md review（记录影响）
 
 #### 核心问题复盘（最新 Backend.md + 截图）（待确认）
 
@@ -912,3 +986,46 @@
 - 已修复关键词拆分：支持英文逗号 `,`；并跳过对含逗号未拆分关键词的阻断，避免“0 命中”被错误复用。
 - 已调整 should_block_search：对“多关键词组合且 0 命中”的历史记录不再阻断单个关键词搜索，避免旧错误记录持续误判。
 - 已通读 Backend.md（2021 行）并复盘：主要问题集中在精确搜索过于字面、搜索拦截误判、read_paragraphs 多次返回空、以及负数 limit 触发 SQL 错误。
+
+#### smart* 应用漂移原因排查（待确认）
+
+- [x] 梳理 smart_* → operate_apply → apply_chapter_edit → 修订落库/应用 的实际写入链路
+- [x] 核对定位信息来源（node_id/paragraph_index/original_text/nodes_info）与前端传递路径
+- [x] 对比 apply_chapter_edit 与 ChapterRevisionService 的替换/插入逻辑差异，定位漂移触发点
+- [x] 汇总证据清单（文件路径+关键片段）并输出直白结论
+- [x] 在 todo.md 追加 review（结论+影响范围+可能修复方向）
+
+#### review
+
+- 结论：smart_* 只生成内容，真正写入由 operate_apply → apply_chapter_edit 触发修订；漂移主要发生在“定位信息不可靠 + 确认写入使用弱定位”的组合上。
+- 关键触发点1：operate_apply 调用 locate_content，默认允许跨章节全局降级；一旦本章定位失败会返回其他章节并修改 chapter_id，导致内容被写入别章（跨章节漂移风险）。
+- 关键触发点2：apply_chapter_edit 在 original_text 多次出现且缺 paragraph_index 时，直接替换第一次出现；定位信息缺失/错误时会替换错段。
+- 关键触发点3：用户确认后由 ChapterRevisionService 重新“文本匹配写入”，使用 old_content.find/replace(…, 1) 等首匹配逻辑，忽略更稳定的 node_id/段落位置，重复文本时极易漂移到第一处。
+- 关键触发点4：locate_content 有 5 分钟缓存且无失效钩子，章节内容变更后仍可能返回旧 paragraph_index。
+- 影响范围：所有 replace/insert 场景（尤其是有重复文本、章节近期编辑、或定位失败触发全局降级时）。
+- 可能修复方向：确认写入阶段优先使用 node_id/段落位置（与 apply_chapter_edit 保持一致），禁用/显式控制跨章节降级，locate_content 缓存与章节变更联动失效，必要时要求 operate_apply 强制传 node_id/paragraph_index 并拒绝无定位写入。
+- 补充结论：章节约 2500 字不会触发 list_paragraphs 的 approximate 模式，定位本身可精确；漂移仍发生的根因在“写入阶段未强制使用 node_id/paragraph_index”，确认落库时仍可能走 original_text 首匹配替换，遇到重复文本就漂移。
+
+#### 严格定位写入（去降级）（待确认）
+
+- [ ] 修改 operate_apply：replace/insert 仅接受 node_id/paragraph_index，移除定位失败降级与跨章节降级逻辑
+- [ ] 修改 apply_chapter_edit：replace/insert 必须 node_id/paragraph_index；移除 original_text/anchor 兜底与自动 locate
+- [ ] 修改 ChapterRevisionService：确认写入阶段只按 node_id/paragraph_index 精确写入（补齐 <li> 解析）
+- [ ] 同步提示词说明：operate_apply 不再自动定位，必须带精确定位参数
+- [ ] 更新 todo.md review（改动与影响）
+
+#### smart* 注入 Explore 证据（待确认）
+
+- [ ] 梳理 Explore→Create 调用链，确认 smart_* 参数注入点（planning / task_runner / tool_executor）
+- [ ] 在 smart_continue/smart_rewrite/smart_insert 调用前，自动合并 Explore evidences/locate_targets 作为上下文参考
+- [ ] 限制注入长度与格式，避免 prompt 失控（如证据摘要 + 关键段落拼接）
+- [ ] 更新提示词说明：smart_* 必须基于 explore 证据创作（否则拒绝/先探索）
+- [ ] 更新 todo.md review（改动与影响）
+
+#### 打通 Explore→Create→Operate 精确链路（待确认）
+
+- [ ] Explore 阶段强制“证据 + 定位候选”：要求 list_paragraphs/read_paragraphs 产出 node_id/paragraph_index
+- [ ] Create 阶段强制注入 Explore 证据 + 目标段落上下文（写入前校验）
+- [ ] Operate 阶段强制 node_id/paragraph_index 写回（无定位直接失败）
+- [ ] 统一失败提示：引导用户“先定位段落/先探索证据”
+- [ ] 更新 todo.md review（链路打通与影响）

@@ -8,7 +8,10 @@ import {
   getChapterTabs,
   insertTabAfter,
   loadTab,
+  migrateChapterTabs,
   removeTabFromChapter,
+  rebuildChapterTabsFromSessions,
+  recoverChapterTabsFromStorage,
   saveChapterActiveTab,
   saveTab
 } from '@/utils/tabStorage';
@@ -16,6 +19,7 @@ import {
 interface UseTabManagerReturn {
   tabs: Tab[];
   activeTabId: string;
+  isReady: boolean;
   createTab: (afterTabId?: string) => Promise<Tab>;
   closeTab: (tabId: string) => void;
   switchTab: (tabId: string) => void;
@@ -30,11 +34,15 @@ const DEFAULT_TITLE = '新会话';
  * Manage per-chapter chat tabs with localStorage persistence.
  */
 export function useTabManager(chapterId: string, workId?: string): UseTabManagerReturn {
-  const resolvedChapterId = chapterId || 'default';
+  const resolvedChapterId = chapterId || '';
+  const isReady = Boolean(resolvedChapterId);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>('');
 
   const createNewTab = useCallback(async (): Promise<Tab> => {
+    if (!isReady) {
+      throw new Error('[TabManager] chapterId not ready');
+    }
     const timestamp = Date.now();
     const random = Math.random().toString(36).slice(2, 9);
     const now = new Date().toISOString();
@@ -72,14 +80,41 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
     saveTab(newTab);
     addTabToChapter(resolvedChapterId, newTab.id);
     return newTab;
-  }, [resolvedChapterId, workId]);
+  }, [isReady, resolvedChapterId, workId]);
 
   // Load tabs for the chapter and bootstrap a first tab when empty.
   useEffect(() => {
     let mounted = true;
 
     const bootstrap = async () => {
-      const chapterTabs = getChapterTabs(resolvedChapterId);
+      if (!isReady) {
+        if (!mounted) return;
+        setTabs([]);
+        setActiveTabId('');
+        return;
+      }
+      let chapterTabs = getChapterTabs(resolvedChapterId);
+
+      if (chapterTabs.length === 0) {
+        const recovered = recoverChapterTabsFromStorage(resolvedChapterId);
+        if (recovered.length > 0) {
+          chapterTabs = recovered;
+        }
+      }
+
+      if (chapterTabs.length === 0 && workId) {
+        const migrated = migrateChapterTabs(workId, resolvedChapterId);
+        if (migrated.length > 0) {
+          chapterTabs = migrated;
+        }
+      }
+
+      if (chapterTabs.length === 0) {
+        const rebuilt = rebuildChapterTabsFromSessions(resolvedChapterId);
+        if (rebuilt.length > 0) {
+          chapterTabs = rebuilt;
+        }
+      }
 
       if (chapterTabs.length === 0) {
         const newTab = await createNewTab();
@@ -106,10 +141,13 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
     return () => {
       mounted = false;
     };
-  }, [resolvedChapterId, createNewTab]);
+  }, [isReady, resolvedChapterId, workId, createNewTab]);
 
   const createTab = useCallback(
     async (afterTabId?: string): Promise<Tab> => {
+      if (!isReady) {
+        throw new Error('[TabManager] chapterId not ready');
+      }
       const newTab = await createNewTab();
 
       if (afterTabId) {
@@ -123,10 +161,15 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
       saveChapterActiveTab(resolvedChapterId, newTab.id);
       return newTab;
     },
-    [createNewTab, resolvedChapterId]
+    [createNewTab, isReady, resolvedChapterId]
   );
 
   const refreshTabsFromStorage = useCallback(() => {
+    if (!isReady) {
+      setTabs([]);
+      setActiveTabId('');
+      return;
+    }
     const storedTabs = getChapterTabs(resolvedChapterId);
     setTabs(storedTabs);
     const storedActiveId = getChapterActiveTab(resolvedChapterId);
@@ -136,7 +179,7 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
       setActiveTabId(storedTabs[0].id);
       saveChapterActiveTab(resolvedChapterId, storedTabs[0].id);
     }
-  }, [resolvedChapterId]);
+  }, [isReady, resolvedChapterId]);
 
   const closeTab = useCallback(
     (tabId: string) => {
@@ -246,6 +289,7 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
   return {
     tabs,
     activeTabId,
+    isReady,
     createTab,
     closeTab,
     switchTab,

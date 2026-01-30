@@ -187,13 +187,14 @@ const WorkDetailView: React.FC = () => {
   const {
     tabs,
     activeTabId,
+    isReady: isTabReady,
     createTab,
     closeTab,
     switchTab,
     updateTabTitle,
     replaceTabSession,
     attachSessionTab
-  } = useTabManager(currentChapterId || workId || 'work', workId);
+  } = useTabManager(currentChapterId || '', workId);
 
   const currentChapterMeta = chapters.find((chapter) => chapter.id === currentChapterId);
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
@@ -1944,6 +1945,7 @@ const WorkDetailView: React.FC = () => {
             <SessionTabBar
               tabs={tabs}
               activeTabId={activeTabId}
+              isReady={isTabReady}
               onSwitchTab={switchTab}
               onCreateTab={createTab}
               onCloseTab={closeTab}
