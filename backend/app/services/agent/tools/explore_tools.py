@@ -1817,6 +1817,41 @@ def _format_tool_calls_for_frontend(round_data: ExploreRound) -> List[Dict[str, 
                     "type": "ReadParagraph",
                     "value": f"第{chapter}章 · {count}段"
                 })
+            else:
+                # 分页模式：chapter_order/chapter_id + offset/limit
+                chapter = tc.params.get("chapter_order") or tc.params.get("chapter")
+                if not chapter and isinstance(tc.result, dict):
+                    chapter = tc.result.get("chapter_order") or tc.result.get("chapter")
+                if isinstance(chapter, str) and chapter.isdigit():
+                    chapter = int(chapter)
+
+                offset = tc.params.get("offset")
+                limit = tc.params.get("limit")
+                if offset is None and isinstance(tc.result, dict):
+                    offset = tc.result.get("offset")
+                if limit is None and isinstance(tc.result, dict):
+                    limit = tc.result.get("limit")
+                if isinstance(offset, str) and offset.isdigit():
+                    offset = int(offset)
+                if isinstance(limit, str) and limit.isdigit():
+                    limit = int(limit)
+
+                range_label = "分页读取"
+                if isinstance(limit, int) and limit > 0:
+                    start = (offset if isinstance(offset, int) else 0) + 1
+                    end = start + limit - 1
+                    range_label = f"第{start}~{end}段" if end > start else f"第{start}段"
+
+                if isinstance(chapter, int):
+                    chapter_label = f"第{chapter}章"
+                    value = f"{chapter_label} · {range_label}"
+                else:
+                    value = range_label
+
+                tags.append({
+                    "type": "ReadParagraph",
+                    "value": value
+                })
         elif tc.tool_name == "get_chapter_by_order_tool":
             # 整章阅读：仅在未禁止时使用
             chapter = tc.params.get("chapter_order", "?")

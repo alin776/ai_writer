@@ -1200,6 +1200,19 @@ tool_policy: {tool_policy}
                         "path": "original_text"
                     }
                 }
+                # 方案1：强制修正 smart_rewrite 的写回 content 路径
+                content_ref = params.get("content")
+                if isinstance(content_ref, dict):
+                    ref_obj = content_ref.get("$ref") or content_ref.get("ref") or {}
+                    if ref_obj.get("task_id") == source_task_id:
+                        ref_path = ref_obj.get("path") or ""
+                        if ref_path == "content":
+                            params["content"] = {
+                                "$ref": {
+                                    "task_id": source_task_id,
+                                    "path": "versions[0].content"
+                                }
+                            }
                 task["params"] = params
 
         return tasks

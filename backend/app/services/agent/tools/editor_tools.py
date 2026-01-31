@@ -836,6 +836,8 @@ async def smart_rewrite(
             "chapter_id": chapter_id,
             "original_text": text_to_rewrite,
             "versions": versions,
+            # 方案2：兼容字段，避免错误引用 content 导致写回失败
+            "content": versions[0].get("content") if versions else "",
             "description": f"AI改写：{len(text_to_rewrite)}字 → 生成{len(versions)}条结果"
         }, ensure_ascii=False)
 

@@ -1,5 +1,37 @@
 # TODO
 
+#### 写回后段落顶格/排版乱（待确认）
+
+- [ ] 通读 Backend.md 本次测试日志，确认写回流程成功但内容格式异常的证据点
+- [ ] 追踪后端 replace 写回逻辑（apply_chapter_edit / chapter_revision_service）对段落边界的处理方式
+- [ ] 追踪前端修订显示与插入逻辑（NovelEditor）对换行/HTML 的处理方式
+- [ ] 对照编辑器样式（editor-styles.css）解释“顶格/乱排版”的直因
+- [ ] 汇总证据并给出直白结论与最小修复方向
+
+#### 深度探索胶囊行为标签缺失排查（待确认）
+
+- [x] 通读前端 ExecutionFlow/ExploreCard/StepCard 等组件，确认“工具标签/胶囊”的显示条件
+- [x] 通读前端事件映射（agentApi/useAgentChat/useAgentChatStream），确认 tool_calls 传递路径
+- [x] 通读后端 explore_round 事件与 _format_tool_calls_for_frontend，确认 tool_calls 生成条件与可能为空的场景
+- [x] 汇总证据清单并给出直白结论（是否本来没有/为何缺失）
+
+#### review
+
+- 行为标签不是“前端丢失”，而是**有条件渲染**：ExploreRoundCard 仅在展开时渲染 toolCalls 标签，折叠态不显示。`src/components/agent/ExecutionFlow/ExploreCard.tsx`
+- 另一类缺失来自**后端未生成标签**：`_format_tool_calls_for_frontend` 对 `read_paragraphs` 只在 `items` 列表模式才追加标签，分页模式（chapter_order/offset/limit）会生成空列表，前端自然无标签。`backend/app/services/agent/tools/explore_tools.py`
+- tool_calls 在前端并未被丢弃：SSE 解析用 `tool_calls -> toolCalls` 直传给 ExploreRoundCard。`src/services/agentApi.ts`、`src/hooks/useAgentChat.ts`、`src/hooks/useAgentChatStream.ts`
+
+#### 补齐 read_paragraphs 分页模式标签（待确认）
+
+- [x] 在 `_format_tool_calls_for_frontend` 增加分页模式标签生成（基于 chapter_order + offset/limit）
+- [x] 保持最小改动，不影响 items 列表模式已有标签
+- [x] 更新 todo.md review（改动与影响）
+
+#### review
+
+- `read_paragraphs` 在分页模式下也生成工具标签：根据 chapter_order + offset/limit 计算“第X~Y段”或单段标签，确保 Explore 胶囊始终有行为标签。`backend/app/services/agent/tools/explore_tools.py`
+- items 列表模式逻辑保持不变，仅在 count=0 时走分页兜底，避免影响已有展示。`backend/app/services/agent/tools/explore_tools.py`
+
 #### 章节切换会话仍变新修复（待确认）
 
 - [x] 深入核对“切章→读 tab →无则新建”的链路与证据（useTabManager / tabStorage / useConversationPersistence）
@@ -12,6 +44,39 @@
 - 增加章节会话恢复兜底：当 chapter_tabs_map 为空时，先从已存 tab 重建，再从会话列表/上下文映射重建，最后才新建。
 - 新增存储配额保护：tab/map 写入失败时清理旧会话后重试，并派发统一提示事件。
 - 本地会话缺失时新增后端回填：打开 tab 时若本地无消息，尝试从后端拉取并写回本地，避免切章回来看见空会话。
+
+#### 测试提示词生成（待确认）
+
+- [x] 读取小说素材，提取关键人物/事件/术语
+- [x] 设计 5 条复杂综合 Prompt，覆盖 Explore→定位→Create→Operate 全链路
+- [x] 输出可直接复制使用的提示词
+
+#### review
+
+- 基于素材中的“入门时长矛盾/吞噬器灵因果/浑圆桩讲解/赵穆人物声线”等要素设计 5 条复杂 Prompt，覆盖取证、定位、生成、精准写回全链路。
+
+#### 操作失败（写回验证错误）排查（待确认）
+
+- [x] 通读 Backend.md 日志，定位失败发生点与上游工具调用路径
+- [x] 追踪 operate_apply -> apply_chapter_edit 的校验逻辑与失败条件
+- [x] 对照前端错误提示与后端日志，确认是“写回验证失败”还是“前后端状态不一致”
+- [x] 给出证据清单（文件路径+日志片段）和直白结论+修复方向
+
+#### review
+
+- Backend.md 记录的是“续写追加”流程，operate_apply 走 append 并执行成功；日志里没有验证错误，说明截图的失败不是同一次请求。
+- replace/insert 写回必须提供 node_id/paragraph_index，operate_apply/ToolExecutor 均做强校验；缺定位或索引越界会被直接拒绝并触发“验证错误”提示。
+
+#### smart_rewrite 写回修复（方案1+2）（待确认）
+
+- [x] 方案1：在计划层强制修正 smart_rewrite 的写回路径为 versions[0].content
+- [x] 方案2：在 smart_rewrite 输出补充兼容字段 content=versions[0].content
+- [x] 验证不会影响 smart_continue/smart_insert 的现有写回流程
+
+#### review
+
+- 方案1：对 smart_rewrite 的 apply 任务补正 content 引用路径，避免 $TASK_X.content 误用导致 content=None。
+- 方案2：smart_rewrite 输出补充兼容 content 字段，双保险避免计划错误时写回失败。
 
 #### 章节会话迁移修复（待确认）
 
@@ -1235,3 +1300,43 @@
 - insert 分支才会在 HTML 上下文中自动包 `<p>`，append 分支没有这个逻辑，因此纯文本续写会直接拼接到上一段末尾。`backend/app/services/agent/tools/editor_tools.py:521-527`
 - operate_apply 对 append 不要求 node_id/paragraph_index（也不会定位），因此默认是“追加到章节末尾”，不会“自动新段落”。`backend/app/services/agent/tools/operate_tools.py:401-412`
 - 结论（直白）：**不换行是因为 append 写回逻辑就是字符串拼接，没有包裹新段落，也没有自动插入换行**。要换行只能：1) 用 insert 写入下一段，或 2) append 时内容本身以 `<p>`/换行开头，或 3) 在 apply_chapter_edit 的 append 分支增加自动包段规则。
+
+#### Explore 结果是否进入上下文（待确认）
+
+- [x] 复核 ContextManager 的持久化链路：确认保存的仅是 user/assistant 消息
+- [x] 复核 Summarization/ResponseBuilder：确认 explore_content 结果只在当轮摘要上下文中使用且会被压缩
+- [x] 汇总直白结论：Explore 结果是否“塞进上下文”、哪些内容能进入记忆层
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- ContextManager/UnifiedMemoryCoordinator 只保存 user/assistant 消息，不保存工具结果；上下文来源是短期对话+摘要+长期记忆/MemoryPack，均基于“对话文本”。`backend/app/services/context/manager.py`、`backend/app/services/agent/memory/unified_coordinator.py`
+- explore_content 的结果只在**当轮整合**里使用：ResponseBuilder 调用 `_build_summarization_context` 把任务结果压缩进摘要上下文；探索结果虽可保留到 20000 字符，但仅用于本次回答，不进入后续会话存储。`backend/app/services/agent/planning/response_builder.py`、`backend/app/services/agent/utils/context_builder.py`
+- 历史消息构建会过滤 ToolMessage，不把工具输出带入下一轮历史。`backend/app/services/agent/core/message_builder.py`
+- 结论（直白）：**Explore 结果不会“全量塞进上下文记忆”**；它只参与本轮回答，后续记忆里只有“助手最终输出的文字”。如果助手没把证据写进回复，就不会被上下文记住。
+
+#### opencode Explore 结果存储机制复核（待确认）
+
+- [x] 通读 opencode Explore 相关实现与提示（agent/prompt/explore.txt）
+- [x] 复核子代理/Task 工具输出如何回传主会话（agent.ts / tool/task.ts）
+- [x] 复核截断与落盘逻辑（tool/truncation.ts / session/message-v2.ts）
+- [x] 汇总“是否持久化/是否能复用”的直白结论
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- Explore 是**子代理**：主会话通过 Task 工具启动 explore 子会话，子代理在自己的 session 中执行搜索/读取。`opencode/packages/opencode/src/agent/agent.ts`、`opencode/packages/opencode/src/tool/task.ts`
+- 主会话拿到的只有**子代理最终文本输出**（result.parts 最后一个 text），并附上 `<task_metadata> session_id`；并不会自动把子代理的工具输出并入主会话上下文。`opencode/packages/opencode/src/tool/task.ts`
+- 工具输出过大时会被截断并**落盘到 tool-output**，提示使用 Task→explore 继续 grep/read 该文件；这是“把大输出存在文件里，再由子代理处理”的策略。`opencode/packages/opencode/src/tool/truncation.ts`
+- ToolPart 会保存 output/attachments 到会话记录，但这是**子会话**里的 ToolPart；主会话只看到 Task 工具的输出摘要。`opencode/packages/opencode/src/session/message-v2.ts`、`opencode/packages/opencode/src/session/prompt.ts`
+- 结论（直白）：**opencode 没有把 Explore 的完整结果自动塞回主会话**；它把探索放在子代理会话里，主会话只拿到“总结+子会话 ID”。需要更多细节时，靠 Task 再次让 explore 在其会话里读取（包括读取 truncation 落盘文件）。
+
+#### Explore 结果持久化与上下文策略（待确认）
+
+- [ ] 明确“按需取回”策略：哪些场景触发读取完整 Explore（证据/原文/截断补全/用户明确要求）
+- [ ] Explore 结果落盘（Artifact）：保存完整结果+元数据（work_id/chapter_id/关键词/时间/范围/版本）
+- [ ] explore_content 返回 artifact_id + 摘要/预览（不把全文塞进上下文）
+- [ ] 新增 load_explore_artifact 工具：按 artifact_id 取回全文或指定片段
+- [ ] 上下文记忆只保存“引用指针”（artifact_id + 摘要），避免重复探索且控制上下文体积
+- [ ] 失效/清理策略：章节更新/导入/恢复触发失效；保留期与大小上限
+- [ ] 更新 todo.md review（证据与结论）
