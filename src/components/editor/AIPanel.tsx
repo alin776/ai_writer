@@ -436,11 +436,28 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const [mode, setMode] = useState<AgentMode>('plan'); // �?Agent执行模式：plan(固定规划) | agent(DeepAgent反�?
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messagesContentRef = useRef<HTMLDivElement>(null);
+  const lastUserMessageRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 跟踪是否应该自动滚动
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hasOperationsRef = useRef(false);
   const scrollPositionRef = useRef<number>(0); // 保存滚动位置比例
   const prevExpandedModeRef = useRef(expandedMode); // 追踪上一次的 expandedMode
+  const anchorLatestUserRef = useRef(false);
+  const skipAutoScrollRef = useRef(false);
+  const freezeAutoScrollRef = useRef(false);
+  const ignoreScrollEventRef = useRef(false);
+  const userScrollIntentRef = useRef(false);
+  const anchoredOnceRef = useRef(false);
+  const isInputFocusedRef = useRef(false);
+  const [scrollBufferHeight, setScrollBufferHeight] = useState(0);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const atBottomStateRef = useRef(true);
+  const syncAtBottomState = useCallback((next: boolean) => {
+    if (atBottomStateRef.current === next) return;
+    atBottomStateRef.current = next;
+    setIsAtBottom(next);
+  }, []);
 
   const [atMenuOpen, setAtMenuOpen] = useState(false);
   const [atStage, setAtStage] = useState<AtCommandStage>('root');
@@ -660,7 +677,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const handleSendWithContextRef = useRef<(message: string, context?: any) => Promise<void>>(undefined);
 
   handleSendWithContextRef.current = async (message: string, context?: any) => {
-    if (!message.trim()) return;
+    if (!message.trim() || isLoading) return;
 
     const backendMode: AgentChatRequest['mode'] = mode === 'agent' ? 'react' : 'planning';
 
@@ -707,8 +724,13 @@ ${context.selected_text}
       },
     };
 
-    // 用户发送消息时，重新应该自动滚�?
-    shouldAutoScrollRef.current = true;
+    // 用户发送消息时，将最新用户消息顶格，并停止自动跟随
+    shouldAutoScrollRef.current = false;
+    freezeAutoScrollRef.current = true;
+    userScrollIntentRef.current = false;
+    anchoredOnceRef.current = false;
+    anchorLatestUserRef.current = true;
+    skipAutoScrollRef.current = true;
 
     try {
       await sendMessageStream(request);
@@ -817,6 +839,16 @@ ${context.selected_text}
     };
   }, [isActive]);
 
+  // 计算最后一条 agent 消息与索引，用于锚定与自动滚动逻辑
+  const lastAgentMessage = useMemo(() => [...messages].reverse().find(m => m.role === 'agent'), [messages]);
+  const flowItemsCount = (lastAgentMessage as any)?.flowItems?.length || 0;
+  const lastUserMessageIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i]?.role === 'user') return i;
+    }
+    return -1;
+  }, [messages]);
+
   // 检查用户是否在底部
   const checkIfAtBottom = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -824,14 +856,48 @@ ${context.selected_text}
 
     // 检查滚动位置是否接近底部（允许50px误差）
     const threshold = 50;
-    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
-    return isAtBottom;
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+    return atBottom;
   }, []);
 
   // 滚动到底�?
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const end = messagesEndRef.current;
+    if (!end) return;
+    end.scrollIntoView({ behavior, block: 'end' });
   }, []);
+
+  // 滚动到最新用户消息位置（靠近顶部）
+  const scrollUserMessageToTop = useCallback((offset: number = 0) => {
+    const container = messagesContainerRef.current;
+    const target = lastUserMessageRef.current;
+    if (!container || !target) return;
+    target.scrollIntoView({ block: 'start', behavior: 'auto' });
+    if (offset) {
+      container.scrollTop -= offset;
+    }
+  }, []);
+
+
+  const markUserScrollIntent = useCallback(() => {
+    userScrollIntentRef.current = true;
+  }, []);
+
+  const handleJumpToBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    anchorLatestUserRef.current = false;
+    skipAutoScrollRef.current = false;
+    shouldAutoScrollRef.current = true;
+    freezeAutoScrollRef.current = false;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    } else {
+      scrollToBottom();
+    }
+    requestAnimationFrame(() => {
+      syncAtBottomState(true);
+    });
+  }, [scrollToBottom, syncAtBottomState]);
 
   // 监听滚动事件，更新是否应该自动滚动的标志
   useEffect(() => {
@@ -839,23 +905,102 @@ ${context.selected_text}
     if (!container) return;
 
     const handleScroll = () => {
-      shouldAutoScrollRef.current = checkIfAtBottom();
+      if (ignoreScrollEventRef.current) return;
+      const hasUserIntent = userScrollIntentRef.current;
+      if (anchorLatestUserRef.current && hasUserIntent) {
+        anchorLatestUserRef.current = false;
+        skipAutoScrollRef.current = false;
+      }
+      userScrollIntentRef.current = false;
+      const atBottom = checkIfAtBottom();
+      syncAtBottomState(atBottom);
+      if (freezeAutoScrollRef.current) {
+        shouldAutoScrollRef.current = false;
+        return;
+      }
+      shouldAutoScrollRef.current = atBottom;
     };
 
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [checkIfAtBottom]);
-
-  // 计算最后一�?agent 消息�?flowItems 长度，用于触发自动滚�?
-  const lastAgentMessage = [...messages].reverse().find(m => m.role === 'agent');
-  const flowItemsCount = (lastAgentMessage as any)?.flowItems?.length || 0;
+  }, [checkIfAtBottom, messages.length, syncAtBottomState]);
 
   // 当消息列表或执行轨迹更新时，如果用户在底部则自动滚动
   useEffect(() => {
+    if (skipAutoScrollRef.current) {
+      skipAutoScrollRef.current = false;
+      return;
+    }
+    if (anchorLatestUserRef.current) {
+      return;
+    }
+    if (freezeAutoScrollRef.current) {
+      return;
+    }
     if (shouldAutoScrollRef.current) {
       scrollToBottom();
     }
   }, [messages.length, tasks.length, flowItemsCount, scrollToBottom]);
+
+  // 发送后仅做一次顶格，不持续跟随
+  useLayoutEffect(() => {
+    if (!anchorLatestUserRef.current) return;
+    if (anchoredOnceRef.current) return;
+    ignoreScrollEventRef.current = true;
+    shouldAutoScrollRef.current = false;
+    syncAtBottomState(checkIfAtBottom());
+    anchorLatestUserRef.current = false;
+    requestAnimationFrame(() => {
+      scrollUserMessageToTop();
+      anchoredOnceRef.current = true;
+      ignoreScrollEventRef.current = false;
+    });
+  }, [checkIfAtBottom, messages.length, scrollBufferHeight, scrollUserMessageToTop, syncAtBottomState]);
+
+  // 发送后仅顶格一次：后续输出不自动跟随
+
+  // 流式输出时内容高度变化，保持自动滚动
+  useLayoutEffect(() => {
+    const container = messagesContainerRef.current;
+    const content = messagesContentRef.current;
+    if (!container || !content || typeof ResizeObserver === 'undefined') return;
+
+    let rafId: number | null = null;
+    const observer = new ResizeObserver(() => {
+      if (anchorLatestUserRef.current) {
+        const target = lastUserMessageRef.current;
+        if (!target) return;
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          const containerRect = container.getBoundingClientRect();
+          const targetRect = target.getBoundingClientRect();
+          const delta = targetRect.top - containerRect.top;
+          if (Math.abs(delta) < 0.5) return;
+          ignoreScrollEventRef.current = true;
+          container.scrollTop += delta;
+          ignoreScrollEventRef.current = false;
+        });
+        return;
+      }
+      if (!shouldAutoScrollRef.current || skipAutoScrollRef.current) {
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          syncAtBottomState(checkIfAtBottom());
+        });
+        return;
+      }
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        scrollToBottom('auto');
+      });
+    });
+
+    observer.observe(content);
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
+  }, [checkIfAtBottom, messages.length, scrollToBottom, syncAtBottomState]);
 
   // �?流式输出：真正的字符流，前端直接使用 message.content
 
@@ -910,6 +1055,20 @@ ${context.selected_text}
     const value = el?.value ?? inputValue;
     updateAtState(value, caret);
   }, [inputValue, updateAtState]);
+
+  const handleInputFocus = useCallback(() => {
+    isInputFocusedRef.current = true;
+    syncAtStateFromRef();
+  }, [syncAtStateFromRef]);
+
+  const handleInputBlur = useCallback(() => {
+    isInputFocusedRef.current = false;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const base = Math.max(container.clientHeight - 24, 0);
+    const next = Math.min(Math.round(container.clientHeight * 0.6), base);
+    setScrollBufferHeight(next);
+  }, []);
 
   useEffect(() => {
     if (!containsAt) {
@@ -1138,8 +1297,13 @@ ${selectionContext.selected_text}
       clearDraft(sessionId);
     }
 
-    // 用户发送消息时，重新应该自动滚�?
-    shouldAutoScrollRef.current = true;
+    // 用户发送消息时，将最新用户消息顶格，并停止自动跟随
+    shouldAutoScrollRef.current = false;
+    freezeAutoScrollRef.current = true;
+    userScrollIntentRef.current = false;
+    anchoredOnceRef.current = false;
+    anchorLatestUserRef.current = true;
+    skipAutoScrollRef.current = true;
 
     try {
       await sendMessageStream(request);
@@ -1224,8 +1388,33 @@ ${selectionContext.selected_text}
     adjustInputHeight();
   }, [inputValue, selectedDocs.length, optimizationSelected, adjustInputHeight]);
 
+  // 预留底部滚动缓冲，让最新消息可被顶到顶部
+  useLayoutEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+
+    const updateBuffer = () => {
+      if (isInputFocusedRef.current) return;
+      // Reduce the spacer so new messages don't leave an oversized blank area.
+      const base = Math.max(container.clientHeight - 24, 0);
+      const next = Math.min(Math.round(container.clientHeight * 0.6), base);
+      setScrollBufferHeight(next);
+    };
+
+    updateBuffer();
+    const observer = new ResizeObserver(() => {
+      updateBuffer();
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [expandedMode, messages.length]);
+
   return (
-    <div className="p-3 flex flex-col h-full min-h-0 dark:bg-slate-900 overflow-hidden">
+    <div
+      className={`flex flex-col h-full min-h-0 dark:bg-slate-900 overflow-hidden ${
+        messages.length > 0 ? 'px-3 pb-3 pt-0' : 'p-3'
+      }`}
+    >
       <ToastContainer messages={toastMessages} onClose={closeToast} />
 
       {/* 新会话欢迎界面 - 输入框居中偏上 */}
@@ -1308,7 +1497,8 @@ ${selectionContext.selected_text}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onClick={syncAtStateFromRef}
-                  onFocus={syncAtStateFromRef}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
                   placeholder="输入消息，输入@选择指令..."
                   className="flex-1 min-w-[200px] bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed dark:text-slate-200 dark:placeholder:text-slate-500"
                   disabled={isLoading}
@@ -1365,14 +1555,18 @@ ${selectionContext.selected_text}
       ) : (
         <>
         {/* 有消息时：消息列表 + 底部固定输入框 */}
-        <div
-          ref={messagesContainerRef}
-          data-ai-scroll-container={isActive ? 'active' : undefined}
-          className="flex-1 min-h-0 mb-3 overflow-x-hidden overflow-y-auto scrollbar-auto-hide bg-white dark:bg-slate-900"
-        >
-          <div className={`flex w-full ${expandedMode ? 'justify-center' : ''}`}>
-            <div className={`${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
-              <div className="flex flex-col gap-2.5">
+        <div className="relative flex-1 min-h-0 mb-3">
+          <div
+            ref={messagesContainerRef}
+            data-ai-scroll-container={isActive ? 'active' : undefined}
+            className="h-full overflow-x-hidden overflow-y-auto scrollbar-auto-hide bg-white dark:bg-slate-900"
+            onWheel={markUserScrollIntent}
+            onPointerDown={markUserScrollIntent}
+            onTouchStart={markUserScrollIntent}
+          >
+            <div className={`flex w-full ${expandedMode ? 'justify-center' : ''}`}>
+              <div className={`${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
+                <div ref={messagesContentRef} className="flex flex-col gap-2.5">
           {messages.map((message, index) => {
             // Skip null/undefined messages
             if (!message) {
@@ -1385,7 +1579,11 @@ ${selectionContext.selected_text}
 
           if (isUser) {
             return (
-              <div key={index} className="flex items-start gap-2 justify-end">
+              <div
+                key={index}
+                ref={index === lastUserMessageIndex ? lastUserMessageRef : null}
+                className="flex items-start gap-2 justify-end"
+              >
                 <div className="flex flex-col gap-1 w-full items-end group">
                   <div className="relative p-2.5 rounded-2xl flex-initial w-fit max-w-[80%] md:max-w-[60ch] bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200 shadow-sm ml-auto break-words">
                     <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words">
@@ -1445,7 +1643,10 @@ ${selectionContext.selected_text}
           };
 
           return (
-            <div key={index} className="space-y-2">
+            <div
+              key={index}
+              className="space-y-2"
+            >
               {showFlowBlock && (
                 <div className="flex items-start">
                   <div className="flex-1 !border-none !bg-transparent">
@@ -1710,9 +1911,22 @@ ${selectionContext.selected_text}
         )}
 
           <div ref={messagesEndRef} />
+          <div aria-hidden="true" style={{ height: scrollBufferHeight }} />
+                </div>
               </div>
             </div>
           </div>
+
+          {!isAtBottom && (
+            <button
+              type="button"
+              onClick={handleJumpToBottom}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full border border-zinc-200 bg-white/90 text-zinc-600 shadow-lg backdrop-blur transition hover:text-zinc-900 hover:border-zinc-300 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:text-white"
+              aria-label="滚动到最新消息"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
       <div className={`flex w-full ${expandedMode ? 'justify-center' : ''}`}>
@@ -1839,7 +2053,8 @@ ${selectionContext.selected_text}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onClick={syncAtStateFromRef}
-                  onFocus={syncAtStateFromRef}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
                   placeholder="输入消息，输入@选择指令..."
                   className="flex-1 min-w-[200px] bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed dark:text-slate-200 dark:placeholder:text-slate-500"
                   disabled={isLoading}

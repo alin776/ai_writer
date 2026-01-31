@@ -49,7 +49,7 @@ export function OutputCard({
   };
 
   return (
-    <div className="mt-2">
+    <div className="mt-2 first:mt-0">
       {/* 输出介绍 */}
       {intro && (
         <div className="text-[14px] text-gray-600 dark:text-[#ccc] mb-3 leading-[1.7]">
