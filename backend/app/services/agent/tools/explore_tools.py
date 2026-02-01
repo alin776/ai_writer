@@ -1533,6 +1533,95 @@ def _build_node_id_map(result: ExploreResult) -> Dict[Tuple[int, int], str]:
     return node_id_map
 
 
+def _extract_target_quotes(target_task: str) -> List[str]:
+    if not isinstance(target_task, str) or not target_task.strip():
+        return []
+    segments: List[str] = []
+    seen = set()
+    for match in re.findall(r'["“”‘’「」『』《》](.+?)["“”‘’「」『』》]', target_task):
+        seg = (match or "").strip()
+        if not seg or len(seg) < 4:
+            continue
+        if seg in seen:
+            continue
+        segments.append(seg)
+        seen.add(seg)
+    return segments
+
+
+def _normalize_keywords(keywords: Optional[List[str]]) -> List[str]:
+    normalized: List[str] = []
+    seen = set()
+    for kw in (keywords or []):
+        text = str(kw).strip()
+        if not text:
+            continue
+        if text in seen:
+            continue
+        normalized.append(text)
+        seen.add(text)
+    return normalized
+
+
+def _score_paragraph_target(
+    text: str,
+    quoted_segments: List[str],
+    keywords: List[str]
+) -> Tuple[int, int, int]:
+    score = 0
+    quote_hits = 0
+    keyword_hits = 0
+    if text:
+        for seg in quoted_segments:
+            if seg and seg in text:
+                quote_hits += 1
+                score += 5
+        lowered = text.lower()
+        for kw in keywords:
+            if kw and kw.lower() in lowered:
+                keyword_hits += 1
+                score += 1
+    return score, quote_hits, keyword_hits
+
+
+def _select_unique_target_paragraphs(
+    result: ExploreResult,
+    target_task: str,
+    search_keywords: Optional[List[str]]
+) -> None:
+    if not result or not result.paragraphs:
+        return
+    candidates = [
+        p for p in result.paragraphs
+        if getattr(p, "is_target", True) and isinstance(getattr(p, "text", ""), str)
+    ]
+    if len(candidates) <= 1:
+        return
+    quoted_segments = _extract_target_quotes(target_task)
+    keywords = _normalize_keywords(search_keywords)
+    scored = []
+    for p in candidates:
+        score, quote_hits, keyword_hits = _score_paragraph_target(p.text, quoted_segments, keywords)
+        scored.append((score, quote_hits, keyword_hits, p))
+    scored.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    top = scored[0]
+    runner_up = scored[1] if len(scored) > 1 else None
+    top_score, top_quotes, _, top_para = top
+    strong = False
+    if runner_up is None:
+        strong = True
+    else:
+        second_score, second_quotes, _, _ = runner_up
+        if top_score >= 6 and (top_score - second_score) >= 2:
+            strong = True
+        elif top_quotes > 0 and second_quotes == 0:
+            strong = True
+    if not strong:
+        return
+    for _, _, _, para in scored:
+        para.is_target = para is top_para
+
+
 def _build_locate_targets(
     result: ExploreResult,
     chapters_by_order: Dict[int, Dict[str, Any]],
@@ -1566,6 +1655,13 @@ def _build_locate_targets(
         seen.add(key)
         parts = [part for part in [before_anchor, text or query_text, after_anchor] if part]
         insert_context = "\n".join(parts) if parts else (text or query_text)
+        if node_id:
+            locator_seed = f"{chapter_id}:{node_id}"
+        elif paragraph_index is not None:
+            locator_seed = f"{chapter_id}:{paragraph_index}"
+        else:
+            locator_seed = f"{chapter_id}:{query_text[:80]}"
+        locator_id = hashlib.md5(locator_seed.encode("utf-8")).hexdigest()
         targets.append({
             "chapter_id": chapter_id,
             "chapter_order": chapter_order,
@@ -1573,6 +1669,7 @@ def _build_locate_targets(
             "text": text or query_text,
             "paragraph_index": paragraph_index,
             "node_id": node_id or "",
+            "locator_id": locator_id,
             "reason": reason,
             "before_anchor": before_anchor,
             "after_anchor": after_anchor,
@@ -4815,6 +4912,8 @@ async def explore_content(
     try:
         # pipeline 已弃用：统一走 tool_loop（LLM 自由调只读工具）
         result = await explorer.explore_tool_loop()
+        # 仅对“已读取原文”的候选做唯一性选择；低置信时保留多候选供确认
+        _select_unique_target_paragraphs(result, target_task, search_keywords)
 
         if shared_cache_key:
             cached_state = _EXPLORE_SHARED_CACHE.get(shared_cache_key)

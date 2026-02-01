@@ -51,6 +51,13 @@
 - 纯文本分支新增“前导空行裁剪”：仅去掉开头的空白行（包含空格/制表/不换行空格 + 换行），避免生成无标记空 `<p>`。`src/components/editor/NovelEditor.tsx`
 - HTML 清理逻辑保持不变：仍只在检测到 `<p>/<br>/<div>/<span>` 时做标签替换与 `.trim()`，不影响现有 HTML 修订展示。`src/components/editor/NovelEditor.tsx`
 
+#### 上传到 GitHub（待确认）
+
+- [ ] 检查 git 状态与当前分支（确认待提交文件）
+- [ ] 检查远程仓库配置（若无远程需你提供 GitHub 仓库地址）
+- [ ] 提交本次改动（需要你确认 commit message）
+- [ ] 推送到 GitHub 远程分支
+
 #### 写回后段落顶格/排版乱（待确认）
 
 - [ ] 通读 Backend.md 本次测试日志，确认写回流程成功但内容格式异常的证据点
@@ -198,6 +205,28 @@
 #### 会话绑定 + 历史列表修正 + 本地压缩（待确认）
 
 - [x] 核对 AgentChatRequest/上下文字段，确认 chat/stream 里可用的 work_id/chapter_id（避免创建会话缺字段）
+
+#### 段落定位偏移（第28段插入变成第33段）排查（待确认）
+
+- [x] 通读 Backend.md 本次任务B日志，确认 locate_content/operate_apply 传递的 chapter_id/paragraph_index
+- [x] 对比 locate_content/_split_paragraphs 与 apply_chapter_edit/_get_paragraph_position 的段落计数规则
+- [x] 对比前端 getAllNodes 的节点列表与后端段落索引定义，确认空段落/非文本节点偏移
+- [x] 汇总证据清单（文件路径+关键逻辑）并给出直白结论
+- [x] 在 todo.md 添加 review（根因+影响+最小修复方向）
+
+#### review
+
+- Backend.md 中任务B只记录到 operate_apply 调用（chapter_id=44cfd207-bb6e-46ed-af0b-a3694af72dbd），未打印 locate/insert 细节，但“定位完成在第2章第28段”的结论来自 explore_content 阶段。`Backend.md`
+- locate_content 的段落切分会 **跳过空段落**：`_split_paragraphs` 只有 `text` 非空才 append，因此 paragraph_index 是“非空段落的 0-based 索引”。`backend/app/services/agent/tools/locate_tools.py`
+- apply_chapter_edit 的插入定位会 **计入空段落**：`_get_paragraph_position` 用正则匹配所有 `<p>/<li>/...>`，不排除空 `<p></p>`，因此同一 paragraph_index 在有空段落时会向后偏移。`backend/app/services/agent/tools/editor_tools.py`
+- 前端 `getAllNodes()` 同样 **不跳过空节点**：UniqueID 为所有段落节点分配 ID 且直接收集（即便 text 为空），`NovelEditor` 用 paragraphIndex 直接索引该列表，进一步放大偏移。`src/components/editor/UniqueIDExtension.ts`、`src/components/editor/NovelEditor.tsx`
+- 直白结论：**定位与写回使用了不一致的“段落计数规则”**（后端定位忽略空段落，写回/前端计数包含空段落），当目标段落前有 5 个空段落时，就会出现“第28段被写到第33段”的偏移。
+
+#### 最小修复方向（记录）
+
+- 方向A（后端统一）：让 locate_content/_split_paragraphs 也保留空段落，保证 paragraph_index 与 apply_chapter_edit 的计数规则一致。
+- 方向B（写回统一）：在 apply_chapter_edit/_get_paragraph_position 中 **跳过空段落**，与 locate_content 的索引对齐。
+- 方向C（前端缓解）：`getAllNodes()` 过滤空节点或提供“non-empty-only”列表，用于 paragraphIndex 定位（保持与 locate_content 规则一致）。
 - [x] 后端：在 chat/stream 找不到 session 时创建 AgentSession 并写入 conversation_id（保证消息可持久化）
 - [x] 后端/前端二选一最小改动：补 message_count/last_message_preview 或放宽“无内容过滤”
 - [x] 前端：启用本地会话压缩（优先轻量压缩 flowItems）
@@ -1476,3 +1505,195 @@
 - 绑定逻辑证据：plan_generator 目前默认用 `locate_targets[0]` 作为 source_locator / node_id / paragraph_index 的绑定来源；当存在多个候选且未显式指定目标索引时，容易将“第1处”绑定为写回定位。`backend/app/services/agent/planning/plan_generator.py:1420-1667`
 - 直白结论：**失败不是 Create 凭空捏造，而是“写回任务绑定了错误的 source_locator（第1处）”，导致执行层一致性校验拦截**。系统防错生效但目标选择错误。
 - 最小修复方向：规划阶段支持显式 `locate_target_index` 或基于上下文关键词（如“好刀/废刀”）选择目标段落；写回任务必须引用该目标的 source_locator，避免默认落到 `locate_targets[0]`。
+- 方案评审：目标选择显式化（明确选中目标或歧义时要求确认）不是过度设计，**刚刚好，利大于弊**。在重复句/多候选场景下属于必要改动，可减少误改与硬闸拦截。
+
+#### 目标选择显式化修复（待确认）
+
+- [x] 明确“目标选择优先级”规则：显式索引/ID > 关键词匹配 > 歧义报错
+- [x] Explore 输出补齐定位元数据：before/after_anchor、chapter_order、稳定 locator_id（可由 chapter_id+node_id+paragraph_index 生成）
+- [x] 规划层解析用户意图：识别“第X处/后者/前者/好刀/废刀”等，写入 locate_target_index 或 locator_id
+- [x] 规划层绑定修正：smart_rewrite/smart_insert/operate_apply 统一引用选中目标（不再默认 locate_targets[0]）
+- [x] 执行层选择器支持 locate_target_index/locator_id，并在多候选且未指定时返回 ambiguous_locator
+- [x] 更新错误提示与日志：明确提示“需指定第几处/请确认目标段落”
+- [x] 增加回归用例：重复句消歧成功/歧义报错/关键词匹配
+- [x] 更新 todo.md review（记录改动与风险）
+
+#### review
+
+- locate_targets 新增稳定 locator_id（优先 chapter_id+node_id/paragraph_index），并保留 before/after_anchor/insert_context 元数据，便于后续选择与诊断。`backend/app/services/agent/tools/explore_tools.py`
+- 规划层新增“显式目标选择”解析：识别“第X处/前者/后者”等索引与单段引用提示，写入 locate_target_index/locate_target_hint，并同步改写 locate_targets 引用路径，避免默认落到第1处。`backend/app/services/agent/planning/plan_generator.py`
+- 执行层支持 locator_id/索引/关键词匹配，auto_locator 会强制重新选择目标并在多候选时返回 ambiguous_locator；错误提示明确要求“第几处”。`backend/app/services/agent/execution/tool_executor.py`
+- 回归用例覆盖 locator_id/负索引/关键词命中/歧义报错与索引路径改写。`backend/tests/unit/test_strict_locator.py`
+
+#### 插入位置错位原因复盘（待确认）
+
+- [x] 通读 Backend.md/INFO.md，抽取“插入在之前”的任务链路与参数（operation/paragraph_index/node_id/position）
+- [x] 对照 operate_apply → apply_chapter_edit 的 insert 定位逻辑，确认“after/before”落点规则与 HTML 包段行为
+- [x] 追踪定位来源（locate_targets / read_paragraphs / list_paragraphs），确认段落索引与前端显示是否一致
+- [x] 对照前端插入展示逻辑（NovelEditor / AIRevisionBar），确认是否存在“显示顺序反转”或 HTML 段落切分差异
+- [x] 汇总证据并给出直白结论 + 最小修复方向
+
+#### review
+
+- 后端链路证据：Backend.md 显示插入任务确实走 `operate_apply -> apply_chapter_edit`，并用 DIRECT 定位 para=75、node=3z720q99，操作类型为 insert。`Backend.md:86-93`
+- 后端“插入之后”规则：apply_chapter_edit 的 insert 在 node_id 时调用 `_insert_after_node_id`，在 paragraph_index 时用 `_get_paragraph_position(..., "end")`，语义都是“在段落末尾之后插入”。`backend/app/services/agent/tools/editor_tools.py:475-553`
+- 前端展示错误点：NovelEditor 处理插入修订时，nodeId 定位得到的是节点范围（from/to），但插入分支使用 `resolvedPosition.from` 作为插入点，等于“插到段落开头”，导致视觉上变成“在目标段落之前插入”。`src/components/editor/NovelEditor.tsx:1010-1068,1354-1389`
+- 直白结论：**不是后端插错，而是前端插入修订“用错了位置边界（from 而不是 to）”，把“应插在段落之后”显示成“插在段落之前”。**
+- 最小修复方向：插入类型应使用 `resolvedPosition.to`（或直接调用 locateInsertPosition(nodeId)），确保“after”语义；同时保持 continue/insert 两个分支一致。
+
+#### 插入位置错位修复（待确认）
+
+- [x] 修正插入修订的插入点：insert 分支改用 `resolvedPosition.to`（或 locateInsertPosition 的结果）
+- [x] 统一 continue/insert 的插入位置规则，避免同类逻辑分叉
+- [ ] 增加最小回归：插在“之后”不再跑到段落前
+- [x] 更新 todo.md review（记录改动与风险）
+
+#### review
+
+- 插入修订现在与续写一致使用 `resolvedPosition.to` 作为插入点，避免把“插在段落之后”显示成“插在段落之前”。`src/components/editor/NovelEditor.tsx`
+- 未新增前端回归用例：仓库缺少现成的前端测试框架与用例入口，若需要可补 Vitest/Jest 再覆盖该场景。
+
+#### 写回章节绑定修复（待确认）
+
+- [x] 规划层：写回任务 chapter_id 强制绑定 explore/locate 的目标章节（覆盖显式值）
+- [x] 执行层：保持 chapter_id_mismatch 硬闸，补充日志标注“覆盖来源”
+- [ ] 回归验证：跨章写回不再被 chapter_id_mismatch 拦截
+- [x] 更新 todo.md review（记录改动与风险）
+
+#### review
+
+- 规划层对 smart_rewrite/smart_insert/operate_apply/apply_chapter_edit 强制使用 locate/explore 的 chapter_id（即便显式值存在），并同步使用选中 locate_targets 路径，避免“显式当前章”固化。`backend/app/services/agent/planning/plan_generator.py`
+- 执行层在 replace/insert 且 auto_locator 场景下，如果显式 chapter_id 与目标章节不一致，会覆盖为目标章节并记录来源日志；chapter_id_mismatch 硬闸仍保留。`backend/app/services/agent/execution/tool_executor.py`
+- 回归验证未做完整跨章写回复测：本地 pytest 受依赖缺失（chromadb）阻塞，需要环境补齐后复测。
+
+#### 重复句消歧仍失败（ambiguous_locator）复盘（待确认）
+
+- [x] 通读 Backend.md/INFO.md，定位 “ambiguous_locator” 触发的具体步骤与参数（locate_target_index/locator_id/hint）
+- [x] 追踪规划层输出：是否产生 locate_target_index/locator_id，是否被覆盖为 locate_targets[0]
+- [x] 追踪执行层选择器：_select_locate_target 的匹配路径是否被显式 index/ID 命中
+- [x] 对照 locate_targets 输出内容（chapter_id/node_id/paragraph_index/locator_id/text）判断是否确有多候选
+- [x] 汇总证据并给出直白结论（核心原因 + 最小修复方向）
+- [x] 更新 todo.md review（记录改动与风险）
+
+#### review
+
+- Backend.md 未出现 ambiguous_locator 相关日志；取而代之的是多次 ParameterResolver 警告：`path=content` / `path=source_locator` 字段不存在，说明写回任务未拿到 smart_rewrite 的内容与定位信息。`Backend.md:100-137`
+- 规划层当时生成的 apply 任务仍在引用 `$TASK.content` 而非 `versions[0].content`，且 source_locator 未绑定（被 Resolver 降级），导致 operate_apply 进入写回时缺少 content 与 node_id/paragraph_index。`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/agent/parameter_resolver.py`
+- 后端写回链路明确要求 content 与定位：`apply_chapter_edit` 先校验 `empty_content` 与 `missing_position_for_replace`，缺失即失败；operate_apply 也只允许 direct 定位。`backend/app/services/agent/tools/editor_tools.py`、`backend/app/services/agent/tools/operate_tools.py`
+- 结论（直白）：**失败不是“ambiguous_locator”，而是写回任务没拿到内容和定位（source_locator/content 都缺），导致写回直接失败。**“ambiguous_locator”只出现在前台文本里，是 AI 自己编的解释，不是系统返回的真实错误。
+- 最小修复方向：保证 smart_rewrite → operate_apply 的 content 与 source_locator 绑定正确、写回任务携带 locate_target_index/locator_id；若绑定缺失，应在执行层直接报错而不是走 summarization。`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/agent/execution/tool_executor.py`
+
+#### 写回参数完整性修复计划（待确认）
+
+- [x] 规划层：operate_apply 绑定 data.content / data.versions[0].content（StandardTool 输出结构）
+- [x] 规划层：operate_apply 绑定 data.source_locator 或 locate/explore 选中目标（source_locator+node_id/paragraph_index）
+- [x] 执行层：缺 content/source_locator 时直接返回明确错误，禁止进入 summarization
+- [x] 执行层：显式目标选择强制 re-select（locate_target_index/locator_id/hint）
+- [x] 多候选未指定：返回 ambiguous_locator 并提示“第几处”
+- [x] 增加回归用例：缺参报错 / 写回成功 / 歧义报错
+- [x] 更新 todo.md review（记录改动与风险）
+
+#### review
+
+- 写回任务统一绑定 StandardTool 输出结构：content 改为 `data.versions[0].content`/`data.content`，original_text 改为 `data.original_text`，source_locator 改为 `data.source_locator`，并优先用 locate/explore 目标覆盖定位。`backend/app/services/agent/planning/plan_generator.py`
+- 执行层新增缺参硬闸：replace/insert/append/content 的 content 为空或非字符串直接报错，避免写回进入 Pydantic 报错与“假成功”总结。`backend/app/services/agent/execution/tool_executor.py`
+- 显式目标选择与歧义提示已生效：locate_target_index/locator_id/hint 强制重选，多候选未指定返回 ambiguous_locator。`backend/app/services/agent/execution/tool_executor.py`
+- 回归用例补充：校验 apply_task 使用 data.* 路径与歧义选择器行为。`backend/tests/unit/test_strict_locator.py`
+
+#### 写回内容引用路径修正（待确认）
+
+- [x] plan_generator：所有 $ref 指向 StandardTool 的输出时补上 data 前缀（content/source_locator/versions）
+- [x] plan_generator：兼容旧路径（无 data）但优先 data 路径
+- [x] 增加最小回归：StandardTool 输出结构下 content 不再为 None
+- [x] 更新 todo.md review（记录改动与风险）
+
+#### review
+
+- 规划层写回引用全部切到 data.* 路径，避免 `versions[0].content`/`source_locator` 解析失败导致 content=None。`backend/app/services/agent/planning/plan_generator.py`
+- 参数解析新增兼容：若 payload 没有 data 字段，会回退按旧路径解析，兼容旧输出结构。`backend/app/services/agent/parameter_resolver.py`
+- 最小回归用例新增：apply_task 生成的 content/original_text/source_locator 均为 data.* 路径。`backend/tests/unit/test_strict_locator.py`
+
+#### 写回段落错位（定位17→应用13）原因复盘与修复（待确认）
+
+- [ ] 通读 Backend.md / INFO.md，抽取“read_paragraph=17 与 operate_apply=12”链路证据
+- [ ] 追踪 read_paragraph 的 index_base/校正逻辑（langgraph_tools）与 explore_tools 的索引入库方式
+- [ ] 复核 locate_targets 生成顺序与 is_target 标记，确认是否误选 locate_targets[0]
+- [ ] 修复索引一致性：使用 read_paragraph 返回的 paragraph_index/target_index 写入 ParagraphRead
+- [ ] 修复目标选择：自动读取段落标记 is_target=False 或显式目标优先排序，避免默认取错
+- [ ] 补充日志：记录 index_base/纠正后索引/最终写回索引，提示“已纠正”
+- [ ] 增加最小回归用例：index_base auto/clamp、locate_targets 用纠正索引、写回一致性
+- [ ] 更新 todo.md review（证据与结论）
+
+#### 抽象需求下的唯一定位策略（待确认）
+
+- [x] 搜索结果仅作为候选池，不直接写回（明确“候选≠目标”）
+- [x] 对候选逐条 read_paragraph 验证原文（命中关键词/目标句/上下文锚点）
+- [x] 评分排序：关键词覆盖率 + 句子匹配 + 上下文锚点命中
+- [x] 高置信唯一：自动绑定 locator_id/locate_target_index
+- [x] 低置信歧义：强制用户确认“第几处”，不允许写回
+- [x] 写回硬闸：operate_apply 必须携带唯一定位，否则报错拒绝
+- [x] 更新 todo.md review（结论与风险）
+
+#### review
+
+- 仅对“已读取原文”的段落做候选筛选，搜索命中不会直接写回；候选来自 read_paragraphs/paragraphs。`backend/app/services/agent/tools/explore_tools.py`
+- 新增候选评分与唯一性选择：基于引号原句命中 + 关键词覆盖率进行评分；高置信时自动只保留一个 is_target。`backend/app/services/agent/tools/explore_tools.py`
+- 低置信保留多候选：不做自动裁剪，执行层会触发歧义提示，要求用户明确“第几处”。`backend/app/services/agent/execution/tool_executor.py`
+
+#### 插入歧义修复方案（待确认）
+
+- [x] 规划层：insert 写回任务补齐 locate_target_hint（来自定位段落 text），用于自动消歧
+- [x] 规划层：insert 写回任务补齐 target_description（同 locate_target_hint），便于执行层匹配
+- [x] 规划层：在 explore 定位任务上保留 require_paragraph_index 且不覆盖用户显式选择
+- [x] 回归用例：_build_apply_task(insert) 生成 locate_target_hint/target_description 路径正确
+- [x] 更新 todo.md review（改动与影响）
+
+#### review
+
+- insert 写回任务现在自动带 locate_target_hint/target_description（默认指向定位段落 text），执行层可用该 hint 消歧，不再只靠 locate_targets[0]。`backend/app/services/agent/planning/plan_generator.py`
+- 新增回归用例：验证 smart_insert 的 apply 任务包含 locate_target_hint/target_description 的路径。`backend/tests/unit/test_strict_locator.py`
+- explore_content 的 require_paragraph_index 若为空/null 会被强制补齐为 True，但显式 False 不会被覆盖，避免“明明要求严格定位却因 null 被跳过”。`backend/app/services/agent/planning/plan_generator.py`
+
+#### 对标 opencode 歧义处理（待确认）
+
+- [x] 追踪 edit/multiedit 替换逻辑，确认多匹配时的处理方式
+- [x] 追踪 patch/apply_patch 的上下文消歧机制与失败条件
+- [x] 汇总做法差异与可借鉴点
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- opencode 的 edit/multiedit 采用“oldString 必须唯一”的硬约束：若找到多处匹配且 replaceAll=false，会直接报错并要求提供更多上下文，避免猜测写回。`opencode/packages/opencode/src/tool/edit.ts`
+- opencode 的 patch/apply_patch 通过 @@ 变更上下文进行消歧：找不到上下文或匹配失败直接抛错；测试覆盖“@@ header 消歧”和“缺上下文拒绝”。`opencode/packages/opencode/src/patch/index.ts`、`opencode/packages/opencode/test/tool/apply_patch.test.ts`
+
+#### 插入失败（歧义定位）原因复盘（待确认）
+
+- [x] 通读 Backend.md / INFO.md，定位“插入失败=定位歧义”的具体请求链路与时间点
+- [x] 抽取 explore/locate_targets 输出，确认是否多候选或未携带 locator_id/locate_target_index
+- [x] 追踪计划层绑定：operate_apply 是否携带 locate_target_index/locator_id/source_locator
+- [x] 追踪执行层选择器：_select_locate_target 是否触发 ambiguous_locator（原因与分支）
+- [x] 对照插入任务参数（before/after/insert_context）与 locate_targets 顺序，确认是否误用 locate_targets[0]
+- [x] 给出证据清单与直白结论（是谁的问题、为何失败）
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- 证据1：Backend.md 仅出现 exact_search_paragraphs（hits=6）与“严格段落号模式”，未出现 read_paragraph/read_paragraphs 调用，说明本次定位没有读原文证据。`Backend.md:128-149`
+- 证据2：插入任务仅记录 TaskRunner/ToolExecutor 入口，没有出现 operate_apply 的“开始执行工具/Operate 路由/定位完成”日志，说明插入在执行层被提前拦截。`Backend.md:166-171`
+- 证据3：执行层在 replace/insert 时会强制 _ensure_source_locator；若 locate_targets 多候选或未显式指定 locator_id/locate_target_index，会返回 ambiguous_locator（“定位候选不唯一”）。`backend/app/services/agent/execution/tool_executor.py:1005-1122`
+- 直白结论：**这是后端规划/执行链路的问题**——Explore 没有产出“单一可写回定位”，且 plan 未显式绑定 locator_id/locate_target_index，导致执行层在定位阶段判定“歧义”并拦截写回；前台的“定位信息存在歧义”是对该拦截的自然语言描述。 
+
+#### 插入失败（目标段落未命中）排查（待确认）
+
+- [x] 通读 Backend.md，锁定 explore_content 的失败原因与后续参数降级证据
+- [x] 核对 explore_content 的“严格段落号”条件与缺失 locate_targets 的直接报错逻辑
+- [x] 对照章节文件，确认目标句实际所在章节与本次请求指定章节不一致
+- [x] 复盘参数解析链路，确认 smart_insert/operate_apply 因缺定位字段降级
+- [x] 汇总证据清单并给出直白结论（核心问题与根因链路）
+
+#### review
+
+- explore_content 在严格段落号模式下若未产出 locate_targets 会直接返回错误 `missing_locate_targets`，并提示需要 list_paragraphs/read_paragraphs。`backend/app/services/agent/tools/explore_tools.py:4972-4988`
+- 本次日志显示 explore_content 失败后，ParameterResolver 连续提示 locate_targets/paragraph_index/node_id 等字段不存在，说明后续任务拿不到定位信息。`Backend.md:57-75`
+- 目标句“吞噬效果：五虎群羊刀入门。”实际存在于章节文件 `backend/uploads/chapters/239b4eca-358a-4c32-b231-75b78f098099/68bff4d0-ac26-4f53-bf91-f1d9833aabb5.html`，而请求锁定的章节 `f2b84430-e08c-49f7-9df4-c7bcfecbd975.html` 内容为“第3章 一夕千悟”段落，文本不含该句。`backend/uploads/chapters/239b4eca-358a-4c32-b231-75b78f098099/68bff4d0-ac26-4f53-bf91-f1d9833aabb5.html`、`backend/uploads/chapters/239b4eca-358a-4c32-b231-75b78f098099/f2b84430-e08c-49f7-9df4-c7bcfecbd975.html`
+- 直白结论：**核心问题是“定位章节错了”**。系统把“吞噬效果：五虎群羊刀入门。”去第3章（f2b844…）里找，但它实际在第1章（68bff…）里，导致 explore_content 无法读到原文段落→locate_targets 为空→smart_insert/operate_apply 失去 node_id/paragraph_index 而降级失败。

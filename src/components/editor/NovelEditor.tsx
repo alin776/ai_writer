@@ -1112,7 +1112,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           type === 'modify'
             ? resolvedPosition.to
             : type === 'insert'
-              ? resolvedPosition.from
+              ? resolvedPosition.to
               : resolvedPosition.to;
 
         const { doc } = editor.state;
@@ -1373,7 +1373,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             return;
           }
 
-          const insertPos = resolvedPosition?.from ?? state.doc.content.size;
+          const insertPos = resolvedPosition?.to ?? state.doc.content.size;
           const insertPosition = resolvedPosition ?? { from: insertPos, to: insertPos };
           const textContent = replacement || '';
 

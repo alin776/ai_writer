@@ -583,6 +583,9 @@ class ParameterResolver:
                 return fallback
 
         tokens = self._parse_field_path(field_path)
+        # 兼容 StandardTool 输出结构：优先 data.*，若无 data 则回退旧路径
+        if tokens and tokens[0] == "data" and isinstance(data, dict) and "data" not in data:
+            tokens = tokens[1:]
         logger.debug(f"[ParameterResolver] 解析路径 {field_path} -> tokens: {tokens}")
 
         value = data
