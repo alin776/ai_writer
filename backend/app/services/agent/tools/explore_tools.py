@@ -154,6 +154,16 @@ def _normalize_locate_query(query: str, max_len: int = LOCATE_QUERY_MAX_LEN) -> 
     return text
 
 
+def _strip_chapter_hint_for_global_search(text: str) -> str:
+    if not text:
+        return text
+    cleaned = text
+    cleaned = re.sub(r"在章节\s*[0-9a-fA-F-]{8,36}\s*中", "在全文中", cleaned)
+    cleaned = re.sub(r"章节\s*[0-9a-fA-F-]{8,36}", "全文", cleaned)
+    cleaned = re.sub(r"(本章|当前章节|当前章|这一章|该章|此章)", "全文", cleaned)
+    return cleaned
+
+
 def _requires_paragraph_index(target_task: str) -> bool:
     if not target_task:
         return False
@@ -1215,7 +1225,8 @@ def _build_explore_result_cache_key(
     target_task: str,
     search_keywords: Optional[List[str]],
     output_mode: str,
-    require_paragraph_index: Optional[bool] = None
+    require_paragraph_index: Optional[bool] = None,
+    force_global_search: Optional[bool] = None
 ) -> str:
     work_id = str(work_id or "").strip()
     if not work_id:
@@ -1227,6 +1238,7 @@ def _build_explore_result_cache_key(
         "keywords": _normalize_search_keywords(search_keywords),
         "output_mode": (output_mode or "").strip().lower(),
         "require_paragraph_index": bool(require_paragraph_index) if require_paragraph_index is not None else None,
+        "force_global_search": bool(force_global_search) if force_global_search is not None else None,
         "schema": EXPLORE_RESULT_CACHE_VERSION
     }
     digest = hashlib.sha1(
@@ -2039,7 +2051,8 @@ class ContentExplorer:
         explore_mode: str = "pipeline",
         max_tool_calls: Optional[int] = None,
         max_read_paragraphs: Optional[int] = None,
-        require_paragraph_index: Optional[bool] = None
+        require_paragraph_index: Optional[bool] = None,
+        force_global_search: Optional[bool] = None
     ):
         """
         初始化内容探索器
@@ -2055,7 +2068,10 @@ class ContentExplorer:
         self.work_id = work_id
         self.target_task = target_task
         self.search_keywords = search_keywords  # 规划阶段传入的关键词
+        self.force_global_search = bool(force_global_search)
         self.chapter_scopes_raw = _parse_chapter_scopes(target_task)
+        if self.force_global_search:
+            self.chapter_scopes_raw = []
         self.chapter_scopes = list(self.chapter_scopes_raw)
         self.scope_chapter_id: Optional[str] = None
         self.scope_look_ahead = 0
@@ -2093,6 +2109,8 @@ class ContentExplorer:
             logger.info("[ContentExplorer] 启用严格段落号模式")
         if self.chapter_scopes_raw:
             logger.info("[ContentExplorer] 章节范围锁定: %s", _format_scope_ranges(self.chapter_scopes_raw))
+        if self.force_global_search:
+            logger.info("[ContentExplorer] force_global_search 启用：忽略章节范围")
         if self.require_full_chapter:
             logger.info("[ContentExplorer] 任务要求完整章节原文")
         if self.forbid_full_chapter:
@@ -4819,6 +4837,7 @@ async def explore_content(
     max_read_paragraphs: Optional[int] = None,
     output_mode: str = "full",
     require_paragraph_index: Optional[bool] = None,
+    force_global_search: Optional[bool] = None,
     user_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
     use_cache: bool = True,
@@ -4836,6 +4855,7 @@ async def explore_content(
         max_read_paragraphs: 读取段落上限（可选，不传则不设全局上限）
         output_mode: 输出模式（evidence_only/full，默认 full；full 返回前端展示字段）
         require_paragraph_index: 是否强制要求段落索引（编辑类请求应为 True）
+        force_global_search: 是否忽略章节范围（用于引用句子但未指定章节时）
         user_id: 用户ID（可选）
         conversation_id: 会话ID（可选，用于共享缓存）
         use_cache: 是否启用 Redis 结果缓存（默认 True）
@@ -4851,6 +4871,14 @@ async def explore_content(
     evidence_only_output = output_mode_norm in ("evidence", "evidence_only", "minimal")
     use_cache = bool(use_cache)
     force_refresh = bool(force_refresh)
+    force_global_search = bool(force_global_search)
+
+    target_task_for_explorer = target_task or ""
+    if force_global_search:
+        target_task_for_explorer = _strip_chapter_hint_for_global_search(target_task_for_explorer)
+        if "全文" not in target_task_for_explorer and "全书" not in target_task_for_explorer:
+            target_task_for_explorer = f"{target_task_for_explorer}（全文范围搜索）"
+        logger.info("[explore_content] force_global_search 已启用：忽略章节范围")
 
     # 工具内事件：若有 stream handler，则由工具实时发射
     stream_handler = get_stream_event_handler()
@@ -4858,17 +4886,20 @@ async def explore_content(
     step_id_value = get_explore_step_id()
     events_emitted = emit_callback is not None
 
-    chapter_scopes = _parse_chapter_scopes(target_task)
+    chapter_scopes = _parse_chapter_scopes(target_task_for_explorer)
+    if force_global_search:
+        chapter_scopes = []
     cache_key = ""
     if use_cache:
         cache_key = _build_explore_result_cache_key(
             work_id=work_id,
             user_id=user_id,
             chapter_scopes=chapter_scopes,
-            target_task=target_task,
+            target_task=target_task_for_explorer,
             search_keywords=search_keywords,
             output_mode=output_mode_norm,
-            require_paragraph_index=require_paragraph_index
+            require_paragraph_index=require_paragraph_index,
+            force_global_search=force_global_search
         )
         if cache_key and not force_refresh:
             cached_payload = await _get_cached_explore_result(cache_key)
@@ -4890,7 +4921,7 @@ async def explore_content(
 
         explorer = ContentExplorer(
             work_id=work_id,
-            target_task=target_task,
+            target_task=target_task_for_explorer,
             max_rounds=max_rounds,
             emit_callback=emit_callback,
             step_id=step_id_value,
@@ -4898,7 +4929,8 @@ async def explore_content(
             explore_mode=explore_mode,
             max_tool_calls=max_tool_calls,
             max_read_paragraphs=max_read_paragraphs,
-            require_paragraph_index=require_paragraph_index
+            require_paragraph_index=require_paragraph_index,
+            force_global_search=force_global_search
         )
     if shared_state:
         explorer.state = _clone_explore_state(shared_state)
@@ -4913,7 +4945,7 @@ async def explore_content(
         # pipeline 已弃用：统一走 tool_loop（LLM 自由调只读工具）
         result = await explorer.explore_tool_loop()
         # 仅对“已读取原文”的候选做唯一性选择；低置信时保留多候选供确认
-        _select_unique_target_paragraphs(result, target_task, search_keywords)
+        _select_unique_target_paragraphs(result, target_task_for_explorer, search_keywords)
 
         if shared_cache_key:
             cached_state = _EXPLORE_SHARED_CACHE.get(shared_cache_key)

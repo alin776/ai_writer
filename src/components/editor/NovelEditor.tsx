@@ -1025,8 +1025,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       });
 
       try {
-        // 🆕 v8.3: 定位优先级：nodeId > paragraphIndex > position > 锚点 > 默认
-        let resolvedPosition = position;
+        // 🆕 v8.3: 定位优先级：nodeId > paragraphIndex > 锚点 > position(兜底) > 默认
+        const preferStructuredLocate = type === 'insert' || type === 'continue';
+        let resolvedPosition = preferStructuredLocate ? undefined : position;
 
         // 1. 尝试通过 nodeId 定位（最高优先级）
         if (!resolvedPosition && nodeId) {
@@ -1078,6 +1079,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
               }
             }
           }
+        }
+
+        // 3.5 insert/continue 下 position 仅作兜底
+        if (!resolvedPosition && preferStructuredLocate && position) {
+          resolvedPosition = position;
+          console.log('[NovelEditor] 使用 position 兜底:', resolvedPosition);
         }
 
         // 如果仍然没有位置，使用默认值

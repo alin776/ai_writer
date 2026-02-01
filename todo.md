@@ -1,5 +1,29 @@
 # TODO
 
+#### 重新发送小说素材（待确认）
+
+- [ ] 确认素材文件路径并读取内容范围
+- [ ] 确认输出范围（完整文本/节选/摘要）并给出版权提示
+- [ ] 按确认输出内容，并在 todo.md 追加 review
+
+#### 重新发送测试提示词（待确认）
+
+- [x] 复读《一夕千悟，从杂役弟子开始》关键情节与角色脉络
+- [x] 复刻 5 条高复杂度测试提示词（覆盖定位/读段/插入/改写/续写/校验）
+- [x] 按“可直接复制”的格式输出，并在 todo.md 追加 review
+
+#### review
+
+- 已基于素材关键情节（吞噬器灵、浑圆桩、赵穆指导/离场、孔斌李充张征小团体）生成 5 条复杂测试提示词，覆盖插入/替换/续写/歧义消解与上下文读取验证。
+
+#### 重复句消歧替换生成多段问题排查（待确认）
+
+- [ ] 通读 Backend.md 中“吞噬效果：五虎群羊刀入门”相关日志，确认任务数与执行顺序
+- [ ] 追踪计划层是否生成多次替换任务（第2处/第3处）及其来源
+- [ ] 核对 operate_apply 定位参数是否复用同一段落（para/node_id）
+- [ ] 追踪 apply_chapter_edit 是否有重复替换去重逻辑
+- [ ] 汇总证据并给出直白结论（为何出现三段、根因链路）
+
 #### 采纳修订后空行（待确认）
 
 - [x] 通读修订展示/采纳链路（NovelEditor/AIRevisionMark/AIRevisionBar），定位删除/插入标记的 HTML 结构
@@ -227,6 +251,71 @@
 - 方向A（后端统一）：让 locate_content/_split_paragraphs 也保留空段落，保证 paragraph_index 与 apply_chapter_edit 的计数规则一致。
 - 方向B（写回统一）：在 apply_chapter_edit/_get_paragraph_position 中 **跳过空段落**，与 locate_content 的索引对齐。
 - 方向C（前端缓解）：`getAllNodes()` 过滤空节点或提供“non-empty-only”列表，用于 paragraphIndex 定位（保持与 locate_content 规则一致）。
+
+#### 插入定位优先级修复（待确认）
+
+- [x] 调整前端修订定位优先级：nodeId/paragraphIndex 优先，position 仅作兜底
+- [x] 保持最小改动，仅影响 insert/continue 的定位路径
+- [x] 回填 todo.md review（改动点+收益+残余风险）
+
+#### review
+
+- insert/continue 改为优先使用 nodeId/paragraphIndex/锚点，`position` 只作为兜底，避免 HTML 字符索引误插到句子中间。`src/components/editor/NovelEditor.tsx`
+- modify 行为不变，仍可直接使用 position（保持既有改写逻辑）。
+- 残余风险：如果只有 position 且没有 nodeId/paragraphIndex/锚点，insert/continue 仍会使用 position；但这已是兜底路径，风险可控。
+
+#### 插入内容异常（生成超长+重复原文）根因排查（待确认）
+
+- [x] 通读 smart_insert 的输入/提示词/默认字数路径，确认“20字/一句话”是否被正确传入
+- [x] 追踪 tool_dispatcher / task_runner / operate_apply 的参数流，确认 word_count 与 user_intent 是否丢失或默认回退
+- [x] 复核 smart_insert 输出结构与写回逻辑，确认是否存在“原文/上下文被重复拼进生成内容”的机制
+- [x] 汇总证据（文件路径+关键逻辑）并给出直白结论
+- [x] 在 todo.md 添加 review（根因+影响+最小修复方向）
+
+#### review
+
+- **字数约束丢失/默认回退**：`smart_insert` 默认 `word_count=200`，提示词也写成“生成约{word_count}字”；`tool_dispatcher` 未提取“约20字/一句话”，缺省直接回退到 200。`backend/app/services/agent/tools/editor_tools.py`、`backend/app/services/agent/core/tool_dispatcher.py`
+- **上下文注入导致复述**：执行层会把 `source_locator.text` 直接塞进 `insert_context`，即把目标原句作为上下文喂给模型；结合 200 字目标，模型很容易把原句重复并扩写。`backend/app/services/agent/execution/tool_executor.py`、`backend/app/services/agent/tools/editor_tools.py`
+- **写回不做裁剪/去重**：`operate_apply` 直接写入 `data.content`，没有限制“只一句话/20字”，因此超长内容原样进入编辑器。`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/agent/tools/operate_tools.py`
+- **直白结论**：此次“插入内容过长且重复原句”不是定位问题，而是**字数/一句话约束未传入 + 原句上下文喂给模型 + 写回不裁剪**三者叠加的必然结果。
+- **最小修复方向**：当用户意图含“约20字/一句话”时，强制 `word_count=20` 并在生成后仅保留首句；同时明确提示“不要复述原句”。（低风险、只影响该类任务）
+
+#### 动态上下文读取策略（待确认）
+
+- [x] 仅在写回类任务（insert/replace）触发上下文读取，不对所有搜索强制 read
+- [x] 依据意图估算阅读范围（如 1~5 段），设置上限并在失败时扩读一次
+- [x] 使用 read_paragraph(index_base="zero", context_before/after=动态值) 获取前后文并回填 insert_context
+- [x] 在 todo.md 添加 review（规则+收益+风险）
+
+#### review
+
+- smart_insert/smart_rewrite 参数准备阶段改为动态补上下文：仅当存在 source_locator/paragraph_index 且上下文未扩展时调用 read_paragraph，避免对所有搜索强制 read。`backend/app/services/agent/execution/tool_executor.py`
+- 上下文范围按用户意图/字数推断（1~5 段），并在长内容且上下文过短时扩读一次；索引基准固定为 `index_base="zero"`，防止段落偏移。`backend/app/services/agent/execution/tool_executor.py`
+- 生成上下文结构为【前文/目标段落/后文】拼接，便于模型理解插入位置，且保持最小侵入。`backend/app/services/agent/execution/tool_executor.py`
+
+#### 基于素材生成复杂测试提示词（待确认）
+
+- [x] 阅读指定小说素材文件，提取关键人物/设定/情节脉络
+- [x] 设计 5 条高复杂度测试提示词（覆盖：定位→读段→插入/改写/续写/校验）
+- [x] 输出可直接用于验证“上下文读取/插入定位/字数约束”的提示词
+
+#### smart_insert 类型错误 + ambiguous_locator 排查（待确认）
+
+- [x] 通读 Backend.md 日志，锁定 smart_insert 校验失败与 locate 选择冲突的触发点
+- [x] 追踪 insert_context 数据类型来源与校验路径（StandardTool/LegacyTool）
+- [x] 追踪 ambiguous_locator 触发条件与缺失的显式定位参数
+- [x] 汇总证据并给出直白结论
+
+#### review
+
+- smart_insert 报错的直接原因是 `insert_context` 被解析为 **list**（而非字符串），StandardTool 在 `.strip()` 时崩溃，LegacyTool 又因 Pydantic 校验失败直接拒绝。`Backend.md`、`backend/app/services/agent/execution/tool_executor.py`
+- 该 list 形态与 explore_content 输出的 `evidences/search_hits` 结构一致，说明规划/参数引用将列表直接传给 `insert_context`，但系统**只对 evidence_context 做了强制字符串化**，insert_context 没有同类保护。`backend/app/services/agent/execution/tool_executor.py`
+- ambiguous_locator 出现在 smart_insert 失败之后，operate_apply 仍执行但缺少明确 `locate_target_index/locator_id/node_id/paragraph_index`，而 locate_targets 有多条候选（两句分别成候选），于是触发“多个定位候选”。`Backend.md`、`backend/app/services/agent/execution/tool_executor.py`
+
+#### 修复：insert_context 类型保护 + 两句之间自动锚定（已完成）
+
+- [x] smart_insert 接收 insert_context 时强制字符串化，防止 list 导致 Pydantic 校验失败
+- [x] 识别“在A和B之间”场景时，自动锚定前一句作为 locate_target_hint，避免 ambiguous_locator
 - [x] 后端：在 chat/stream 找不到 session 时创建 AgentSession 并写入 conversation_id（保证消息可持久化）
 - [x] 后端/前端二选一最小改动：补 message_count/last_message_preview 或放宽“无内容过滤”
 - [x] 前端：启用本地会话压缩（优先轻量压缩 flowItems）
@@ -1697,3 +1786,63 @@
 - 本次日志显示 explore_content 失败后，ParameterResolver 连续提示 locate_targets/paragraph_index/node_id 等字段不存在，说明后续任务拿不到定位信息。`Backend.md:57-75`
 - 目标句“吞噬效果：五虎群羊刀入门。”实际存在于章节文件 `backend/uploads/chapters/239b4eca-358a-4c32-b231-75b78f098099/68bff4d0-ac26-4f53-bf91-f1d9833aabb5.html`，而请求锁定的章节 `f2b84430-e08c-49f7-9df4-c7bcfecbd975.html` 内容为“第3章 一夕千悟”段落，文本不含该句。`backend/uploads/chapters/239b4eca-358a-4c32-b231-75b78f098099/68bff4d0-ac26-4f53-bf91-f1d9833aabb5.html`、`backend/uploads/chapters/239b4eca-358a-4c32-b231-75b78f098099/f2b84430-e08c-49f7-9df4-c7bcfecbd975.html`
 - 直白结论：**核心问题是“定位章节错了”**。系统把“吞噬效果：五虎群羊刀入门。”去第3章（f2b844…）里找，但它实际在第1章（68bff…）里，导致 explore_content 无法读到原文段落→locate_targets 为空→smart_insert/operate_apply 失去 node_id/paragraph_index 而降级失败。
+
+#### 错误章节锁定根因排查（待确认）
+
+- [x] 通读规划链路（plan_generator / planning_prompts / planning_examples），确认 chapter_id 的写入来源与优先级
+- [x] 追踪执行链路（tool_executor / parameter_resolver），确认 chapter_id 是否会被显式值覆盖或降级
+- [x] 对照 Backend.md 中“定位任务/写回任务”的参数日志，锁定是哪一步把 chapter_id 固化为 f2b844…
+- [x] 复核 work/chapter 数据来源（导入/上下文记忆/最近章节），确认“默认章”可能来源
+- [x] 汇总证据并给出直白结论（为何锁错 + 根因链路 + 最小修复方向）
+
+#### review
+
+- 前端在章节面板发送请求时**必带 chapter_id**，并把 `chapter_context: "当前章节ID: {chapterId}"` 写进上下文；这是“锁章”最直接的来源。`src/components/editor/AIPanel.tsx`
+- 后端 `agent_chat_stream` 会验证并透传 `request.chapter_id` 给 LangGraph 规划器；规划 prompt 里会显式展示 `chapter_id`，导致规划器默认把编辑请求当“当前章节”处理。`backend/app/api/v1/agent.py`、`backend/app/services/agent/planning/plan_generator.py`
+- 执行层不会自动跨章：`explore_content` 只有在目标任务不含章节限定时才会全书搜索；一旦规划文本里写了“在章节…定位”，就被锁死在该章。`backend/app/services/agent/tools/explore_tools.py`
+- `ParameterResolver` 在定位字段缺失时会降级为 fallback，不会中断流程；结果是 smart_insert/operate_apply 仍被调用但缺定位信息，只能失败。`backend/app/services/agent/parameter_resolver.py`
+- 直白结论：**根因是“章节面板上下文强绑定 + 规划器默认本章优先”**。当前章 ID 被前端写入上下文与请求体，规划器据此把“插入”任务限定到本章；当目标句不在本章时就无法产出 locate_targets，从而触发写回失败。最小修复方向：当用户未指定章节且给出精确引号/短句时，规划器应优先全书定位；或在本章未命中时自动放宽到全书并要求用户确认章节。
+
+#### Explore 阶段工具梳理（待确认）
+
+- [ ] 通读 explore_content 的阶段流程与工具白名单，列出会被调用的工具集合
+- [ ] 按阶段（预处理/精确搜索/读取/定位）说明每个工具的作用与入参
+- [ ] 汇总为“直白清单 + 调用条件”，回答用户问题
+
+#### list_chapters 能力评估（待确认）
+
+- [x] 通读 list_chapters 实现，核对它能返回哪些字段、是否依赖章节文件内容
+- [x] 结合 explore_content 的强制流程，说明 list_chapters 在“已锁章/未锁章”两种场景的实际作用
+- [x] 汇总为直白结论：是否能发挥预期能力、在哪些情况下会沦为“走过场”
+
+#### review
+
+- list_chapters 实际返回字段：chapter_id/id、order、title、word_count、paragraph_count；paragraph_count 依赖读取章节文件并用 `_split_paragraphs` 统计。`backend/app/services/agent/langgraph_tools.py`
+- 未锁章时它是“范围决策”的入口（先列章 → 再决定去哪些章 list_paragraphs/搜索）；锁章后仍会被强制执行，但结果不再影响范围，变成流程走过场。`backend/app/services/agent/tools/explore_tools.py`
+- 直白结论：list_chapters 本身能力完整，但在“规划器提前锁章”场景下失去决策作用。
+
+#### Opencode Explore 工具梳理（待确认）
+
+- [x] 通读 D:\Java\ai_writer\opencode 中 Explore/检索相关代码，列出阶段使用的工具集合
+- [x] 逐个说明工具作用与输入/输出（直白解释）
+- [x] 汇总对比：和当前项目 Explore 的主要差异点（仅限工具层）
+
+#### review
+
+- Opencode 的 explore 子代理允许工具：glob、grep、list、read、bash、webfetch、websearch、codesearch（以及外部目录权限用于截断输出读取）。`opencode/packages/opencode/src/agent/agent.ts`
+- 工具语义：glob=文件名模式匹配；grep=正则搜文件内容；list=列目录树；read=读文件内容；bash=执行命令（但文档强调别用来替代搜索/读写）；webfetch=抓取网页；websearch=在线检索；codesearch=外部代码/文档检索。`opencode/packages/opencode/src/tool/*.txt`
+- 与当前项目的差异（工具层）：Opencode Explore 面向“文件/代码”检索（glob/grep/read），而当前项目 Explore 面向“章节/段落”检索（list_chapters/list_paragraphs/read_paragraphs/exact_search_paragraphs）。
+
+#### 修复：引用句子时不锁章（待确认）
+
+- [x] 在 plan_generator 增加“引用句子且未显式指定章节”判断
+- [x] 对 explore_content 任务补充 `force_global_search` 参数（仅在上述条件满足时）
+- [x] explore_content/ContentExplorer 支持忽略章节范围（force_global_search）
+- [x] 保持最小改动，不影响用户明确“本章/第X章”的请求
+- [x] 更新 todo.md review（改动与影响）
+
+#### review
+
+- 规划层新增“引用句子且未指明章节”判定：满足条件时给 explore_content 注入 `force_global_search=true`，并在目标描述里追加“全文范围搜索”，避免锁死本章。`backend/app/services/agent/planning/plan_generator.py`
+- explore_content 支持 `force_global_search`：会剥离“在章节…/本章”等提示并清空 chapter_scopes，缓存键也区分该开关。`backend/app/services/agent/tools/explore_tools.py`
+- ContentExplorer 接收 `force_global_search` 并在初始化时忽略章节范围，确保后续 tool_loop 不再受锁章限制。`backend/app/services/agent/tools/explore_tools.py`

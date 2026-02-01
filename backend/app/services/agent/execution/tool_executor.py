@@ -9,13 +9,13 @@
 - 降级兜底
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 import json
 import logging
 import re
 
 from app.services.agent.tools import registry
-from app.services.agent.langgraph_tools import resolve_chapter_id, is_chapter_order
+from app.services.agent.langgraph_tools import resolve_chapter_id, is_chapter_order, read_paragraph
 from app.services.agent.utils.chapter_cache import ChapterCache
 from app.services.agent.utils.tool_cache import ToolCache
 from app.services.agent.utils.tool_context import (
@@ -131,6 +131,10 @@ class ToolExecutor:
         try:
             # 准备参数
             params = self.prepare_params(normalized_name, tool_args, state)
+            if normalized_name == "smart_insert":
+                params = await self._augment_insert_context(params, state)
+            elif normalized_name == "smart_rewrite":
+                params = await self._augment_rewrite_context(params, state)
 
             # 🛡️ 章节一致性校验：写回阶段必须与目标章节一致
             expected_chapter_id, expected_source = self._get_target_chapter_id(state)
@@ -547,6 +551,9 @@ class ToolExecutor:
                     params["chapter_content"] = str(chapter_content) if chapter_content else None
             params.setdefault("context", None)
             params.setdefault("user_id", state.get("user_id"))
+            insert_context = params.get("insert_context")
+            if insert_context is not None and not isinstance(insert_context, str):
+                params["insert_context"] = self._coerce_evidence_context(insert_context)
             if evidence_context and not params.get("evidence_context"):
                 params["evidence_context"] = evidence_context
             if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
@@ -847,6 +854,238 @@ class ToolExecutor:
             params.setdefault("work_id", state.get("work_id", ""))  # v8.0: 用于章节序号解析
 
         return params
+
+    async def _augment_insert_context(self, params: dict, state: dict) -> dict:
+        """为 smart_insert 动态补充前后文（仅在有定位信息时生效）"""
+        if not isinstance(params, dict):
+            return params
+        source_locator = params.get("source_locator")
+        if not isinstance(source_locator, dict):
+            return params
+
+        paragraph_index = source_locator.get("paragraph_index")
+        if paragraph_index is None:
+            paragraph_index = params.get("paragraph_index")
+        try:
+            paragraph_index = int(paragraph_index) if paragraph_index is not None else None
+        except (ValueError, TypeError):
+            paragraph_index = None
+        if paragraph_index is None:
+            return params
+
+        current_context = (params.get("insert_context") or "").strip()
+        source_text = (source_locator.get("text") or "").strip()
+        # 已有明显扩展上下文时不覆盖
+        if current_context and source_text:
+            if current_context != source_text and len(current_context) > len(source_text) + 20:
+                return params
+
+        ctx_before, ctx_after = self._infer_context_window(params, state)
+        if ctx_before <= 0 and ctx_after <= 0:
+            return params
+
+        chapter_id = params.get("chapter_id") or source_locator.get("chapter_id") or state.get("chapter_id", "")
+        work_id = params.get("work_id") or state.get("work_id", "")
+        if not chapter_id:
+            return params
+
+        read_params = {
+            "work_id": work_id,
+            "chapter_order": 0,
+            "chapter_id": chapter_id,
+            "paragraph_index": paragraph_index,
+            "context_before": ctx_before,
+            "context_after": ctx_after,
+            "index_base": "zero"
+        }
+        read_result = await read_paragraph.ainvoke(read_params)
+        if isinstance(read_result, str):
+            try:
+                read_result = json.loads(read_result)
+            except json.JSONDecodeError:
+                read_result = {}
+        if not isinstance(read_result, dict) or not read_result.get("success"):
+            return params
+
+        context_text = self._build_insert_context_from_read(read_result, ctx_before, ctx_after)
+
+        # 失败时扩读一次（受上限约束）
+        max_ctx = 5
+        word_count = self._extract_word_count(params, state)
+        if (
+            word_count
+            and word_count >= 120
+            and ctx_before < max_ctx
+            and ctx_after < max_ctx
+            and (not context_text or len(context_text) < 120)
+        ):
+            ctx_before = min(max_ctx, ctx_before + 1)
+            ctx_after = min(max_ctx, ctx_after + 1)
+            read_params.update({
+                "context_before": ctx_before,
+                "context_after": ctx_after
+            })
+            read_result = await read_paragraph.ainvoke(read_params)
+            if isinstance(read_result, str):
+                try:
+                    read_result = json.loads(read_result)
+                except json.JSONDecodeError:
+                    read_result = {}
+            if isinstance(read_result, dict) and read_result.get("success"):
+                context_text = self._build_insert_context_from_read(read_result, ctx_before, ctx_after) or context_text
+
+        if context_text:
+            params["insert_context"] = context_text
+        return params
+
+    async def _augment_rewrite_context(self, params: dict, state: dict) -> dict:
+        """为 smart_rewrite 动态补充前后文（仅在有定位信息时生效）"""
+        if not isinstance(params, dict):
+            return params
+        source_locator = params.get("source_locator")
+        if not isinstance(source_locator, dict):
+            return params
+
+        paragraph_index = source_locator.get("paragraph_index")
+        if paragraph_index is None:
+            paragraph_index = params.get("paragraph_index")
+        try:
+            paragraph_index = int(paragraph_index) if paragraph_index is not None else None
+        except (ValueError, TypeError):
+            paragraph_index = None
+        if paragraph_index is None:
+            return params
+
+        evidence_context = str(params.get("evidence_context") or "").strip()
+        if evidence_context and "【前文】" in evidence_context and "【后文】" in evidence_context:
+            return params
+
+        ctx_before, ctx_after = self._infer_context_window(params, state)
+        if ctx_before <= 0 and ctx_after <= 0:
+            return params
+
+        chapter_id = params.get("chapter_id") or source_locator.get("chapter_id") or state.get("chapter_id", "")
+        work_id = params.get("work_id") or state.get("work_id", "")
+        if not chapter_id:
+            return params
+
+        read_params = {
+            "work_id": work_id,
+            "chapter_order": 0,
+            "chapter_id": chapter_id,
+            "paragraph_index": paragraph_index,
+            "context_before": ctx_before,
+            "context_after": ctx_after,
+            "index_base": "zero"
+        }
+        read_result = await read_paragraph.ainvoke(read_params)
+        if isinstance(read_result, str):
+            try:
+                read_result = json.loads(read_result)
+            except json.JSONDecodeError:
+                read_result = {}
+        if not isinstance(read_result, dict) or not read_result.get("success"):
+            return params
+
+        context_text = self._build_insert_context_from_read(read_result, ctx_before, ctx_after)
+        if not context_text:
+            return params
+
+        if evidence_context:
+            params["evidence_context"] = f"{evidence_context}\n\n【段落上下文】\n{context_text}"
+        else:
+            params["evidence_context"] = f"【段落上下文】\n{context_text}"
+        return params
+
+    @staticmethod
+    def _extract_word_count(params: dict, state: dict) -> Optional[int]:
+        word_count = params.get("word_count") if isinstance(params, dict) else None
+        if isinstance(word_count, int) and word_count > 0:
+            return word_count
+        user_intent = str(params.get("user_intent") or "")
+        user_message = str(state.get("last_user_message") or "")
+        text = user_intent or user_message
+        if "一句" in text or "一句话" in text:
+            return 20
+        match = re.search(r"(\d{1,4})\s*字", text)
+        if match:
+            try:
+                return int(match.group(1))
+            except (ValueError, TypeError):
+                return None
+        return None
+
+    def _infer_context_window(self, params: dict, state: dict) -> Tuple[int, int]:
+        user_intent = str(params.get("user_intent") or state.get("last_user_message") or "")
+        word_count = self._extract_word_count(params, state)
+        max_ctx = 5
+        if word_count is not None:
+            if word_count <= 30:
+                ctx = 1
+            elif word_count <= 80:
+                ctx = 2
+            elif word_count <= 150:
+                ctx = 3
+            elif word_count <= 300:
+                ctx = 4
+            else:
+                ctx = max_ctx
+        else:
+            ctx = 2
+
+        if any(kw in user_intent for kw in ["一句", "一句话", "简短", "简要", "20字", "30字"]):
+            ctx = 1
+        if any(kw in user_intent for kw in ["更多上下文", "多读", "前后多段", "详细铺垫"]):
+            ctx = max_ctx
+        if any(kw in user_intent for kw in ["承接", "铺垫", "过渡", "氛围", "心理", "场景", "细节", "展开", "描写", "扩写", "延展", "补充"]):
+            ctx = max(ctx, 3)
+
+        ctx = max(1, min(max_ctx, ctx))
+        return ctx, ctx
+
+    @staticmethod
+    def _build_insert_context_from_read(read_result: dict, max_before: int, max_after: int) -> str:
+        paragraphs = read_result.get("paragraphs")
+        if not isinstance(paragraphs, list):
+            return ""
+        target_index = read_result.get("target_index")
+        before_texts = []
+        after_texts = []
+        target_text = ""
+        for para in paragraphs:
+            if not isinstance(para, dict):
+                continue
+            text = (para.get("text") or "").strip()
+            if not text:
+                continue
+            if para.get("is_target"):
+                target_text = text
+                continue
+            if isinstance(target_index, int):
+                idx = para.get("index")
+                if isinstance(idx, int) and idx < target_index:
+                    before_texts.append(text)
+                elif isinstance(idx, int) and idx > target_index:
+                    after_texts.append(text)
+            else:
+                if not target_text:
+                    before_texts.append(text)
+                else:
+                    after_texts.append(text)
+
+        if max_before > 0 and len(before_texts) > max_before:
+            before_texts = before_texts[-max_before:]
+        if max_after > 0 and len(after_texts) > max_after:
+            after_texts = after_texts[:max_after]
+
+        parts = []
+        if before_texts:
+            parts.append("【前文】\n" + "\n".join(before_texts))
+        if target_text:
+            parts.append("【目标段落】\n" + target_text)
+        if after_texts:
+            parts.append("【后文】\n" + "\n".join(after_texts))
+        return "\n\n".join(parts)
 
     @staticmethod
     def _load_explore_result(state: dict) -> dict:

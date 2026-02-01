@@ -531,6 +531,7 @@ tool_policy: {tool_policy}
         plan_data = self._validate_and_fix_plan(plan_data, message)
         plan_data["tasks"] = self._split_multi_edit_tasks(plan_data.get("tasks", []), message)
         plan_data["tasks"] = self._apply_locator_selection(plan_data.get("tasks", []), message)
+        plan_data["tasks"] = self._ensure_explore_force_global_search(plan_data.get("tasks", []), message)
         plan_data["tasks"] = self._ensure_explore_strict_locator(plan_data.get("tasks", []))
         plan_data["tasks"] = self._ensure_chapter_id_from_locate(plan_data.get("tasks", []))
         plan_data["tasks"] = self._ensure_editor_apply_tasks(plan_data.get("tasks", []))
@@ -552,6 +553,50 @@ tool_policy: {tool_policy}
             target_task = params.get("target_task")
             if isinstance(target_task, str) and "段落" not in target_task and "paragraph" not in target_task:
                 params["target_task"] = f"{target_task}（需精确段落定位）"
+            task["params"] = params
+        return tasks
+
+    @staticmethod
+    def _message_explicitly_specifies_chapter(message: str) -> bool:
+        if not message:
+            return False
+        text = message
+        if re.search(r"(本章|当前章|当前章节|这一章|该章|此章)", text):
+            return True
+        if re.search(r"第\s*[一二两三四五六七八九十百千万\d]+\s*章", text):
+            return True
+        if re.search(r"前\s*[一二两三四五六七八九十\d]+\s*章", text):
+            return True
+        if re.search(r"章节\s*\d+\s*[到至\-~—～–]\s*\d+", text):
+            return True
+        if re.search(r"章节\s*\d+\s*章", text):
+            return True
+        return False
+
+    def _should_force_global_search(self, message: str) -> bool:
+        if not message:
+            return False
+        if self._message_explicitly_specifies_chapter(message):
+            return False
+        quoted = self._extract_quoted_segments(message)
+        return bool(quoted)
+
+    def _ensure_explore_force_global_search(self, tasks: List[Dict[str, Any]], message: str) -> List[Dict[str, Any]]:
+        if not tasks:
+            return tasks
+        if not self._plan_requires_strict_locator(tasks):
+            return tasks
+        if not self._should_force_global_search(message):
+            return tasks
+        for task in tasks:
+            if task.get("tool") != "explore_content":
+                continue
+            params = task.get("params", {}) or {}
+            if params.get("force_global_search") is None:
+                params["force_global_search"] = True
+            target_task = params.get("target_task")
+            if isinstance(target_task, str) and "全文" not in target_task and "全书" not in target_task:
+                params["target_task"] = f"{target_task}（全文范围搜索）"
             task["params"] = params
         return tasks
 
@@ -624,6 +669,10 @@ tool_policy: {tool_policy}
         segments = self._extract_quoted_segments(message)
         if len(segments) == 1:
             return segments[0]
+        if len(segments) >= 2:
+            between_match = re.search(r"(之间|之間|介于|介於|在.*和.*之间|在.*與.*之間)", message)
+            if between_match:
+                return segments[0]
         m = re.search(r"(?:包含|含有|带有|提到|提及|关于|出现|描写|说到)([^，。；;,.]{2,20})", message)
         if m:
             hint = (m.group(1) or "").strip()
