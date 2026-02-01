@@ -635,7 +635,8 @@ async def smart_continue(
     user_requirement: Optional[str] = None,
     evidence_context: Optional[str] = None,
     word_count: int = 500,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    source_locator: Optional[dict] = None
 ) -> str:
     """
     智能续写 - 生成续写内容（不直接修改编辑器）
@@ -712,6 +713,7 @@ async def smart_continue(
             "chapter_id": chapter_id,
             "content": continued_content,
             "content_length": len(continued_content),
+            "source_locator": source_locator or {},
             "description": f"AI续写：生成{len(continued_content)}字"
         }, ensure_ascii=False)
 
@@ -740,7 +742,8 @@ async def smart_rewrite(
     chapter_content: Optional[str] = None,
     user_requirement: Optional[str] = None,
     evidence_context: Optional[str] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    source_locator: Optional[dict] = None
 ) -> str:
     """
     智能改写 - 改写用户指定范围的文本
@@ -838,6 +841,7 @@ async def smart_rewrite(
             "versions": versions,
             # 方案2：兼容字段，避免错误引用 content 导致写回失败
             "content": versions[0].get("content") if versions else "",
+            "source_locator": source_locator or {},
             "description": f"AI改写：{len(text_to_rewrite)}字 → 生成{len(versions)}条结果"
         }, ensure_ascii=False)
 
@@ -912,7 +916,8 @@ async def smart_insert(
     evidence_context: Optional[str] = None,
     word_count: int = 200,
     user_id: Optional[str] = None,
-    work_id: Optional[str] = None
+    work_id: Optional[str] = None,
+    source_locator: Optional[dict] = None
 ) -> str:
     """
     智能插入 - 生成要插入的内容（不直接修改编辑器）
@@ -1028,6 +1033,7 @@ async def smart_insert(
             "content": generated_content,  # 保留原字段以兼容
             "versions": versions,
             "content_length": len(generated_content),
+            "source_locator": source_locator or {},
             "description": description
         }, ensure_ascii=False)
 
@@ -1081,6 +1087,7 @@ class SmartRewriteInput(ToolInput):
     user_requirement: Optional[str] = Field(default=None, description="用户的具体要求")
     evidence_context: Optional[str] = Field(default=None, description="探索证据上下文")
     user_id: Optional[str] = Field(default=None, description="用户ID")
+    source_locator: Optional[dict] = Field(default=None, description="定位来源（只读）")
 
 
 class SmartRewriteOutput(ToolOutput):
@@ -1098,7 +1105,8 @@ async def smart_rewrite_executor(input_data: SmartRewriteInput) -> SmartRewriteO
             "chapter_content": input_data.chapter_content,
             "user_requirement": input_data.user_requirement,
             "evidence_context": input_data.evidence_context,
-            "user_id": input_data.user_id
+            "user_id": input_data.user_id,
+            "source_locator": input_data.source_locator
         })
 
         # 解析返回的 JSON
@@ -1143,6 +1151,7 @@ class SmartContinueInput(ToolInput):
     evidence_context: Optional[str] = Field(default=None, description="探索证据上下文")
     word_count: int = Field(default=500, description="期望续写字数")
     user_id: Optional[str] = Field(default=None, description="用户ID")
+    source_locator: Optional[dict] = Field(default=None, description="定位来源（只读）")
 
 
 class SmartContinueOutput(ToolOutput):
@@ -1160,7 +1169,8 @@ async def smart_continue_executor(input_data: SmartContinueInput) -> SmartContin
             "user_requirement": input_data.user_requirement,
             "evidence_context": input_data.evidence_context,
             "word_count": input_data.word_count,
-            "user_id": input_data.user_id
+            "user_id": input_data.user_id,
+            "source_locator": input_data.source_locator
         })
 
         result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
@@ -1205,6 +1215,7 @@ class SmartInsertInput(ToolInput):
     word_count: int = Field(default=200, description="期望生成字数")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     work_id: Optional[str] = Field(default=None, description="作品ID（用于章节序号解析）")
+    source_locator: Optional[dict] = Field(default=None, description="定位来源（只读）")
 
 
 class SmartInsertOutput(ToolOutput):
@@ -1224,7 +1235,8 @@ async def smart_insert_executor(input_data: SmartInsertInput) -> SmartInsertOutp
             "evidence_context": input_data.evidence_context,
             "word_count": input_data.word_count,
             "user_id": input_data.user_id,
-            "work_id": input_data.work_id
+            "work_id": input_data.work_id,
+            "source_locator": input_data.source_locator
         })
 
         result_data = json.loads(result_str) if isinstance(result_str, str) else result_str

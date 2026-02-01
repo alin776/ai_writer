@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 # ============ 积分余额 ============
@@ -19,10 +19,7 @@ class BalanceResponse(BaseModel):
     expires_at: Optional[str] = Field(None, description="过期时间")
     is_expired: bool = Field(..., description="是否已过期")
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============ 交易记录 ============
 
 class TransactionResponse(BaseModel):
@@ -37,10 +34,7 @@ class TransactionResponse(BaseModel):
     related_id: Optional[str] = Field(None, description="关联ID")
     created_at: str = Field(..., description="创建时间")
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class TransactionListRequest(BaseModel):
     """交易记录查询请求"""
     page: int = Field(1, ge=1, description="页码")
@@ -78,5 +72,4 @@ class RedeemResponse(BaseModel):
     balance_before: float = Field(..., description="兑换前余额")
     balance_after: float = Field(..., description="兑换后余额")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

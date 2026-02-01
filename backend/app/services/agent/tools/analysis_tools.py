@@ -11,7 +11,7 @@
 from typing import Optional, List, Dict, Any
 import json
 import logging
-from pydantic import Field
+from pydantic import Field, ConfigDict
 from app.utils.json_parser import parse_ai_json
 
 from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
@@ -84,8 +84,7 @@ class AnalyzeContentInput(ToolInput):
         description="额外的上下文信息,帮助更准确的分析"
     )
 
-    class Config:
-        populate_by_name = True  # 允许同时使用 content 和 text
+    model_config = ConfigDict(populate_by_name=True)  # 允许同时使用 content 和 text
 
 
 class AnalyzeContentOutput(ToolOutput):
@@ -525,9 +524,6 @@ class EvaluateQualityInput(ToolInput):
         alias="text"  # 支持 AI 传递 "text" 参数
     )
 
-    class Config:
-        populate_by_name = True  # 允许同时使用 content 和 text
-
     context: str = Field(
         default="novel",
         description="评估上下文类型: novel(小说), article(文章), report(报告), creative(创意写作)",
@@ -543,6 +539,8 @@ class EvaluateQualityInput(ToolInput):
         default="",
         description="参考标准或示例文本,用于对比评估"
     )
+
+    model_config = ConfigDict(populate_by_name=True)  # 允许同时使用 content 和 text
 
 
 class EvaluateQualityOutput(ToolOutput):

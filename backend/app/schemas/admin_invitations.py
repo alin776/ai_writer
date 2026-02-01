@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional, List
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 # ============ 管理员邀请码生成 ============
@@ -64,10 +64,7 @@ class AdminInvitationResponse(BaseModel):
     created_at: str = Field(..., description="创建时间")
     status: str = Field(..., description="状态: active/expired/exhausted")
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============ 管理员邀请码列表查询 ============
 
 class AdminInvitationListRequest(BaseModel):
@@ -97,10 +94,7 @@ class AdminInvitationListItem(BaseModel):
     created_at: str = Field(..., description="创建时间")
     status: str = Field(..., description="状态: active/expired/exhausted")
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class AdminInvitationListResponse(BaseModel):
     """管理员邀请码列表响应"""
     total: int = Field(..., description="总数")

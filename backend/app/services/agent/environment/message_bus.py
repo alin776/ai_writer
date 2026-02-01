@@ -41,10 +41,6 @@ class Message(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now, description="时间戳")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="附加元数据")
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
 
 
 class MessageBus:

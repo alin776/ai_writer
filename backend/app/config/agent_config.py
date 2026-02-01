@@ -6,7 +6,7 @@ Agent 系统配置管理
 
 import os
 from typing import Dict, Any, Optional, List
-from pydantic import Field
+from pydantic import Field, ConfigDict
 from pathlib import Path
 
 # 尝试从 pydantic-settings 导入，如果不可用则使用 pydantic
@@ -259,12 +259,7 @@ class AgentConfig(BaseSettings):
         description="是否启用高级缓存策略"
     )
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-        extra = "ignore"  # 忽略额外的环境变量
-
+    model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"  # 忽略额外的环境变量)
     @classmethod
     def from_env(cls, **overrides) -> "AgentConfig":
         """从环境变量创建配置"""

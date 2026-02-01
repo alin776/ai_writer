@@ -1,11 +1,63 @@
 # TODO
 
+#### 采纳修订后空行（待确认）
+
+- [x] 通读修订展示/采纳链路（NovelEditor/AIRevisionMark/AIRevisionBar），定位删除/插入标记的 HTML 结构
+- [x] 核对采纳/弃用的 HTML 处理函数（applyRevisionDecisionToHtml），验证是否清理空段落
+- [x] 复盘“修改型修订”的插入位置与换行处理，判断空行出现的条件
+- [x] 汇总证据路径与直白结论（根因+影响）
+
+#### review
+
+- 修订标记结构：删除用 `<del data-ai-deleted>`，新增用 `<ins data-ai-inserted>`，并用 `<span data-revision-id>` 关联；采纳/弃用只做“删除 del / 还原 ins / 去掉 revision-id”，不会处理空段落或段落合并。`src/components/editor/AIRevisionMark.ts`、`src/components/editor/NovelEditor.tsx`
+- 修改型修订是“先标记删除，再在原文后插入新内容”，且当 replacement 含换行时用 `insertContent` 生成新段落；因此采纳后原段落可能为空，形成可见空行。`src/components/editor/NovelEditor.tsx`
+- 核心结论：空行不是渲染问题，而是**采纳时只删标记不清理空段落**叠加**修改型修订插入位置在原文之后**导致的结构空洞；只要 replacement 触发新段落，就会出现“原位空出来、绿色文本在下一段”的现象。`src/components/editor/NovelEditor.tsx`
+
+#### 修复采纳修订空行（待确认）
+
+- [x] 设计最小修复策略：仅清理“由该 revisionId 产生的空段落”，不做全局空段落清理
+- [x] 在 applyRevisionDecisionToHtml 增加定向清理逻辑（限定含 revisionId 的段落/节点）
+- [x] 复核批量采纳/弃用与跨章节修订，确保不误删用户手动空行
+- [x] 更新 todo.md review（改动与风险）
+
+#### review
+
+- 最小修复落地：仅对“包含该 revisionId 或 del/ins 标记”的段落做空段落清理，避免影响用户手动空行。`src/components/editor/NovelEditor.tsx`
+- 兼容批量采纳/弃用：当 revisionIds 为空时，先收集所有含修订标记的段落，再统一清理；不会全局扫空段落。`src/components/editor/NovelEditor.tsx`
+- 风险控制：空段落清理会跳过仍包含修订标记/媒体元素的段落，避免误删仍待处理的修订或非文本内容。`src/components/editor/NovelEditor.tsx`
+
+#### 复检遗漏（待确认）
+
+- [x] 复查采纳/弃用路径，确认是否存在绕过 applyRevisionDecisionToHtml 的流程
+- [x] 检查非段落节点（列表/标题/引用）在采纳后是否可能残留“空块”
+- [x] 评估“AI 插入空行/双换行”的场景是否会被误删
+- [x] 更新 todo.md review（遗漏点与结论）
+
+#### review
+
+- 采纳/弃用链路未发现绕过：AIPanel/AIRevisionBar 最终都派发 `agent-accept/discard` 事件，`NovelEditor` 统一走 `applyRevisionDecisionToHtml`；只有 `agent-undo-revision` 的“带快照撤销”不走该函数，但那是撤销已采纳内容，不是采纳/弃用流程。`src/components/editor/AIPanel.tsx`、`src/components/editor/NovelEditor.tsx`
+- 仍有潜在遗漏：空段落清理只处理 `<p>`；若修订发生在标题/引用或列表项（list_item 内的 `<p>` 被删后可能留下空 `<li>`），可能残留“空块/空项目”。需要时可扩展为清理空 `<li>`/`<blockquote>`/`<h1~h6>`。`src/components/editor/NovelEditor.tsx`
+- “AI 双换行”不会被误删：空行若来自插入内容的 `\n\n`，该空段落通常不带 revision 标记，不在清理集合内，因此会被保留（这是对“AI 有意留白”的保守策略）。`src/components/editor/NovelEditor.tsx`
+- 核心补充：`replacement` 仅在“含 HTML 标签”时做 `.trim()`，纯文本前导换行会保留；`insertContent` 会因此生成**不带 revision 标记**的空 `<p>`，而清理只针对“含 revision 标记的段落”，所以该空行不会被清掉。`src/components/editor/NovelEditor.tsx:953-960,1183-1197,205-223`
+
+#### 修复方案A：纯文本前导换行裁剪（待确认）
+
+- [x] 在修订展示前对纯文本 replacement 统一裁剪前导空行（仅保留内容本体）
+- [x] 避免影响原有 HTML 清理逻辑（只补充纯文本分支）
+- [x] 更新 todo.md review（改动与风险）
+
+#### review
+
+- 纯文本分支新增“前导空行裁剪”：仅去掉开头的空白行（包含空格/制表/不换行空格 + 换行），避免生成无标记空 `<p>`。`src/components/editor/NovelEditor.tsx`
+- HTML 清理逻辑保持不变：仍只在检测到 `<p>/<br>/<div>/<span>` 时做标签替换与 `.trim()`，不影响现有 HTML 修订展示。`src/components/editor/NovelEditor.tsx`
+
 #### 写回后段落顶格/排版乱（待确认）
 
 - [ ] 通读 Backend.md 本次测试日志，确认写回流程成功但内容格式异常的证据点
 - [ ] 追踪后端 replace 写回逻辑（apply_chapter_edit / chapter_revision_service）对段落边界的处理方式
 - [ ] 追踪前端修订显示与插入逻辑（NovelEditor）对换行/HTML 的处理方式
 - [ ] 对照编辑器样式（editor-styles.css）解释“顶格/乱排版”的直因
+- [ ] 形成最小修复草案（后端拆段 / 前端拆段）并评估风险
 - [ ] 汇总证据并给出直白结论与最小修复方向
 
 #### 深度探索胶囊行为标签缺失排查（待确认）
@@ -1340,3 +1392,87 @@
 - [ ] 上下文记忆只保存“引用指针”（artifact_id + 摘要），避免重复探索且控制上下文体积
 - [ ] 失效/清理策略：章节更新/导入/恢复触发失效；保留期与大小上限
 - [ ] 更新 todo.md review（证据与结论）
+
+#### Create 阶段缺少 node_id/paragraph_index 原因复盘（待确认）
+
+- [x] 梳理 Explore→Create→Operate 责任边界与数据流（evidences/locate_targets/node_id/paragraph_index）
+- [x] 追踪“缺少 node_id/paragraph_index”报错来源与触发条件（tool_executor / operate_apply / apply_chapter_edit）
+- [x] 核对 smart_* 工具是否产出定位信息，以及是否依赖 locate_content/list_paragraphs/read_paragraphs
+- [x] 输出证据清单与直白结论（解释为何会出现“缺少定位而无法应用”）
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- Explore 只负责取证并产出 locate_targets；若要求精确定位但 locate_targets 为空，会直接返回“缺少 paragraph_index/node_id”的错误提示。`backend/app/services/agent/tools/explore_tools.py:4838-4857`
+- Create 的 smart_* 只生成内容，不提供定位；smart_insert/smart_rewrite 注释明确“定位职责已移交给 locate_content”。`backend/app/services/agent/tools/editor_tools.py:812-832`、`backend/app/services/agent/tools/editor_tools.py:900-922`
+- Operate 层严格要求定位：operate_apply 仅接受 direct 的 node_id/paragraph_index，否则返回“必须提供 node_id 或 paragraph_index”；执行层 tool_executor 也会 fail-fast 拦截。`backend/app/services/agent/tools/operate_tools.py:300-322`、`backend/app/services/agent/execution/tool_executor.py:182-193`
+- 最终写回也会再次校验：apply_chapter_edit 与 ChapterRevisionService 对 replace/insert 缺定位直接拒绝。`backend/app/services/agent/tools/editor_tools.py:356-365`、`backend/app/services/chapter_revision_service.py:151-152`
+- 结论（直白）：报“缺少 node_id 或 paragraph_index”并非 Create 凭空捏造，而是**定位信息没有从 Explore/locate_content 传到 Operate**；内容可以生成，但写回必须有精确段落定位，没有定位就会被系统拦截。
+
+#### 严格定位硬闸方案（待确认）
+
+- [x] 明确“编辑类请求”的判定范围与触发条件（replace/insert/扩写/润色等）
+- [x] Explore 阶段强制产出 locate_targets：缺失时直接终止并提示继续 list_paragraphs/read_paragraphs
+- [x] 计划层强制绑定 locate_targets → Create/Operate（smart_* 必须引用 locate_targets[0].text；operate_apply 必须引用 node_id/paragraph_index）
+- [x] 设计 locate_targets 选择/消歧规则（精确匹配/段号/用户确认）
+- [x] 上下文段落不进入 locate_targets（仅“明确目标段落”可入候选）
+- [x] 多段修改拆分为多条编辑任务（每条绑定独立 locator）
+- [x] 引入 source_locator 结构并贯穿 Create→Operate（只读、不可改写）
+- [x] 执行层增加定位一致性校验（Create 的 source_locator 与 Operate 参数必须一致）
+- [x] 补充错误码/日志与用户提示，确保可追溯与可解释
+- [x] 增加最小回归用例（缺定位/多段重复文本/错位写回）
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- 执行层新增 source_locator 一致性校验：replace/insert 必须携带 source_locator，且 node_id/paragraph_index 与之匹配，不一致直接阻断写回并记录日志；同时时补齐缺失的 node_id/paragraph_index。`backend/app/services/agent/execution/tool_executor.py`
+- 计划层补齐自动写回的定位绑定：对 smart_rewrite/smart_insert 自动 apply 任务补充 source_locator 依赖与 __require_source_locator，避免“写回错位/缺定位”。`backend/app/services/agent/planning/plan_generator.py`
+- 多段改写支持拆分：当用户消息包含多个引号段落且仅有单条改写任务时，自动拆成多条 rewrite+apply，逐条绑定独立文本。`backend/app/services/agent/planning/plan_generator.py`
+- 补齐 explore_content 参数透传 require_paragraph_index，确保严格定位开关不会被执行层过滤。`backend/app/services/agent/execution/tool_executor.py`
+- 最小回归用例新增：覆盖 source_locator 不一致/缺定位补齐/多段拆分。`backend/tests/unit/test_strict_locator.py`
+
+#### Pydantic V2 警告清理（待确认）
+
+- [x] 盘点全部 `class Config` / `@validator` / `json_encoders` 使用点并分类（schemas / core config / agent tools）
+- [x] 迁移 `@validator` → `@field_validator`（重点：`backend/app/core/config.py`）
+- [x] 迁移 `class Config` → `model_config = ConfigDict(...)`（补齐 from_attributes / arbitrary_types_allowed 等）
+- [x] 移除 `json_encoders`（保留必要的 model_config，其余交由 Pydantic 默认序列化）
+- [x] 逐文件验证不再触发 Pydantic V2 警告
+- [x] 更新 todo.md review（改动与注意事项）
+
+说明（盘点范围）：
+- `@validator`: `backend/app/core/config.py`
+- `class Config`: 主要集中在 `backend/app/schemas/*` 与 `backend/app/services/agent/*`
+- `json_encoders`: `backend/app/schemas/export.py`、`backend/app/services/agent/version_control.py`、`backend/app/services/agent/environment/message_bus.py`、`backend/app/services/agent/memory/types.py`、`backend/app/services/agent/tools/tool_types.py`
+
+#### review
+
+- 已清理全部 `class Config`：改为 `model_config = ConfigDict(...)` 或删除冗余配置，避免 Pydantic V2 deprecation 警告。涉及 `backend/app/schemas/*`、`backend/app/services/agent/*` 等多个模型文件。
+- 已移除 `json_encoders`：对 datetime/UUID 依赖 Pydantic 默认序列化；`ToolInput/ToolOutput` 保留 `arbitrary_types_allowed` 配置（改为 `model_config`），减少行为变更风险。`backend/app/services/agent/tools/tool_types.py`、`backend/app/services/agent/version_control.py` 等。
+- 已核对仓库内不再出现 `class Config` / `json_encoders` / `@validator`（仅剩非 Pydantic 的 `ConfigTemplates`），警告应消失。
+
+#### 严格定位硬闸方案 复测 Prompts（待确认）
+
+- [x] 通读小说素材（docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt），摘取关键角色/事件/术语
+- [x] 设计 5 个高复杂度测试 Prompt，覆盖多段改写拆分、精确定位、跨章歧义消歧、插入/替换混合、source_locator 一致性
+- [x] 输出可直接复制的 5 个 Prompts
+- [x] 更新 todo.md review（记录覆盖点）
+
+#### review
+
+- Prompts 已覆盖：跨章时间矛盾修复（多段拆分）、重复句子消歧（两处“读取器灵”只改其一）、插入与替换混合、精确定位（必须 list/read 后写回 node_id/paragraph_index）、source_locator 一致性校验场景。
+
+#### 重复句消歧失败原因复盘（待确认）
+
+- [x] 通读 Backend.md 与 INFO.md，抽取失败链路与关键时间点
+- [x] 对照 ToolExecutor 的 source_locator 校验日志，确认阻断原因
+- [x] 追踪 plan_generator 的定位绑定逻辑（locate_targets[0] 绑定规则）
+- [x] 汇总证据并给出直白结论 + 最小修复方向
+
+#### review
+
+- 失败链路证据：Backend.md 显示 `operate_apply` 多次被阻断，错误为 `node_id 与 source_locator 不一致`，实际 node_id=4s4wpsay（第2处），但 source_locator 期望 node_id=hhjsbajw（第1处）。`Backend.md:85-86,108-109,131-132`
+- INFO.md 同步记录：系统已识别两处定位，但写回指向第1处，触发 `source_locator_mismatch`，因此阻止写回。`INFO.md:56-59`
+- 绑定逻辑证据：plan_generator 目前默认用 `locate_targets[0]` 作为 source_locator / node_id / paragraph_index 的绑定来源；当存在多个候选且未显式指定目标索引时，容易将“第1处”绑定为写回定位。`backend/app/services/agent/planning/plan_generator.py:1420-1667`
+- 直白结论：**失败不是 Create 凭空捏造，而是“写回任务绑定了错误的 source_locator（第1处）”，导致执行层一致性校验拦截**。系统防错生效但目标选择错误。
+- 最小修复方向：规划阶段支持显式 `locate_target_index` 或基于上下文关键词（如“好刀/废刀”）选择目标段落；写回任务必须引用该目标的 source_locator，避免默认落到 `locate_targets[0]`。

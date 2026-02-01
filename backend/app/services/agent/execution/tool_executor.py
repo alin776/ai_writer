@@ -12,6 +12,7 @@
 from typing import Dict, Any, Optional
 import json
 import logging
+import re
 
 from app.services.agent.tools import registry
 from app.services.agent.langgraph_tools import resolve_chapter_id, is_chapter_order
@@ -186,11 +187,28 @@ class ToolExecutor:
                         "error": "missing_chapter_id",
                         "message": "chapter_id 为空，请检查是否引用 locate_content 的 chapter_id（引用路径错误）"
                     }, ensure_ascii=False)
+                require_locator = bool(params.pop("__require_source_locator", False))
+                auto_locator = bool(params.pop("__auto_locator", False))
+                if operation in {"replace", "insert"} and require_locator:
+                    locator_error = self._validate_source_locator(params, auto_locator=auto_locator)
+                    if locator_error:
+                        return json.dumps(locator_error, ensure_ascii=False)
                 if operation in {"replace", "insert"} and not params.get("node_id") and params.get("paragraph_index") is None:
                     return json.dumps({
                         "error": "missing_locator",
                         "message": "replace/insert 必须提供 node_id 或 paragraph_index（请先定位段落）"
                     }, ensure_ascii=False)
+                if normalized_name == "apply_chapter_edit":
+                    params.pop("source_locator", None)
+
+            if isinstance(params, dict) and params.get("__locator_error"):
+                error_payload = params.get("__locator_error") or {}
+                if isinstance(error_payload, dict):
+                    return json.dumps(error_payload, ensure_ascii=False)
+                return json.dumps({
+                    "error": "locator_error",
+                    "message": str(error_payload)
+                }, ensure_ascii=False)
 
             cached_result = self._read_cover_cache(normalized_name, params, state)
             if cached_result is not None:
@@ -383,6 +401,14 @@ class ToolExecutor:
                 logger.warning("[ToolExecutor] smart_rewrite evidence_context 非字符串，已强制转换")
                 params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
 
+            locator_error = self._ensure_source_locator(
+                params,
+                state,
+                text_hint=params.get("text_to_rewrite", "")
+            )
+            if locator_error:
+                params["__locator_error"] = locator_error
+
             # 清理不再使用的多版本参数（smart_rewrite 仅生成单个结果）
             params.pop("base_version", None)
             params.setdefault("user_id", state.get("user_id"))
@@ -486,6 +512,14 @@ class ToolExecutor:
             if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
                 logger.warning("[ToolExecutor] smart_insert evidence_context 非字符串，已强制转换")
                 params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
+
+            locator_error = self._ensure_source_locator(
+                params,
+                state,
+                text_hint=params.get("insert_context") or params.get("user_intent", "")
+            )
+            if locator_error:
+                params["__locator_error"] = locator_error
 
         elif tool_name == "locate_content":
             # 🔧 2026-01-12: 移除不支持的 work_id 参数，避免 AI 规划错误导致工具调用失败
@@ -615,6 +649,7 @@ class ToolExecutor:
                 "max_tool_calls",
                 "max_read_paragraphs",
                 "output_mode",
+                "require_paragraph_index",
                 "user_id",
                 "conversation_id",
                 "use_cache",
@@ -894,6 +929,184 @@ class ToolExecutor:
                 return text
             return json.dumps(value, ensure_ascii=False)
         return str(value)
+
+    @staticmethod
+    def _normalize_locator_text(text: str) -> str:
+        if not text:
+            return ""
+        return re.sub(r"\s+", "", str(text)).strip()
+
+    def _select_locate_target(
+        self,
+        locate_targets: list,
+        text_hint: str = "",
+        node_id: Optional[str] = None,
+        paragraph_index: Optional[int] = None,
+        target_index: Optional[int] = None
+    ) -> tuple[Optional[dict], Optional[dict]]:
+        if not isinstance(locate_targets, list) or not locate_targets:
+            return None, {
+                "error": "missing_locate_targets",
+                "message": "缺少可定位段落，请先读取目标段落（read_paragraph/read_paragraphs）。"
+            }
+        if isinstance(target_index, int):
+            if 0 <= target_index < len(locate_targets):
+                return locate_targets[target_index], None
+            return None, {
+                "error": "locator_index_out_of_range",
+                "message": f"定位候选索引超范围（共{len(locate_targets)}个）"
+            }
+
+        if node_id or paragraph_index is not None:
+            matches = []
+            for item in locate_targets:
+                if not isinstance(item, dict):
+                    continue
+                if node_id and item.get("node_id") == node_id:
+                    matches.append(item)
+                elif paragraph_index is not None and item.get("paragraph_index") == paragraph_index:
+                    matches.append(item)
+            if len(matches) == 1:
+                return matches[0], None
+            if len(matches) > 1:
+                return None, {
+                    "error": "ambiguous_locator",
+                    "message": "定位候选不唯一，请明确指定段落或 node_id。"
+                }
+
+        normalized_hint = self._normalize_locator_text(text_hint)
+        if normalized_hint:
+            matches = []
+            for item in locate_targets:
+                if not isinstance(item, dict):
+                    continue
+                candidate_text = item.get("text") or item.get("query") or ""
+                normalized_candidate = self._normalize_locator_text(candidate_text)
+                if not normalized_candidate:
+                    continue
+                if normalized_hint == normalized_candidate or normalized_hint in normalized_candidate or normalized_candidate in normalized_hint:
+                    matches.append(item)
+            if len(matches) == 1:
+                return matches[0], None
+            if len(matches) > 1:
+                return None, {
+                    "error": "ambiguous_locator",
+                    "message": "多个段落与目标文本匹配，请指定具体段落。"
+                }
+
+        if len(locate_targets) == 1:
+            return locate_targets[0], None
+
+        return None, {
+            "error": "ambiguous_locator",
+            "message": "存在多个定位候选，请指定具体段落或选中文本。"
+        }
+
+    def _ensure_source_locator(
+        self,
+        params: Dict[str, Any],
+        state: dict,
+        text_hint: str = ""
+    ) -> Optional[Dict[str, Any]]:
+        if isinstance(params.get("source_locator"), dict):
+            return None
+        explore_result = self._load_explore_result(state)
+        locate_targets = explore_result.get("locate_targets") if isinstance(explore_result, dict) else []
+        context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+        node_id = params.get("node_id") or context.get("locate_node_id")
+        paragraph_index = params.get("paragraph_index")
+        if paragraph_index is None:
+            paragraph_index = context.get("locate_paragraph_index")
+        target_index = params.get("locate_target_index")
+        if isinstance(target_index, str) and target_index.isdigit():
+            target_index = int(target_index)
+
+        selected, error = self._select_locate_target(
+            locate_targets=locate_targets,
+            text_hint=text_hint,
+            node_id=node_id,
+            paragraph_index=paragraph_index,
+            target_index=target_index
+        )
+        if error:
+            return error
+        if selected and isinstance(selected, dict):
+            params["source_locator"] = {
+                "chapter_id": selected.get("chapter_id"),
+                "paragraph_index": selected.get("paragraph_index"),
+                "node_id": selected.get("node_id"),
+                "text": selected.get("text") or selected.get("query")
+            }
+        return None
+
+    @staticmethod
+    def _validate_source_locator(
+        params: Dict[str, Any],
+        auto_locator: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        source_locator = params.get("source_locator")
+        if not isinstance(source_locator, dict):
+            logger.warning("[ToolExecutor] 缺少 source_locator，阻止写回")
+            return {
+                "error": "missing_source_locator",
+                "message": "缺少 source_locator，无法校验定位一致性，请先完成段落定位。"
+            }
+
+        src_node_id = source_locator.get("node_id") or ""
+        src_paragraph_index = source_locator.get("paragraph_index")
+        if src_paragraph_index is not None and not isinstance(src_paragraph_index, int):
+            try:
+                src_paragraph_index = int(src_paragraph_index)
+            except (ValueError, TypeError):
+                src_paragraph_index = None
+
+        if not src_node_id and src_paragraph_index is None:
+            logger.warning("[ToolExecutor] source_locator 不完整，阻止写回: %s", source_locator)
+            return {
+                "error": "invalid_source_locator",
+                "message": "source_locator 缺少 node_id/paragraph_index，无法校验定位一致性，请重新定位目标段落。"
+            }
+
+        node_id = params.get("node_id")
+        paragraph_index = params.get("paragraph_index")
+        if node_id and src_node_id and str(node_id) != str(src_node_id):
+            logger.error(
+                "[ToolExecutor] node_id 与 source_locator 不一致，阻止写回: actual=%s expected=%s",
+                node_id,
+                src_node_id
+            )
+            return {
+                "error": "source_locator_mismatch",
+                "message": "node_id 与 source_locator 不一致，已阻止写回。",
+                "expected_node_id": src_node_id,
+                "actual_node_id": node_id,
+                "auto_locator": auto_locator
+            }
+        if paragraph_index is not None and src_paragraph_index is not None:
+            try:
+                actual_pi = int(paragraph_index)
+            except (ValueError, TypeError):
+                actual_pi = paragraph_index
+            if actual_pi != src_paragraph_index:
+                logger.error(
+                    "[ToolExecutor] paragraph_index 与 source_locator 不一致，阻止写回: actual=%s expected=%s",
+                    paragraph_index,
+                    src_paragraph_index
+                )
+                return {
+                    "error": "source_locator_mismatch",
+                    "message": "paragraph_index 与 source_locator 不一致，已阻止写回。",
+                    "expected_paragraph_index": src_paragraph_index,
+                    "actual_paragraph_index": paragraph_index,
+                    "auto_locator": auto_locator
+                }
+
+        if not node_id and src_node_id:
+            params["node_id"] = src_node_id
+        if paragraph_index is None and src_paragraph_index is not None:
+            params["paragraph_index"] = src_paragraph_index
+
+        return None
 
     async def _autofill_locate_chapter_id(self, tool_args: dict, state: dict) -> dict:
         chapter_id = str(tool_args.get("chapter_id", "") or "").strip()

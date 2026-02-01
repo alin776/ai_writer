@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, Literal, Dict, List, Any
 from datetime import datetime
 from uuid import UUID
@@ -97,10 +97,7 @@ class HumanizeSessionResponse(HumanizeSessionBase):
     # 跳过标记 (检测分低于阈值时为True)
     skipped: bool = Field(default=False, description="是否跳过改写（检测分低于阈值）")
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class HumanizeSessionDetailResponse(BaseModel):
     """去痕迹会话详情响应"""
     dimensions_before: Dict[str, Any] = Field(default_factory=dict)
@@ -112,10 +109,7 @@ class HumanizeSessionDetailResponse(BaseModel):
     humanized_full: Optional[str] = None
     expires_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class HumanizeHistoryResponse(BaseModel):
     """去痕迹历史记录响应 (分页)"""
     total: int = Field(..., description="总记录数")
@@ -186,10 +180,7 @@ class UserProfileResponse(UserProfileBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ========== 用户反馈相关 ==========
 
 class UserFeedbackRequest(BaseModel):

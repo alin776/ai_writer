@@ -1,6 +1,6 @@
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import validator
+from pydantic import field_validator, ConfigDict
 
 
 class Settings(BaseSettings):
@@ -37,7 +37,8 @@ class Settings(BaseSettings):
         "http://localhost:5174"
     ]
     
-    @validator("CORS_ORIGINS", pre=True)
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
     def assemble_cors_origins(cls, v):
         if isinstance(v, str):
             return [i.strip() for i in v.split(",")]
@@ -48,7 +49,7 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str = "https://204992.xyz:8443/v1"
     OPENAI_MODEL: str = "gemini-2.5-pro"  # 默认模型，可通过环境变量修改
 
-    @validator("OPENAI_TIMEOUT", pre=True)
+    @field_validator("OPENAI_TIMEOUT", mode="before")
     @classmethod
     def validate_openai_timeout(cls, v):
         if isinstance(v, (int, str)):
@@ -60,7 +61,7 @@ class Settings(BaseSettings):
 
     OPENAI_TIMEOUT: int = 120  # AI调用超时时间（秒），默认120秒
 
-    @validator("OPENAI_CONNECT_TIMEOUT", pre=True)
+    @field_validator("OPENAI_CONNECT_TIMEOUT", mode="before")
     @classmethod
     def validate_openai_connect_timeout(cls, v):
         if isinstance(v, (int, str)):
@@ -72,7 +73,7 @@ class Settings(BaseSettings):
 
     OPENAI_CONNECT_TIMEOUT: int = 30  # 连接超时时间（秒），默认30秒
 
-    @validator("OPENAI_MAX_RETRIES", pre=True)
+    @field_validator("OPENAI_MAX_RETRIES", mode="before")
     @classmethod
     def validate_openai_max_retries(cls, v):
         if isinstance(v, (int, str)):
@@ -84,7 +85,7 @@ class Settings(BaseSettings):
 
     OPENAI_MAX_RETRIES: int = 3  # 最大重试次数，默认3次
 
-    @validator("OPENAI_RETRY_DELAY", pre=True)
+    @field_validator("OPENAI_RETRY_DELAY", mode="before")
     @classmethod
     def validate_openai_retry_delay(cls, v):
         if isinstance(v, (int, float, str)):
@@ -165,7 +166,7 @@ class Settings(BaseSettings):
     # 成本控制配置
     ENABLE_COST_TRACKING: bool = True  # 启用成本追踪
 
-    @validator("DAILY_COST_LIMIT_PER_USER", pre=True)
+    @field_validator("DAILY_COST_LIMIT_PER_USER", mode="before")
     @classmethod
     def validate_daily_cost_limit(cls, v):
         if isinstance(v, (int, float, str)):
@@ -177,7 +178,7 @@ class Settings(BaseSettings):
 
     DAILY_COST_LIMIT_PER_USER: float = 10.0  # 每用户每天成本限额（元）
 
-    @validator("ANALYSIS_RETRY_DELAY", pre=True)
+    @field_validator("ANALYSIS_RETRY_DELAY", mode="before")
     @classmethod
     def validate_analysis_retry_delay(cls, v):
         if isinstance(v, (int, str)):
@@ -189,7 +190,7 @@ class Settings(BaseSettings):
 
     ANALYSIS_RETRY_DELAY: int = 2  # 重试延迟（秒）
 
-    @validator("NOVEL_ANALYSIS_MAX_CONCURRENT", pre=True)
+    @field_validator("NOVEL_ANALYSIS_MAX_CONCURRENT", mode="before")
     @classmethod
     def validate_novel_analysis_max_concurrent(cls, v):
         if isinstance(v, (int, str)):
@@ -201,7 +202,7 @@ class Settings(BaseSettings):
 
     NOVEL_ANALYSIS_MAX_CONCURRENT: int = 5  # 最大并发章节数（推荐5，平衡性能与稳定性）
 
-    @validator("NOVEL_ANALYSIS_CHAPTER_TIMEOUT", pre=True)
+    @field_validator("NOVEL_ANALYSIS_CHAPTER_TIMEOUT", mode="before")
     @classmethod
     def validate_novel_analysis_chapter_timeout(cls, v):
         if isinstance(v, (int, str)):
@@ -213,7 +214,7 @@ class Settings(BaseSettings):
 
     NOVEL_ANALYSIS_CHAPTER_TIMEOUT: int = 120  # 单章超时时间（秒）
 
-    @validator("NOVEL_ANALYSIS_BATCH_UPDATE_SIZE", pre=True)
+    @field_validator("NOVEL_ANALYSIS_BATCH_UPDATE_SIZE", mode="before")
     @classmethod
     def validate_novel_analysis_batch_update_size(cls, v):
         if isinstance(v, (int, str)):
@@ -324,10 +325,11 @@ class Settings(BaseSettings):
     # ==================== 模型智能选择配置（P0优化）====================
     MODEL_SELECTION_ENABLED: bool = True  # 启用ModelSelector智能选择
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"  # 忽略额外字段 (如 VITE_* 前端变量)
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"
+    )
 
 
 settings = Settings()

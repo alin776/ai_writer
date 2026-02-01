@@ -1,7 +1,7 @@
 """
 小说举报 Schema
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
@@ -28,10 +28,7 @@ class WorkReportResponse(BaseModel):
     reviewed_by: Optional[UUID] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class WorkReportListResponse(BaseModel):
     """小说举报列表响应"""
     total: int
@@ -63,10 +60,7 @@ class MessageReportAdminResponse(BaseModel):
     reporter_name: Optional[str] = None
     reported_user_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class CommentReportAdminResponse(BaseModel):
     """评论举报管理响应（包含关联信息）"""
     id: UUID
@@ -84,10 +78,7 @@ class CommentReportAdminResponse(BaseModel):
     reporter_name: Optional[str] = None
     commented_user_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class WorkReportAdminResponse(BaseModel):
     """小说举报管理响应（包含关联信息）"""
     id: UUID
@@ -106,10 +97,7 @@ class WorkReportAdminResponse(BaseModel):
     work_author_name: Optional[str] = None
     reporter_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class UserReportAdminResponse(BaseModel):
     """用户举报管理响应（包含关联信息）"""
     id: UUID
@@ -127,10 +115,7 @@ class UserReportAdminResponse(BaseModel):
     reported_user_name: Optional[str] = None
     reported_user_avatar: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class ReportSummary(BaseModel):
     """举报统计概览"""
     message_reports: dict  # { total, pending, processed_today }

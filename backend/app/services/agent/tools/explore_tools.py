@@ -581,6 +581,7 @@ class ParagraphRead:
     context_after: List[str]     # 后文段落
     round_idx: int               # 第几轮读取的
     node_id: str = ""            # 节点ID（如果解析到）
+    is_target: bool = True       # 是否为明确目标段落（上下文范围读取为 False）
 
 
 @dataclass
@@ -955,7 +956,8 @@ class ExploreState:
             context_before=data.get("context_before", []),
             context_after=data.get("context_after", []),
             round_idx=round_idx,
-            node_id=data.get("node_id", "") or ""
+            node_id=data.get("node_id", "") or "",
+            is_target=bool(data.get("is_target", True))
         )
         self.paragraphs.append(paragraph_read)
 
@@ -1212,7 +1214,8 @@ def _build_explore_result_cache_key(
     chapter_scopes: List[Tuple[int, int]],
     target_task: str,
     search_keywords: Optional[List[str]],
-    output_mode: str
+    output_mode: str,
+    require_paragraph_index: Optional[bool] = None
 ) -> str:
     work_id = str(work_id or "").strip()
     if not work_id:
@@ -1223,6 +1226,7 @@ def _build_explore_result_cache_key(
         "task": (target_task or "").strip(),
         "keywords": _normalize_search_keywords(search_keywords),
         "output_mode": (output_mode or "").strip().lower(),
+        "require_paragraph_index": bool(require_paragraph_index) if require_paragraph_index is not None else None,
         "schema": EXPLORE_RESULT_CACHE_VERSION
     }
     digest = hashlib.sha1(
@@ -1547,7 +1551,10 @@ def _build_locate_targets(
         chapter_id: str,
         query: str,
         reason: str,
-        node_id: str = ""
+        node_id: str = "",
+        text: str = "",
+        before_anchor: str = "",
+        after_anchor: str = ""
     ) -> None:
         query_text = (query or "").strip()
         if not query_text or not chapter_id:
@@ -1557,29 +1564,46 @@ def _build_locate_targets(
         if key in seen:
             return
         seen.add(key)
+        parts = [part for part in [before_anchor, text or query_text, after_anchor] if part]
+        insert_context = "\n".join(parts) if parts else (text or query_text)
         targets.append({
             "chapter_id": chapter_id,
             "chapter_order": chapter_order,
             "query": query_text,
+            "text": text or query_text,
             "paragraph_index": paragraph_index,
             "node_id": node_id or "",
             "reason": reason,
+            "before_anchor": before_anchor,
+            "after_anchor": after_anchor,
+            "insert_context": insert_context,
             "allow_global_fallback": False
         })
 
     # 优先使用已读取段落（原文）
     for p in result.paragraphs:
+        if not getattr(p, "is_target", True):
+            continue
         chapter_id = ""
         entry = chapters_by_order.get(p.chapter_order, {})
         if entry:
             chapter_id = entry.get("id") or entry.get("chapter_id") or ""
+        before_anchor = ""
+        after_anchor = ""
+        if p.context_before:
+            before_anchor = (p.context_before[-1] or "")[-50:]
+        if p.context_after:
+            after_anchor = (p.context_after[0] or "")[:50]
         _add_target(
             chapter_order=p.chapter_order,
             paragraph_index=p.paragraph_index,
             chapter_id=chapter_id,
             query=p.text,
             reason="已读取原文段落",
-            node_id=p.node_id or node_id_map.get((p.chapter_order, p.paragraph_index), "")
+            node_id=p.node_id or node_id_map.get((p.chapter_order, p.paragraph_index), ""),
+            text=p.text,
+            before_anchor=before_anchor,
+            after_anchor=after_anchor
         )
 
     return targets
@@ -1917,7 +1941,8 @@ class ContentExplorer:
         search_keywords: Optional[List[str]] = None,
         explore_mode: str = "pipeline",
         max_tool_calls: Optional[int] = None,
-        max_read_paragraphs: Optional[int] = None
+        max_read_paragraphs: Optional[int] = None,
+        require_paragraph_index: Optional[bool] = None
     ):
         """
         初始化内容探索器
@@ -1944,6 +1969,8 @@ class ContentExplorer:
         self.forbid_full_chapter = _forbid_full_chapter(target_task)
         self.require_full_chapter = _requires_full_chapter(target_task)
         self.require_paragraph_index = _requires_paragraph_index(target_task)
+        if require_paragraph_index is not None:
+            self.require_paragraph_index = bool(require_paragraph_index)
         self.max_rounds = min(max_rounds, self.MAX_ROUNDS)
         self.explore_mode = (explore_mode or "pipeline").strip().lower()
         self.max_tool_calls = max_tool_calls if isinstance(max_tool_calls, int) and max_tool_calls > 0 else TOOL_LOOP_MAX_CALLS_DEFAULT
@@ -3894,7 +3921,8 @@ class ContentExplorer:
                         "text": target_text,
                         "context_before": context_before,
                         "context_after": context_after,
-                        "node_id": entry.get("node_id") or ""
+                        "node_id": entry.get("node_id") or "",
+                        "is_target": not use_range
                     }
                     self.state.add_paragraph(paragraph_data, round_idx)
                     self.state.add_evidence(
@@ -4693,6 +4721,7 @@ async def explore_content(
     max_tool_calls: Optional[int] = None,
     max_read_paragraphs: Optional[int] = None,
     output_mode: str = "full",
+    require_paragraph_index: Optional[bool] = None,
     user_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
     use_cache: bool = True,
@@ -4709,6 +4738,7 @@ async def explore_content(
         max_tool_calls: 工具调用上限（仅 tool_loop 生效）
         max_read_paragraphs: 读取段落上限（可选，不传则不设全局上限）
         output_mode: 输出模式（evidence_only/full，默认 full；full 返回前端展示字段）
+        require_paragraph_index: 是否强制要求段落索引（编辑类请求应为 True）
         user_id: 用户ID（可选）
         conversation_id: 会话ID（可选，用于共享缓存）
         use_cache: 是否启用 Redis 结果缓存（默认 True）
@@ -4740,7 +4770,8 @@ async def explore_content(
             chapter_scopes=chapter_scopes,
             target_task=target_task,
             search_keywords=search_keywords,
-            output_mode=output_mode_norm
+            output_mode=output_mode_norm,
+            require_paragraph_index=require_paragraph_index
         )
         if cache_key and not force_refresh:
             cached_payload = await _get_cached_explore_result(cache_key)
@@ -4760,17 +4791,18 @@ async def explore_content(
         if isinstance(cached_state, ExploreState):
             shared_state = cached_state
 
-    explorer = ContentExplorer(
-        work_id=work_id,
-        target_task=target_task,
-        max_rounds=max_rounds,
-        emit_callback=emit_callback,
-        step_id=step_id_value,
-        search_keywords=search_keywords,
-        explore_mode=explore_mode,
-        max_tool_calls=max_tool_calls,
-        max_read_paragraphs=max_read_paragraphs
-    )
+        explorer = ContentExplorer(
+            work_id=work_id,
+            target_task=target_task,
+            max_rounds=max_rounds,
+            emit_callback=emit_callback,
+            step_id=step_id_value,
+            search_keywords=search_keywords,
+            explore_mode=explore_mode,
+            max_tool_calls=max_tool_calls,
+            max_read_paragraphs=max_read_paragraphs,
+            require_paragraph_index=require_paragraph_index
+        )
     if shared_state:
         explorer.state = _clone_explore_state(shared_state)
         logger.info(

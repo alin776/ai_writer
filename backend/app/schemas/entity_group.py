@@ -2,7 +2,7 @@
 实体分组Schema定义
 用于API请求和响应的数据验证
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -28,10 +28,7 @@ class GroupMemberResponse(GroupMemberBase):
     group_id: UUID
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============ 实体分组 ============
 
 class EntityGroupBase(BaseModel):
@@ -70,10 +67,7 @@ class EntityGroupResponse(EntityGroupBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============ 批量操作 ============
 
 class BatchAddMembersRequest(BaseModel):

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -74,10 +74,7 @@ class ChannelResponse(ChannelBase):
     # 静音状态
     is_muted: bool = False  # 当前用户是否已静音该频道
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class ChannelListResponse(BaseModel):
     """频道列表响应"""
     channels: List[ChannelResponse]
@@ -119,10 +116,7 @@ class ChannelMemberResponse(ChannelMemberBase):
     user_avatar: Optional[str] = None
     user_online_status: Optional[str] = None  # 用户在线状态
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ========== Channel Message Schemas ==========
 
 class ChannelMessageBase(BaseModel):
@@ -179,10 +173,7 @@ class ChannelMessageResponse(ChannelMessageBase):
     # 附件列表
     attachments: List["AttachmentResponse"] = []
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class ChannelMessageListResponse(BaseModel):
     """消息列表响应"""
     messages: List[ChannelMessageResponse]
@@ -203,10 +194,7 @@ class ReactionUserResponse(BaseModel):
     username: str
     avatar: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class ReactionSummary(BaseModel):
     """反应汇总（用于消息列表）"""
     emoji: str
@@ -244,10 +232,7 @@ class PinnedMessageResponse(BaseModel):
     pinned_by_name: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class PinnedMessagesListResponse(BaseModel):
     """置顶消息列表响应"""
     messages: List[PinnedMessageResponse]
@@ -266,10 +251,7 @@ class AttachmentResponse(BaseModel):
     thumbnail_url: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class AttachmentUploadResponse(BaseModel):
     """附件上传响应"""
     id: UUID
@@ -306,10 +288,7 @@ class ForwardedFromInfo(BaseModel):
     created_at: Optional[datetime] = None
     attachments: List[dict] = []  # 原消息的附件列表
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class ForwardMessageRequest(BaseModel):
     """转发消息请求"""
     target_channel_ids: List[UUID] = Field(..., min_length=1, max_length=10, description="目标频道ID列表")
@@ -360,10 +339,7 @@ class JoinRequestResponse(BaseModel):
     # 审核人信息
     reviewer_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class JoinRequestListResponse(BaseModel):
     """加入申请列表响应"""
     requests: List[JoinRequestResponse]

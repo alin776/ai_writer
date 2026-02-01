@@ -7,7 +7,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc, func
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
@@ -55,10 +55,7 @@ class RewriteResultResponse(BaseModel):
     is_selected: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class RewriteSessionResponse(BaseModel):
     """改写会话响应"""
     id: str
@@ -71,10 +68,7 @@ class RewriteSessionResponse(BaseModel):
     created_at: datetime
     results: List[RewriteResultResponse]
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class RewriteSessionListItem(BaseModel):
     """改写会话列表项（简化版）"""
     id: str
@@ -83,10 +77,7 @@ class RewriteSessionListItem(BaseModel):
     result_count: int  # 结果数量
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class RewriteSessionListResponse(BaseModel):
     """改写会话列表响应"""
     sessions: List[RewriteSessionListItem]

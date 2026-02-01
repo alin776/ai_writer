@@ -202,6 +202,40 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }
       element.parentNode?.replaceChild(fragment, element);
     };
+    const collectAffectedParagraphs = (targetIds?: string[]) => {
+      const paragraphs = new Set<HTMLElement>();
+      const addParagraph = (element: Element) => {
+        const paragraph = element.closest('p');
+        if (paragraph) paragraphs.add(paragraph as HTMLElement);
+      };
+
+      if (targetIds && targetIds.length > 0) {
+        targetIds.forEach((revisionId) => {
+          tempDiv.querySelectorAll(`[data-revision-id="${revisionId}"]`).forEach(addParagraph);
+        });
+      } else {
+        tempDiv.querySelectorAll('[data-revision-id]').forEach(addParagraph);
+      }
+
+      // 兜底：旧数据可能只有 del/ins 标记，没有 revisionId
+      tempDiv
+        .querySelectorAll('del[data-ai-deleted], del.ai-deleted, ins[data-ai-inserted], ins.ai-inserted')
+        .forEach(addParagraph);
+
+      return paragraphs;
+    };
+    const cleanupEmptyParagraphs = (paragraphs: Set<HTMLElement>) => {
+      paragraphs.forEach((paragraph) => {
+        if (!paragraph.isConnected) return;
+        const text = (paragraph.textContent || '').replace(/\u00A0/g, ' ').trim();
+        if (text) return;
+        if (paragraph.querySelector('img, video, audio, svg, canvas, math')) return;
+        if (paragraph.querySelector('del[data-ai-deleted], del.ai-deleted, ins[data-ai-inserted], ins.ai-inserted, [data-revision-id]')) {
+          return;
+        }
+        paragraph.remove();
+      });
+    };
     const normalizeTargets = (revisionId: string) => {
       const revisionElements = Array.from(
         tempDiv.querySelectorAll(`[data-revision-id="${revisionId}"]`)
@@ -226,6 +260,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       return { deletedTargets, insertedTargets };
     };
 
+    const affectedParagraphs = collectAffectedParagraphs(ids.length > 0 ? ids : undefined);
+
     if (ids.length === 0) {
       const deletedElements = tempDiv.querySelectorAll('del[data-ai-deleted], del.ai-deleted');
       const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
@@ -239,21 +275,22 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         deletedElements.forEach(el => unwrap(el));
       }
       revisionIdElements.forEach(el => unwrap(el));
-      return tempDiv.innerHTML;
+    } else {
+      ids.forEach((revisionId) => {
+        const { deletedTargets, insertedTargets } = normalizeTargets(revisionId);
+        if (decision === 'accept') {
+          deletedTargets.forEach(el => el.remove());
+          insertedTargets.forEach(el => unwrap(el));
+        } else {
+          insertedTargets.forEach(el => el.remove());
+          deletedTargets.forEach(el => unwrap(el));
+        }
+        const revisionIdElements = tempDiv.querySelectorAll(`[data-revision-id="${revisionId}"]`);
+        revisionIdElements.forEach(el => unwrap(el));
+      });
     }
 
-    ids.forEach((revisionId) => {
-      const { deletedTargets, insertedTargets } = normalizeTargets(revisionId);
-      if (decision === 'accept') {
-        deletedTargets.forEach(el => el.remove());
-        insertedTargets.forEach(el => unwrap(el));
-      } else {
-        insertedTargets.forEach(el => el.remove());
-        deletedTargets.forEach(el => unwrap(el));
-      }
-      const revisionIdElements = tempDiv.querySelectorAll(`[data-revision-id="${revisionId}"]`);
-      revisionIdElements.forEach(el => unwrap(el));
-    });
+    cleanupEmptyParagraphs(affectedParagraphs);
 
     return tempDiv.innerHTML;
   };
@@ -922,6 +959,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           .replace(/<\/?(p|div|span)\b[^>]*>/gi, '') // 去除剩余标签
           .trim();
         console.log('[NovelEditor] 清理了 replacement 中的 HTML 标签');
+      } else if (replacement) {
+        const trimmed = replacement.replace(/^(?:[ \t\u00A0]*\r?\n)+/, '');
+        if (trimmed !== replacement) {
+          replacement = trimmed;
+          console.log('[NovelEditor] 清理了 replacement 前导空行');
+        }
       }
 
       if (!replacement) {

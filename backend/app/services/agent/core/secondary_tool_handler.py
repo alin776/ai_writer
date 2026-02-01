@@ -360,7 +360,8 @@ class SecondaryToolHandler:
                 "text_to_rewrite": text_to_rewrite,
                 "chapter_content": None,
                 "user_requirement": tool_args.get("user_requirement", ""),
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
             if isinstance(result, dict) and result.get("success"):
                 return json.dumps(result.get("data", {}), ensure_ascii=False)
@@ -372,7 +373,8 @@ class SecondaryToolHandler:
                 "text_to_rewrite": text_to_rewrite,
                 "chapter_content": None,
                 "user_requirement": tool_args.get("user_requirement", ""),
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
 
     async def _call_smart_continue(
@@ -390,7 +392,8 @@ class SecondaryToolHandler:
                 "chapter_content": tool_args.get("chapter_content"),
                 "user_requirement": tool_args.get("user_requirement", ""),
                 "word_count": tool_args.get("word_count", 500),
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
             if isinstance(result, dict) and result.get("success"):
                 return json.dumps(result.get("data", {}), ensure_ascii=False)
@@ -402,7 +405,8 @@ class SecondaryToolHandler:
                 "chapter_content": tool_args.get("chapter_content"),
                 "user_requirement": tool_args.get("user_requirement", ""),
                 "word_count": tool_args.get("word_count", 500),
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
 
     async def _call_smart_insert(
@@ -421,7 +425,8 @@ class SecondaryToolHandler:
                 "chapter_content": tool_args.get("chapter_content"),
                 "insert_context": tool_args.get("insert_context"),
                 "word_count": tool_args.get("word_count", 200),
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
             if isinstance(result, dict) and result.get("success"):
                 return json.dumps(result.get("data", {}), ensure_ascii=False)
@@ -434,7 +439,8 @@ class SecondaryToolHandler:
                 "chapter_content": tool_args.get("chapter_content"),
                 "insert_context": tool_args.get("insert_context"),
                 "word_count": tool_args.get("word_count", 200),
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
 
     async def _call_apply_chapter_edit(

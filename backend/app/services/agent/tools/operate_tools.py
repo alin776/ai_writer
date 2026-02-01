@@ -113,6 +113,7 @@ class ContentOperator:
         paragraph_index: Optional[int] = None,
         node_id: Optional[str] = None,
         nodes_info: Optional[str] = None,
+        source_locator: Optional[Dict[str, Any]] = None,
         allow_append_fallback: bool = False,
         user_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
@@ -424,6 +425,7 @@ async def operate_apply(
     paragraph_index: Optional[int] = None,
     node_id: Optional[str] = None,
     nodes_info: Optional[str] = None,
+    source_locator: Optional[Dict[str, Any]] = None,
     allow_append_fallback: bool = False,
     user_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
@@ -441,6 +443,7 @@ async def operate_apply(
         target_description: 目标位置描述（仅用于描述，不参与定位）
         paragraph_index: 段落索引（优先级最高的定位方式）
         node_id: 节点ID（优先级最高的定位方式）
+        source_locator: 定位来源（只读）
         allow_append_fallback: 已禁用（不允许降级追加）
         user_id: 用户ID
         conversation_id: 会话ID
@@ -460,6 +463,7 @@ async def operate_apply(
         paragraph_index=paragraph_index,
         node_id=node_id,
         nodes_info=nodes_info,
+        source_locator=source_locator,
         allow_append_fallback=allow_append_fallback,
         user_id=user_id,
         conversation_id=conversation_id,
@@ -481,6 +485,7 @@ class OperateApplyInput(ToolInput):
     paragraph_index: Optional[int] = Field(default=None, description="段落索引（优先级最高的定位方式）")
     node_id: Optional[str] = Field(default=None, description="节点ID（优先级最高的定位方式）")
     nodes_info: Optional[str] = Field(default=None, description="节点列表（可选，JSON字符串）")
+    source_locator: Optional[Dict[str, Any]] = Field(default=None, description="定位来源（只读）")
     allow_append_fallback: bool = Field(default=False, description="已禁用：不再允许 insert 降级 append")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     conversation_id: Optional[str] = Field(default=None, description="会话ID")
@@ -505,6 +510,7 @@ async def operate_apply_executor(input_data: OperateApplyInput) -> OperateApplyO
             "paragraph_index": input_data.paragraph_index,
             "node_id": input_data.node_id,
             "nodes_info": input_data.nodes_info,
+            "source_locator": input_data.source_locator,
             "allow_append_fallback": input_data.allow_append_fallback,
             "user_id": input_data.user_id,
             "conversation_id": input_data.conversation_id,

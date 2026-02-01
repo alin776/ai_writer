@@ -8,7 +8,7 @@
 - 性能参数验证
 - 类型安全
 """
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from typing import Optional, Dict, Any, List
 from datetime import timedelta
 import logging
@@ -308,12 +308,11 @@ class MemorySystemConfig(BaseModel):
         description="调试模式"
     )
 
-    class Config:
-        """Pydantic配置"""
-        validate_assignment = True  # 赋值时也验证
-        extra = "forbid"  # 禁止额外字段
-        use_enum_values = True
-
+    model_config = ConfigDict(
+        validate_assignment=True,  # 赋值时也验证
+        extra="forbid",  # 禁止额外字段
+        use_enum_values=True
+    )
     @model_validator(mode='after')
     def validate_overall_consistency(self):
         """验证整体一致性"""

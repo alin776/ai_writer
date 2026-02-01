@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -26,10 +26,7 @@ class UserInfo(BaseModel):
     username: str
     avatar: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class CommentResponse(CommentBase):
     """评论响应"""
     id: str
@@ -48,10 +45,7 @@ class CommentResponse(CommentBase):
     reply_count: int = 0  # 回复数量
     user_rating: Optional[int] = None  # 评论者对该作品的评分(1-5星)
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class CommentWithRepliesResponse(CommentResponse):
     """带回复的评论响应（支持无限层级嵌套）"""
     replies: List["CommentWithRepliesResponse"] = []

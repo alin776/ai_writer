@@ -2,7 +2,7 @@
 世界观相关 schemas
 包括：Character（人物）、Location（地点）、Setting（设定）、WorkGuidelines（作品规范）、AIGuidelines（AI创作规范）
 """
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, ConfigDict
 from typing import Optional, List, Any
 from datetime import datetime
 from uuid import UUID
@@ -42,10 +42,7 @@ class CharacterResponse(CharacterBase):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
-        populate_by_name = True
-    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     @field_serializer('id', 'work_id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         return str(value)
@@ -85,10 +82,7 @@ class LocationResponse(LocationBase):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
-        populate_by_name = True
-    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     @field_serializer('id', 'work_id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         return str(value)
@@ -126,10 +120,7 @@ class SettingResponse(SettingBase):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
-        populate_by_name = True
-    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     @field_serializer('id', 'work_id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         return str(value)
@@ -169,10 +160,7 @@ class WorkGuidelinesResponse(WorkGuidelinesBase):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
-        populate_by_name = True
-    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     @field_serializer('id', 'work_id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         return str(value)
@@ -232,10 +220,7 @@ class RelationshipChangeItem(BaseModel):
     new_relation: str
     reason: Optional[str] = None
 
-    class Config:
-        populate_by_name = True
-
-
+    model_config = ConfigDict(populate_by_name=True)
 class WorldviewChangesResponse(BaseModel):
     """世界观变化响应"""
     new_characters: List[NewCharacterItem] = []

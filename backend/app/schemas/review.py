@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -87,9 +87,7 @@ class ReviewSessionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('id', 'user_id', 'target_id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         return str(value)
@@ -162,9 +160,7 @@ class ReviewTaskResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('id', 'chapter_id', 'user_id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         return str(value)
@@ -227,9 +223,7 @@ class ChapterVersionResponse(BaseModel):
     created_at: datetime
     archived_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('id', 'chapter_id', 'user_id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         return str(value)
@@ -292,13 +286,12 @@ class ParagraphReviewRequest(BaseModel):
     text: str = Field(..., min_length=50, max_length=2000, description="段落文本 (50-2000字)")
     context: Optional[str] = Field(default=None, max_length=500, description="上下文信息 (可选)")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "text": "林风深吸一口气，推开木门。房间里灰尘飞舞，一把古剑静静地躺在桌上，散发着淡淡的青光。",
-                "context": "这是主角第一次进入师父的密室"
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "text": "林风深吸一口气，推开木门。房间里灰尘飞舞，一把古剑静静地躺在桌上，散发着淡淡的青光。",
+            "context": "这是主角第一次进入师父的密室"
         }
+    })
 
 
 class ParagraphDimensionScores(BaseModel):
@@ -316,23 +309,22 @@ class ParagraphReviewResponse(BaseModel):
     quick_feedback: str = Field(..., max_length=200, description="简短反馈")
     suggestions: List[str] = Field(default_factory=list, description="改进建议")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "overall_score": 82.5,
-                "dimension_scores": {
-                    "language": 85,
-                    "vividness": 88,
-                    "dialogue": 75,
-                    "emotion": 82
-                },
-                "quick_feedback": "语言流畅，环境描写生动，但对话略显僵硬",
-                "suggestions": [
-                    "可以加入人物的内心独白，增强情感表达",
-                    "对话可以更口语化，更贴近人物性格"
-                ]
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "overall_score": 82.5,
+            "dimension_scores": {
+                "language": 85,
+                "vividness": 88,
+                "dialogue": 75,
+                "emotion": 82
+            },
+            "quick_feedback": "语言流畅，环境描写生动，但对话略显僵硬",
+            "suggestions": [
+                "可以加入人物的内心独白，增强情感表达",
+                "对话可以更口语化，更贴近人物性格"
+            ]
         }
+    })
 
 
 # ==================== 作品级评审 Schema ====================
@@ -352,20 +344,19 @@ class BookReviewRequest(BaseModel):
     author_notes: Optional[str] = Field(None, max_length=1000, description="作者备注")
     quick_mode: bool = Field(default=False, description="快速模式 (仅分析前10章)")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "novel_id": "123e4567-e89b-12d3-a456-426614174000",
-                "book_title": "剑仙传说",
-                "chapters": [
-                    {"title": "第一章 入门", "content": "林风来到剑宗山门...", "order": 1},
-                    {"title": "第二章 试炼", "content": "试炼大会开始了...", "order": 2},
-                    {"title": "第三章 突破", "content": "林风终于突破了...", "order": 3}
-                ],
-                "author_notes": "这是我的第一部作品",
-                "quick_mode": False
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "novel_id": "123e4567-e89b-12d3-a456-426614174000",
+            "book_title": "剑仙传说",
+            "chapters": [
+                {"title": "第一章 入门", "content": "林风来到剑宗山门...", "order": 1},
+                {"title": "第二章 试炼", "content": "试炼大会开始了...", "order": 2},
+                {"title": "第三章 突破", "content": "林风终于突破了...", "order": 3}
+            ],
+            "author_notes": "这是我的第一部作品",
+            "quick_mode": False
         }
+    })
 
 
 class PlotAnalysis(BaseModel):
@@ -435,63 +426,62 @@ class BookReviewResponse(BaseModel):
     is_quick_review: Optional[bool] = Field(default=False, description="是否快速评审")
     sampled_chapters: Optional[int] = Field(default=None, description="采样章节数")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "book_title": "剑仙传说",
-                "novel_id": "123e4567-e89b-12d3-a456-426614174000",
-                "total_chapters": 20,
-                "analysis_date": "2025-10-26T21:30:00",
-                "overall_score": 82.5,
-                "plot_analysis": {
-                    "structure_type": "三幕式结构",
-                    "acts": [
-                        {"act": 1, "chapters": [1, 5], "summary": "世界观建立"},
-                        {"act": 2, "chapters": [6, 15], "summary": "冲突升级"}
-                    ],
-                    "climax_points": [5, 10, 18],
-                    "rhythm_score": 85,
-                    "rhythm_analysis": "节奏控制良好，高潮分布合理",
-                    "foreshadowing": {"count": 5, "examples": []},
-                    "issues": ["中期节奏略显拖沓"],
-                    "strengths": ["开局吸引人", "高潮设计合理"]
-                },
-                "character_analysis": {
-                    "main_characters": [
-                        {"name": "林风", "role": "主角", "traits": ["坚韧", "聪明"]}
-                    ],
-                    "relationships": [],
-                    "character_score": 80,
-                    "issues": ["配角塑造不足"],
-                    "strengths": ["主角性格鲜明"]
-                },
-                "worldview_analysis": {
-                    "setting": {"era": "修仙时代", "location": "东洲大陆"},
-                    "rules": ["修炼体系", "宗门制度"],
-                    "uniqueness_score": 75,
-                    "consistency_score": 90,
-                    "depth_score": 80,
-                    "issues": [],
-                    "strengths": ["世界观逻辑严谨"]
-                },
-                "writing_style": {
-                    "style_tags": ["简洁", "流畅"],
-                    "language_score": 85,
-                    "description_score": 80,
-                    "dialogue_score": 88,
-                    "readability_score": 90,
-                    "analysis": "文风简洁流畅，适合网文阅读",
-                    "issues": [],
-                    "strengths": ["语言精练"]
-                },
-                "recommendations": {
-                    "core_strengths": ["情节紧凑", "人物鲜明"],
-                    "critical_issues": ["配角需要加强"],
-                    "priority_actions": [
-                        {"priority": 1, "action": "丰富配角", "reason": "增强故事层次"}
-                    ],
-                    "next_steps": "继续保持节奏，加强配角塑造"
-                },
-                "is_quick_review": False
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "book_title": "剑仙传说",
+            "novel_id": "123e4567-e89b-12d3-a456-426614174000",
+            "total_chapters": 20,
+            "analysis_date": "2025-10-26T21:30:00",
+            "overall_score": 82.5,
+            "plot_analysis": {
+                "structure_type": "三幕式结构",
+                "acts": [
+                    {"act": 1, "chapters": [1, 5], "summary": "世界观建立"},
+                    {"act": 2, "chapters": [6, 15], "summary": "冲突升级"}
+                ],
+                "climax_points": [5, 10, 18],
+                "rhythm_score": 85,
+                "rhythm_analysis": "节奏控制良好，高潮分布合理",
+                "foreshadowing": {"count": 5, "examples": []},
+                "issues": ["中期节奏略显拖沓"],
+                "strengths": ["开局吸引人", "高潮设计合理"]
+            },
+            "character_analysis": {
+                "main_characters": [
+                    {"name": "林风", "role": "主角", "traits": ["坚韧", "聪明"]}
+                ],
+                "relationships": [],
+                "character_score": 80,
+                "issues": ["配角塑造不足"],
+                "strengths": ["主角性格鲜明"]
+            },
+            "worldview_analysis": {
+                "setting": {"era": "修仙时代", "location": "东洲大陆"},
+                "rules": ["修炼体系", "宗门制度"],
+                "uniqueness_score": 75,
+                "consistency_score": 90,
+                "depth_score": 80,
+                "issues": [],
+                "strengths": ["世界观逻辑严谨"]
+            },
+            "writing_style": {
+                "style_tags": ["简洁", "流畅"],
+                "language_score": 85,
+                "description_score": 80,
+                "dialogue_score": 88,
+                "readability_score": 90,
+                "analysis": "文风简洁流畅，适合网文阅读",
+                "issues": [],
+                "strengths": ["语言精练"]
+            },
+            "recommendations": {
+                "core_strengths": ["情节紧凑", "人物鲜明"],
+                "critical_issues": ["配角需要加强"],
+                "priority_actions": [
+                    {"priority": 1, "action": "丰富配角", "reason": "增强故事层次"}
+                ],
+                "next_steps": "继续保持节奏，加强配角塑造"
+            },
+            "is_quick_review": False
         }
+    })

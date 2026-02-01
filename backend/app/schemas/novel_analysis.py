@@ -2,7 +2,7 @@
 小说分析相关 schemas
 包括：NovelAnalysis（小说分析）、微观分析、宏观分析报告
 """
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -127,10 +127,7 @@ class NovelAnalysisResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
-        populate_by_name = True
-    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     @field_serializer('id', 'work_id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         return str(value)
@@ -147,10 +144,7 @@ class NovelAnalysisSimple(BaseModel):
     progress_percentage: float
     error_message: Optional[str] = None
     
-    class Config:
-        from_attributes = True
-        populate_by_name = True
-    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     @field_serializer('id', 'work_id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         return str(value)

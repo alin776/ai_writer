@@ -46,10 +46,6 @@ class Patch(BaseModel):
     created_by: str = Field(..., description="创建者 (user_id 或 agent_name)")
     description: str = Field(default="", description="变更描述")
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
 
 
 class Version(BaseModel):
@@ -65,10 +61,6 @@ class Version(BaseModel):
     tag: Optional[str] = Field(None, description="版本标签（如'初稿'、'修订版1'）")
     description: str = Field(default="", description="版本描述")
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
 
 
 class VersionedContent(BaseModel):
@@ -82,10 +74,6 @@ class VersionedContent(BaseModel):
     current_version_id: str = Field(..., description="当前版本ID")
     branches: Dict[str, str] = Field(default_factory=dict, description="分支映射 (branch_name -> version_id)")
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
 
 
 # ==================== 版本控制服务 ====================

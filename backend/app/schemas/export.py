@@ -151,9 +151,3 @@ class ExportData(BaseModel):
     worldview: Optional[ExportWorldview] = None
     guidelines: Optional[ExportGuidelines] = None
     analysis: Optional[Dict[str, Any]] = None
-
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            UUID: lambda v: str(v)
-        }

@@ -15,7 +15,7 @@
 """
 
 from typing import Generic, TypeVar, Any, Dict, Optional, Callable, Awaitable
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 from datetime import datetime
 import logging
@@ -43,13 +43,9 @@ class ToolInput(BaseModel):
         ...     max_length: int = 1000
     """
 
-    class Config:
-        # 允许任意类型(用于复杂类型)
-        arbitrary_types_allowed = True
-        # JSON 编码器
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True
+    )
 
 
 class ToolOutput(BaseModel):
@@ -76,11 +72,9 @@ class ToolOutput(BaseModel):
     data: Optional[Any] = Field(default=None, description="返回数据")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
 
-    class Config:
-        arbitrary_types_allowed = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True
+    )
 
 
 class ToolCategory(str, Enum):

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -14,10 +14,7 @@ class WorkSearchResult(BaseModel):
     chapter_count: int = 0
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class ChapterSearchResult(BaseModel):
     """章节搜索结果"""
     id: UUID
@@ -28,10 +25,7 @@ class ChapterSearchResult(BaseModel):
     word_count: int = 0
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class CharacterSearchResult(BaseModel):
     """角色搜索结果"""
     id: UUID
@@ -41,10 +35,7 @@ class CharacterSearchResult(BaseModel):
     role: Optional[str] = None
     description: Optional[str] = None
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class LocationSearchResult(BaseModel):
     """地点搜索结果"""
     id: UUID
@@ -54,10 +45,7 @@ class LocationSearchResult(BaseModel):
     type: Optional[str] = None
     description: Optional[str] = None
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class SettingSearchResult(BaseModel):
     """设定搜索结果"""
     id: UUID
@@ -67,10 +55,7 @@ class SettingSearchResult(BaseModel):
     category: Optional[str] = None
     content: Optional[str] = None
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class SearchResponse(BaseModel):
     """搜索响应"""
     query: str

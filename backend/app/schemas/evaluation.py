@@ -3,7 +3,7 @@ AI评价功能的Pydantic Schema
 """
 
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from uuid import UUID
 
@@ -17,16 +17,15 @@ class DimensionScores(BaseModel):
     emotional_impact: float = Field(..., ge=0, le=100, description="情感感染力评分 (0-100)")
     pacing: float = Field(..., ge=0, le=100, description="节奏把控评分 (0-100)")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "literary_quality": 85.0,
-                "coherence": 80.0,
-                "creativity": 75.0,
-                "emotional_impact": 88.0,
-                "pacing": 82.0
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "literary_quality": 85.0,
+            "coherence": 80.0,
+            "creativity": 75.0,
+            "emotional_impact": 88.0,
+            "pacing": 82.0
         }
+    })
 
 
 # ===== 评价上下文信息 =====
@@ -38,16 +37,15 @@ class EvaluationContext(BaseModel):
     chapter_title: Optional[str] = Field(None, description="章节标题")
     previous_text: Optional[str] = Field(None, max_length=1000, description="前文片段(最多1000字)")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "work_id": "550e8400-e29b-41d4-a716-446655440000",
-                "chapter_id": "660e8400-e29b-41d4-a716-446655440000",
-                "work_title": "我的小说",
-                "chapter_title": "第一章",
-                "previous_text": "这是前文片段..."
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "work_id": "550e8400-e29b-41d4-a716-446655440000",
+            "chapter_id": "660e8400-e29b-41d4-a716-446655440000",
+            "work_title": "我的小说",
+            "chapter_title": "第一章",
+            "previous_text": "这是前文片段..."
         }
+    })
 
 
 # ===== 评价请求 =====
@@ -57,18 +55,17 @@ class EvaluationRequest(BaseModel):
     operation_type: str = Field(..., description="操作类型 (continue/polish/expand/translate/summarize)")
     context: Optional[EvaluationContext] = Field(None, description="上下文信息")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "text": "这是AI生成的一段小说内容...",
-                "operation_type": "continue",
-                "context": {
-                    "work_title": "我的小说",
-                    "chapter_title": "第一章",
-                    "previous_text": "前文片段..."
-                }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "text": "这是AI生成的一段小说内容...",
+            "operation_type": "continue",
+            "context": {
+                "work_title": "我的小说",
+                "chapter_title": "第一章",
+                "previous_text": "前文片段..."
             }
         }
+    })
 
 
 # ===== 评价响应 =====
@@ -84,34 +81,33 @@ class EvaluationResponse(BaseModel):
     evaluation_id: Optional[UUID] = Field(None, description="评价记录ID")
     created_at: Optional[datetime] = Field(None, description="评价时间")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "overall_score": 82.0,
-                "dimensions": {
-                    "literary_quality": 85.0,
-                    "coherence": 80.0,
-                    "creativity": 75.0,
-                    "emotional_impact": 88.0,
-                    "pacing": 82.0
-                },
-                "highlights": [
-                    "语言流畅,文字优美",
-                    "情感表达细腻,有感染力",
-                    "节奏把控得当,张弛有度"
-                ],
-                "issues": [
-                    "部分描写过于抽象,缺乏具体细节",
-                    "某些情节转折略显生硬"
-                ],
-                "suggestions": [
-                    "增加感官描写,让场景更生动",
-                    "在情节转折处增加铺垫"
-                ],
-                "evaluation_id": "770e8400-e29b-41d4-a716-446655440000",
-                "created_at": "2025-10-26T14:12:00Z"
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "overall_score": 82.0,
+            "dimensions": {
+                "literary_quality": 85.0,
+                "coherence": 80.0,
+                "creativity": 75.0,
+                "emotional_impact": 88.0,
+                "pacing": 82.0
+            },
+            "highlights": [
+                "语言流畅,文字优美",
+                "情感表达细腻,有感染力",
+                "节奏把控得当,张弛有度"
+            ],
+            "issues": [
+                "部分描写过于抽象,缺乏具体细节",
+                "某些情节转折略显生硬"
+            ],
+            "suggestions": [
+                "增加感官描写,让场景更生动",
+                "在情节转折处增加铺垫"
+            ],
+            "evaluation_id": "770e8400-e29b-41d4-a716-446655440000",
+            "created_at": "2025-10-26T14:12:00Z"
         }
+    })
 
 
 # ===== 评价记录(数据库) =====
@@ -128,5 +124,4 @@ class EvaluationRecordInDB(BaseModel):
     ai_call_log_id: Optional[UUID]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

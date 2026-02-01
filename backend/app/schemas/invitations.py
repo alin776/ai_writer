@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 # ============ 邀请码生成 ============
@@ -26,10 +26,7 @@ class InvitationResponse(BaseModel):
     created_at: str = Field(..., description="创建时间")
     invitees: List["InviteeInfo"] = Field(default_factory=list, description="被邀请人列表")
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class InviteeInfo(BaseModel):
     """被邀请人信息"""
     username: str = Field(..., description="用户名")
@@ -37,10 +34,7 @@ class InviteeInfo(BaseModel):
     registered_at: str = Field(..., description="注册时间")
     activated_at: Optional[str] = Field(None, description="激活时间")
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============ 邀请码验证 ============
 
 class InvitationValidateRequest(BaseModel):
@@ -73,5 +67,4 @@ class InvitationStatsResponse(BaseModel):
     can_generate_more: bool = Field(..., description="是否可以生成更多")
     remaining_quota: int = Field(..., description="剩余配额")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
