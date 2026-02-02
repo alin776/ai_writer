@@ -1509,6 +1509,12 @@ ${selectionContext.selected_text}
                               selected_version: selectedVersion
                             }).then(() => {
                               console.log('[AIPanel] �?修订已写入数据库');
+                              if (workId) {
+                                window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
+                                  detail: { work_id: workId }
+                                }));
+                                console.log('[AIPanel] ✅ 派发章节确认事件，刷新列表');
+                              }
                             }).catch((err) => {
                               console.error('[AIPanel] �?写入数据库失�?', err);
                             });

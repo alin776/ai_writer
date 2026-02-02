@@ -23,6 +23,7 @@ import { common, createLowlight } from 'lowlight';
 import { useDebouncedCallback } from 'use-debounce';
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle';
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import EditorToolbar from './EditorToolbar';
 import BubbleMenu from './BubbleMenu';
 import AIMenu from './AIMenu';
@@ -203,7 +204,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       element.parentNode?.replaceChild(fragment, element);
     };
     const isRemovableEmptyParagraph = (paragraph: HTMLElement) => {
-      const text = (paragraph.textContent || '').replace(/\u00A0/g, ' ').trim();
+      const text = (paragraph.textContent || '')
+        .replace(/\u00A0/g, ' ')
+        .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+        .trim();
       if (text) return false;
       if (paragraph.querySelector('img, video, audio, svg, canvas, math')) return false;
       if (paragraph.querySelector('del[data-ai-deleted], del.ai-deleted, ins[data-ai-inserted], ins.ai-inserted, [data-revision-id]')) {
@@ -312,6 +316,74 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     cleanupEmptyParagraphs(affectedParagraphs);
 
     return tempDiv.innerHTML;
+  };
+
+  const isRemovableEmptyParagraphNode = (node: ProseMirrorNode) => {
+    if (node.type.name !== 'paragraph') return false;
+    if (node.childCount === 0) return true;
+    let hasContent = false;
+    let hasNonText = false;
+    node.forEach((child) => {
+      if (child.isText) {
+        const text = (child.text || '')
+          .replace(/\u00A0/g, ' ')
+          .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+          .trim();
+        if (text) {
+          hasContent = true;
+        }
+      } else {
+        hasNonText = true;
+      }
+    });
+    if (hasNonText) return false;
+    return !hasContent;
+  };
+
+  const cleanupEmptyParagraphNodes = (positions?: number[], allowGlobal = false) => {
+    if (!editor) return;
+    if ((!positions || positions.length === 0) && !allowGlobal) return;
+    const { doc } = editor.state;
+    const paragraphs: Array<{ node: ProseMirrorNode; pos: number }> = [];
+    doc.descendants((node, pos) => {
+      if (node.type.name === 'paragraph') {
+        paragraphs.push({ node, pos });
+      }
+    });
+    if (paragraphs.length === 0) return;
+    const targetIndices = new Set<number>();
+    const markIfRemovable = (idx: number) => {
+      const item = paragraphs[idx];
+      if (!item) return;
+      if (isRemovableEmptyParagraphNode(item.node)) {
+        targetIndices.add(idx);
+      }
+    };
+    if (positions && positions.length > 0) {
+      positions.forEach((pos) => {
+        const idx = paragraphs.findIndex((item) => pos >= item.pos && pos <= item.pos + item.node.nodeSize);
+        if (idx < 0) return;
+        for (let i = idx - 1; i <= idx + 1; i += 1) {
+          markIfRemovable(i);
+        }
+      });
+    } else if (allowGlobal) {
+      paragraphs.forEach((_, idx) => markIfRemovable(idx));
+    }
+    if (targetIndices.size === 0) return;
+    if (targetIndices.size >= paragraphs.length) {
+      return;
+    }
+    const tr = editor.state.tr;
+    Array.from(targetIndices)
+      .sort((a, b) => b - a)
+      .forEach((idx) => {
+        const { node, pos } = paragraphs[idx];
+        tr.delete(pos, pos + node.nodeSize);
+      });
+    if (tr.docChanged) {
+      editor.view.dispatch(tr);
+    }
   };
 
   // 按作品/章节隔离本地缓存，避免不同作品间内容串联
@@ -1632,6 +1704,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         detail.requestId,
         detail.revisionId
       ].filter(Boolean) as string[];
+      const cleanupPositions = revisionIds
+        .map((revisionId) => findRevisionIdPosition(revisionId))
+        .filter((pos): pos is number => typeof pos === 'number');
 
       if (!isBatch && targetChapterId && chapterId && targetChapterId !== chapterId) {
         if (revisionIds.length > 0) {
@@ -1650,6 +1725,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
         editor.commands.setContent(nextHtml);
         revisionSaveBlockedRef.current = false;
+        cleanupEmptyParagraphNodes(cleanupPositions, isBatch);
 
         const pendingIds = isBatch
           ? pendingCrossChapterRevisions.map((revision) => revision.revisionId)
@@ -1969,6 +2045,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     try {
       const currentHtml = editor.getHTML();
       const revisionIds = [requestId, id].filter(Boolean) as string[];
+      const cleanupPositions = revisionIds
+        .map((revisionId) => findRevisionIdPosition(revisionId))
+        .filter((pos): pos is number => typeof pos === 'number');
+      if (cleanupPositions.length === 0 && position?.from !== undefined) {
+        cleanupPositions.push(position.from);
+      }
       const nextHtml = applyRevisionDecisionToHtml(
         currentHtml,
         'accept',
@@ -1977,6 +2059,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
       editor.commands.setContent(nextHtml);
       revisionSaveBlockedRef.current = false;
+      cleanupEmptyParagraphNodes(cleanupPositions, false);
 
       const pendingIds = revisionIds.length > 0 ? revisionIds : getPendingRevisionIdsForChapter(chapterId);
       clearPendingRevisions(pendingIds);

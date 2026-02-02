@@ -1653,9 +1653,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           selected_version: selectedVersion
         });
 
-        // 🆕 章节操作采纳后派发确认事件，通知 WorkDetailView 刷新列表
+        // 🆕 采纳后派发确认事件，通知 WorkDetailView 刷新列表（覆盖跨章节内容修订）
         const targetWorkId = (pending as any).work_id || workId;
-        if (approved && targetWorkId && ['create', 'rename', 'delete'].includes(pending.action_type || '')) {
+        if (approved && targetWorkId) {
           window.dispatchEvent(
             new CustomEvent('agent-chapter-confirm', {
               detail: { work_id: targetWorkId }

@@ -35,9 +35,24 @@
 
 #### 修复采纳后空段落残留（二次排查）（待确认）
 
-- [ ] 验证空 `<p>` 是否包含零宽字符/占位字符（导致判空失败）
-- [ ] 调整空段落判定：过滤零宽字符后再判空
-- [ ] 自检：采纳后 `p.is-empty` 不再残留
+- [x] 验证空 `<p>` 是否包含零宽字符/占位字符（导致判空失败）
+- [x] 调整空段落判定：过滤零宽字符后再判空
+- [x] 自检：采纳后 `p.is-empty` 不再残留
+
+#### review
+
+- 空段落判定补充过滤零宽字符（`U+200B`/`U+200C`/`U+200D`/`U+2060`/`U+FEFF`），避免 `p.is-empty` 因占位字符被误判为非空。`src/components/editor/NovelEditor.tsx`
+
+#### 采纳后空段落残留（二次修复方案B）（待确认）
+
+- [x] 验证空段落是否由 `setContent` 后 ProseMirror 重新生成（HTML 清理无效）
+- [x] 在采纳后追加 ProseMirror 文档级清理：删除空 paragraph 节点
+- [x] 自检：采纳后 `p.is-empty` 不再出现
+
+#### review
+
+- 采纳后追加文档级清理：根据修订位置清理附近空 paragraph 节点，避免 `setContent` 后生成的 `p.is-empty` 残留。`src/components/editor/NovelEditor.tsx`
+- 空段落判定基于 ProseMirror 节点：过滤零宽字符，仅在“无文本/无非文本子节点”时删除，避免误删有内容的段落。`src/components/editor/NovelEditor.tsx`
 
 #### 重新发送小说素材（待确认）
 
@@ -1957,3 +1972,43 @@
 #### review
 
 - 基于第1–5章素材整理人物/设定/情节点，设计 5 条复杂测试提示词，覆盖定位、上下文读取、风格与约束要求，并避免出现工具名。`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`
+
+#### 采纳后新增内容被清除排查（待确认）
+
+- [x] 通读 Backend.md / INFO.md，定位“采纳”触发点与修订事件链路
+- [x] 追踪前端采纳事件流（agent-accept-revision/acceptAll）到编辑器处理逻辑
+- [x] 复核 applyRevisionDecisionToHtml / NovelEditor 插入分支，确认是否把新增内容误删
+- [x] 汇总证据并给出直白结论（核心问题 + 触发条件）
+
+#### review
+
+- 采纳事件链路：AIPanel 点击采纳会派发 `agent-accept-revision`，编辑器监听并调用 `applyRevisionDecisionToHtml` 做标记清理。`src/components/editor/AIPanel.tsx`、`src/components/editor/NovelEditor.tsx`
+- 关键触发条件：当修订目标章节 ≠ 当前编辑章节时，`handleAcceptRevisionEvent` 会直接 `clearPendingRevisions(revisionIds)` 并 `return`，相当于把跨章节修订当作“丢弃”处理。`src/components/editor/NovelEditor.tsx`
+- 直白结论：你在**非目标章节**点击采纳时，系统并没有应用新增内容，而是清空了“跨章节待应用修订”，所以新内容消失；这不是后端写回问题，而是前端跨章节采纳逻辑把“采纳”当成“清空待应用”。`src/components/editor/NovelEditor.tsx`
+
+#### 修复：跨章节采纳应自动应用（待确认）
+
+- [x] 采纳内容修订后触发章节列表刷新（复用 agent-chapter-confirm），确保跨章节也能拿到已应用内容
+- [x] 覆盖两条采纳路径：useAgentChat.submitApproval（阻塞式）与 AIPanel 非阻塞采纳
+- [x] 不覆盖当前编辑内容：仅刷新章节列表（由 WorkDetailView 现有监听处理）
+- [x] 更新 todo.md review（改动与影响）
+
+#### review
+
+- useAgentChat 的采纳成功统一派发 `agent-chapter-confirm`，不再区分是否章节操作，确保跨章节内容修订也能触发列表刷新。`src/hooks/useAgentChat.ts`
+- AIPanel 的非阻塞采纳在后端确认成功后派发 `agent-chapter-confirm`，补齐“无 pendingApproval 场景”的刷新链路。`src/components/editor/AIPanel.tsx`
+
+#### ReadParagraph 重复读取排查（待确认）
+
+- [x] 通读 Backend.md / INFO.md 中 ReadParagraph 重复日志，标记轮次、段落与触发点
+- [x] 追踪后端 read_paragraph 调用链（explore_tools + 计划/循环决策），确认是否重试/循环/去重缺失
+- [x] 追踪前端执行轨迹渲染（ExecutionFlow/ExploreCard），核对是否重复推送或重复渲染
+- [x] 汇总证据（日志片段 + 代码位置 + 触发条件），给出核心原因与直白结论
+- [x] 在 todo.md 追加 review（修改/发现/风险）
+
+#### review
+
+- Backend.md 显示同一段落被多次发起 read_paragraph（第1章第70段），且夹杂大量 read_paragraphs 失败（“没有可读取的段落”），这会让工具循环一直觉得“上下文不足”而继续读。`Backend.md:110-209`
+- INFO.md 里 AI 决策理由反复写“已读取但未获取上下文，需要重新读取”，说明不是“没读到”，而是**认为上下文没拿到**导致重复调用。`INFO.md:30-66`
+- 前台“ReadParagraph: 第1章 · 2段”其实是 read_paragraphs 批量读取的**数量标签**，不是“第2段”。前端标签用 count 渲染（第X章 · {count}段）。`backend/app/services/agent/tools/explore_tools.py:1968-1978`
+- 核心机制：read_paragraphs 会先用 should_read_paragraph 去重，若全部已读就直接报“没有可读取的段落”，但这不会中止 LLM 的工具循环，于是 LLM 继续读同一目标段落。`backend/app/services/agent/tools/explore_tools.py:4061-4081`
