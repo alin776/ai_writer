@@ -721,6 +721,9 @@ class ExploreState:
     read_paragraph_positions: Set[Tuple[int, int]] = field(default_factory=set)
     # 已读取的段落位置 (chapter_order, paragraph_index)
 
+    context_coverage: Dict[Tuple[int, int], Tuple[int, int]] = field(default_factory=dict)
+    # 目标段落的上下文覆盖范围 {(chapter_order, target_index): (start_index, end_index)}
+
     read_chapter_orders: Set[int] = field(default_factory=set)
     # 已读取完整原文的章节序号
 
@@ -800,6 +803,21 @@ class ExploreState:
     def record_paragraph_read(self, chapter_order: int, paragraph_index: int):
         """记录已读取的段落"""
         self.read_paragraph_positions.add((chapter_order, paragraph_index))
+
+    def record_context_coverage(
+        self,
+        chapter_order: int,
+        target_index: int,
+        start_index: int,
+        end_index: int
+    ) -> None:
+        """记录目标段落的上下文覆盖范围"""
+        key = (chapter_order, target_index)
+        if key in self.context_coverage:
+            prev_start, prev_end = self.context_coverage[key]
+            start_index = min(prev_start, start_index)
+            end_index = max(prev_end, end_index)
+        self.context_coverage[key] = (start_index, end_index)
 
     def should_read_chapter(self, chapter_order: int) -> bool:
         """判断是否应该读取章节"""
@@ -1304,6 +1322,7 @@ def _clone_explore_state(state: ExploreState) -> ExploreState:
         search_hit_keys=set(),
         skipped_evidences_strict=0,
         read_paragraph_positions=set(state.read_paragraph_positions),
+        context_coverage=dict(state.context_coverage),
         read_chapter_orders=set(state.read_chapter_orders),
         read_worldview_categories=set(),
         rounds=[],
@@ -1316,6 +1335,13 @@ def _merge_explore_states(base: ExploreState, incoming: ExploreState) -> Explore
     merged.searched_queries |= incoming.searched_queries
     merged.read_paragraph_positions |= incoming.read_paragraph_positions
     merged.read_chapter_orders |= incoming.read_chapter_orders
+    for key, value in incoming.context_coverage.items():
+        if key not in merged.context_coverage:
+            merged.context_coverage[key] = value
+            continue
+        prev_start, prev_end = merged.context_coverage[key]
+        start_index, end_index = value
+        merged.context_coverage[key] = (min(prev_start, start_index), max(prev_end, end_index))
     # 合并搜索历史（去重，基于 query）
     seen_queries = {r.query for r in merged.search_history}
     for record in incoming.search_history:
@@ -2952,6 +2978,22 @@ class ContentExplorer:
                 read_parts.append(part)
             lines.append(f"- 已读段落（{len(read_positions)}个，勿重复读取）：{'; '.join(read_parts)}")
 
+        # 已覆盖的上下文范围（明确告诉 AI 无需重复读取）
+        if self.state.context_coverage:
+            coverage_parts = []
+            for (chapter_order, target_index), (start_index, end_index) in sorted(
+                self.state.context_coverage.items(),
+                key=lambda item: (item[0][0], item[0][1])
+            ):
+                if start_index == end_index:
+                    range_label = f"{start_index}"
+                else:
+                    range_label = f"{start_index}-{end_index}"
+                coverage_parts.append(
+                    f"第{chapter_order}章 目标段{target_index} 已覆盖段落{range_label}"
+                )
+            lines.append(f"- 上下文已覆盖（无需重复读取）：{'; '.join(coverage_parts)}")
+
         if last_tool_name:
             lines.append(f"- 上一次工具：{last_tool_name}")
         if last_tool_result:
@@ -3023,6 +3065,7 @@ class ContentExplorer:
 - read_paragraphs 可用两种模式：items 列表（chapter_order+paragraph_index）或分页模式（chapter_order/chapter_id + offset+limit）。
 - items 模式不要用 chapter_id/node_id 直接定位；分页模式可用 chapter_id。
 - 不要搜索已搜索过的关键词或其变体（检查上方"搜索历史"中已搜过的内容）。
+- 若上方提示“上下文已覆盖”，则不要再次调用 read_paragraph/read_paragraphs 读取同一目标段落。
 
 何时应选择 action="stop"：
 1. 目标任务所需的关键信息已获取足够（检查搜索历史中的命中摘要）
@@ -3780,9 +3823,11 @@ class ContentExplorer:
                     params.get("index_base")
                 )
 
-                if isinstance(result_data, dict) and result_data.get("success"):
+                if isinstance(result_data, dict) and result_data.get("success") and not result_data.get("skipped"):
                     self.state.record_paragraph_read(chapter_order, paragraph_index)
                     target_text, context_before, context_after = _extract_read_paragraph(result_data)
+                    if not target_text:
+                        target_text = result_data.get("content") or result_data.get("target_paragraph", "")
                     chapter_info = await self._get_chapter_info_by_order(chapter_order)
                     chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
                     chapter_title = result_data.get("chapter_title") or chapter_info.get("title") or ""
@@ -3796,23 +3841,67 @@ class ContentExplorer:
                         "node_id": result_data.get("node_id") or ""
                     }
                     self.state.add_paragraph(paragraph_data, round_idx)
-                    self.state.add_evidence(
-                        {
-                            "snippet": target_text,
-                            "content": target_text,
-                            "chapter_order": chapter_order,
-                            "paragraph_index": paragraph_index,
-                            "source": "read_paragraph",
-                            "similarity": 1.0,
-                            "chapter_id": chapter_id,
-                            "chapter_title": chapter_title
-                        },
-                        query=str(params.get("query") or ""),
-                        round_idx=round_idx,
-                        require_paragraph_index=self.require_paragraph_index,
-                        chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
-                    )
+                    if target_text:
+                        self.state.add_evidence(
+                            {
+                                "snippet": target_text,
+                                "content": target_text,
+                                "chapter_order": chapter_order,
+                                "paragraph_index": paragraph_index,
+                                "source": "read_paragraph",
+                                "similarity": 1.0,
+                                "chapter_id": chapter_id,
+                                "chapter_title": chapter_title
+                            },
+                            query=str(params.get("query") or ""),
+                            round_idx=round_idx,
+                            require_paragraph_index=self.require_paragraph_index,
+                            chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
+                        )
                     reads_used = 1
+
+                    paragraphs = result_data.get("paragraphs", [])
+                    target_index = result_data.get("target_index")
+                    if isinstance(paragraphs, list):
+                        indices = [
+                            para.get("index")
+                            for para in paragraphs
+                            if isinstance(para, dict) and isinstance(para.get("index"), int)
+                        ]
+                        if isinstance(target_index, int) and indices:
+                            self.state.record_context_coverage(
+                                chapter_order=chapter_order,
+                                target_index=target_index,
+                                start_index=min(indices),
+                                end_index=max(indices)
+                            )
+                        for para in paragraphs:
+                            if not isinstance(para, dict):
+                                continue
+                            if para.get("is_target"):
+                                continue
+                            context_index = para.get("index")
+                            if not isinstance(context_index, int):
+                                continue
+                            if not self.state.should_read_paragraph(chapter_order, context_index):
+                                continue
+                            context_text = para.get("text") or ""
+                            if not context_text:
+                                continue
+                            self.state.record_paragraph_read(chapter_order, context_index)
+                            self.state.add_paragraph(
+                                {
+                                    "chapter_order": chapter_order,
+                                    "chapter_title": chapter_title,
+                                    "paragraph_index": context_index,
+                                    "text": context_text,
+                                    "context_before": [],
+                                    "context_after": [],
+                                    "node_id": "",
+                                    "is_target": False
+                                },
+                                round_idx
+                            )
 
         elif tool_name == "read_paragraphs":
             items = params.get("items")

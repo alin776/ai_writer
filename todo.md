@@ -22,6 +22,23 @@
 - 采纳修订只做“删除 del / 还原 ins / 解包 revisionId”，不做段落合并；空段落清理只扫描**包含修订标记的 `<p>`**，并用 `textContent.trim()` 判空。`src/components/editor/NovelEditor.tsx:190-295`
 - 因此当原段落被清空但仍带编辑器占位字符/尾随 `<br>`、或该空块不是 `<p>` 时，清理不会移除，最终留下“红字消失但空白占位保留”的空行。
 
+#### 修复采纳后空段落残留（待确认）
+
+- [x] 明确修复策略：仅在采纳清理中扩展“受影响段落”的相邻空 `<p>`（包含 p.is-empty）
+- [x] 最小实现：收集受影响段落时向前/向后吸纳连续空 `<p>`，复用现有空段落清理条件
+- [x] 自检：采纳后不再出现空白占位，且非修订区域空行不受影响
+
+#### review
+
+- 采纳清理范围扩展：在收集修订影响段落时，向前/向后吸纳连续的空 `<p>`（包含 `p.is-empty`），以覆盖修订产生的占位空行。`src/components/editor/NovelEditor.tsx`
+- 清理条件保持一致：复用“空文本 + 无媒体 + 无修订标记”的判定，只删除可安全移除的空段落。`src/components/editor/NovelEditor.tsx`
+
+#### 修复采纳后空段落残留（二次排查）（待确认）
+
+- [ ] 验证空 `<p>` 是否包含零宽字符/占位字符（导致判空失败）
+- [ ] 调整空段落判定：过滤零宽字符后再判空
+- [ ] 自检：采纳后 `p.is-empty` 不再残留
+
 #### 重新发送小说素材（待确认）
 
 - [ ] 确认素材文件路径并读取内容范围
@@ -1906,7 +1923,37 @@
 
 #### 修复：read_paragraph 重复读取（待确认）
 
-- [ ] 在 read_paragraph 成功时记录上下文段落为已读，并追加 ParagraphRead(is_target=False)
-- [ ] skipped 时不再追加空 ParagraphRead/证据，避免误导
-- [ ] 验证 locate_targets 仍只使用 is_target=True（不误用上下文段）
-- [ ] 更新 todo.md review（改动与影响）
+- [x] 在 read_paragraph 成功时记录上下文段落为已读，并追加 ParagraphRead(is_target=False)
+- [x] skipped 时不再追加空 ParagraphRead/证据，避免误导
+- [x] 验证 locate_targets 仍只使用 is_target=True（不误用上下文段）
+- [x] 更新 todo.md review（改动与影响）
+
+#### review
+
+- read_paragraph 成功后会把返回的前后文段落也标记为“已读”，并以 `is_target=False` 追加到 ParagraphRead 列表，LLM 可以在“已读段落”摘要中看到上下文已覆盖。`backend/app/services/agent/tools/explore_tools.py`
+- skipped 情况不再重复追加段落/证据，避免前端重复显示“读过”。`backend/app/services/agent/tools/explore_tools.py`
+- locate_targets 仍仅使用 `is_target=True` 的段落构建定位目标，上下文段落不会被误用于写回定位。`backend/app/services/agent/tools/explore_tools.py`
+
+#### 显式告知“上下文已满足”（待确认）
+
+- [x] 在 ExploreState 记录“目标段上下文覆盖范围”（min/max index）
+- [x] 在 _build_tool_loop_summary 输出“上下文已覆盖”提示（明确第X章第Y段前后范围）
+- [x] 在工具决策提示中新增硬规则：上下文已覆盖则禁止再次 read_paragraph
+- [x] 更新 todo.md review（改动与影响）
+
+#### review
+
+- ExploreState 新增上下文覆盖记录：读段落时根据返回的 paragraphs 索引范围记录 (start,end)，为“上下文已覆盖”判断提供依据。`backend/app/services/agent/tools/explore_tools.py`
+- 工具循环摘要新增“上下文已覆盖（无需重复读取）”提示，明确目标段与覆盖范围，直接暴露给 LLM。`backend/app/services/agent/tools/explore_tools.py`
+- 决策提示新增硬约束：若出现“上下文已覆盖”，不要再次调用 read_paragraph/read_paragraphs 读取同一目标段落。`backend/app/services/agent/tools/explore_tools.py`
+
+#### 生成复杂测试提示词（待确认）
+
+- [x] 读取小说素材，整理人物/设定/关键情节要点
+- [x] 设计 5 条复杂 Prompt（不包含工具名），覆盖定位/上下文/风格/约束
+- [x] 输出可直接复制使用的提示词
+- [x] 更新 todo.md review（改动与说明）
+
+#### review
+
+- 基于第1–5章素材整理人物/设定/情节点，设计 5 条复杂测试提示词，覆盖定位、上下文读取、风格与约束要求，并避免出现工具名。`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`

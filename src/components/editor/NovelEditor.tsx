@@ -202,6 +202,15 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }
       element.parentNode?.replaceChild(fragment, element);
     };
+    const isRemovableEmptyParagraph = (paragraph: HTMLElement) => {
+      const text = (paragraph.textContent || '').replace(/\u00A0/g, ' ').trim();
+      if (text) return false;
+      if (paragraph.querySelector('img, video, audio, svg, canvas, math')) return false;
+      if (paragraph.querySelector('del[data-ai-deleted], del.ai-deleted, ins[data-ai-inserted], ins.ai-inserted, [data-revision-id]')) {
+        return false;
+      }
+      return true;
+    };
     const collectAffectedParagraphs = (targetIds?: string[]) => {
       const paragraphs = new Set<HTMLElement>();
       const addParagraph = (element: Element) => {
@@ -222,17 +231,27 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         .querySelectorAll('del[data-ai-deleted], del.ai-deleted, ins[data-ai-inserted], ins.ai-inserted')
         .forEach(addParagraph);
 
+      // 吸纳相邻的空段落（修订引入的占位空行）
+      const baseParagraphs = Array.from(paragraphs);
+      baseParagraphs.forEach((paragraph) => {
+        let prev = paragraph.previousElementSibling as HTMLElement | null;
+        while (prev && prev.tagName.toLowerCase() === 'p' && isRemovableEmptyParagraph(prev)) {
+          paragraphs.add(prev);
+          prev = prev.previousElementSibling as HTMLElement | null;
+        }
+        let next = paragraph.nextElementSibling as HTMLElement | null;
+        while (next && next.tagName.toLowerCase() === 'p' && isRemovableEmptyParagraph(next)) {
+          paragraphs.add(next);
+          next = next.nextElementSibling as HTMLElement | null;
+        }
+      });
+
       return paragraphs;
     };
     const cleanupEmptyParagraphs = (paragraphs: Set<HTMLElement>) => {
       paragraphs.forEach((paragraph) => {
         if (!paragraph.isConnected) return;
-        const text = (paragraph.textContent || '').replace(/\u00A0/g, ' ').trim();
-        if (text) return;
-        if (paragraph.querySelector('img, video, audio, svg, canvas, math')) return;
-        if (paragraph.querySelector('del[data-ai-deleted], del.ai-deleted, ins[data-ai-inserted], ins.ai-inserted, [data-revision-id]')) {
-          return;
-        }
+        if (!isRemovableEmptyParagraph(paragraph)) return;
         paragraph.remove();
       });
     };
