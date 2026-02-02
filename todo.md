@@ -2139,9 +2139,24 @@
 
 #### 知识库标题省略（待确认）
 
-- [ ] 定位知识库列表标题渲染位置
-- [ ] 设置单行省略（truncate），避免多行撑高
-- [ ] 简要自检长标题显示效果
+- [x] 定位知识库列表标题渲染位置
+- [x] 设置单行省略（truncate），避免多行撑高
+- [x] 简要自检长标题显示效果
+
+#### review
+
+- 知识库列表标题改为单行省略展示（truncate），避免长标题多行撑高。`src/components/editor/AIPanel.tsx`
+
+#### 子菜单最大高度（待确认）
+
+- [x] 调整知识库子菜单列表容器的最大高度
+- [x] 简要自检滚动条与显示行数
+
+#### review
+
+- 知识库子菜单最大高度调整为约 5 行（max-h-[220px]），超出滚动。`src/components/editor/AIPanel.tsx`
+- 子菜单滚动隔离：添加 overscroll-contain，避免滚动传递到后方 AI 列表。`src/components/editor/AIPanel.tsx`
+- 子菜单滚动链阻断：在滚动容器上拦截 wheel，边界时 preventDefault，避免外层继续滚动。`src/components/editor/AIPanel.tsx`
 
 #### 双栏高度独立（待确认）
 
@@ -2181,3 +2196,10 @@
 
 - 子菜单显示增加 knowledgePanelOpen 门闸，确保仅在点击后展开，避免悬停自动展开。`src/components/editor/AIPanel.tsx`
 - 子菜单改为悬浮打开：hover 到“从知识库中添加”时打开面板，hover 其他项时关闭。`src/components/editor/AIPanel.tsx`
+
+#### 子菜单滚动影响 AI 列表（根因排查与修复）（待确认）
+
+- [x] 通读 WorkDetailView 的全局滚轮接管逻辑，确认触发条件与边界判断
+- [x] 核对指令菜单为 portal 且不在 workbench 边界，验证 scrollableParent 返回空导致 AI 列表被接管滚动
+- [x] 为指令菜单标记 scroll-scope，并在全局滚轮接管中排除该作用域
+- [x] 自检：滚动子菜单不再带动 AI 列表，其他滚轮行为不受影响

@@ -1440,6 +1440,9 @@ const WorkDetailView: React.FC = () => {
     if (event.defaultPrevented || event.ctrlKey) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    if (target.closest('[data-scroll-scope="command-menu"]')) {
+      return;
+    }
     if (target.closest('[data-scroll-scope="chapter-list"]')) {
       return;
     }

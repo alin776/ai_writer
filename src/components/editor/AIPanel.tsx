@@ -1065,6 +1065,18 @@ ${context.selected_text}
     [knowledgePanelOpen, atStage]
   );
 
+  const stopMenuScrollChain = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const delta = event.deltaY;
+    const atTop = scrollTop <= 0;
+    const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
+    if ((delta < 0 && atTop) || (delta > 0 && atBottom)) {
+      event.preventDefault();
+    }
+    event.stopPropagation();
+  }, []);
+
   const handleKnowledgeSelect = useCallback(
     (doc: { id: string; title: string }) => {
       setSelectedDocs((prev) => (prev.find((d) => d.id === doc.id) ? prev : [...prev, doc]));
@@ -1979,6 +1991,7 @@ ${selectionContext.selected_text}
         createPortal(
           <div
             className="fixed z-[1200]"
+            data-scroll-scope="command-menu"
             style={{
               left: menuPosition.left,
               top: menuPosition.top,
@@ -1990,7 +2003,7 @@ ${selectionContext.selected_text}
             {atStage === 'knowledge' && knowledgePanelOpen ? (
               <div ref={menuRef} className="grid grid-cols-2 gap-2 items-start">
                 <div className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden w-full self-start">
-                  <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2">
+                  <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2" onWheel={stopMenuScrollChain}>
                     {filteredRootOptions.length > 0 ? (
                       filteredRootOptions.map((option, idx) => {
                         const isHighlighted = knowledgePanelOpen && atStage === 'knowledge'
@@ -2025,7 +2038,11 @@ ${selectionContext.selected_text}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden w-full -mt-4">
-                  <div ref={knowledgeListRef} className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2">
+                  <div
+                    ref={knowledgeListRef}
+                    className="max-h-[220px] overflow-y-auto overscroll-contain custom-scrollbar px-2 py-2"
+                    onWheel={stopMenuScrollChain}
+                  >
                     <div className="space-y-1">
                       {knowledgeLoading && (
                         <div className="px-3 py-2 text-[12px] text-slate-400 flex items-center gap-2">
@@ -2056,9 +2073,9 @@ ${selectionContext.selected_text}
                                 : 'hover:bg-slate-800/60'
                             }`}
                           >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
                               <Tag className="w-4 h-4 text-slate-200" />
-                              <span className="text-[12px] text-white">{doc.title}</span>
+                              <span className="text-[12px] text-white truncate max-w-[150px]">{doc.title}</span>
                             </div>
                             <ChevronRight className="w-4 h-4 text-slate-400 opacity-60" />
                           </button>
@@ -2072,7 +2089,7 @@ ${selectionContext.selected_text}
                 ref={menuRef}
                 className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden w-full"
               >
-                <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2">
+                <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2" onWheel={stopMenuScrollChain}>
                   {filteredRootOptions.length > 0 ? (
                     filteredRootOptions.map((option, idx) => (
                       <button
