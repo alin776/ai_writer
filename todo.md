@@ -1,5 +1,11 @@
 # TODO
 
+#### 去掉修订采纳态的撤销按钮（待确认）
+
+- [ ] 定位撤销按钮渲染位置（RevisionCard）并确认仅影响修订胶囊
+- [ ] 移除采纳态的撤销按钮渲染，保持功能逻辑不变
+- [ ] 自检界面状态：采纳态仅显示“修订已采纳”提示
+
 #### 重新发送小说素材（待确认）
 
 - [ ] 确认素材文件路径并读取内容范围
@@ -18,11 +24,32 @@
 
 #### 重复句消歧替换生成多段问题排查（待确认）
 
-- [ ] 通读 Backend.md 中“吞噬效果：五虎群羊刀入门”相关日志，确认任务数与执行顺序
-- [ ] 追踪计划层是否生成多次替换任务（第2处/第3处）及其来源
-- [ ] 核对 operate_apply 定位参数是否复用同一段落（para/node_id）
-- [ ] 追踪 apply_chapter_edit 是否有重复替换去重逻辑
-- [ ] 汇总证据并给出直白结论（为何出现三段、根因链路）
+- [x] 通读 Backend.md 中“吞噬效果：五虎群羊刀入门”相关日志，确认任务数与执行顺序
+- [x] 追踪计划层是否生成多次替换任务（第2处/第3处）及其来源
+- [x] 核对 operate_apply 定位参数是否复用同一段落（para/node_id）
+- [x] 追踪 apply_chapter_edit 是否有重复替换去重逻辑
+- [x] 汇总证据并给出直白结论（为何出现三段、根因链路）
+
+#### review
+
+- 计划层确实生成了多次“第2处/第3处”替换任务，来源是 `_split_multi_edit_tasks` 在检测到**多段引号**时自动拆分任务。`backend/app/services/agent/planning/plan_generator.py:756-852`
+- 本次用户指令包含 3 段引号（原句/替换句/“段融第一次读取牛尾刀器灵”提示），触发了拆分逻辑，因此出现三次 smart_rewrite + apply。`backend/app/services/agent/planning/plan_generator.py:600-640,756-852`
+- Backend.md 明确显示三次改写与三次写回：任务2/4/6分别执行 smart_rewrite，随后 operate_apply 均使用**相同定位** `para=75, node=eah0i8el`。`Backend.md:71-147,95-158`
+- apply_chapter_edit 对 replace 没有去重/“no_change”保护（只有 insert 有），所以同段落被替换三次也会生成三条修订，前端显示成三行重复。`backend/app/services/agent/tools/editor_tools.py:520-580`
+
+#### 重复句消歧“治根方案”实现（待确认）
+
+- [x] 规划层：新增“改为/替换为”语义解析，区分【原句/替换句/上下文提示】，只对真正的原句做拆分
+- [x] 规划层：仅在用户显式“分别/各自/每处/多处”时拆分多处改写；“只/仅/首次/第1处”强制单处
+- [x] 规划层：把“上下文提示”写入 locate_target_hint，而不是当成待改句
+- [x] 执行层：replace 增加 no_change 去重（同内容重复替换时直接返回）
+- [ ] 补最小回归：多引号但单处替换不再拆分；显式“分别”仍会拆分
+
+#### review
+
+- 规划层新增引号语义分类：识别“替换句/上下文提示”，`_split_multi_edit_tasks` 只在显式多处意图时拆分，避免把“改为句/上下文提示”当成待改原句。`backend/app/services/agent/planning/plan_generator.py`
+- `locate_target_hint` 优先使用“上下文提示”引号，避免替换句被误用为定位线索。`backend/app/services/agent/planning/plan_generator.py`
+- 执行层 replace 增加 no_change 兜底：同段落重复替换同内容直接返回 no_change，防止前端堆叠重复修订。`backend/app/services/agent/tools/editor_tools.py`
 
 #### 采纳修订后空行（待确认）
 
@@ -1846,3 +1873,17 @@
 - 规划层新增“引用句子且未指明章节”判定：满足条件时给 explore_content 注入 `force_global_search=true`，并在目标描述里追加“全文范围搜索”，避免锁死本章。`backend/app/services/agent/planning/plan_generator.py`
 - explore_content 支持 `force_global_search`：会剥离“在章节…/本章”等提示并清空 chapter_scopes，缓存键也区分该开关。`backend/app/services/agent/tools/explore_tools.py`
 - ContentExplorer 接收 `force_global_search` 并在初始化时忽略章节范围，确保后续 tool_loop 不再受锁章限制。`backend/app/services/agent/tools/explore_tools.py`
+
+#### 重复 read_paragraph 现象追因（待确认）
+
+- [x] 通读 Backend.md / INFO.md，定位重复 read_paragraph 的时间段与频率
+- [x] 追踪 explore_tool_loop 的决策与去重逻辑（should_read_paragraph / read_paragraph 分支 / prompt 汇总）
+- [x] 对照日志，解释“重复调用”与“实际是否重复读取”的差别
+- [x] 汇总证据并给出直白结论（核心问题 + 触发条件）
+
+#### review
+
+- 日志证据：Backend.md 在 00:58:23–01:00:06 内连续多次调用 `read_paragraph`，参数始终是第3章第36段，仅 context_before/after 在 1~3 之间变化。`Backend.md:58-119`
+- 前台轨迹同样重复显示 “ReadParagraph: 第3章 · 第36段”，对应同一轮工具调用被多次触发。`INFO.md:24-50`
+- 代码行为：`should_read_paragraph` 只做“已读去重”并返回 skipped，但 **不会阻止 LLM 决策再次调用**；`read_paragraph` 分支在已读时返回 `{success: True, skipped: True}`，日志只打 success，不展示 skipped，导致看起来像“重复读取”。`backend/app/services/agent/tools/explore_tools.py:795-815,3740-3815`
+- 核心结论：**重复出现是“工具循环决策层没有硬防重 + 日志/前台不展示 skipped”**的结果。系统并非一直重新读文件，而是被 LLM 反复触发同一工具调用，后端多数会直接跳过。触发条件是“目标段落已定位但仍反复强调读取上下文”的任务描述。`backend/app/services/agent/tools/explore_tools.py:2961-3032`

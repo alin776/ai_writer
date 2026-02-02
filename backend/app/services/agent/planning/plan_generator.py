@@ -601,20 +601,67 @@ tool_policy: {tool_policy}
         return tasks
 
     @staticmethod
-    def _extract_quoted_segments(message: str) -> List[str]:
+    def _extract_quoted_segments_with_spans(message: str) -> List[Tuple[str, int, int]]:
         if not message:
             return []
-        segments: List[str] = []
+        segments: List[Tuple[str, int, int]] = []
         seen = set()
-        for match in re.findall(r'["“”‘’「」『』](.+?)["“”‘’「」『』]', message):
-            seg = (match or "").strip()
+        for match in re.finditer(r'["“”‘’「」『』](.+?)["“”‘’「」『』]', message):
+            seg = (match.group(1) or "").strip()
             if not seg or len(seg) < 4:
                 continue
             if seg in seen:
                 continue
-            segments.append(seg)
+            segments.append((seg, match.start(), match.end()))
             seen.add(seg)
         return segments
+
+    @classmethod
+    def _extract_quoted_segments(cls, message: str) -> List[str]:
+        return [seg for seg, _, _ in cls._extract_quoted_segments_with_spans(message)]
+
+    @staticmethod
+    def _normalize_quote_context(text: str) -> str:
+        return re.sub(r"\s+", "", text or "")
+
+    @classmethod
+    def _classify_quote_role(cls, before_text: str, after_text: str) -> str:
+        before = cls._normalize_quote_context(before_text)
+        after = cls._normalize_quote_context(after_text)
+        # 替换后的文本（改为/替换为/改成）通常出现在引号之前
+        if re.search(r"(改为|改成|替换为|替换成|换成|变更为|改做)[:：]?$", before):
+            return "replacement"
+        # 原句通常出现在“将/把…改为/替换为”之前
+        if re.match(r"^(改为|改成|替换为|替换成|换成|变更为|改做)", after):
+            return "target"
+        # 上下文/定位提示
+        if re.match(r"^(上下文|语境|背景|附近|前后文|前文|后文|之前|之后|之间|处|位置|段落|句子)", after):
+            return "context"
+        if re.search(r"(上下文|语境|背景|附近|前后文|前文|后文|之前|之后|之间|处|位置|段落|句子)$", before):
+            return "context"
+        return "unknown"
+
+    @classmethod
+    def _classify_quoted_segments(cls, message: str) -> List[Tuple[str, str]]:
+        classified: List[Tuple[str, str]] = []
+        for seg, start, end in cls._extract_quoted_segments_with_spans(message):
+            before = message[max(0, start - 20):start]
+            after = message[end:min(len(message), end + 20)]
+            role = cls._classify_quote_role(before, after)
+            classified.append((seg, role))
+        return classified
+
+    @staticmethod
+    def _message_forces_single_edit(message: str) -> bool:
+        if not message:
+            return False
+        return bool(re.search(r"(只|仅|仅仅|仅需|只替换|仅替换|只改|仅改|只修改|仅修改|首次|第一处|第1处)", message))
+
+    @staticmethod
+    def _message_allows_multi_edit(message: str) -> bool:
+        if not message:
+            return False
+        return bool(re.search(r"(分别|各自|逐一|每处|每一处|多处|全部|所有|都替换|全部替换|逐条|每段|每句|每个|两处|三处|四处|两段|三段|四段|两句|三句|四句)", message))
 
     @staticmethod
     def _chinese_numeral_to_int(value: str) -> Optional[int]:
@@ -666,7 +713,14 @@ tool_policy: {tool_policy}
         return None
 
     def _extract_locator_hint(self, message: str) -> Optional[str]:
-        segments = self._extract_quoted_segments(message)
+        classified = self._classify_quoted_segments(message)
+        if not classified:
+            segments = []
+        else:
+            context_segments = [seg for seg, role in classified if role == "context"]
+            if context_segments:
+                return context_segments[0]
+            segments = [seg for seg, role in classified if role != "replacement"]
         if len(segments) == 1:
             return segments[0]
         if len(segments) >= 2:
@@ -767,7 +821,13 @@ tool_policy: {tool_policy}
         if not self._plan_requires_strict_locator(tasks):
             return tasks
 
-        segments = self._extract_quoted_segments(message)
+        if self._message_forces_single_edit(message):
+            return tasks
+        if not self._message_allows_multi_edit(message):
+            return tasks
+
+        classified = self._classify_quoted_segments(message)
+        segments = [seg for seg, role in classified if role in {"target", "unknown"}]
         if len(segments) < 2:
             return tasks
 

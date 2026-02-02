@@ -428,6 +428,15 @@ async def apply_chapter_edit(
                     return None
                 return raw[:match.start(3)] + replacement + raw[match.end(3):]
 
+            def _get_content_by_node_id(raw: str, target_id: str) -> Optional[str]:
+                if not target_id:
+                    return None
+                pattern = rf'(<(p|h[1-6]|blockquote|pre|li)[^>]*\sdata-id=["\']{re.escape(target_id)}["\'][^>]*>)(.*?)(</\2>)'
+                match = re.search(pattern, raw, re.DOTALL | re.IGNORECASE)
+                if not match:
+                    return None
+                return match.group(3)
+
             def _insert_after_node_id(raw: str, target_id: str, insertion: str):
                 if not target_id:
                     return None
@@ -556,12 +565,36 @@ async def apply_chapter_edit(
             elif operation == "replace":
                 replaced = None
                 if node_id:
+                    current = _get_content_by_node_id(old_content, node_id)
+                    if current is not None and current == actual_content:
+                        return json.dumps({
+                            "success": True,
+                            "requires_confirmation": False,
+                            "action_type": "update_content",
+                            "chapter_id": resolved_chapter_id,
+                            "work_id": str(chapter.work_id),
+                            "operation": operation,
+                            "no_change": True,
+                            "description": description or "replace already applied"
+                        }, ensure_ascii=False)
                     replaced = _replace_by_node_id(old_content, node_id, actual_content)
                 if replaced is None and paragraph_index is not None:
                     # 🔧 修复：只替换段落内部内容，保留 <p> 标签和 data-id
                     inner_start = _get_paragraph_position(old_content, paragraph_index, "inner_start")
                     inner_end = _get_paragraph_position(old_content, paragraph_index, "inner_end")
                     if inner_start is not None and inner_end is not None:
+                        current = old_content[inner_start:inner_end]
+                        if current == actual_content:
+                            return json.dumps({
+                                "success": True,
+                                "requires_confirmation": False,
+                                "action_type": "update_content",
+                                "chapter_id": resolved_chapter_id,
+                                "work_id": str(chapter.work_id),
+                                "operation": operation,
+                                "no_change": True,
+                                "description": description or "replace already applied"
+                            }, ensure_ascii=False)
                         replaced = old_content[:inner_start] + actual_content + old_content[inner_end:]
                         logger.debug(f"[apply_chapter_edit] replace 按段落索引定位: para_index={paragraph_index}, inner_start={inner_start}, inner_end={inner_end}")
                     else:
