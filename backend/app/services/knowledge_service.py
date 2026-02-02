@@ -297,7 +297,8 @@ class KnowledgeService:
         category: Optional[KnowledgeCategory] = None,
         tags: Optional[List[str]] = None,
         work_id: Optional[str] = None,
-        top_k: int = 10
+        top_k: int = 10,
+        doc_ids: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
         语义搜索知识库
@@ -309,6 +310,7 @@ class KnowledgeService:
             tags: 标签过滤（可选）
             work_id: 作品ID过滤（可选）
             top_k: 返回结果数量
+            doc_ids: 仅在指定知识条目ID范围内检索（可选）
 
         Returns:
             List[Dict]: 搜索结果列表，每项包含：
@@ -324,7 +326,8 @@ class KnowledgeService:
                 query=query,
                 user_id=user_id,
                 top_k=top_k * 4,  # 多取一些，过滤后再截断，防止重复块占满
-                similarity_threshold=0.3
+                similarity_threshold=0.3,
+                doc_ids=doc_ids
             )
 
             if not vector_results:
@@ -350,9 +353,12 @@ class KnowledgeService:
             )
 
             results = []
+            doc_id_set = {str(doc_id) for doc_id in doc_ids} if doc_ids else None
             for source_id, hit in sorted_hits:
                 if len(results) >= top_k:
                     break
+                if doc_id_set and source_id not in doc_id_set:
+                    continue
 
                 item = await self.get_item(source_id, user_id)
                 if not item:

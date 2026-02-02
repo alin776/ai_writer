@@ -8,9 +8,9 @@ import { useChatDraftStore } from '../../store/chatDraftStore';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
 import type { AgentChatRequest, TaskSnapshot, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
-import ActivityStream from '../agent/ActivityStream';  // �?导入ActivityStream
-import { ExecutionFlow } from '../agent/ExecutionFlow';  // �?v5.0: 执行轨迹可视�?
-import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // �?编辑确认对话�?
+import ActivityStream from '../agent/ActivityStream';  // 导入 ActivityStream
+import { ExecutionFlow } from '../agent/ExecutionFlow';  // v5.0: 执行轨迹可视化
+import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // 编辑确认对话框
 import {
   Dialog,
   DialogContent,
@@ -32,7 +32,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import rehypeRaw from 'rehype-raw';
-import remarkGfm from 'remark-gfm';  // �?支持 GFM 语法
+import remarkGfm from 'remark-gfm';  // 支持 GFM 语法
 import { knowledgeApi } from '@/services/knowledgeApi';
 
 interface AIPanelProps {
@@ -40,7 +40,7 @@ interface AIPanelProps {
   chapterId?: string;
   sessionId?: string;
   onTitleChange?: (title: string) => void;
-  /** 是否为当前活体（只有活跃窗口才监�?InlineAI 事件�?*/
+  /** 是否为当前活跃（只有活跃窗口才监听 InlineAI 事件）*/
   isActive?: boolean;
   /** 展开模式：编辑器收起时为 true，滚动由外层容器处理 */
   expandedMode?: boolean;
@@ -146,7 +146,7 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
         components={{
-          // 代码�?
+          // 代码块
           code({ node, inline, className, children, ...props }: any) {
             const match = /language-(\w+)/.exec(className || '');
             return !inline && match ? (
@@ -231,7 +231,7 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
           blockquote({ children }) {
             return <blockquote className="border-l-2 border-zinc-300 pl-2 my-1.5 text-zinc-600 text-[14px]">{children}</blockquote>;
           },
-          // 分隔�?
+          // 分隔线
           hr() {
             return <hr className="my-2 border-zinc-200" />;
           },
@@ -266,7 +266,7 @@ const TaskList = ({ tasks }: { tasks: TaskSnapshot[] }) => {
   const completedCount = tasks.filter(t => t.status === 'completed').length;
   const totalCount = tasks.length;
 
-  // 获取当前执行的任务（running状态），如果没有则取最后一个任�?
+  // 获取当前执行的任务（running 状态），如果没有则取最后一个任务
   const currentTask = tasks.find(t => t.status === 'running') || tasks[tasks.length - 1];
 
   return (
@@ -396,7 +396,7 @@ const extractKnowledgeTags = (value: string): string[] => {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// 全局去重集合，确保消息只处理一�?inline-ai 消息
+// 全局去重集合，确保消息只处理一次 inline-ai 消息
 const getInlineAIProcessedSet = (): Set<string> => {
   if (typeof window === 'undefined') return new Set<string>();
   if (!(window as any).__inlineAIProcessed__) {
@@ -426,16 +426,16 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     hasOperations,
     acceptAllOperations,
     rollbackAllOperations,
-  } = useAgentChat({ workId, chapterId, sessionId });  // �?传入workId和chapterId进行会话隔离
+  } = useAgentChat({ workId, chapterId, sessionId });  // 传入 workId 和 chapterId 进行会话隔离
 
-  // 获取当前章节内容，用�?@optimization 直接调用去痕迹接�?
+  // 获取当前章节内容，用 @optimization 直接调用去痕迹接口
   const { currentChapter } = useEditorStore();
 
-  // 获取草稿 store 的方法，用于会话切换时保�?恢复输入状�?
+  // 获取草稿 store 的方法，用于会话切换时保存/恢复输入状态
   const { saveDraft, getDraft, clearDraft } = useChatDraftStore();
 
   const [inputValue, setInputValue] = useState('');
-  const [mode] = useState<AgentMode>('plan'); // �?Agent执行模式：plan(固定规划) | agent(DeepAgent反�?
+  const [mode] = useState<AgentMode>('plan'); // Agent 执行模式：plan(固定规划) | agent(DeepAgent 反思)
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 跟踪是否应该自动滚动
@@ -460,9 +460,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const [menuHeight, setMenuHeight] = useState<number>(220);
 
-  // 🔧 expandedMode 切换时保�?恢复滚动位置，避免跳�?
+  // 🔧 expandedMode 切换时保存/恢复滚动位置，避免跳动
   useLayoutEffect(() => {
-    // 模式没变化，不处�?
+    // 模式没变化，不处理
     if (prevExpandedModeRef.current === expandedMode) return;
 
     const getScrollContainer = () => messagesContainerRef.current;
@@ -478,7 +478,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     // 更新 ref
     prevExpandedModeRef.current = expandedMode;
 
-    // 延迟恢复滚动位置（等�?DOM 更新�?
+    // 延迟恢复滚动位置（等待 DOM 更新）
     requestAnimationFrame(() => {
       const newContainer = getScrollContainer();
       if (newContainer) {
@@ -509,10 +509,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     selection_position?: { from: number; to: number };
   } | null>(null);
 
-  // 复制成功状态，显示 �?
+  // 复制成功状态，显示提示
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
-  // 添加到知识库对话框状�?
+  // 添加到知识库对话框状态
   const [showAddKnowledgeDialog, setShowAddKnowledgeDialog] = useState(false);
   const [knowledgeFormTitle, setKnowledgeFormTitle] = useState('');
   const [knowledgeFormContent, setKnowledgeFormContent] = useState('');
@@ -523,7 +523,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   // Toast 提示
   const { messages: toastMessages, success: showSuccess, error: showError, close: closeToast } = useToast();
 
-  // 组件挂载时恢复草�?
+  // 组件挂载时恢复草稿
   useEffect(() => {
     if (sessionId) {
       const draft = getDraft(sessionId);
@@ -535,7 +535,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 只在挂载时执行一�?
+  }, []); // 只在挂载时执行一次
 
   // 实时保存草稿：每当内容变化时自动保存
   useEffect(() => {
@@ -551,12 +551,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         selectionContext,
       });
     } else {
-      // 如果没有内容，清除草�?
+      // 如果没有内容，清除草稿
       clearDraft(sessionId);
     }
   }, [sessionId, inputValue, selectedDocs, optimizationSelected, selectionContext, saveDraft, clearDraft]);
 
-  // �?流式输出：真正的字符流，前端直接显示，不在前端处理换行效�?
+  // 流式输出：真正的字符流，前端直接显示，不在前端处理换行效果
 
   const copyMessage = useCallback(async (content: string, messageId: string) => {
     try {
@@ -569,7 +569,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     }
   }, []);
 
-  // 打开添加知识对话�?
+  // 打开添加知识对话框
   const handleOpenAddKnowledge = useCallback((title: string, content: string) => {
     setKnowledgeFormTitle(title);
     setKnowledgeFormContent(content);
@@ -607,7 +607,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   }, [knowledgeFormTitle, knowledgeFormContent, knowledgeFormCategory, knowledgeFormTags, showSuccess, showError]);
 
   const containsAt = useMemo(() => AT_CHARS.some((c) => inputValue.includes(c)), [inputValue]);
-  // 去痕长度变量，用于显�?
+  // 去痕长度变量，用于显示
   const MAX_HUMANIZE_CHARS = 5000;
   const rawChapterContent = currentChapter?.content?.trim() || '';
   const truncatedCount =
@@ -659,8 +659,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     onTitleChange(title);
   }, [messages, onTitleChange, sessionId]);
 
-  // �?定义 handleSendWithContext 用于处理带上下文的消息（InlineAI�?
-  // �?使用 useRef 存储回调函数，让 useEffect 不因回调变化而重新渲�?
+  // 定义 handleSendWithContext 用于处理带上下文的消息（InlineAI 消息）
+  // 使用 useRef 存储回调函数，让 useEffect 不因回调变化而重新渲染
   const handleSendWithContextRef = useRef<(message: string, context?: any) => Promise<void>>(undefined);
 
   handleSendWithContextRef.current = async (message: string, context?: any) => {
@@ -668,7 +668,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
     const backendMode: AgentChatRequest['mode'] = mode === 'agent' ? 'react' : 'planning';
 
-    // �?固定 payload 结构，将选中信息放入独立�?selection 字段
+    // 固定 payload 结构，将选中信息放入独立 selection 字段
     // 避免将选中文本放入 prompt/chapter_context 导致被覆盖或结构混乱
     const selectionData = context?.selected_text ? {
       text: context.selected_text,
@@ -691,7 +691,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       enable_reflection: mode === 'agent',
       context: {
         ...context,
-        // �?新增独立 selection 字段，推荐结构化
+        // 新增独立 selection 字段，推荐结构化
         selection: selectionData,
         // 保留 selected_text 字段以兼容旧逻辑
         selected_text: context?.selected_text,
@@ -700,7 +700,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         ...locateHint,
         // chapter_context 只放章节标识，不放选中文本
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
-        // �?如果有选中文本，添加结构化的指令上下文
+        // 如果有选中文本，添加结构化的指令上下文
         instruction_context: context?.selected_text
           ? `用户选中了以下文本进行操作:
 ---
@@ -711,7 +711,7 @@ ${context.selected_text}
       },
     };
 
-    // 用户发送消息时，重新应该自动滚�?
+    // 用户发送消息时，重新启用自动滚动
     shouldAutoScrollRef.current = true;
 
     try {
@@ -721,12 +721,12 @@ ${context.selected_text}
     }
   };
 
-  // �?稳定的回调封装，避免因依赖变化而重新创�?
+  // 稳定的回调封装，避免因依赖变化而重新创建
   const handleSendWithContext = useCallback((message: string, context?: any) => {
     return handleSendWithContextRef.current?.(message, context);
   }, []);
 
-  // �?监听来自编辑�?InlineAI 的消息，只有活跃窗口才监�?
+  // 监听来自编辑器 InlineAI 的消息，只有活跃窗口才监听
   useEffect(() => {
     // 非活跃不设置监听
     if (!isActive) {
@@ -741,7 +741,7 @@ ${context.selected_text}
       const rid = item?.requestId || JSON.stringify(item);
       if (!consumed.has(rid)) {
         consumed.add(rid);
-        // �?直接传递原�?context，handleSendWithContext 会正确构�?selection 字段
+        // 直接传递原始 context，handleSendWithContext 会正确构建 selection 字段
         handleSendWithContext(item.message || '', item.context || {});
       }
     });
@@ -752,7 +752,7 @@ ${context.selected_text}
       const rid = requestId || `inline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       if (consumed.has(rid)) return;
       consumed.add(rid);
-      // �?直接传递原�?context，handleSendWithContext 会正确构�?selection 字段
+      // 直接传递原始 context，handleSendWithContext 会正确构建 selection 字段
       handleSendWithContext(msg, ctx);
     };
 
@@ -769,14 +769,14 @@ ${context.selected_text}
     }>) => {
       const { message, context, requestId } = event.detail;
 
-      // 去重检�?
+      // 去重检查
       const rid = requestId || `inline-${Date.now()}`;
       if (consumed.has(rid)) {
         return;
       }
       consumed.add(rid);
 
-      // �?直接传递原�?context，handleSendWithContext 会正确构�?selection 字段
+      // 直接传递原始 context，handleSendWithContext 会正确构建 selection 字段
       handleSendWithContext(message, context);
     };
 
@@ -788,7 +788,7 @@ ${context.selected_text}
     };
   }, [handleSendWithContext, isActive]);
 
-  // �?监听 InlineAI intent（用于设置上下文，不发送消息）：全局 + 事件队列
+  // 监听 InlineAI intent（用于设置上下文，不发送消息）：全局 + 事件队列
   useEffect(() => {
     if (!isActive) return;
     const intentQueue: any[] = (window as any).__inlineAIIntentQueue__ || [];
@@ -826,13 +826,13 @@ ${context.selected_text}
     const container = messagesContainerRef.current;
     if (!container) return false;
 
-    // 检查滚动位置是否接近底部（允许50px误差）
+    // 检查滚动位置是否接近底部（允许50px误差）
     const threshold = 50;
     const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
     return isAtBottom;
   }, []);
 
-  // 滚动到底�?
+  // 滚动到底部
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -850,7 +850,7 @@ ${context.selected_text}
     return () => container.removeEventListener('scroll', handleScroll);
   }, [checkIfAtBottom]);
 
-  // 计算最后一�?agent 消息�?flowItems 长度，用于触发自动滚�?
+  // 计算最后一条 agent 消息的 flowItems 长度，用于触发自动滚动
   const lastAgentMessage = [...messages].reverse().find(m => m.role === 'agent');
   const flowItemsCount = (lastAgentMessage as any)?.flowItems?.length || 0;
 
@@ -861,7 +861,7 @@ ${context.selected_text}
     }
   }, [messages.length, tasks.length, flowItemsCount, scrollToBottom]);
 
-  // �?流式输出：真正的字符流，前端直接使用 message.content
+  // 流式输出：真正的字符流，前端直接使用 message.content
 
   const repositionMenu = useCallback(() => {
     const inputEl = inputRef.current;
@@ -953,7 +953,7 @@ ${context.selected_text}
       try {
         setKnowledgeLoading(true);
         setKnowledgeError(null);
-        // 使用新的 getDocTitles API，返�?{id, title}[]
+        // 使用新的 getDocTitles API，返回 {id, title}[]
         const docs = await knowledgeApi.getDocTitles();
         setKnowledgeDocs(docs.map((d) => ({ id: d.id, title: d.title || '未命名文档' })));
         setKnowledgeHasMore(false);
@@ -1091,14 +1091,14 @@ ${context.selected_text}
     const el = inputRef.current;
     if (!el) return;
 
-    // 如果没有内容，直接设置为最小高�?
+    // 如果没有内容，直接设置为最小高度
     if (!el.value || el.value.trim() === '') {
       el.style.height = '32px';
       el.style.overflowY = 'hidden';
       return;
     }
 
-    // 先重置高度，�?scrollHeight 能正确反映实际内容高�?
+    // 先重置高度，确保 scrollHeight 能正确反映实际内容高度
     el.style.height = '32px';
     const maxH = 200;
     // 根据实际内容计算高度
@@ -1153,8 +1153,8 @@ ${context.selected_text}
         }
       : {};
 
-    // Agent 模式 = Planning + DeepAgent 反思，可动态调整计�?
-    // Plan 模式 = �?Planning，无反思，任务列表固定
+    // Agent 模式 = Planning + DeepAgent 反思，可动态调整计划
+    // Plan 模式 = 仅 Planning，无反思，任务列表固定
     const enableDeepAgent = mode === 'agent';
 
     const locateHint = (() => {
@@ -1166,7 +1166,7 @@ ${context.selected_text}
     const request: AgentChatRequest = {
       message,
       mode: 'planning',  // 始终使用 planning 模式
-      enable_reflection: enableDeepAgent,  // Agent 模式启用 DeepAgent 反�?
+      enable_reflection: enableDeepAgent,  // Agent 模式启用 DeepAgent 反思
       work_id: workId,
       chapter_id: chapterId,
       context: {
@@ -1204,7 +1204,7 @@ ${selectionContext.selected_text}
       clearDraft(sessionId);
     }
 
-    // 用户发送消息时，重新应该自动滚�?
+    // 用户发送消息时，重新启用自动滚动
     shouldAutoScrollRef.current = true;
 
     try {
@@ -1251,7 +1251,7 @@ ${selectionContext.selected_text}
         closeAtMenu();
       }
 
-      // 当输入框内容为空时，Backspace 删除最后一个标签（先知识文档，�?optimization�?
+      // 当输入框内容为空时，Backspace 删除最后一个标签（先知识文档，再 optimization）
       if (e.key === 'Backspace' && !inputValue.trim()) {
         if (selectedDocs.length > 0) {
           e.preventDefault();
@@ -1483,21 +1483,25 @@ ${selectionContext.selected_text}
           }
 
           const messageFlowItems = (message as any).flowItems || [];
-          // DEBUG: 检�?flowItems 是否正确加载
+          // DEBUG: 检查 flowItems 是否正确加载
           if (process.env.NODE_ENV === 'development' && !isUser) {
             console.log(`[AIPanel] Message ${index} flowItems:`, messageFlowItems.length, messageFlowItems.map((i: any) => i?.type));
           }
-          // v6.2: completion 应该�?output 一起显示在内容区域，而不是在执行轨迹区域
-          // v6.6: 保留 agent_header 在执行轨迹区域，确保流式输出过程中也能显�?logo 和名�?
+          // v6.2: completion 应该和 output 一起显示在内容区域，而不是在执行轨迹区域
+          // v6.6: 保留 agent_header 在执行轨迹区域，确保流式输出过程中也能显示 logo 和名称
           const flowItemsWithoutOutput = messageFlowItems.filter((item: any) =>
             item?.type !== 'output' && item?.type !== 'completion'
+          );
+          // 仅在“有实质执行信息”时才关闭 Thinking（忽略装饰性事件）
+          const meaningfulFlowItems = flowItemsWithoutOutput.filter((item: any) =>
+            item?.type !== 'agent_header' && item?.type !== 'text'
           );
           const outputItems = messageFlowItems.filter((item: any) => item?.type === 'output');
           const completionItem = messageFlowItems.find((item: any) => item?.type === 'completion');
           const lastOutputItem = outputItems.length > 0 ? outputItems[outputItems.length - 1] : null;
           const isStreamingMessage = isLastMessage && isLoading;
           const showActivityStream = isStreamingMessage && mode === 'agent' && activities.length > 0;
-          const showThinking = isStreamingMessage && !showActivityStream && flowItemsWithoutOutput.length === 0;
+          const showThinking = isStreamingMessage && !showActivityStream && meaningfulFlowItems.length === 0;
           const showFlowBlock = flowItemsWithoutOutput.length > 0 || showActivityStream || showThinking;
           const findRevisionByItemId = (targetId: string): RevisionFlowData | null => {
             if (!targetId) return null;
@@ -1530,7 +1534,7 @@ ${selectionContext.selected_text}
                           const resolvedRequestId = requestId || revisionData?.requestId;
                           const targetChapterId = revisionData?.chapterId;
 
-                          // v7.2: �?pendingApproval 中提取快照数据用于撤销/重做
+                          // v7.2: 从 pendingApproval 中提取快照数据用于撤销/重做
                           let snapshot: {
                             originalContent?: string;
                             newContent?: string;
@@ -1544,7 +1548,7 @@ ${selectionContext.selected_text}
                             let newContent = pendingApproval.new_content;
                             const editorPosition = pendingApproval.editor_action?.position;
 
-                            // 如果�?rewrite 类型，使用选择的版本内�?
+                            // 如果是 rewrite 类型，使用选择的版本内容
                             if (pendingApproval.action_type === 'rewrite' &&
                                 selectedVersion !== undefined &&
                                 pendingApproval.versions?.[selectedVersion]?.content) {
@@ -1566,21 +1570,21 @@ ${selectionContext.selected_text}
                             });
                           }
 
-                          // 更新 revision 状态为已采纳，并保存快�?
+                          // 更新 revision 状态为已采纳，并保存快照
                           updateRevisionStatus(itemId, 'accepted', snapshot);
 
-                          // 如果�?pendingApproval，且 requestId 匹配，则调用 submitApproval
+                          // 如果是 pendingApproval，且 requestId 匹配，则调用 submitApproval
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(true, selectedVersion);
                           } else if (resolvedRequestId) {
-                            // v7.5: 非阻塞式修订 - 直接调用后端 API 写入数据�?
-                            console.log('[AIPanel] 非阻塞式修订，直接调用后�?API');
+                            // v7.5: 非阻塞式修订 - 直接调用后端 API 写入数据
+                            console.log('[AIPanel] 非阻塞式修订，直接调用后端 API');
                             agentApi.submitApprovalResponse({
                               request_id: resolvedRequestId,
                               approved: true,
                               selected_version: selectedVersion
                             }).then(() => {
-                              console.log('[AIPanel] �?修订已写入数据库');
+                              console.log('[AIPanel] ✅ 修订已写入数据库');
                               if (workId) {
                                 window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
                                   detail: { work_id: workId }
@@ -1588,7 +1592,7 @@ ${selectionContext.selected_text}
                                 console.log('[AIPanel] ✅ 派发章节确认事件，刷新列表');
                               }
                             }).catch((err) => {
-                              console.error('[AIPanel] �?写入数据库失�?', err);
+                              console.error('[AIPanel] 写入数据库失败:', err);
                             });
                             // 派发采纳事件到编辑器
                             window.dispatchEvent(
@@ -1620,7 +1624,7 @@ ${selectionContext.selected_text}
                           const resolvedRequestId = requestId || revisionData?.requestId;
                           const targetChapterId = revisionData?.chapterId;
 
-                          // v7.2: �?pendingApproval 中提取快照数据用于重�?
+                          // v7.2: 从 pendingApproval 中提取快照数据用于重做
                           let snapshot: {
                             originalContent?: string;
                             newContent?: string;
@@ -1640,19 +1644,19 @@ ${selectionContext.selected_text}
                             };
                           }
 
-                          // 更新 revision 状态为已弃用，并保存快�?
+                          // 更新 revision 状态为已弃用，并保存快照
                           updateRevisionStatus(itemId, 'discarded', snapshot);
 
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(false);
                           } else if (resolvedRequestId) {
                             // v7.5: 非阻塞式修订 - 直接调用后端 API
-                            console.log('[AIPanel] 非阻塞式修订，直接调用后�?API (弃用)');
+                            console.log('[AIPanel] 非阻塞式修订，直接调用后端 API (弃用)');
                             agentApi.submitApprovalResponse({
                               request_id: resolvedRequestId,
                               approved: false
                             }).catch((err) => {
-                              console.error('[AIPanel] �?弃用请求失败:', err);
+                              console.error('[AIPanel] 弃用请求失败:', err);
                             });
                             // v7.6: 派发弃用事件到编辑器（直接操作修订标记）
                             window.dispatchEvent(
@@ -1732,7 +1736,7 @@ ${selectionContext.selected_text}
                 </div>
               )}
 
-              {/* v6.6: 只有当有实际内容时才显示内容区域（AgentHeader 已在执行轨迹区域显示�?*/}
+              {/* v6.6: 只有当有实际内容时才显示内容区域（AgentHeader 已在执行轨迹区域显示）*/}
               {(message.content || lastOutputItem) && (
                 <div className="flex items-start">
                   <div className="flex flex-col gap-1 w-full group">
@@ -1848,7 +1852,7 @@ ${selectionContext.selected_text}
           <div className="rounded-3xl bg-white border border-gray-200 px-4 py-3 space-y-3 flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
             <div className="relative">
               <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
-                {/* 选中文本前置（放在后，保持同一行逻辑�?*/}
+                {/* 选中文本前置（放在后，保持同一行逻辑）*/}
                 {selectionContext?.selected_text && (
                   <span
                     className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
@@ -1941,7 +1945,7 @@ ${selectionContext.selected_text}
 
             {truncatedCount > 0 && (
               <div className="text-[11px] text-amber-600 px-1 dark:text-amber-400">
-                章节内容超过 5000 字，已截断超过的 {truncatedCount} 字符进行去痕迹�?
+                章节内容超过 5000 字，已截断超过的 {truncatedCount} 字符进行去痕迹处理
               </div>
             )}
 
@@ -2123,7 +2127,7 @@ ${selectionContext.selected_text}
           document.body
         )}
 
-      {/* 添加到知识库对话�?*/}
+      {/* 添加到知识库对话框*/}
       <Dialog open={showAddKnowledgeDialog} onOpenChange={setShowAddKnowledgeDialog}>
         <DialogContent>
           <DialogHeader>

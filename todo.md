@@ -2203,3 +2203,135 @@
 - [x] 核对指令菜单为 portal 且不在 workbench 边界，验证 scrollableParent 返回空导致 AI 列表被接管滚动
 - [x] 为指令菜单标记 scroll-scope，并在全局滚轮接管中排除该作用域
 - [x] 自检：滚动子菜单不再带动 AI 列表，其他滚轮行为不受影响
+
+#### review
+
+- 根因证据：WorkDetailView 里 `onWheelCapture={handleGlobalWheel}` 会在滚轮事件触发时接管滚动；当目标元素不在可滚动父级（或父级到顶/到底）时会把滚动量转给 `[data-ai-scroll-container="active"]`，因此子菜单滚动边界时会推动 AI 列表。`src/views/WorkDetailView/index.tsx`
+- 触发机制：指令菜单通过 portal 渲染到 `document.body`，不在 `workbenchRef` 边界内，`findScrollableParent` 找不到有效父级，导致全局接管直接生效。`src/components/editor/AIPanel.tsx`、`src/views/WorkDetailView/index.tsx`
+- 修复：为指令菜单根节点加 `data-scroll-scope="command-menu"`，并在全局滚轮接管中直接排除该作用域，阻断对子菜单滚轮的“AI 列表代滚动”。`src/components/editor/AIPanel.tsx`、`src/views/WorkDetailView/index.tsx`
+
+#### 从知识库中添加功能深度探索（待确认）
+
+- [x] 梳理前端触发入口与交互（@ 指令菜单、知识库子菜单、选择后标签展示）
+- [x] 追踪前端请求与知识库文档列表来源（knowledgeApi.getDocTitles / GET /knowledge/titles）
+- [x] 追踪发送链路：selectedDocs → knowledge_doc_ids → 后端注入 knowledge_docs
+- [x] 验证知识库文档如何进入 AI 生成链路（context_builder/plan_generator/response_builder）
+- [x] 汇总证据并给出直白结论（功能核心、边界、与“添加到知识库”区别）
+
+#### review
+- “从知识库中添加”入口在 AIPanel 的 @ 指令菜单：ROOT_OPTIONS 定义了该指令，点击/悬停会打开知识库子面板；选择后会以标签（Tag 芯片）显示在输入框前。`src/components/editor/AIPanel.tsx:355-379,1032-1087,1349-1368,1990-2070`
+- 文档列表来源是 `knowledgeApi.getDocTitles()`，只拉取 id+title；前端仅按标题做本地过滤，不拉正文。`src/components/editor/AIPanel.tsx:950-977,622-633`、`src/services/knowledgeApi.ts:233-248`
+- 后端 `/knowledge/titles` 返回“当前用户”的文档 id+title（按 updated_at 倒序），这是 @ 菜单的数据源。`backend/app/api/v1/knowledge.py:116-129`
+- 发送链路：已选文档 id 被打进 `knowledge_doc_ids`，后端按 id 取全文并注入 `knowledge_docs`（同时增加 reference_count）。`src/components/editor/AIPanel.tsx:1129-1175`、`backend/app/api/v1/agent.py:1195-1227`
+- AI 生成链路会把 `knowledge_docs` 注入提示词：planning/response_builder 都会拼接“用户引用的知识库文档”段落并限制最多 3 篇，context_builder 还会生成系统提示要求“严格参考”。`backend/app/services/agent/planning/plan_generator.py:253-381`、`backend/app/services/agent/planning/response_builder.py:395-629`、`backend/app/services/agent/utils/context_builder.py:408-470`
+- “从知识库中添加”≠“添加到知识库”：后者是把新内容写入知识库，走 `knowledgeApi.create`（title/content/category/tags），与引用现有文档是两条路径。`src/components/editor/AIPanel.tsx:572-607`
+
+#### Opencode 是否存在“从知识库中添加”功能排查（待确认）
+
+- [x] 全局检索 Opencode 是否有“知识库/knowledge base”相关模块、UI、接口
+- [x] 重点排查 opencode/src 中是否存在“知识库引用/文档选择”链路
+- [x] 梳理 Opencode 可能的“替代机制”（技能/文件引用/MCP 等）并界定差异
+- [x] 汇总证据并给出直白结论（是否存在该功能+原因）
+
+#### review
+- 全局关键词检索未发现“knowledge base/知识库”相关模块或 UI 文案；在 src 范围内出现的 “knowledge” 仅是“知识截止/提示词”等文本，并非功能实现。`rg: opencode/…`、`opencode/packages/opencode/src/tool/websearch.txt:1-10`、`opencode/packages/opencode/src/session/prompt/anthropic-20250930.txt:151`
+- opencode 核心代码中未看到“选择知识库文档 → 发送文档 id → 后端注入”的链路；`@` 仅用于文件路径引用解析，不是知识库引用。`opencode/packages/opencode/src/session/prompt.ts:1584-1625`
+- 可用的“替代机制”是：技能加载（SkillTool 读取本地 skill 说明）、MCP 外部上下文服务器、以及 OpenAI 兼容的 file_search（vectorStoreIds 由外部提供），都不是内置“知识库文档管理 + 选择引用”。`opencode/packages/opencode/src/tool/skill.ts:8-80`、`opencode/packages/opencode/src/mcp/index.ts:1-120`、`opencode/packages/opencode/src/provider/sdk/openai-compatible/src/responses/tool/file-search.ts:19-125`
+- 结论：Opencode 仓库里没有“从知识库中添加”这种 UI/数据链路功能；它只有“文件引用/技能/MCP/外部 file_search”这类上下文来源，性质不同且不提供本地知识库文档列表与引用选择。
+
+#### 方案A：知识库自动检索片段注入（待确认）
+
+- [x] 增加向量检索按 doc_ids 过滤能力（VectorStoreService.search_knowledge）
+- [x] 知识库语义搜索支持 doc_ids，并在 doc_ids 模式返回“相关片段”
+- [x] agent_chat_stream 用“相关片段”替代全文注入（保留引用计数）
+- [x] 更新 todo.md review：说明检索逻辑与行为变化
+
+#### review
+- VectorStoreService.search_knowledge 支持 doc_ids 过滤：只在指定知识条目范围内做向量检索，非法 ID 会被跳过且不会回退到全库。`backend/app/services/vector_store_service.py`
+- KnowledgeService.search_by_semantic 增加 doc_ids 参数并传递到向量检索，同时在结果层二次过滤，确保只返回选中的文档片段。`backend/app/services/knowledge_service.py`
+- agent_chat_stream 优先做“选中文档内语义检索”，把相关片段作为 knowledge_docs.content 注入；若检索为空才回退全文注入，引用计数仅针对实际使用的条目。`backend/app/api/v1/agent.py`
+
+#### 知识库引用上限与状态透出（待确认）
+
+- [x] 知识库引用上限可配置，默认 5
+- [x] 透出“检索片段/回退全文”的前端状态提示
+
+#### review
+- knowledge_doc_limit 支持从 context 读取，默认 5，限制生效于检索与回退注入，避免无限扩张。`backend/app/api/v1/agent.py`
+- SSE 追加 text 事件提示“检索片段/回退全文（已使用/总数）”，让前端可见本次引用模式。`backend/app/api/v1/agent.py`
+
+#### 知识库引用上限硬限制（待确认）
+
+- [x] knowledge_doc_limit 增加硬上限 10（防止极端参数拖慢检索）
+- [x] 更新 todo.md review 说明行为变化
+
+#### review
+- knowledge_doc_limit 超过 10 会被强制压到 10，避免极端参数造成检索放大与性能风险。`backend/app/api/v1/agent.py`
+
+#### 生成测试引用文本与提示词（待确认）
+
+- [x] 读取小说素材并提取可引用内容（`docs/Agent/real-book/一夕千悟，从杂役弟子开始.txt`）
+- [x] 生成 2 段约 1000 字引用文本（.md 格式）
+- [x] 基于引用文本生成 2 条对应测试 prompt（.md 格式）
+- [x] 更新 todo.md review（生成内容摘要与注意事项）
+
+#### review
+- 已基于小说第1–3章素材生成两段约1000字引用文本：第一段聚焦源顺镖局杂役弟子环境、赵穆教学与段融吞噬器灵；第二段聚焦“一夕千悟”、内息尝试与赵穆刀感变化。
+- 为两段引用文本分别生成了对应测试 prompt，覆盖设定约束、人物行为与训练细节的调用验证。
+
+#### Thinking 消失排查（待确认）
+
+- [x] 通读 Backend.md 测试日志，确认与“Thinking 消失”相关的异常/预期行为
+- [x] 追踪后端流式事件链路（planning/direct_answer/flow events）与前端显示条件（AIPanel showThinking）
+- [x] 汇总证据并给出直白结论（根因 + 是否符合预期）
+
+#### review
+- Backend.md 显示多次 `Plan tasks: 0 items` 且走 `direct_answer`，说明没有执行阶段任务，也就不会产生 `task_progress/thinking` 事件；“思维链”仅在后端日志记录，不是前端事件。`Backend.md`
+- 前端只在“正在流式 + 没有任何 flowItems”时显示 Thinking；一旦收到 `agent_header` / `text` 等 flow 事件就不再显示。`src/components/editor/AIPanel.tsx`
+- 后端在 direct_answer 路径会先发 `agent_header` + `output_ready`，且在知识库引用时还会发 `text` 状态事件，因此 flowItems 很早就存在，Thinking 自然消失；这是当前逻辑下的**预期行为**。`backend/app/services/agent/langgraph_agent.py`、`backend/app/api/v1/agent.py`、`src/hooks/useAgentChat.ts`
+
+#### 前端微调 Thinking 显示（待确认）
+
+- [x] 梳理 AIPanel 中 Thinking 显示条件与 flowItems 过滤范围
+- [x] 调整 showThinking 逻辑：忽略 agent_header/text 等“装饰性”flowItems
+- [x] 更新 todo.md review（变更与影响）
+
+#### review
+- Thinking 显示判断改为仅基于“实质执行项”：忽略 `agent_header`/`text`，避免装饰性事件导致 Thinking 过早消失。`src/components/editor/AIPanel.tsx`
+
+#### 修复注释乱码（待确认）
+
+- [x] 定位乱码注释并确认期望文案
+- [x] 修复注释中的乱码字符（保持语义不变）
+- [x] 更新 todo.md review
+
+#### review
+- 修复注释乱码：恢复“显示 logo 和名称”文案，保持语义不变。`src/components/editor/AIPanel.tsx`
+
+#### AIPanel 注释乱码批量修复（待确认）
+
+- [x] 统计并确认需要修复的乱码注释位置
+- [x] 批量替换乱码字符（保持原意、尽量不改语义）
+- [x] 更新 todo.md review
+
+#### review
+- 已修复 `AIPanel.tsx` 内全部注释乱码，并同步清理少量日志文案中的乱码（仅文本变化，不影响逻辑）。`src/components/editor/AIPanel.tsx`
+
+#### 修复知识库语义检索 message 未定义（待确认）
+
+- [x] 定位 knowledge 语义检索调用处的未定义变量
+- [x] 修复为使用 request.message（或显式赋值）
+- [x] 更新 todo.md review
+
+#### review
+- 修复知识库语义检索的 `message` 未定义错误，改为使用 `request.message`，避免检索失败后回退全文。`backend/app/api/v1/agent.py`
+
+#### 检查 Backend.md 最新日志是否符合预期（待确认）
+
+- [x] 通读 Backend.md 最新日志，确认是否仍出现 knowledge semantic search 的报错
+- [x] 对照后端逻辑（语义检索/回退全文/状态提示）判断是否符合预期
+- [x] 汇总直白结论（是否符合预期 + 是否仍有异常）
+
+#### review
+- 最新日志不再出现 `knowledge semantic search failed`，且已记录“语义搜索知识库/知识库RAG检索/返回结果”链路，说明检索已恢复并符合预期。`Backend.md`
+- 仍有一个与本次问题无关的警告：`MarkupResemblesLocatorWarning`（BeautifulSoup 解析文本时提示像文件名），属于内容清理层的告警。`Backend.md`

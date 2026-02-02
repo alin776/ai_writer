@@ -1198,29 +1198,91 @@ async def agent_chat_stream(
 
                 doc_ids = context.get("knowledge_doc_ids") if isinstance(context.get("knowledge_doc_ids"), list) else []
                 if doc_ids:
+                    # 去重并保持原顺序
                     seen_ids = set()
+                    unique_doc_ids = []
                     for doc_id in doc_ids:
                         if not doc_id or doc_id in seen_ids:
                             continue
                         seen_ids.add(doc_id)
-                        try:
-                            item = await knowledge_service.get_item(doc_id, user_id, increment_view=False)
-                            if item:
-                                knowledge_docs.append({
-                                    "id": str(item.id),
-                                    "title": item.title,
-                                    "content": item.content,
-                                    "tags": item.tags,
-                                    "source_type": getattr(item.source_type, "value", str(item.source_type)),
-                                })
-                                try:
-                                    await knowledge_service.increment_reference_count(doc_id, user_id)
-                                except Exception as ref_err:
-                                    logger.debug(f"[agent_chat_stream] increment_reference_count failed: {ref_err}")
-                            else:
-                                logger.warning(f"[agent_chat_stream] Knowledge doc not found: doc_id={doc_id}")
-                        except Exception as load_err:
-                            logger.warning(f"[agent_chat_stream] load knowledge item failed: {load_err}")
+                        unique_doc_ids.append(doc_id)
+
+                    # 可配置的知识库引用上限（默认5）
+                    raw_limit = context.get("knowledge_doc_limit", 5)
+                    try:
+                        knowledge_doc_limit = int(raw_limit)
+                    except (TypeError, ValueError):
+                        knowledge_doc_limit = 5
+                    if knowledge_doc_limit <= 0:
+                        knowledge_doc_limit = 5
+                    if knowledge_doc_limit > 10:
+                        knowledge_doc_limit = 10
+
+                    limited_doc_ids = unique_doc_ids[:knowledge_doc_limit]
+
+                    # 方案A：优先基于用户问题进行语义检索，返回最相关片段
+                    search_results = []
+                    try:
+                        search_results = await knowledge_service.search_by_semantic(
+                            user_id=str(user_id),
+                            query=request.message,
+                            top_k=min(knowledge_doc_limit, len(limited_doc_ids)),
+                            doc_ids=limited_doc_ids
+                        )
+                    except Exception as search_err:
+                        logger.warning(f"[agent_chat_stream] knowledge semantic search failed: {search_err}")
+
+                    if search_results:
+                        for result in search_results:
+                            item = result.get("item")
+                            if not item:
+                                continue
+                            highlight = result.get("highlight") or ""
+                            knowledge_docs.append({
+                                "id": str(item.id),
+                                "title": item.title,
+                                "content": highlight or item.content,
+                                "highlight": highlight,
+                                "tags": item.tags,
+                                "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                            })
+                            try:
+                                await knowledge_service.increment_reference_count(str(item.id), user_id)
+                            except Exception as ref_err:
+                                logger.debug(f"[agent_chat_stream] increment_reference_count failed: {ref_err}")
+                    else:
+                        # 兜底：若检索不到片段，回退为原始全文注入
+                        for doc_id in limited_doc_ids:
+                            try:
+                                item = await knowledge_service.get_item(doc_id, user_id, increment_view=False)
+                                if item:
+                                    knowledge_docs.append({
+                                        "id": str(item.id),
+                                        "title": item.title,
+                                        "content": item.content,
+                                        "tags": item.tags,
+                                        "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                                    })
+                                    try:
+                                        await knowledge_service.increment_reference_count(doc_id, user_id)
+                                    except Exception as ref_err:
+                                        logger.debug(f"[agent_chat_stream] increment_reference_count failed: {ref_err}")
+                                else:
+                                    logger.warning(f"[agent_chat_stream] Knowledge doc not found: doc_id={doc_id}")
+                            except Exception as load_err:
+                                logger.warning(f"[agent_chat_stream] load knowledge item failed: {load_err}")
+
+                    # ✅ 透出本次知识库使用状态（检索片段 or 回退全文）
+                    try:
+                        from app.services.agent.stream.flow_events import FlowEventBuilder
+
+                        used_count = len(knowledge_docs)
+                        total_count = len(limited_doc_ids)
+                        mode_text = "检索片段" if search_results else "回退全文"
+                        status_text = f"知识库引用：{mode_text}（{used_count}/{total_count}）"
+                        await event_queue.put(('text', FlowEventBuilder.text(status_text)))
+                    except Exception as status_err:
+                        logger.debug(f"[agent_chat_stream] emit knowledge status failed: {status_err}")
 
                 if knowledge_docs:
                     context["knowledge_docs"] = knowledge_docs
