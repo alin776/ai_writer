@@ -1,7 +1,7 @@
 ﻿import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus } from 'lucide-react';
+import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
@@ -365,20 +365,23 @@ type RootCommandOption = {
 const ROOT_OPTIONS: RootCommandOption[] = [
   {
     key: 'knowledge',
-    label: '@Knowledge',
-    description: '引用知识库中的文档',
+    label: '从知识库中添加',
+    description: '从知识库中添加',
     icon: <BookOpen className="w-4 h-4" />,
     hasChildren: true,
   },
   {
     key: 'optimization',
-    label: '@optimization',
-    description: '调用 AI 去痕迹优化',
+    label: '文本自然化',
+    description: '文本自然化',
     icon: <Sparkles className="w-4 h-4" />,
   },
 ];
 
 const AT_CHARS = ['@', '\uFF20'];
+
+const MENU_COLUMN_WIDTH = 240;
+const MENU_GAP = 8;
 
 
 const extractKnowledgeTags = (value: string): string[] => {
@@ -443,6 +446,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
   const [atMenuOpen, setAtMenuOpen] = useState(false);
   const [manualMenuOpen, setManualMenuOpen] = useState(false);
+  const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
   const [atStage, setAtStage] = useState<AtCommandStage>('root');
   const [atQuery, setAtQuery] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -917,6 +921,7 @@ ${context.selected_text}
     if (!containsAt && !manualMenuOpen) {
       setAtMenuOpen(false);
       setAtStage('root');
+      setKnowledgePanelOpen(false);
       return;
     }
     if (containsAt) {
@@ -925,7 +930,7 @@ ${context.selected_text}
   }, [containsAt, inputValue, manualMenuOpen, syncAtStateFromRef]);
 
   useEffect(() => {
-    if (!atMenuOpen) return;
+    if (!atMenuOpen || atStage === 'knowledge') return;
     repositionMenu();
     if (menuRef.current) {
       const h = menuRef.current.getBoundingClientRect().height;
@@ -940,7 +945,7 @@ ${context.selected_text}
       window.removeEventListener('resize', handleWindow);
       window.removeEventListener('scroll', handleWindow, true);
     };
-  }, [atMenuOpen, repositionMenu]);
+  }, [atMenuOpen, atStage, repositionMenu]);
 
   useEffect(() => {
     const loadDocs = async () => {
@@ -975,13 +980,11 @@ ${context.selected_text}
   const closeAtMenu = useCallback(() => {
     setAtMenuOpen(false);
     setManualMenuOpen(false);
+    setKnowledgePanelOpen(false);
     setAtStage('root');
     setAtQuery('');
     setHighlightIndex(0);
     setAtTriggerIndex(null);
-    setKnowledgeLoadedOnce(false);
-    setKnowledgePage(1);
-    setKnowledgeHasMore(false);
   }, []);
 
   useEffect(() => {
@@ -1003,6 +1006,7 @@ ${context.selected_text}
   const openCommandMenu = useCallback(() => {
     setManualMenuOpen(true);
     setAtMenuOpen(true);
+    setKnowledgePanelOpen(false);
     setAtStage('root');
     setAtQuery('');
     setHighlightIndex(0);
@@ -1034,13 +1038,31 @@ ${context.selected_text}
         requestAnimationFrame(() => inputRef.current?.focus());
         return;
       }
+      setKnowledgePanelOpen(true);
       setAtStage('knowledge');
       setAtQuery('');
       setHighlightIndex(0);
       setAtMenuOpen(true);
-      repositionMenu();
     },
-    [closeAtMenu, repositionMenu, stripCurrentToken]
+    [closeAtMenu, stripCurrentToken]
+  );
+
+  const handleRootHover = useCallback(
+    (option: RootCommandOption, index: number) => {
+      setHighlightIndex(index);
+      if (option.key === 'knowledge') {
+        if (!knowledgePanelOpen || atStage !== 'knowledge') {
+          setKnowledgePanelOpen(true);
+          setAtStage('knowledge');
+        }
+        return;
+      }
+      if (knowledgePanelOpen || atStage === 'knowledge') {
+        setKnowledgePanelOpen(false);
+        setAtStage('root');
+      }
+    },
+    [knowledgePanelOpen, atStage]
   );
 
   const handleKnowledgeSelect = useCallback(
@@ -1297,7 +1319,7 @@ ${selectionContext.selected_text}
                 {optimizationSelected && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                     <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                    optimization
+                    文本自然化
                     <button
                       type="button"
                       className="hover:text-zinc-900 transition-colors"
@@ -1306,7 +1328,7 @@ ${selectionContext.selected_text}
                         e.preventDefault();
                         removeOptimization();
                       }}
-                      aria-label="移除 AI 去痕迹"
+                      aria-label="移除文本自然化"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -1840,7 +1862,7 @@ ${selectionContext.selected_text}
                 {optimizationSelected && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                     <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                    optimization
+                    文本自然化
                     <button
                       type="button"
                       className="hover:text-zinc-900 transition-colors"
@@ -1849,7 +1871,7 @@ ${selectionContext.selected_text}
                         e.preventDefault();
                         removeOptimization();
                       }}
-                    aria-label="\u79fb\u9664 AI \u53bb\u75d5\u8ff9"
+                      aria-label="移除文本自然化"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -1957,46 +1979,108 @@ ${selectionContext.selected_text}
         createPortal(
           <div
             className="fixed z-[1200]"
-            style={{ left: menuPosition.left, top: menuPosition.top, width: menuPosition.width }}
+            style={{
+              left: menuPosition.left,
+              top: menuPosition.top,
+              width: knowledgePanelOpen && atStage === 'knowledge'
+                ? MENU_COLUMN_WIDTH * 2 + MENU_GAP
+                : MENU_COLUMN_WIDTH
+            }}
           >
-            <div
-              ref={menuRef}
-              className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden max-w-[360px] w-full"
-            >
-              <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800/70 text-[12px]">
-                <div className="flex items-center gap-2">
-                  {atStage === 'knowledge' ? (
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setAtStage('root');
-                        setHighlightIndex(0);
-                        setAtQuery('');
-                      }}
-                      className="inline-flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
-                    >
-                      {'\u8fd4\u56de'}
-
-                    </button>
-                  ) : (
-                    <span className="inline-flex items-center text-slate-300">
-                      @ 指令
-                    </span>
-                  )}
+            {atStage === 'knowledge' && knowledgePanelOpen ? (
+              <div ref={menuRef} className="grid grid-cols-2 gap-2 items-start">
+                <div className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden w-full self-start">
+                  <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2">
+                    {filteredRootOptions.length > 0 ? (
+                      filteredRootOptions.map((option, idx) => {
+                        const isHighlighted = knowledgePanelOpen && atStage === 'knowledge'
+                          ? option.key === 'knowledge'
+                          : idx === highlightIndex;
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleRootOption(option)}
+                            onMouseEnter={() => handleRootHover(option, idx)}
+                            className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
+                              isHighlighted
+                                ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
+                                : 'hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-200">{option.icon}</span>
+                              <div className="flex flex-col">
+                                <span className="text-[12px] text-white">{option.label}</span>
+                              </div>
+                            </div>
+                            {option.hasChildren && <ChevronRight className="w-4 h-4 text-slate-400" />}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-3 py-2 text-[12px] text-slate-400">{'\u6ca1\u6709\u5339\u914d\u7684\u6307\u4ee4'}</div>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden w-full -mt-4">
+                  <div ref={knowledgeListRef} className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2">
+                    <div className="space-y-1">
+                      {knowledgeLoading && (
+                        <div className="px-3 py-2 text-[12px] text-slate-400 flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {'\u6b63\u5728\u52a0\u8f7d\u77e5\u8bc6\u5e93\u6587\u6863...'}
+                        </div>
+                      )}
+                      {knowledgeError && !knowledgeLoading && (
+                        <div className="px-3 py-2 text-[12px] text-amber-200">
+                          {knowledgeError}
+                        </div>
+                      )}
+                      {!knowledgeLoading && !knowledgeError && filteredKnowledgeDocs.length === 0 && (
+                        <div className="px-3 py-2 text-[12px] text-slate-400">暂无可用文档</div>
+                      )}
+                      {!knowledgeLoading &&
+                        !knowledgeError &&
+                        filteredKnowledgeDocs.map((doc, idx) => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleKnowledgeSelect(doc)}
+                            onMouseEnter={() => setHighlightIndex(idx)}
+                            className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
+                              idx === highlightIndex
+                                ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
+                                : 'hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Tag className="w-4 h-4 text-slate-200" />
+                              <span className="text-[12px] text-white">{doc.title}</span>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-slate-400 opacity-60" />
+                          </button>
+                        ))}
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div ref={knowledgeListRef} className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2">
-                {atStage === 'root' ? (
-                  filteredRootOptions.length > 0 ? (
+            ) : (
+              <div
+                ref={menuRef}
+                className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden w-full"
+              >
+                <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2">
+                  {filteredRootOptions.length > 0 ? (
                     filteredRootOptions.map((option, idx) => (
                       <button
                         key={option.key}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => handleRootOption(option)}
-                        onMouseEnter={() => setHighlightIndex(idx)}
+                        onMouseEnter={() => handleRootHover(option, idx)}
                         className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
                           idx === highlightIndex
                             ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
@@ -2007,7 +2091,6 @@ ${selectionContext.selected_text}
                           <span className="text-slate-200">{option.icon}</span>
                           <div className="flex flex-col">
                             <span className="text-[12px] text-white">{option.label}</span>
-                            <span className="text-[11px] text-slate-400">{option.description}</span>
                           </div>
                         </div>
                         {option.hasChildren && <ChevronRight className="w-4 h-4 text-slate-400" />}
@@ -2015,49 +2098,10 @@ ${selectionContext.selected_text}
                     ))
                   ) : (
                     <div className="px-3 py-2 text-[12px] text-slate-400">{'\u6ca1\u6709\u5339\u914d\u7684\u6307\u4ee4'}</div>
-                  )
-                ) : (
-                  <div className="space-y-1">
-                    {knowledgeLoading && (
-                      <div className="px-3 py-2 text-[12px] text-slate-400 flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        {'\u6b63\u5728\u52a0\u8f7d\u77e5\u8bc6\u5e93\u6587\u6863...'}
-                      </div>
-                    )}
-                    {knowledgeError && !knowledgeLoading && (
-                      <div className="px-3 py-2 text-[12px] text-amber-200">
-                        {knowledgeError}
-                      </div>
-                    )}
-                    {!knowledgeLoading && !knowledgeError && filteredKnowledgeDocs.length === 0 && (
-                      <div className="px-3 py-2 text-[12px] text-slate-400">暂无可用文档</div>
-                    )}
-                    {!knowledgeLoading &&
-                      !knowledgeError &&
-                      filteredKnowledgeDocs.map((doc, idx) => (
-                        <button
-                          key={doc.id}
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleKnowledgeSelect(doc)}
-                          onMouseEnter={() => setHighlightIndex(idx)}
-                          className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
-                            idx === highlightIndex
-                              ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
-                              : 'hover:bg-slate-800/60'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Tag className="w-4 h-4 text-slate-200" />
-                            <span className="text-[12px] text-white">{doc.title}</span>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-slate-400 opacity-60" />
-                        </button>
-                      ))}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>,
           document.body
         )}

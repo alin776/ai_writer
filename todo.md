@@ -2056,3 +2056,128 @@
 
 - 指令菜单增加外部点击关闭：监听 pointerdown，命中菜单/输入框/＋号触发器时不关闭，其余区域点击即关闭。`src/components/editor/AIPanel.tsx`
 - 修复 closeAtMenu 初始化顺序：将外部点击监听移到 closeAtMenu 定义之后，避免 ReferenceError。`src/components/editor/AIPanel.tsx`
+
+#### 指令文案调整（待确认）
+
+- [x] 定位 @ 指令菜单的文案来源
+- [x] 修改 Knowledge/optimization 的描述文案
+
+#### review
+
+- @Knowledge 描述改为“从知识库中添加”，@optimization 描述改为“文本自然化”。`src/components/editor/AIPanel.tsx`
+
+#### 指令名称中文化（待确认）
+
+- [x] 定位 @ 指令菜单中的英文标签与相关文案
+- [x] 将 @Knowledge/@optimization 标签替换为纯中文显示
+- [x] 评估已选标签是否需要同步中文显示（如 optimization 芯片）
+
+#### review
+
+- 指令菜单标签改为中文：知识库 / 文本自然化，去掉 @ 前缀。`src/components/editor/AIPanel.tsx`
+- 已选标签文案同步中文：optimization 芯片改为“文本自然化”，并更新 aria-label。`src/components/editor/AIPanel.tsx`
+
+#### 指令菜单文案调整（二次）（待确认）
+
+- [x] 将“知识库”标签改为“从知识库中添加”
+- [x] 移除指令菜单中标签下方的描述文本
+- [x] 简要自检菜单排版与行高
+
+#### review
+
+- 指令菜单标签更新为“从知识库中添加”，并移除标签下方的描述行。`src/components/editor/AIPanel.tsx`
+
+#### 子菜单分栏展示（待确认）
+
+- [x] 将“从知识库中添加”子菜单改为独立左侧面板
+- [x] 保留右侧主菜单列表，子菜单打开时两栏并排显示
+- [x] 简要自检高亮与滚动区域
+
+#### review
+
+- 知识库子菜单改为左侧独立面板，主菜单保留在右侧，两栏并排显示。`src/components/editor/AIPanel.tsx`
+- 子菜单列顺序调整：主菜单在左，知识库列表在右。`src/components/editor/AIPanel.tsx`
+
+#### 主菜单宽度调整（待确认）
+
+- [x] 缩窄单栏主菜单的最大宽度
+- [x] 简要自检默认态宽度是否更贴合参考
+
+#### review
+
+- 单栏主菜单最大宽度收窄为 280px，使默认态更紧凑。`src/components/editor/AIPanel.tsx`
+
+#### 主菜单宽度统一（二次）（待确认）
+
+- [x] 单栏主菜单宽度改为与双栏列宽一致
+- [x] 简要自检两种状态宽度一致
+
+#### review
+
+- 单栏主菜单最大宽度调整为 240px，以匹配双栏时的列宽。`src/components/editor/AIPanel.tsx`
+- 主菜单宽度改为常量：单栏 240px，双栏总宽 488px（两列 240 + gap），避免悬浮切换时宽度变化。`src/components/editor/AIPanel.tsx`
+
+#### 移除菜单页眉（待确认）
+
+- [x] 定位主菜单与知识库子菜单的页眉区域
+- [x] 删除 “@ 指令 / 从知识库中添加” 顶部行
+- [x] 简要自检列表顶距与分隔是否自然
+
+#### review
+
+- 主菜单与知识库子菜单的页眉已移除，列表顶部直接对齐内容区。`src/components/editor/AIPanel.tsx`
+
+#### 子菜单上移（待确认）
+
+- [x] 定位双栏状态下的知识库子菜单容器
+- [x] 调整子菜单整体上移（不影响主菜单）
+- [x] 简要自检：顶部间距更紧凑且不遮挡
+
+#### review
+
+- 知识库子菜单整体上移 16px（-mt-4），顶部间距更紧凑。`src/components/editor/AIPanel.tsx`
+
+#### 知识库标题省略（待确认）
+
+- [ ] 定位知识库列表标题渲染位置
+- [ ] 设置单行省略（truncate），避免多行撑高
+- [ ] 简要自检长标题显示效果
+
+#### 双栏高度独立（待确认）
+
+- [x] 防止双栏布局被网格拉伸为同高
+- [x] 简要自检：主菜单高度不随知识库列表变化
+
+#### review
+
+- 双栏网格改为 items-start，并让主菜单列 self-start，避免随右侧列表高度拉伸。`src/components/editor/AIPanel.tsx`
+
+#### 知识库子菜单避免闪动（方案A）（待确认）
+
+- [x] 切换到知识库子菜单时不再重新定位菜单
+- [x] 简要自检：子菜单打开时不再因重算位置闪动
+
+#### review
+
+- 进入知识库子菜单时不再调用 repositionMenu，避免因高度变化导致位置跳动。`src/components/editor/AIPanel.tsx`
+- 子菜单阶段冻结重定位：atStage=knowledge 时跳过重算与测高，防止子菜单加载时闪动。`src/components/editor/AIPanel.tsx`
+
+#### 知识库列表缓存（待确认）
+
+- [x] 关闭菜单时不重置 knowledgeLoadedOnce，保留已加载列表
+- [x] 简要自检：二次打开不再出现加载闪动
+
+#### review
+
+- 关闭菜单时保留知识库加载状态与列表缓存，避免每次打开都重新加载。`src/components/editor/AIPanel.tsx`
+
+#### 知识库子菜单仅点击打开（待确认）
+
+- [x] 增加 knowledgePanelOpen 状态，只在点击“从知识库中添加”时打开
+- [x] 关闭/重新打开菜单时重置子菜单状态
+- [x] 简要自检：仅点击才展开，悬停不触发
+
+#### review
+
+- 子菜单显示增加 knowledgePanelOpen 门闸，确保仅在点击后展开，避免悬停自动展开。`src/components/editor/AIPanel.tsx`
+- 子菜单改为悬浮打开：hover 到“从知识库中添加”时打开面板，hover 其他项时关闭。`src/components/editor/AIPanel.tsx`
