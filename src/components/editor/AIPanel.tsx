@@ -1,14 +1,13 @@
 ﻿import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Tag, X, Copy, Check } from 'lucide-react';
+import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
 import type { AgentChatRequest, TaskSnapshot, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
-import ModeSelector from '../agent/ModeSelector';
 import ActivityStream from '../agent/ActivityStream';  // �?导入ActivityStream
 import { ExecutionFlow } from '../agent/ExecutionFlow';  // �?v5.0: 执行轨迹可视�?
 import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // �?编辑确认对话�?
@@ -433,7 +432,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const { saveDraft, getDraft, clearDraft } = useChatDraftStore();
 
   const [inputValue, setInputValue] = useState('');
-  const [mode, setMode] = useState<AgentMode>('plan'); // �?Agent执行模式：plan(固定规划) | agent(DeepAgent反�?
+  const [mode] = useState<AgentMode>('plan'); // �?Agent执行模式：plan(固定规划) | agent(DeepAgent反�?
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 跟踪是否应该自动滚动
@@ -443,6 +442,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const prevExpandedModeRef = useRef(expandedMode); // 追踪上一次的 expandedMode
 
   const [atMenuOpen, setAtMenuOpen] = useState(false);
+  const [manualMenuOpen, setManualMenuOpen] = useState(false);
   const [atStage, setAtStage] = useState<AtCommandStage>('root');
   const [atQuery, setAtQuery] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -885,6 +885,7 @@ ${context.selected_text}
 
       const lastIndex = Math.max(...AT_CHARS.map((c) => value.lastIndexOf(c, caret - 1)));
       if (lastIndex === -1) {
+        if (manualMenuOpen) return;
         setAtMenuOpen(false);
         return;
       }
@@ -899,9 +900,10 @@ ${context.selected_text}
       setAtTriggerIndex(lastIndex);
       setAtQuery(tokenText);
       setHighlightIndex(0);
+      setManualMenuOpen(false);
       repositionMenu();
     },
-    [repositionMenu]
+    [manualMenuOpen, repositionMenu]
   );
 
   const syncAtStateFromRef = useCallback(() => {
@@ -912,13 +914,15 @@ ${context.selected_text}
   }, [inputValue, updateAtState]);
 
   useEffect(() => {
-    if (!containsAt) {
+    if (!containsAt && !manualMenuOpen) {
       setAtMenuOpen(false);
       setAtStage('root');
       return;
     }
-    syncAtStateFromRef();
-  }, [containsAt, inputValue, syncAtStateFromRef]);
+    if (containsAt) {
+      syncAtStateFromRef();
+    }
+  }, [containsAt, inputValue, manualMenuOpen, syncAtStateFromRef]);
 
   useEffect(() => {
     if (!atMenuOpen) return;
@@ -970,6 +974,7 @@ ${context.selected_text}
 
   const closeAtMenu = useCallback(() => {
     setAtMenuOpen(false);
+    setManualMenuOpen(false);
     setAtStage('root');
     setAtQuery('');
     setHighlightIndex(0);
@@ -978,6 +983,33 @@ ${context.selected_text}
     setKnowledgePage(1);
     setKnowledgeHasMore(false);
   }, []);
+
+  useEffect(() => {
+    if (!atMenuOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (menuRef.current?.contains(target)) return;
+      if (inputRef.current?.contains(target)) return;
+      if (target.closest('[data-command-trigger="true"]')) return;
+      closeAtMenu();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [atMenuOpen, closeAtMenu]);
+
+  const openCommandMenu = useCallback(() => {
+    setManualMenuOpen(true);
+    setAtMenuOpen(true);
+    setAtStage('root');
+    setAtQuery('');
+    setHighlightIndex(0);
+    setAtTriggerIndex(null);
+    repositionMenu();
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [repositionMenu]);
 
   const stripCurrentToken = useCallback(() => {
     const el = inputRef.current;
@@ -1331,13 +1363,19 @@ ${selectionContext.selected_text}
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <ModeSelector
-                mode={mode}
-                onModeChange={setMode}
+              <button
+                type="button"
+                onClick={openCommandMenu}
                 disabled={isLoading}
-                compact
-                className="bg-white dark:bg-slate-800"
-              />
+                data-command-trigger="true"
+                className={`w-10 h-10 rounded-full bg-white text-gray-700 shadow-sm transition-colors flex items-center justify-center ring-1 ring-gray-200/60 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/60 ${
+                  isLoading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                aria-label="打开指令列表"
+                title="指令"
+              >
+                <Plus className="w-4 h-4" strokeWidth={2.5} />
+              </button>
 
               <div className="flex items-center gap-1.5">
                 {isLoading ? (
@@ -1874,13 +1912,19 @@ ${selectionContext.selected_text}
             )}
 
             <div className="flex items-center justify-between gap-2">
-              <ModeSelector
-                mode={mode}
-                onModeChange={setMode}
+              <button
+                type="button"
+                onClick={openCommandMenu}
                 disabled={isLoading}
-                compact
-                className="bg-white dark:bg-slate-800"
-              />
+                data-command-trigger="true"
+                className={`w-10 h-10 rounded-full bg-white text-gray-700 shadow-sm transition-colors flex items-center justify-center ring-1 ring-gray-200/60 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/60 ${
+                  isLoading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                aria-label="打开指令列表"
+                title="指令"
+              >
+                <Plus className="w-4 h-4" strokeWidth={2.5} />
+              </button>
 
               <div className="flex items-center gap-1.5">
                 {isLoading ? (

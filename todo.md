@@ -2012,3 +2012,47 @@
 - INFO.md 里 AI 决策理由反复写“已读取但未获取上下文，需要重新读取”，说明不是“没读到”，而是**认为上下文没拿到**导致重复调用。`INFO.md:30-66`
 - 前台“ReadParagraph: 第1章 · 2段”其实是 read_paragraphs 批量读取的**数量标签**，不是“第2段”。前端标签用 count 渲染（第X章 · {count}段）。`backend/app/services/agent/tools/explore_tools.py:1968-1978`
 - 核心机制：read_paragraphs 会先用 should_read_paragraph 去重，若全部已读就直接报“没有可读取的段落”，但这不会中止 LLM 的工具循环，于是 LLM 继续读同一目标段落。`backend/app/services/agent/tools/explore_tools.py:4061-4081`
+
+#### 替换模式下拉为圆弧＋号（待确认）
+
+- [x] 定位 Plan/Agent 下拉与 @ 指令列表的实际渲染位置
+- [x] 用圆弧＋号按钮替换下拉触发器，点击直接打开 @ 指令列表
+- [x] 适配无 @ 触发时的指令选择逻辑（不误删输入文本）
+- [x] 简要自检交互与样式（按钮、弹层、键盘操作）
+
+#### review
+
+- Plan/Agent 下拉已替换为圆弧＋号按钮，点击直接打开指令列表，空白输入也可正常弹出。`src/components/editor/AIPanel.tsx`
+- 新增 manualMenuOpen 控制与关闭逻辑，避免无 @ 时菜单被自动关闭，同时不影响 @ 触发筛选流程。`src/components/editor/AIPanel.tsx`
+- AIPanel 不再渲染模式切换器，执行模式继续沿用默认 plan（enable_reflection 逻辑未改动）。`src/components/editor/AIPanel.tsx`
+
+#### ＋号按钮加圆弧外圈（待确认）
+
+- [x] 定位 AIPanel 中的圆弧＋号按钮样式
+- [x] 调整默认态样式，给＋号外圈补充圆弧/外环效果
+- [x] 简要自检默认/hover/禁用态显示
+
+#### review
+
+- ＋号按钮默认态新增外环：通过 ring + ring-offset 形成圆弧外圈，在深浅色模式都可见。`src/components/editor/AIPanel.tsx`
+
+#### 单环外圈调整（待确认）
+
+- [x] 定位当前按钮的 border/ring 叠加来源
+- [x] 改为单圈浅描边（去掉 ring-offset 或替换 border）
+- [x] 简要自检默认/hover/禁用态是否只剩单环
+
+#### review
+
+- ＋号按钮改为单圈浅描边：移除 border/offset，仅保留一层淡 ring 作为圆弧外圈。`src/components/editor/AIPanel.tsx`
+
+#### 指令菜单点击外部关闭（待确认）
+
+- [x] 定位 AIPanel 指令菜单的开关逻辑与触发条件
+- [x] 增加点击空白处关闭菜单的监听（排除输入框与菜单本身）
+- [x] 简要自检：有 @ 时点击外部也能关闭，输入框交互不受影响
+
+#### review
+
+- 指令菜单增加外部点击关闭：监听 pointerdown，命中菜单/输入框/＋号触发器时不关闭，其余区域点击即关闭。`src/components/editor/AIPanel.tsx`
+- 修复 closeAtMenu 初始化顺序：将外部点击监听移到 closeAtMenu 定义之后，避免 ReferenceError。`src/components/editor/AIPanel.tsx`
