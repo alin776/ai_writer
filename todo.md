@@ -2,9 +2,25 @@
 
 #### 去掉修订采纳态的撤销按钮（待确认）
 
-- [ ] 定位撤销按钮渲染位置（RevisionCard）并确认仅影响修订胶囊
-- [ ] 移除采纳态的撤销按钮渲染，保持功能逻辑不变
-- [ ] 自检界面状态：采纳态仅显示“修订已采纳”提示
+- [x] 定位撤销按钮渲染位置（RevisionCard）并确认仅影响修订胶囊
+- [x] 移除采纳态的撤销按钮渲染，保持功能逻辑不变
+- [x] 自检界面状态：采纳态仅显示“修订已采纳”提示
+
+#### review
+
+- 已移除修订胶囊“已采纳”态的撤销按钮，仅保留“修订已采纳”提示文本，避免出现不应有的撤销入口。`src/components/agent/ExecutionFlow/RevisionCard.tsx`
+
+#### 采纳修订后空白占位残留排查（待确认）
+
+- [x] 追踪修订标记生成路径（modify/insert/continue），确认空段落可能的产生方式
+- [x] 追踪采纳修订清理路径（applyRevisionDecisionToHtml），核对空段落清理范围与过滤条件
+- [x] 对照截图现象，给出“空白占位残留”的核心原因与证据清单
+
+#### review
+
+- 修改型修订会先给原文加删除标记，再把新内容插在原文后面；当替换文本含换行时走 `insertContent`，会把新内容拆成新段落，导致“原段落只剩删除标记”。`src/components/editor/NovelEditor.tsx:1202-1247`
+- 采纳修订只做“删除 del / 还原 ins / 解包 revisionId”，不做段落合并；空段落清理只扫描**包含修订标记的 `<p>`**，并用 `textContent.trim()` 判空。`src/components/editor/NovelEditor.tsx:190-295`
+- 因此当原段落被清空但仍带编辑器占位字符/尾随 `<br>`、或该空块不是 `<p>` 时，清理不会移除，最终留下“红字消失但空白占位保留”的空行。
 
 #### 重新发送小说素材（待确认）
 
@@ -1887,3 +1903,10 @@
 - 前台轨迹同样重复显示 “ReadParagraph: 第3章 · 第36段”，对应同一轮工具调用被多次触发。`INFO.md:24-50`
 - 代码行为：`should_read_paragraph` 只做“已读去重”并返回 skipped，但 **不会阻止 LLM 决策再次调用**；`read_paragraph` 分支在已读时返回 `{success: True, skipped: True}`，日志只打 success，不展示 skipped，导致看起来像“重复读取”。`backend/app/services/agent/tools/explore_tools.py:795-815,3740-3815`
 - 核心结论：**重复出现是“工具循环决策层没有硬防重 + 日志/前台不展示 skipped”**的结果。系统并非一直重新读文件，而是被 LLM 反复触发同一工具调用，后端多数会直接跳过。触发条件是“目标段落已定位但仍反复强调读取上下文”的任务描述。`backend/app/services/agent/tools/explore_tools.py:2961-3032`
+
+#### 修复：read_paragraph 重复读取（待确认）
+
+- [ ] 在 read_paragraph 成功时记录上下文段落为已读，并追加 ParagraphRead(is_target=False)
+- [ ] skipped 时不再追加空 ParagraphRead/证据，避免误导
+- [ ] 验证 locate_targets 仍只使用 is_target=True（不误用上下文段）
+- [ ] 更新 todo.md review（改动与影响）
