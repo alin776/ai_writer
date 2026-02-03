@@ -22,6 +22,7 @@ import {
   User,
   CheckCheck,
   ExternalLink,
+  BookOpen,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkNavStore } from '../../store/workNavStore';

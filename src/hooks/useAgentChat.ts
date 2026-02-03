@@ -1157,9 +1157,22 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
               // 启动打字机 Worker（如果未启动）
               if (typewriterWorkerRef.current === null) {
-                // V3.4.1 优化：批量更新计数器（每 50 个字符更新一次 UI，避免性能问题）
+                // V3.4.1 优化：批量更新计数器
                 let charsSinceLastUpdate = 0;
-                const BATCH_UPDATE_SIZE = 50; // 每 50 个字符更新一次 UI
+
+                // ✅ 内容感知的动态批量大小：表格/代码块使用更大的批量，减少渲染次数
+                const getDynamicBatchSize = (content: string): number => {
+                  // 检测是否在表格中间（最后 200 字符包含 | 但没有完整的行结束）
+                  const recentContent = content.slice(-200);
+                  const isInTableRow = recentContent.includes('|') && !recentContent.endsWith('\n');
+
+                  // 检测是否包含代码块（只检查标记存在，避免贪心匹配）
+                  const hasCodeBlock = content.includes('```');
+
+                  if (isInTableRow) return 200;   // 表格行中：200 字符更新一次
+                  if (hasCodeBlock) return 150;   // 代码块：150 字符更新一次
+                  return 50;                      // 普通文本：50 字符更新一次
+                };
 
                 const processQueue = () => {
                   if (stopRequestedRef.current || typewriterQueueRef.current.length === 0) {
@@ -1202,8 +1215,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     streamingContent += char;
                     charsSinceLastUpdate++;
 
-                    // V3.4.1 优化：只有达到批量大小时才更新 UI
-                    if (charsSinceLastUpdate >= BATCH_UPDATE_SIZE) {
+                    // ✅ 使用动态批量大小：根据内容类型调整更新频率
+                    const currentBatchSize = getDynamicBatchSize(streamingContent);
+                    if (charsSinceLastUpdate >= currentBatchSize) {
                       const currentSession = sessionManager.getSession(sessionId);
                       const currentMessages = currentSession?.messages || baseMessages;
                       const updated = [...currentMessages];

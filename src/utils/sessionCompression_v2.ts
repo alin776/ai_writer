@@ -7,7 +7,6 @@ import type {
   Message,
   FlowItem,
   ExploreRoundFlowData,
-  ToolFlowData,
   ContentFlowData,
 } from '@/types/agent';
 
@@ -38,7 +37,7 @@ export function compressFlowItems(
 
   // 对于当前会话，选择性压缩
   return flowItems.map((item) => {
-    const compressed = { ...item };
+    const compressed: any = { ...item };
 
     switch (item.type) {
       case 'explore_round': {
@@ -55,14 +54,14 @@ export function compressFlowItems(
       }
 
       case 'tool': {
-        const data = item.data as ToolFlowData;
+        const data = item.data as any;
 
         // 压缩长输出
         if (data.output && typeof data.output === 'string' && data.output.length > 1000) {
           compressed.data = {
             ...data,
             output: data.output.substring(0, 1000) + '\n\n...(已截断，完整内容请查看当前会话)',
-          } as ToolFlowData;
+          };
         }
         break;
       }

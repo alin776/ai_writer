@@ -1,10 +1,12 @@
 /**
  * OutputCard - 最终输出卡片组件
  * 显示续写内容
+ *
+ * 优化：使用 React.memo + useMemo 减少流式输出时的重复渲染
  */
 
 import { Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { OutputFlowData } from '@/types/agent';
@@ -16,7 +18,27 @@ interface OutputCardProps extends OutputFlowData {
   onAddToKnowledge?: () => void;
 }
 
-export function OutputCard({
+/**
+ * 优化的 Markdown 渲染组件
+ * 使用 React.memo 避免父组件更新时的不必要重渲染
+ */
+const MemoizedMarkdown = React.memo(({ content }: { content: string }) => {
+  // 缓存 remarkPlugins 数组，避免每次渲染都创建新数组
+  const plugins = useMemo(() => [remarkGfm], []);
+
+  return (
+    <ReactMarkdown remarkPlugins={plugins}>
+      {content}
+    </ReactMarkdown>
+  );
+}, (prevProps, nextProps) => {
+  // 自定义比较：只有内容变化时才重新渲染
+  return prevProps.content === nextProps.content;
+});
+
+MemoizedMarkdown.displayName = 'MemoizedMarkdown';
+
+function OutputCardInner({
   intro,
   introHighlight,
   title,
@@ -73,6 +95,24 @@ export function OutputCard({
     return /(公告|编号|版本|通知|更新|修订|说明|通告|第[一二三四五六七八九十]+号)/.test(haystack);
   };
 
+  const shouldPreserveIndent = (trimmed: string) => {
+    if (!trimmed) return false;
+    if (/^#{1,6}\s/.test(trimmed)) return true; // headings
+    if (/^>/.test(trimmed)) return true; // blockquote
+    if (/^[-*+]\s/.test(trimmed)) return true; // unordered list
+    if (/^\d+[.)]\s/.test(trimmed)) return true; // ordered list
+    if (/^\|/.test(trimmed)) return true; // tables
+    if (/^(\*{3,}|-{3,}|_{3,})$/.test(trimmed)) return true; // hr
+    return false;
+  };
+
+  const stripLeadingIndent = (line: string) => {
+    if (!line) return line;
+    const trimmed = line.trimStart();
+    if (shouldPreserveIndent(trimmed)) return line;
+    return line.replace(/^[\s\u00a0\u2000-\u200b\u202f\u205f\u3000\uFEFF]+/, '');
+  };
+
   const fix = (line: string) => {
     const bracketed = line.match(/^(\s*)[（(]\s*([0-9]+)\s*[）)]\s*(.+)$/);
     if (bracketed) {
@@ -101,7 +141,8 @@ export function OutputCard({
         if (state.inCode) {
           return { inCode: true, lines: [...state.lines, line] };
         }
-        return { inCode: false, lines: [...state.lines, fix(line)] };
+        const fixed = fix(line);
+        return { inCode: false, lines: [...state.lines, stripLeadingIndent(fixed)] };
       },
       { inCode: false, lines: [] as string[] }
     );
@@ -145,10 +186,8 @@ export function OutputCard({
             <span>正在生成...</span>
           </div>
         ) : (
-          <div className="text-[14px] text-gray-600 dark:text-slate-300 leading-[1.8] [&_p]:mb-2.5 [&_p]:indent-8 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-[15px] [&_h3]:font-medium [&_h3]:mb-2 [&_h4]:text-[14px] [&_h4]:font-medium [&_h4]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_th]:border [&_th]:border-gray-300 [&_th]:dark:border-slate-600 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-100 [&_th]:dark:bg-slate-700 [&_td]:border [&_td]:border-gray-300 [&_td]:dark:border-slate-600 [&_td]:px-3 [&_td]:py-2">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {normalize(content)}
-            </ReactMarkdown>
+          <div className="text-[14px] text-gray-600 dark:text-slate-300 leading-[1.8] [&_p]:mb-2.5 [&_p]:indent-0 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-[15px] [&_h3]:font-medium [&_h3]:mb-2 [&_h4]:text-[14px] [&_h4]:font-medium [&_h4]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_th]:border [&_th]:border-gray-300 [&_th]:dark:border-slate-600 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-100 [&_th]:dark:bg-slate-700 [&_td]:border [&_td]:border-gray-300 [&_td]:dark:border-slate-600 [&_td]:px-3 [&_td]:py-2">
+            <MemoizedMarkdown content={normalize(content)} />
           </div>
         )}
       </div>
@@ -164,3 +203,19 @@ export function OutputCard({
     </div>
   );
 }
+
+/**
+ * 导出的 OutputCard 组件
+ * 使用 React.memo 包裹，只有 props 变化时才重新渲染
+ */
+export const OutputCard = React.memo(OutputCardInner, (prevProps, nextProps) => {
+  // 优化比较：只比较关键 props
+  return (
+    prevProps.content === nextProps.content &&
+    prevProps.intro === nextProps.intro &&
+    prevProps.introHighlight === nextProps.introHighlight &&
+    prevProps.title === nextProps.title
+  );
+});
+
+OutputCard.displayName = 'OutputCard';
