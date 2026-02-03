@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>群聊设置面板 - 预览</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background-color: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .panel-container {
+      width: 320px;
+      background-color: #2b2b2b;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    /* 搜索框 */
+    .search-box {
+      padding: 12px 16px;
+      background-color: #2b2b2b;
+    }
+
+    .search-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      width: 14px;
+      height: 14px;
+      color: #666;
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 8px 12px 8px 32px;
+      background-color: #3d3d3d;
+      border: none;
+      border-radius: 6px;
+      color: #999;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .search-input::placeholder {
+      color: #666;
+    }
+
+    /* 成员网格 */
+    .members-grid {
+      padding: 8px 16px 16px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+
+    .member-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .member-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: cover;
+      background-color: #444;
+    }
+
+    .member-name {
+      font-size: 11px;
+      color: #999;
+      text-align: center;
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .action-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      border: 1px dashed #555;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+      border-color: #888;
+      background-color: #3d3d3d;
+    }
+
+    .action-btn svg {
+      width: 20px;
+      height: 20px;
+      color: #666;
+    }
+
+    /* 设置项容器 */
+    .settings-section {
+      padding: 0 16px;
+    }
+
+    /* 设置项 */
+    .setting-item {
+      padding: 14px 0;
+      border-bottom: 1px solid #3a3a3a;
+    }
+
+    .setting-item:last-child {
+      border-bottom: none;
+    }
+
+    .setting-label {
+      font-size: 14px;
+      color: #e0e0e0;
+      margin-bottom: 4px;
+    }
+
+    .setting-value {
+      font-size: 13px;
+      color: #888;
+    }
+
+    /* 带箭头的设置项 */
+    .setting-item-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid #3a3a3a;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .setting-item-link:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+      margin: 0 -16px;
+      padding: 14px 16px;
+    }
+
+    .setting-item-link .arrow {
+      color: #666;
+      font-size: 18px;
+    }
+
+    /* 开关设置项 */
+    .setting-item-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid #3a3a3a;
+    }
+
+    .toggle-label {
+      font-size: 14px;
+      color: #e0e0e0;
+    }
+
+    .toggle-sublabel {
+      font-size: 14px;
+      color: #888;
+      padding-left: 16px;
+    }
+
+    /* 开关样式 */
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      background-color: #4a4a4a;
+      border-radius: 11px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      flex-shrink: 0;
+    }
+
+    .toggle-switch.active {
+      background-color: #07c160;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      background-color: #fff;
+      border-radius: 50%;
+      transition: transform 0.3s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    .toggle-switch.active::after {
+      transform: translateX(18px);
+    }
+
+    /* 底部按钮区域 */
+    .bottom-actions {
+      padding: 16px;
+      margin-top: 8px;
+    }
+
+    .action-button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 10px;
+    }
+
+    .action-button:last-child {
+      margin-bottom: 0;
+    }
+
+    .action-button.clear {
+      background-color: transparent;
+      color: #888;
+    }
+
+    .action-button.clear:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .action-button.danger {
+      background-color: transparent;
+      color: #ff4d4f;
+    }
+
+    .action-button.danger:hover {
+      background-color: rgba(255, 77, 79, 0.1);
+    }
+
+    /* 分隔线 */
+    .divider {
+      height: 1px;
+      background-color: #3a3a3a;
+      margin: 0 16px;
+    }
+
+    .divider-thick {
+      height: 8px;
+      background-color: #222;
+      margin: 0;
+    }
+
+    /* 标题说明 */
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 20px;
+      font-size: 18px;
+    }
+
+    .note {
+      text-align: center;
+      color: #666;
+      font-size: 12px;
+      margin-top: 16px;
+      max-width: 320px;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>群聊设置面板 - 预览</h1>
+
+    <div class="panel-container">
+      <!-- 搜索框 -->
+      <div class="search-box">
+        <div class="search-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" class="search-input" placeholder="搜索群成员">
+        </div>
+      </div>
+
+      <!-- 成员网格 -->
+      <div class="members-grid">
+        <div class="member-item">
+          <img class="member-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=up" alt="up">
+          <span class="member-name">up</span>
+        </div>
+        <div class="member-item">
+          <img class="member-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=user2" alt="与默...">
+          <span class="member-name">与默...</span>
+        </div>
+        <div class="member-item">
+          <img class="member-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=user3" alt="D">
+          <span class="member-name">D</span>
+        </div>
+        <div class="member-item">
+          <img class="member-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=user4" alt="笑">
+          <span class="member-name">笑</span>
+        </div>
+        <div class="member-item">
+          <img class="member-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=user5" alt="Reda...">
+          <span class="member-name">Reda...</span>
+        </div>
+        <div class="member-item">
+          <img class="member-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=user6" alt="Mr.Ri...">
+          <span class="member-name">Mr.Ri...</span>
+        </div>
+        <!-- 添加按钮 -->
+        <div class="member-item">
+          <button class="action-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+          <span class="member-name">添加</span>
+        </div>
+        <!-- 移出按钮 -->
+        <div class="member-item">
+          <button class="action-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+          <span class="member-name">移出</span>
+        </div>
+      </div>
+
+      <div class="divider-thick"></div>
+
+      <!-- 设置项 -->
+      <div class="settings-section">
+        <!-- 群聊名称 -->
+        <div class="setting-item">
+          <div class="setting-label">群聊名称</div>
+          <div class="setting-value">文枓AI</div>
+        </div>
+
+        <!-- 群公告 -->
+        <div class="setting-item">
+          <div class="setting-label">群公告</div>
+          <div class="setting-value">发布后会通知全部群成员</div>
+        </div>
+      </div>
+
+      <div class="divider-thick"></div>
+
+      <div class="settings-section">
+        <!-- 查找聊天内容 -->
+        <div class="setting-item-link">
+          <span class="setting-label">查找聊天内容</span>
+          <span class="arrow">›</span>
+        </div>
+      </div>
+
+      <div class="divider-thick"></div>
+
+      <div class="settings-section">
+        <!-- 消息免打扰 -->
+        <div class="setting-item-toggle">
+          <span class="toggle-label">消息免打扰</span>
+          <div class="toggle-switch active" onclick="this.classList.toggle('active')"></div>
+        </div>
+      </div>
+
+      <div class="divider-thick"></div>
+
+      <!-- 群主专属操作 -->
+      <div class="settings-section">
+        <div class="setting-item-link">
+          <span class="setting-label">管理成员</span>
+          <span class="arrow">›</span>
+        </div>
+      </div>
+
+      <div class="divider-thick"></div>
+
+      <!-- 底部按钮 -->
+      <div class="bottom-actions">
+        <button class="action-button clear">清空聊天记录</button>
+        <button class="action-button danger">解散频道</button>
+      </div>
+    </div>
+
+    <p class="note">
+      点击开关可以切换状态<br>
+      这是一个静态预览页面，用于确认设计效果
+    </p>
+  </div>
+</body>
+</html>

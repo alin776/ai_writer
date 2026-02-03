@@ -3,7 +3,7 @@
 包括：Character（人物）、Location（地点）、Setting（设定）、WorkGuidelines（作品规范）、AIGuidelines（AI创作规范）
 """
 from pydantic import BaseModel, Field, field_serializer, ConfigDict
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 from uuid import UUID
 
@@ -257,3 +257,18 @@ class ApplyChangesResponse(BaseModel):
     locations_created: int = 0
     settings_created: int = 0
     relationships_created: int = 0
+
+
+class WorldviewScanProgressResponse(BaseModel):
+    """世界观扫描进度响应"""
+    work_id: str
+    status: str = "idle"
+    scan_mode: Optional[str] = None
+    chapters_total: int = 0
+    chapters_processed: int = 0
+    batches_total: int = 0
+    batches_completed: int = 0
+    progress_percentage: float = 0.0
+    results: Optional[Dict[str, int]] = None
+    last_error: Optional[str] = None
+    updated_at: Optional[datetime] = None

@@ -101,6 +101,8 @@ const WorksView: React.FC = () => {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importFormat, setImportFormat] = useState<'json' | 'markdown' | 'txt'>('json');
   const [importPreview, setImportPreview] = useState<ImportPreviewResponse | null>(null);
+  const [autoExtractWorldview, setAutoExtractWorldview] = useState(true);
+  const [worldviewScanMode, setWorldviewScanMode] = useState<'incremental' | 'full'>('incremental');
   const [isImporting, setIsImporting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -515,6 +517,8 @@ const WorksView: React.FC = () => {
     setImportFile(null);
     setImportPreview(null);
     setImportFormat('json');
+    setAutoExtractWorldview(true);
+    setWorldviewScanMode('incremental');
   };
 
   // 关闭导入弹窗
@@ -659,13 +663,14 @@ const WorksView: React.FC = () => {
 
     try {
       setIsImporting(true);
-      const shouldAutoExtractWorldview = importFormat !== 'json';
+      const shouldAutoExtractWorldview = importFormat !== 'json' && autoExtractWorldview;
       const options: ImportOptions = {
         format: importFormat,
         createNew: true,
         includeWorldview: true,
         includeGuidelines: true,
         autoExtractWorldview: shouldAutoExtractWorldview,
+        worldviewScanMode: shouldAutoExtractWorldview ? worldviewScanMode : undefined,
       };
 
       const result = await DataService.importWork(importFile, options);
@@ -694,6 +699,7 @@ const WorksView: React.FC = () => {
             worldData: worldData,
           },
           autoExtractWorldview: shouldAutoExtractWorldview,
+          worldviewScanMode,
         }
       });
     } catch (error: any) {
@@ -1233,8 +1239,8 @@ const WorksView: React.FC = () => {
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
         >
-          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide rounded-2xl" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ transform: 'skewX(2deg)' }} className="p-6">
+          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[80vh] overflow-hidden rounded-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 overflow-y-auto scrollbar-hide">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base text-gray-900 dark:text-gray-100">{t('works.import.title')}</h2>
@@ -1262,7 +1268,7 @@ const WorksView: React.FC = () => {
                   onDragLeave={handleDragLeave}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
-                  className={`border-2 border-dashed p-8 text-center transition-colors ${
+                  className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${
                     isPreviewing || isImporting
                       ? 'opacity-50 cursor-not-allowed border-gray-300 dark:border-gray-600'
                       : isDraggingFile
@@ -1296,6 +1302,48 @@ const WorksView: React.FC = () => {
                 <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>Markdown</strong>：{t('works.import.markdownFormat').replace('Markdown格式：', '').replace('Markdown: ', '')}</p>
                 <p className="text-gray-600 dark:text-gray-400"><strong>TXT</strong>：{t('works.import.txtFormat').replace('TXT格式：', '').replace('TXT: ', '')}</p>
               </div>
+
+              {(importFormat === 'markdown' || importFormat === 'txt') && (
+                <div className="mb-3 p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300" style={{ fontSize: '12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={autoExtractWorldview}
+                      onChange={(e) => setAutoExtractWorldview(e.target.checked)}
+                    />
+                    自动解析世界观（AI 提取人物/地点/设定）
+                  </div>
+                  <p className="text-gray-400 dark:text-gray-500 mt-1" style={{ fontSize: '11px' }}>
+                    开启后将使用 AI 分析章节内容，自动创建人物、地点、设定卡片
+                  </p>
+
+                  <div className={`mt-2 space-y-1 ${autoExtractWorldview ? '' : 'opacity-50 pointer-events-none'}`}>
+                    <label className="flex items-start gap-2 text-gray-600 dark:text-gray-400" style={{ fontSize: '12px' }}>
+                      <input
+                        type="radio"
+                        name="worldviewScanMode"
+                        checked={worldviewScanMode === 'incremental'}
+                        onChange={() => setWorldviewScanMode('incremental')}
+                      />
+                      <span>仅解析本次新增章节（推荐）</span>
+                    </label>
+                    <p className="text-gray-400 dark:text-gray-500 ml-6" style={{ fontSize: '11px' }}>成本更低，追加导入不会漏新章。</p>
+
+                    <label className="flex items-start gap-2 text-gray-600 dark:text-gray-400 mt-1" style={{ fontSize: '12px' }}>
+                      <input
+                        type="radio"
+                        name="worldviewScanMode"
+                        checked={worldviewScanMode === 'full'}
+                        onChange={() => setWorldviewScanMode('full')}
+                      />
+                      <span>解析全书（耗时更久）</span>
+                    </label>
+                    <p className="text-gray-400 dark:text-gray-500 ml-6" style={{ fontSize: '11px' }}>
+                      按章节分批解析，不截断；适合首次整书导入。
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* 预览加载中 */}
               {isPreviewing && (

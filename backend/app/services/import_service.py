@@ -62,11 +62,11 @@ class ImportService:
         content: bytes,
         user_id: UUID,
         options: ImportOptions
-    ) -> tuple[ImportResponse, list[Dict[str, Any]]]:
+    ) -> tuple[ImportResponse, list[Dict[str, Any]], Dict[str, Any]]:
         """导入作品
 
         Returns:
-            (ImportResponse, List[Dict]): 导入结果与需异步向量化的章节任务
+            (ImportResponse, List[Dict], Dict): 导入结果、需异步向量化的章节任务、导入上下文
         """
         try:
             if options.format == "json":
@@ -202,7 +202,7 @@ class ImportService:
         content: bytes,
         user_id: UUID,
         options: ImportOptions
-    ) -> tuple[ImportResponse, list[Dict[str, Any]]]:
+    ) -> tuple[ImportResponse, list[Dict[str, Any]], Dict[str, Any]]:
         """导入JSON格式"""
         logger.info(f"用户 {user_id} 开始导入JSON数据")
         
@@ -407,6 +407,8 @@ class ImportService:
                 )
         
         logger.info(f"导入完成: 作品ID={work.id}, 章节={chapters_created}, 人物={characters_created}")
+
+        import_context = self._build_import_context(created_chapters)
         
         return (
             ImportResponse(
@@ -415,9 +417,11 @@ class ImportService:
                 characters_created=characters_created,
                 locations_created=locations_created,
                 settings_created=settings_created,
-                message="导入成功"
+                message="导入成功",
+                import_context=import_context
             ),
-            vectorize_jobs
+            vectorize_jobs,
+            import_context
         )
     
     async def _import_text(
@@ -426,7 +430,7 @@ class ImportService:
         user_id: UUID,
         options: ImportOptions,
         append_to: Optional[str] = None
-    ) -> tuple[ImportResponse, list[Dict[str, Any]]]:
+    ) -> tuple[ImportResponse, list[Dict[str, Any]], Dict[str, Any]]:
         """导入文本/Markdown格式"""
         logger.info(f"用户 {user_id} 开始导入文本数据")
 
@@ -436,6 +440,9 @@ class ImportService:
         metadata = self._extract_metadata(text)
         title = metadata['title']
         description = metadata['description']
+
+        # 解析前言/设定段落（仅用于世界观解析）
+        preface_text = self._extract_preface_for_scan(text)
 
         # 分割章节
         chapters = self._split_chapters(text)
@@ -559,14 +566,18 @@ class ImportService:
                 )
         
         logger.info(f"文本导入完成: 作品ID={work.id}, 章节={chapters_created}")
+
+        import_context = self._build_import_context(created_chapters, preface_text=preface_text)
         
         return (
             ImportResponse(
                 work_id=work.id,
                 chapters_created=chapters_created,
-                message="导入成功"
+                message="导入成功",
+                import_context=import_context
             ),
-            vectorize_jobs
+            vectorize_jobs,
+            import_context
         )
 
     def _smart_decode(self, content: bytes) -> str:
@@ -678,6 +689,76 @@ class ImportService:
             'title': title,
             'description': description,
             'content_start_line': content_start_line
+        }
+
+    def _extract_preface_for_scan(self, text: str) -> str:
+        """提取章节标题之前的前言/设定内容（用于世界观解析）"""
+        if not text:
+            return ""
+
+        lines = text.split('\n')
+
+        # 章节标题正则
+        chapter_patterns = [
+            r'^【第[零一二三四五六七八九十百千万\d]+[章回节]',
+            r'^第[零一二三四五六七八九十百千万\d]+[章回节]',
+            r'^Chapter\s+\d+',
+            r'^##\s+',
+        ]
+        compiled_patterns = [re.compile(p, re.IGNORECASE) for p in chapter_patterns]
+
+        chapter_index = None
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if any(p.match(stripped) for p in compiled_patterns):
+                chapter_index = idx
+                break
+
+        if chapter_index is None:
+            return ""
+
+        preface_lines = lines[:chapter_index]
+        metadata = self._extract_metadata(text)
+        title = (metadata.get('title') or '').strip()
+
+        intro_pattern = r'^(简介|内容简介|作品简介|摘要)[\s：:]*$'
+        intro_inline_pattern = r'^(简介|内容简介|作品简介|摘要)[\s：:]+(.+)$'
+
+        cleaned = []
+        for line in preface_lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if title and (stripped == title or stripped == f'# {title}'):
+                continue
+            if re.match(intro_pattern, stripped):
+                continue
+            inline_match = re.match(intro_inline_pattern, stripped)
+            if inline_match:
+                cleaned.append(inline_match.group(2).strip())
+                continue
+            cleaned.append(stripped)
+
+        return '\n'.join(cleaned).strip()
+
+    def _build_import_context(self, chapters: List[Chapter], preface_text: Optional[str] = None) -> Dict[str, Any]:
+        """构建导入上下文（用于世界观解析）"""
+        if not chapters:
+            return {
+                "chapter_ids": [],
+                "chapter_order_start": None,
+                "chapter_order_end": None,
+                "preface_text": preface_text
+            }
+
+        orders = [c.order for c in chapters if c.order is not None]
+        return {
+            "chapter_ids": [str(c.id) for c in chapters if c.id],
+            "chapter_order_start": min(orders) if orders else None,
+            "chapter_order_end": max(orders) if orders else None,
+            "preface_text": preface_text
         }
     
     def _split_chapters(self, text: str) -> List[Dict[str, str]]:

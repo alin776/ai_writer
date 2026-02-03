@@ -7,7 +7,7 @@
 import logging
 import json
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable, Awaitable, Tuple
 from uuid import UUID
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,8 +21,10 @@ from app.models.relationship import EntityRelationship
 from app.services.worldview_service import WorldviewService
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.redis_client import redis_client
-from app.schemas.worldview import CharacterCreate, LocationCreate, SettingCreate
+from app.schemas.worldview import CharacterCreate, CharacterUpdate, LocationCreate, SettingCreate
 from app.services.chapter_content_provider import ChapterContentProvider
+from app.utils.text_cleaner import TextCleaner
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -110,57 +112,80 @@ class WorldviewSyncService:
                 "relationship_changes": [...]
             }
         """
-        # 获取章节列表
-        stmt = select(Chapter).where(
-            Chapter.work_id == work_id
-        ).order_by(Chapter.order)
+        chapters = await self.get_chapters_by_range(
+            work_id=work_id,
+            start_chapter=start_chapter,
+            end_chapter=end_chapter,
+            limit=limit
+        )
 
+        changes, _meta = await self._scan_chapters_batched(
+            work_id=work_id,
+            chapters=chapters,
+            preface_text=None,
+            progress_callback=None
+        )
+        return changes
+
+    async def scan_chapters_for_changes_by_ids(
+        self,
+        work_id: str,
+        chapter_ids: List[str],
+        preface_text: Optional[str] = None,
+        progress_callback: Optional[Callable[[int, int, int, int], Awaitable[None]]] = None
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """按章节ID批量扫描（用于导入解析）"""
+        chapters = await self.get_chapters_by_ids(work_id, chapter_ids)
+        return await self._scan_chapters_batched(
+            work_id=work_id,
+            chapters=chapters,
+            preface_text=preface_text,
+            progress_callback=progress_callback
+        )
+
+    async def get_chapters_by_work(self, work_id: str) -> List[Chapter]:
+        result = await self.db.execute(
+            select(Chapter).where(Chapter.work_id == work_id).order_by(Chapter.order)
+        )
+        return result.scalars().all()
+
+    async def get_chapters_by_ids(self, work_id: str, chapter_ids: List[str]) -> List[Chapter]:
+        if not chapter_ids:
+            return []
+        result = await self.db.execute(
+            select(Chapter).where(
+                Chapter.work_id == work_id,
+                Chapter.id.in_(chapter_ids)
+            ).order_by(Chapter.order)
+        )
+        return result.scalars().all()
+
+    async def get_chapters_by_range(
+        self,
+        work_id: str,
+        start_chapter: int,
+        end_chapter: Optional[int],
+        limit: int
+    ) -> List[Chapter]:
+        stmt = select(Chapter).where(Chapter.work_id == work_id).order_by(Chapter.order)
         if start_chapter:
             stmt = stmt.where(Chapter.order >= start_chapter)
         if end_chapter:
             stmt = stmt.where(Chapter.order <= end_chapter)
-
-        stmt = stmt.limit(limit)
-
+        if limit:
+            stmt = stmt.limit(limit)
         result = await self.db.execute(stmt)
-        chapters = result.scalars().all()
+        return result.scalars().all()
 
-        if not chapters:
-            return {
-                "scanned_chapters": 0,
-                "new_characters": [],
-                "updated_characters": [],
-                "new_locations": [],
-                "new_settings": [],
-                "relationship_changes": []
-            }
-
-        # 合并所有章节内容
-        combined_content = ""
-        for chapter in chapters:
-            content = self.content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
-            logger.debug(f"[世界观同步] 章节 {chapter.order} '{chapter.title}': 内容长度={len(content)}")
-            if content:
-                combined_content += f"\n\n【第{chapter.order}章 {chapter.title}】\n{content}"
-
-        logger.debug(f"[世界观同步] 合并 {len(chapters)} 个章节，总内容长度: {len(combined_content)}")
-        logger.debug(f"[世界观同步] 内容预览: {combined_content[:500]}...")
-
-        # 如果没有内容，返回空结果
-        if len(combined_content) < 100:
-            logger.warning(f"[世界观同步] 章节内容过少 ({len(combined_content)} 字符)，无法分析")
-            return {
-                "scanned_chapters": len(chapters),
-                "new_characters": [],
-                "updated_characters": [],
-                "new_locations": [],
-                "new_settings": [],
-                "relationship_changes": []
-            }
-
-        # 限制内容长度
-        if len(combined_content) > 50000:
-            combined_content = combined_content[:50000] + "\n...[内容截断]"
+    async def _scan_chapters_batched(
+        self,
+        work_id: str,
+        chapters: List[Chapter],
+        preface_text: Optional[str],
+        progress_callback: Optional[Callable[[int, int, int, int], Awaitable[None]]]
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        if not chapters and not preface_text:
+            return self._empty_changes_with_scan(0), {"batches_total": 0}
 
         # 获取现有世界观
         existing_characters = await self.worldview_service.get_characters_by_work(work_id)
@@ -171,15 +196,36 @@ class WorldviewSyncService:
             existing_characters, existing_locations, existing_settings
         )
 
-        # AI 批量提取
-        changes = await self._ai_batch_extract_changes(
-            combined_content=combined_content,
-            existing_summary=existing_summary,
-            chapter_count=len(chapters)
+        batches = self._build_scan_batches(
+            chapters=chapters,
+            preface_text=preface_text,
+            max_chapters_per_batch=settings.WORLDVIEW_SCAN_BATCH_CHAPTERS,
+            max_chars_per_batch=settings.WORLDVIEW_SCAN_BATCH_MAX_CHARS
         )
 
-        changes["scanned_chapters"] = len(chapters)
-        return changes
+        total_chapters = len({str(c.id) for c in chapters if c.id})
+        total_batches = len(batches)
+        processed_ids: set[str] = set()
+
+        merged = self._empty_changes_with_scan(0)
+        for idx, batch in enumerate(batches):
+            changes = await self._ai_batch_extract_changes(
+                combined_content=batch["combined_content"],
+                existing_summary=existing_summary,
+                chapter_count=batch["chapter_count"]
+            )
+            merged = self._merge_changes(merged, changes)
+            processed_ids.update(batch["chapter_ids"])
+            if progress_callback:
+                await progress_callback(
+                    len(processed_ids),
+                    total_chapters,
+                    idx + 1,
+                    total_batches
+                )
+
+        merged["scanned_chapters"] = len(chapters)
+        return merged, {"batches_total": total_batches, "chapters_total": total_chapters}
 
     async def apply_changes(
         self,
@@ -207,7 +253,9 @@ class WorldviewSyncService:
             "characters_created": 0,
             "characters_updated": 0,
             "locations_created": 0,
+            "locations_updated": 0,
             "settings_created": 0,
+            "settings_updated": 0,
             "relationships_created": 0
         }
 
@@ -234,6 +282,36 @@ class WorldviewSyncService:
                 logger.info(f"[世界观同步] 创建人物: {char['name']}")
             except Exception as e:
                 logger.error(f"创建人物失败 {char['name']}: {e}")
+
+        # 应用人物变化（追加式更新）
+        updated_characters = changes.get("updated_characters", [])
+        if updated_characters:
+            existing_characters = await self.worldview_service.get_characters_by_work(work_id)
+            char_map = {c.name: c for c in existing_characters}
+            for char in updated_characters:
+                name = char.get("name")
+                changes_text = char.get("changes")
+                if not name or not changes_text:
+                    continue
+                if selected_items and "updated_characters" in selected_items and name not in selected_items.get("updated_characters", []):
+                    continue
+                target = char_map.get(name)
+                if not target:
+                    continue
+                existing_desc = target.description or ""
+                marker = f"更新：{changes_text}"
+                if marker in existing_desc:
+                    continue
+                new_desc = f"{existing_desc}\n{marker}".strip()
+                try:
+                    await self.worldview_service.update_character(
+                        str(target.id),
+                        CharacterUpdate(description=new_desc)
+                    )
+                    stats["characters_updated"] += 1
+                    logger.info(f"[世界观同步] 更新人物: {name}")
+                except Exception as e:
+                    logger.error(f"更新人物失败 {name}: {e}")
 
         # 应用新地点
         new_locations = changes.get("new_locations", [])
@@ -355,6 +433,160 @@ class WorldviewSyncService:
             ['characters', 'locations', 'settings', 'guidelines']
         )
         return stats
+
+    def _build_scan_batches(
+        self,
+        chapters: List[Chapter],
+        preface_text: Optional[str],
+        max_chapters_per_batch: int,
+        max_chars_per_batch: int
+    ) -> List[Dict[str, Any]]:
+        """构建分批扫描内容（不截断，超长章节拆分）"""
+        batches: List[Dict[str, Any]] = []
+        current_blocks: List[str] = []
+        current_len = 0
+        current_ids: List[str] = []
+
+        def flush():
+            nonlocal current_blocks, current_len, current_ids
+            if not current_blocks:
+                return
+            batches.append({
+                "combined_content": "\n\n".join(current_blocks),
+                "chapter_count": len({cid for cid in current_ids}),
+                "chapter_ids": list({cid for cid in current_ids})
+            })
+            current_blocks = []
+            current_len = 0
+            current_ids = []
+
+        # 前言/设定段落只放入首个批次
+        if preface_text:
+            preface_clean = TextCleaner.html_to_clean_text(preface_text, preserve_structure=True)
+            if preface_clean:
+                block = f"【前言/设定】\n{preface_clean}"
+                current_blocks.append(block)
+                current_len += len(block)
+
+        for chapter in chapters:
+            content = self.content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
+            if not content:
+                continue
+            clean_content = TextCleaner.html_to_clean_text(content, preserve_structure=True)
+            if not clean_content:
+                continue
+
+            parts = []
+            if max_chars_per_batch and len(clean_content) > max_chars_per_batch:
+                # 超长章节拆分为多个片段
+                for idx in range(0, len(clean_content), max_chars_per_batch):
+                    parts.append(clean_content[idx:idx + max_chars_per_batch])
+            else:
+                parts = [clean_content]
+
+            for part_idx, part in enumerate(parts):
+                suffix = f"（片段{part_idx + 1}/{len(parts)}）" if len(parts) > 1 else ""
+                block = f"【第{chapter.order}章 {chapter.title}{suffix}】\n{part}"
+
+                if current_blocks and (
+                    (max_chapters_per_batch and len({cid for cid in current_ids}) >= max_chapters_per_batch) or
+                    (max_chars_per_batch and current_len + len(block) > max_chars_per_batch)
+                ):
+                    flush()
+
+                current_blocks.append(block)
+                current_len += len(block)
+                if chapter.id:
+                    current_ids.append(str(chapter.id))
+
+        flush()
+        return batches
+
+    def _merge_changes(self, base: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, Any]:
+        """合并多批次的世界观变化结果"""
+        merged = {
+            "new_characters": [],
+            "updated_characters": [],
+            "new_locations": [],
+            "new_settings": [],
+            "relationship_changes": [],
+            "scanned_chapters": base.get("scanned_chapters", 0)
+        }
+
+        def importance_rank(value: Optional[str]) -> int:
+            mapping = {"高": 3, "中": 2, "低": 1}
+            return mapping.get(value or "", 0)
+
+        def merge_entity(existing: Dict[str, Any], new: Dict[str, Any], text_field: str) -> Dict[str, Any]:
+            if new.get(text_field) and (not existing.get(text_field) or len(new.get(text_field, "")) > len(existing.get(text_field, ""))):
+                existing[text_field] = new.get(text_field)
+            for field in ["role", "type", "category", "first_appearance"]:
+                if field in new and new.get(field) and not existing.get(field):
+                    existing[field] = new.get(field)
+            if "importance" in new and importance_rank(new.get("importance")) > importance_rank(existing.get("importance")):
+                existing["importance"] = new.get("importance")
+            if "tags" in new and new.get("tags"):
+                existing_tags = set(existing.get("tags") or [])
+                existing["tags"] = list(existing_tags.union(set(new.get("tags") or [])))
+            return existing
+
+        def merge_list(field: str, key_field: str, text_field: str):
+            items = {}
+            for item in base.get(field, []):
+                items[item.get(key_field)] = dict(item)
+            for item in incoming.get(field, []):
+                key = item.get(key_field)
+                if not key:
+                    continue
+                if key in items:
+                    items[key] = merge_entity(items[key], item, text_field)
+                else:
+                    items[key] = dict(item)
+            merged[field] = list(items.values())
+
+        merge_list("new_characters", "name", "description")
+        merge_list("new_locations", "name", "description")
+        merge_list("new_settings", "title", "content")
+
+        # 更新人物变化合并
+        updated_map = {}
+        for item in base.get("updated_characters", []):
+            updated_map[item.get("name")] = item.get("changes", "")
+        for item in incoming.get("updated_characters", []):
+            name = item.get("name")
+            changes = item.get("changes")
+            if not name or not changes:
+                continue
+            if name in updated_map and changes not in updated_map[name]:
+                updated_map[name] = f"{updated_map[name]}\n{changes}".strip()
+            else:
+                updated_map[name] = changes
+        merged["updated_characters"] = [{"name": name, "changes": changes} for name, changes in updated_map.items()]
+
+        # 关系变化合并
+        rel_map = {}
+        for item in base.get("relationship_changes", []):
+            key = f"{item.get('from_character') or item.get('from')}->{item.get('to_character') or item.get('to')}"
+            rel_map[key] = dict(item)
+        for item in incoming.get("relationship_changes", []):
+            key = f"{item.get('from_character') or item.get('from')}->{item.get('to_character') or item.get('to')}"
+            if key in rel_map:
+                rel_map[key].update(item)
+            else:
+                rel_map[key] = dict(item)
+        merged["relationship_changes"] = list(rel_map.values())
+
+        return merged
+
+    def _empty_changes_with_scan(self, scanned: int) -> Dict[str, Any]:
+        return {
+            "new_characters": [],
+            "updated_characters": [],
+            "new_locations": [],
+            "new_settings": [],
+            "relationship_changes": [],
+            "scanned_chapters": scanned
+        }
 
     def _invalidate_worldview_cache(self, work_id: str, cache_types: Optional[List[str]] = None) -> None:
         """Invalidate worldview-related cache entries after background sync."""
@@ -485,7 +717,7 @@ class WorldviewSyncService:
 {existing_summary}
 
 【待分析内容】
-{combined_content[:40000]}
+{combined_content}
 
 【任务要求】
 请综合分析所有章节，识别出：

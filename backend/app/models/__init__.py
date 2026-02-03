@@ -73,6 +73,7 @@ from app.models.user_report import UserReport, UserReportReason, UserReportStatu
 from app.models.rating import WorkRating
 from app.models.bookshelf import Bookshelf
 from app.models.worldview_progress import WorldviewExtractionProgress
+from app.models.worldview_scan_progress import WorldviewScanProgress
 
 __all__ = [
     "User",
@@ -182,4 +183,5 @@ __all__ = [
     "CommentReport",
     "ReportReason",
     "WorldviewExtractionProgress",
+    "WorldviewScanProgress",
 ]

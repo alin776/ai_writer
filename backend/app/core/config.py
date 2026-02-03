@@ -238,6 +238,10 @@ class Settings(BaseSettings):
     WORLDVIEW_LOCATION_BATCH_SIZE: int = 15  # 地点批次大小
     WORLDVIEW_SETTING_BATCH_SIZE: int = 10  # 设定批次大小
 
+    # 世界观扫描（导入解析）配置
+    WORLDVIEW_SCAN_BATCH_CHAPTERS: int = 10  # 每批次最大章节数
+    WORLDVIEW_SCAN_BATCH_MAX_CHARS: int = 40000  # 每批次最大字符数
+
     # 重试机制配置
     WORLDVIEW_BATCH_MAX_RETRIES: int = 3  # 单批次失败最大重试次数
     WORLDVIEW_RETRY_DELAY: int = 5  # 重试延迟（秒）

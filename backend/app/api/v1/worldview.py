@@ -23,7 +23,7 @@ from app.schemas.worldview import (
     WorldDataResponse,
     # 世界观同步相关
     WorldviewChangesResponse, ExtractChangesRequest, ScanChangesRequest,
-    ApplyChangesRequest, ApplyChangesResponse
+    ApplyChangesRequest, ApplyChangesResponse, WorldviewScanProgressResponse
 )
 from app.services.worldview_service import WorldviewService
 from app.services.ai_guidelines_service import AIGuidelinesService
@@ -1426,6 +1426,44 @@ async def apply_worldview_changes(
     _invalidate_worldview_cache(work_id, ['characters', 'locations', 'settings'])
 
     return ApplyChangesResponse(**stats)
+
+
+@router.get("/works/{work_id}/worldview/scan-progress", response_model=WorldviewScanProgressResponse)
+async def get_worldview_scan_progress(
+    work_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取世界观扫描进度（导入解析）"""
+    from app.services.worldview_scan_progress_service import WorldviewScanProgressService
+
+    # 验证作品权限
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    progress_service = WorldviewScanProgressService(db)
+    progress = await progress_service.get_progress(work_id)
+    if not progress:
+        return WorldviewScanProgressResponse(work_id=work_id, status="idle")
+
+    data = progress.to_dict()
+    return WorldviewScanProgressResponse(
+        work_id=data.get("work_id", work_id),
+        status=data.get("status", "idle"),
+        scan_mode=data.get("scan_mode"),
+        chapters_total=data.get("chapters_total", 0),
+        chapters_processed=data.get("chapters_processed", 0),
+        batches_total=data.get("batches_total", 0),
+        batches_completed=data.get("batches_completed", 0),
+        progress_percentage=data.get("progress_percentage", 0.0),
+        results=data.get("results"),
+        last_error=data.get("last_error"),
+        updated_at=progress.updated_at
+    )
 
 
 # ==================== AI 生成实体描述 ====================

@@ -18,41 +18,84 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-async def _extract_worldview_from_chapters(work_id: str, user_id: str):
+async def _extract_worldview_from_chapters(
+    work_id: str,
+    user_id: str,
+    scan_mode: str = "incremental",
+    chapter_ids: Optional[list[str]] = None,
+    preface_text: Optional[str] = None
+):
     """后台任务：从导入的章节中提取世界观"""
     try:
         from app.services.worldview_sync_service import WorldviewSyncService
+        from app.services.worldview_scan_progress_service import WorldviewScanProgressService
         from app.core.database import async_session_maker
 
         logger.info(f"[世界观提取] 开始为作品 {work_id} 提取世界观")
 
         async with async_session_maker() as db_session:
             sync_service = WorldviewSyncService(db_session, user_id=user_id)
+            progress_service = WorldviewScanProgressService(db_session)
 
-            # 扫描所有章节
-            changes = await sync_service.scan_chapters_for_changes(
+            # 解析章节范围
+            if scan_mode == "full":
+                chapters = await sync_service.get_chapters_by_work(work_id)
+            else:
+                chapters = await sync_service.get_chapters_by_ids(work_id, chapter_ids or [])
+
+            chapters_total = len(chapters)
+            await progress_service.start_progress(
                 work_id=work_id,
-                start_chapter=1,
-                end_chapter=None,
-                limit=50  # 最多扫描50章
+                scan_mode=scan_mode,
+                chapters_total=chapters_total,
+                metadata={
+                    "chapter_ids": chapter_ids or [],
+                    "preface_included": bool(preface_text)
+                }
+            )
+
+            if not chapters:
+                await progress_service.mark_completed(work_id)
+                logger.info(f"[世界观提取] 未找到可解析的章节")
+                return
+
+            # 扫描章节（分批）
+            changes, scan_meta = await sync_service.scan_chapters_for_changes_by_ids(
+                work_id=work_id,
+                chapter_ids=[str(ch.id) for ch in chapters],
+                preface_text=preface_text,
+                progress_callback=progress_service.update_progress
             )
 
             scanned = changes.get("scanned_chapters", 0)
             new_chars = len(changes.get("new_characters", []))
+            updated_chars = len(changes.get("updated_characters", []))
             new_locs = len(changes.get("new_locations", []))
             new_sets = len(changes.get("new_settings", []))
+            rel_changes = len(changes.get("relationship_changes", []))
 
             logger.info(f"[世界观提取] 扫描完成: {scanned}章, 发现 {new_chars}人物, {new_locs}地点, {new_sets}设定")
 
             # 如果有发现，自动应用
-            if new_chars > 0 or new_locs > 0 or new_sets > 0:
+            if new_chars > 0 or updated_chars > 0 or new_locs > 0 or new_sets > 0 or rel_changes > 0:
                 stats = await sync_service.apply_changes(work_id, changes)
+                await progress_service.update_results(work_id, stats)
                 logger.info(f"[世界观提取] 应用完成: {stats}")
             else:
                 logger.info(f"[世界观提取] 未发现新的世界观元素")
+                await progress_service.update_results(work_id, {})
+
+            await progress_service.mark_completed(work_id, extra={"scanned_chapters": scanned, **(scan_meta or {})})
 
     except Exception as e:
         logger.error(f"[世界观提取] 提取失败: work_id={work_id}, error={e}", exc_info=True)
+        try:
+            from app.services.worldview_scan_progress_service import WorldviewScanProgressService
+            from app.core.database import async_session_maker
+            async with async_session_maker() as db_session:
+                await WorldviewScanProgressService(db_session).mark_failed(work_id, str(e))
+        except Exception:
+            logger.error(f"[世界观提取] 记录失败状态失败: work_id={work_id}", exc_info=True)
 
 
 @router.post("/works/import/preview", response_model=ImportPreviewResponse)
@@ -125,6 +168,7 @@ async def import_work(
     include_worldview: bool = Form(True),
     include_guidelines: bool = Form(True),
     auto_extract_worldview: bool = Form(False),
+    worldview_scan_mode: str = Form("incremental"),
     work_id: Optional[str] = Form(None),
     background_tasks: BackgroundTasks = None,
     current_user: User = Depends(get_current_user),
@@ -163,7 +207,9 @@ async def import_work(
             )
         
         logger.info(f"用户 {current_user.id} 导入文件: {file.filename}, 格式: {format}")
-        logger.info(f"[导入参数] auto_extract_worldview={auto_extract_worldview}, format={format}, background_tasks={background_tasks is not None}")
+        if worldview_scan_mode not in ["incremental", "full"]:
+            worldview_scan_mode = "incremental"
+        logger.info(f"[导入参数] auto_extract_worldview={auto_extract_worldview}, scan_mode={worldview_scan_mode}, format={format}, background_tasks={background_tasks is not None}")
         
         # 构建导入选项
         options = ImportOptions(
@@ -171,14 +217,15 @@ async def import_work(
             create_new=create_new,
             work_id=work_id,
             include_worldview=include_worldview,
-            include_guidelines=include_guidelines
+            include_guidelines=include_guidelines,
+            worldview_scan_mode=worldview_scan_mode
         )
         
         # 创建导入服务
         import_service = ImportService(db)
         
         # 执行导入
-        result, vectorize_jobs = await import_service.import_work(
+        result, vectorize_jobs, import_context = await import_service.import_work(
             content=content,
             user_id=current_user.id,
             options=options
@@ -195,10 +242,22 @@ async def import_work(
             background_tasks.add_task(
                 _extract_worldview_from_chapters,
                 work_id=str(result.work_id),
-                user_id=str(current_user.id)
+                user_id=str(current_user.id),
+                scan_mode=worldview_scan_mode or "incremental",
+                chapter_ids=import_context.get("chapter_ids") if import_context else None,
+                preface_text=import_context.get("preface_text") if import_context else None
             )
             result.message = (result.message or "导入成功") + "，世界观提取已排队"
             logger.info(f"[世界观提取] 已为作品 {result.work_id} 排队世界观提取任务")
+
+        # 回填导入上下文给前端（不包含前言全文）
+        if import_context:
+            result.import_context = {
+                "chapter_ids": import_context.get("chapter_ids", []),
+                "chapter_order_start": import_context.get("chapter_order_start"),
+                "chapter_order_end": import_context.get("chapter_order_end"),
+                "scan_mode": worldview_scan_mode or "incremental"
+            }
         
         logger.info(
             f"导入成功: 作品ID={result.work_id}, "

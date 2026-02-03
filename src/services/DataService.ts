@@ -42,7 +42,7 @@ import type {
 } from '@/types';
 import type { ChapterRevision } from '@/types/revision';
 import type { SearchResponse } from '@/types/search';
-import type { WorldData, Setting, Character, Location, WorldviewChanges, ApplyChangesResult } from '@/types/novel';
+import type { WorldData, Setting, Character, Location, WorldviewChanges, ApplyChangesResult, WorldviewScanProgress } from '@/types/novel';
 import type {
   ExportOptions,
   ExportResponse,
@@ -1152,12 +1152,23 @@ class DataServiceClass {
     formData.append('include_worldview', String(options.includeWorldview));
     formData.append('include_guidelines', String(options.includeGuidelines));
     formData.append('auto_extract_worldview', String(options.autoExtractWorldview ?? false));
+    if (options.worldviewScanMode) {
+      formData.append('worldview_scan_mode', options.worldviewScanMode);
+    }
 
     if (options.workId) {
       formData.append('work_id', options.workId);
     }
 
     return this.adapter.post('/works/import', formData);
+  }
+
+  /**
+   * 获取世界观扫描进度（导入解析）
+   * @param workId 作品ID
+   */
+  async getWorldviewScanProgress(workId: string): Promise<WorldviewScanProgress> {
+    return this.adapter.get(`/works/${workId}/worldview/scan-progress`);
   }
 
   // ==================== 时间线相关方法 ====================

@@ -2763,11 +2763,21 @@
 
 #### 彻底修：导入解析世界观（待确认）
 
-- [ ] 增加“导入上下文”返回新增章节范围/ID，后台解析仅扫描本次新增章节，支持追加导入
-- [ ] 世界观扫描改为分批处理 + 去重合并，支持按章节ID扫描；导入时可选“全书扫描”则遍历全书分批解析（不再截断）
-- [ ] 解析输入先转纯文本（HTML 清洗），可选纳入“前言/设定”段落
-- [ ] apply_changes 补齐 `updated_characters` 的更新逻辑（必要时扩展到地点/设定）
-- [ ] 增加后台解析进度/结果查询接口，前端导入后轮询并自动刷新世界观数据 + 状态提示
+- [x] 增加“导入上下文”返回新增章节范围/ID，后台解析仅扫描本次新增章节，支持追加导入
+- [x] 世界观扫描改为分批处理 + 去重合并，支持按章节ID扫描；导入时可选“全书扫描”则遍历全书分批解析（不再截断）
+- [x] 解析输入先转纯文本（HTML 清洗），可选纳入“前言/设定”段落
+- [x] apply_changes 补齐 `updated_characters` 的更新逻辑（必要时扩展到地点/设定）
+- [x] 增加后台解析进度/结果查询接口，前端导入后轮询并自动刷新世界观数据 + 状态提示
+
+#### review
+
+- 导入响应新增 import_context（章节ID/顺序范围），后台解析按“新增章节”扫描；支持选择全书扫描，追加导入不再从第1章扫。`backend/app/schemas/export.py`、`backend/app/services/import_service.py`、`backend/app/api/v1/import_routes.py`、`src/types/export.ts`
+- 世界观扫描改为按章节分批解析、去重合并，不再 50章/5万字截断；解析前统一 HTML 清洗，首批可纳入“前言/设定”文本。`backend/app/services/worldview_sync_service.py`、`backend/app/services/import_service.py`、`backend/app/core/config.py`
+- apply_changes 补齐 updated_characters 的追加更新逻辑，并在导入解析中即使只有更新/关系也会应用。`backend/app/services/worldview_sync_service.py`、`backend/app/api/v1/import_routes.py`
+- 增加扫描进度表与接口，前端导入后轮询进度并自动刷新世界观数据。`backend/app/models/worldview_scan_progress.py`、`backend/app/services/worldview_scan_progress_service.py`、`backend/app/api/v1/worldview.py`、`src/views/WorkDetailView/index.tsx`
+- 新增导入弹窗“世界观解析”配置区（自动解析 + 新增/全书），并透传 scan_mode。`src/components/import/ImportDialog.tsx`、`src/views/WorksView/index.tsx`、`src/services/DataService.ts`
+- 新增 Alembic 迁移创建 worldview_scan_progress 表。`backend/alembic/versions/20260203_0001_add_worldview_scan_progress.py`
+- 修复 WorldviewScanProgressResponse 缺少 Dict 导入导致启动报错。`backend/app/schemas/worldview.py`
 
 #### 文本自然化日志与链路核验（待确认）
 
@@ -2785,7 +2795,7 @@
 - 补充可观测性日志：agent_chat_stream 标记 use_optimization 进入规划链路；operate_apply 增加 humanize start/done 日志（含强度与长度）。
 - 新证据显示执行走 StandardTool 路径（Backend.md 记录了 `TaskRunner 使用统一接口调用未知工具: operate_apply` 与 `[StandardTool] operate_apply 执行成功`），但 ToolExecutor 的 **StandardTool 预处理分支**未把 `context.use_optimization` 注入 `operate_apply` 参数，导致写回时仍是 `use_optimization=false`，humanize 不会触发也不会产生日志。
 - 已修复 StandardTool 分支的透传：`prepare_params` 中 operate_apply 现在会从 `state.context` 注入 `use_optimization` 与强度，并打印启用日志，确保 humanize 能真正触发。`backend/app/services/agent/execution/tool_executor.py`
-- [ ] 前端导入弹窗增加“世界观解析”配置区（自动解析开关 + 扫描范围：新增章节/全书），并把参数传给后端
+- [x] 前端导入弹窗增加“世界观解析”配置区（自动解析开关 + 扫描范围：新增章节/全书），并把参数传给后端
 
 #### 导入作品页面预览 HTML（待确认）
 
@@ -2798,3 +2808,39 @@
 #### review
 
 - 新增静态预览页用于确认导入弹窗布局与“世界观解析”配置区样式，包含自动解析开关、扫描范围选择、导入预览与解析进度占位；样式对齐现有 ImportDialog.css 的浅色/暗色配色与按钮形态。`preview/import-worldview-preview.html`
+
+#### 导入上传框圆角调整（待确认）
+
+- [x] 定位导入作品弹窗的文件拖拽区域样式（WorksView/ImportDialog）
+- [x] 将上传框调整为更圆的圆角，保持现有边框/状态样式不变
+- [x] 自检：暗色/浅色与拖拽态显示正常
+
+#### review
+
+- 导入作品上传框改为更圆的圆角：WorksView 拖拽区域加 `rounded-2xl`，ImportDialog 的 `.file-upload-area` 半径提升到 16px，预览页同步。`src/views/WorksView/index.tsx`、`src/components/import/ImportDialog.css`、`preview/import-worldview-preview.html`
+
+#### 导入弹窗外框去斜切（待确认）
+
+- [x] 定位导入弹窗外框的斜切/倾斜样式来源
+- [x] 移除导入弹窗外框的 skew 变换，保持内部布局不变
+- [x] 自检：弹窗边角恢复“正常直角/圆角”，不再倾斜
+
+#### review
+
+- 导入弹窗外框去斜切：移除外层容器 `skewX(-2deg)` 与内部反向 `skewX(2deg)`，恢复正常矩形圆角外框。`src/views/WorksView/index.tsx`
+
+#### 导入弹窗高度限制（待确认）
+
+- [x] 定位导入弹窗外层高度与滚动控制逻辑
+- [x] 限制弹窗高度不超过视口，并在内容区启用内部滚动
+- [x] 自检：小屏不溢出，滚动条出现在弹窗内部
+
+#### review
+
+- 导入弹窗改为视口高度限制：外层 `max-h-[80vh]` + `overflow-hidden`，内容区 `overflow-y-auto`，小屏不溢出且滚动条在弹窗内。`src/views/WorksView/index.tsx`
+
+#### 导入弹窗显示世界观解析进度（待确认）
+
+- [ ] 梳理导入完成后的弹窗关闭逻辑与跳转逻辑（WorksView）
+- [ ] 导入后不立即关闭弹窗：在弹窗内展示解析进度（轮询 scan-progress），提供“关闭/继续后台”按钮
+- [ ] 解析完成/失败时更新提示，并允许跳转到作品详情页

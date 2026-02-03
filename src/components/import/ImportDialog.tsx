@@ -41,6 +41,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
     includeWorldview: true,
     includeGuidelines: true,
     autoExtractWorldview: true,
+    worldviewScanMode: 'incremental' as 'incremental' | 'full',
   });
   const [importMode, setImportMode] = useState<'new' | 'existing'>('new');
   const [targetWorkId, setTargetWorkId] = useState<string>('');
@@ -148,6 +149,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
         includeWorldview: options.includeWorldview,
         includeGuidelines: options.includeGuidelines,
         autoExtractWorldview: options.autoExtractWorldview,
+        worldviewScanMode: options.autoExtractWorldview ? options.worldviewScanMode : undefined,
         workId: importMode === 'existing' ? targetWorkId : undefined,
       };
 
@@ -448,6 +450,32 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
               <p className="option-hint">
                 开启后将使用 AI 分析章节内容，自动创建人物、地点、设定卡片
               </p>
+            </div>
+            <div className="import-options" style={{ opacity: options.autoExtractWorldview ? 1 : 0.5, pointerEvents: options.autoExtractWorldview ? 'auto' : 'none' }}>
+              <label>
+                <input
+                  type="radio"
+                  name="worldviewScanMode"
+                  checked={options.worldviewScanMode === 'incremental'}
+                  onChange={() =>
+                    setOptions({ ...options, worldviewScanMode: 'incremental' })
+                  }
+                />
+                仅解析本次新增章节（推荐）
+              </label>
+              <p className="option-hint">成本更低，追加导入不会漏新章。</p>
+              <label>
+                <input
+                  type="radio"
+                  name="worldviewScanMode"
+                  checked={options.worldviewScanMode === 'full'}
+                  onChange={() =>
+                    setOptions({ ...options, worldviewScanMode: 'full' })
+                  }
+                />
+                解析全书（耗时更久）
+              </label>
+              <p className="option-hint">按章节分批解析，不截断；适合首次整书导入。</p>
             </div>
           </div>
         )}

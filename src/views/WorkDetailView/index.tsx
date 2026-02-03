@@ -159,27 +159,60 @@ const WorkDetailView: React.FC = () => {
     if (!workId || !autoExtractFromImport || hasWorldviewCards) return;
 
     let cancelled = false;
-    const delays = [2000, 6000, 12000, 25000, 45000];
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    let notified = false;
+    let idleAttempts = 0;
+    const maxIdleAttempts = 5;
+    const interval = 3000;
+    let timer: ReturnType<typeof setInterval> | null = null;
 
-    const run = async (index: number) => {
-      if (cancelled) return;
-      const hasNewCards = await refreshWorldData();
-      if (hasNewCards || cancelled) return;
-      if (index < delays.length - 1) {
-        timer = setTimeout(() => run(index + 1), delays[index + 1]);
+    const poll = async () => {
+      if (cancelled || !workId) return;
+      try {
+        const progress = await DataService.getWorldviewScanProgress(workId);
+
+        if (progress.status === 'idle') {
+          idleAttempts += 1;
+          const hasNewCards = await refreshWorldData();
+          if (hasNewCards || idleAttempts >= maxIdleAttempts) {
+            if (timer) clearInterval(timer);
+          }
+          return;
+        }
+
+        if (progress.status === 'running' || progress.status === 'pending') {
+          if (!notified) {
+            showToast('info', '世界观解析进行中...');
+            notified = true;
+          }
+          return;
+        }
+
+        if (progress.status === 'completed') {
+          await refreshWorldData();
+          showToast('success', '世界观解析完成，已更新世界观');
+          if (timer) clearInterval(timer);
+          return;
+        }
+
+        if (progress.status === 'failed') {
+          showToast('error', progress.lastError || '世界观解析失败');
+          if (timer) clearInterval(timer);
+        }
+      } catch (error) {
+        console.warn('[WorkDetailView] 获取世界观解析进度失败:', error);
       }
     };
 
-    timer = setTimeout(() => run(0), delays[0]);
+    timer = setInterval(poll, interval);
+    poll();
 
     return () => {
       cancelled = true;
       if (timer) {
-        clearTimeout(timer);
+        clearInterval(timer);
       }
     };
-  }, [workId, autoExtractFromImport, hasWorldviewCards, refreshWorldData]);
+  }, [workId, autoExtractFromImport, hasWorldviewCards, refreshWorldData, showToast]);
   // 世界观面板初始 tab（用于搜索导航定位）
   const [worldviewInitialTab, setWorldviewInitialTab] = useState<'characters' | 'places' | 'settings' | undefined>(undefined);
   // 世界观面板目标项 ID（用于搜索导航滚动定位）

@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>导入作品 - 世界观解析配置（预览）</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: #0f172a;
+      color: #ccc;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+
+    /* 遮罩层 - 与 ExportDialog 一致 */
+    .import-dialog-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    /* 对话框主体 - 与 ExportDialog 一致 */
+    .import-dialog {
+      background: #1e1e1e;
+      border-radius: 12px;
+      width: 92%;
+      max-width: 780px;
+      max-height: 86vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      animation: slideUp 0.3s ease-out;
+    }
+
+    .import-dialog-body {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    /* 头部 - 与 ExportDialog 一致 */
+    .import-dialog-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid #333;
+    }
+
+    .import-dialog-header h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    /* 关闭按钮 - 与 ExportDialog 一致 */
+    .close-button {
+      background: none;
+      border: none;
+      color: #999;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      font-size: 20px;
+      line-height: 1;
+      transition: all 0.2s;
+    }
+
+    .close-button:hover {
+      color: #fff;
+      background: #333;
+    }
+
+    /* 表单区块 - 与 ExportDialog 一致 */
+    .form-section {
+      padding: 20px 24px;
+      border-bottom: 1px solid #333;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .form-section h3 {
+      margin: 0 0 2px 0;
+      font-size: 14px;
+      font-weight: 500;
+      color: #999;
+      text-transform: uppercase;
+    }
+
+    /* 导入模式选择 */
+    .import-mode {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 4px 0;
+    }
+
+    .import-mode label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 2px solid #333;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #ccc;
+      background: transparent;
+      transition: all 0.2s;
+    }
+
+    .import-mode label:hover {
+      border-color: #444;
+      background: #252525;
+    }
+
+    .import-mode label:has(input:checked) {
+      border-color: #3b82f6;
+      background: #1e3a5f;
+      color: #fff;
+    }
+
+    .import-mode input[type="radio"] {
+      margin: 0;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    /* 作品选择下拉框 */
+    .select-work {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 14px;
+      color: #ccc;
+    }
+
+    .select-work select {
+      padding: 10px 12px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #252525;
+      color: #ccc;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .select-work select:focus {
+      border-color: #3b82f6;
+    }
+
+    /* 文件上传区域 */
+    .file-upload-area {
+      border: 2px dashed #333;
+      border-radius: 16px;
+      padding: 28px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: transparent;
+    }
+
+    .file-upload-area:hover {
+      border-color: #444;
+      background: #252525;
+    }
+
+    .file-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      color: #999;
+    }
+
+    .file-placeholder .icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: #1e3a5f;
+      color: #3b82f6;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .file-placeholder p {
+      margin: 0;
+      font-size: 15px;
+      color: #ccc;
+    }
+
+    .file-placeholder span {
+      font-size: 13px;
+      color: #666;
+    }
+
+    /* 格式选择器 - 与 ExportDialog format-options 一致 */
+    .format-selector {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .format-selector label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 2px solid #333;
+      border-radius: 8px;
+      background: transparent;
+      color: #ccc;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .format-selector label:hover {
+      border-color: #444;
+      background: #252525;
+    }
+
+    .format-selector label:has(input:checked) {
+      border-color: #3b82f6;
+      background: #1e3a5f;
+      color: #fff;
+    }
+
+    /* 导入选项 - 与 ExportDialog export-options 一致 */
+    .import-options {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .import-options label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #ccc;
+      cursor: pointer;
+      padding: 8px 0;
+      font-size: 14px;
+    }
+
+    .import-options input[type="checkbox"],
+    .import-options input[type="radio"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .option-hint {
+      margin: -4px 0 0 28px;
+      font-size: 12px;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    /* 预览区块 */
+    .preview-section {
+      background: #252525;
+    }
+
+    .preview-info {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .preview-item {
+      display: flex;
+      gap: 8px;
+      line-height: 1.5;
+    }
+
+    .preview-item .label {
+      color: #999;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .preview-item strong,
+    .preview-item span {
+      color: #ccc;
+      font-size: 14px;
+    }
+
+    .preview-item strong {
+      color: #fff;
+    }
+
+    /* 统计数据 */
+    .preview-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+      padding: 14px;
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 8px;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stat strong {
+      font-size: 22px;
+      color: #3b82f6;
+    }
+
+    .stat span {
+      font-size: 12px;
+      color: #999;
+    }
+
+    /* 章节预览 */
+    .chapters-preview {
+      margin-top: 4px;
+    }
+
+    .chapters-preview h4 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #ccc;
+    }
+
+    .chapter-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .chapter-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 6px;
+    }
+
+    .chapter-item.more {
+      justify-content: center;
+      color: #666;
+      font-style: italic;
+    }
+
+    .chapter-title {
+      color: #ccc;
+      font-size: 14px;
+    }
+
+    .chapter-words {
+      color: #666;
+      font-size: 13px;
+    }
+
+    /* 进度条 */
+    .progress {
+      margin-top: 10px;
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .progress-label {
+      font-size: 13px;
+      color: #999;
+      margin-bottom: 8px;
+    }
+
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: #333;
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      height: 100%;
+      width: 42%;
+      background: #3b82f6;
+    }
+
+    /* 底部按钮区 - 与 ExportDialog 一致 */
+    .import-dialog-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 20px 24px;
+    }
+
+    /* 按钮样式 - 与 ExportDialog 一致 */
+    .button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .button-secondary {
+      background: #333;
+      color: #ccc;
+    }
+
+    .button-secondary:hover:not(:disabled) {
+      background: #444;
+    }
+
+    /* 主按钮使用蓝色 - 与系统主色一致 */
+    .button-primary {
+      background: #3b82f6;
+      color: #fff;
+    }
+
+    .button-primary:hover:not(:disabled) {
+      background: #2563eb;
+    }
+
+    /* 动画 */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ========== 亮色模式 ========== */
+    .light .import-dialog-overlay {
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    .light .import-dialog {
+      background: #ffffff;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .light .import-dialog-header {
+      border-bottom-color: #e5e7eb;
+    }
+
+    .light .import-dialog-header h2 {
+      color: #111827;
+    }
+
+    .light .close-button {
+      color: #6b7280;
+    }
+
+    .light .close-button:hover {
+      color: #111827;
+      background: #f3f4f6;
+    }
+
+    .light .form-section {
+      border-bottom-color: #e5e7eb;
+    }
+
+    .light .form-section h3 {
+      color: #6b7280;
+    }
+
+    .light .import-mode label,
+    .light .format-selector label {
+      background: #f9fafb;
+      border-color: #e5e7eb;
+      color: #374151;
+    }
+
+    .light .import-mode label:hover,
+    .light .format-selector label:hover {
+      background: #f3f4f6;
+      border-color: #d1d5db;
+    }
+
+    .light .import-mode label:has(input:checked),
+    .light .format-selector label:has(input:checked) {
+      border-color: #3b82f6;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .light .select-work {
+      color: #374151;
+    }
+
+    .light .select-work select {
+      background: #ffffff;
+      border-color: #e5e7eb;
+      color: #374151;
+    }
+
+    .light .file-upload-area {
+      background: #f9fafb;
+      border-color: #e5e7eb;
+    }
+
+    .light .file-upload-area:hover {
+      background: #f3f4f6;
+      border-color: #d1d5db;
+    }
+
+    .light .file-placeholder p {
+      color: #374151;
+    }
+
+    .light .file-placeholder span {
+      color: #9ca3af;
+    }
+
+    .light .file-placeholder .icon {
+      background: #eff6ff;
+      color: #3b82f6;
+    }
+
+    .light .import-options label {
+      color: #374151;
+    }
+
+    .light .option-hint {
+      color: #9ca3af;
+    }
+
+    .light .preview-section {
+      background: #f9fafb;
+    }
+
+    .light .preview-item .label {
+      color: #6b7280;
+    }
+
+    .light .preview-item strong {
+      color: #111827;
+    }
+
+    .light .preview-item span {
+      color: #374151;
+    }
+
+    .light .preview-stats {
+      background: #ffffff;
+      border-color: #e5e7eb;
+    }
+
+    .light .stat span {
+      color: #6b7280;
+    }
+
+    .light .chapters-preview h4 {
+      color: #374151;
+    }
+
+    .light .chapter-item {
+      background: #ffffff;
+      border-color: #e5e7eb;
+    }
+
+    .light .chapter-item.more {
+      color: #9ca3af;
+    }
+
+    .light .chapter-title {
+      color: #374151;
+    }
+
+    .light .chapter-words {
+      color: #9ca3af;
+    }
+
+    .light .progress {
+      background: #ffffff;
+      border-color: #e5e7eb;
+    }
+
+    .light .progress-label {
+      color: #6b7280;
+    }
+
+    .light .bar {
+      background: #e5e7eb;
+    }
+
+    .light .button-secondary {
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .light .button-secondary:hover:not(:disabled) {
+      background: #e5e7eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="import-dialog-overlay">
+    <div class="import-dialog" role="dialog" aria-modal="true">
+      <div class="import-dialog-header">
+        <h2>导入作品</h2>
+        <button class="close-button">×</button>
+      </div>
+
+      <div class="import-dialog-body">
+        <div class="form-section">
+          <h3>选择文件</h3>
+
+          <div class="import-mode">
+            <label>
+              <input type="radio" name="importMode" checked />
+              创建新作品
+            </label>
+            <label>
+              <input type="radio" name="importMode" />
+              追加到已有作品
+            </label>
+          </div>
+
+          <label class="select-work">
+            选择作品：
+            <select>
+              <option>请选择</option>
+              <option>示例作品一</option>
+              <option>示例作品二</option>
+            </select>
+          </label>
+
+          <div class="file-upload-area">
+            <div class="file-placeholder">
+              <div class="icon">↑</div>
+              <p>点击选择文件或拖拽到此处</p>
+              <span>支持 .json / .md / .txt 格式</span>
+            </div>
+          </div>
+
+          <div class="format-selector">
+            <label>
+              <input type="radio" name="format" checked />
+              JSON（完整导入）
+            </label>
+            <label>
+              <input type="radio" name="format" />
+              Markdown（智能分段）
+            </label>
+            <label>
+              <input type="radio" name="format" />
+              TXT（智能分段）
+            </label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>世界观解析</h3>
+          <div class="import-options">
+            <label>
+              <input type="checkbox" checked />
+              自动解析世界观（AI 提取人物/地点/设定）
+            </label>
+            <div class="option-hint">开启后将使用 AI 分析章节内容，自动创建人物、地点、设定卡片</div>
+          </div>
+
+          <div class="import-options" style="margin-top: 6px;">
+            <label>
+              <input type="radio" name="scanRange" checked />
+              仅解析本次新增章节（推荐）
+            </label>
+            <div class="option-hint">成本更低，追加导入不会漏新章。</div>
+            <label>
+              <input type="radio" name="scanRange" />
+              解析全书（耗时更久）
+            </label>
+            <div class="option-hint">按章节分批解析，不截断；适合首次整书导入。</div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>导入选项（JSON）</h3>
+          <div class="import-options">
+            <label>
+              <input type="checkbox" checked />
+              导入世界观数据（人物/地点/设定）
+            </label>
+            <label>
+              <input type="checkbox" checked />
+              导入创作规范
+            </label>
+          </div>
+        </div>
+
+        <div class="form-section preview-section">
+          <h3>导入预览</h3>
+          <div class="preview-info">
+            <div class="preview-item">
+              <span class="label">作品标题：</span>
+              <strong>示例作品标题</strong>
+            </div>
+            <div class="preview-item">
+              <span class="label">简介：</span>
+              <span>这里是简介示例文本，用于展示导入预览效果。</span>
+            </div>
+
+            <div class="preview-stats">
+              <div class="stat"><strong>42</strong><span>章节</span></div>
+              <div class="stat"><strong>1,240,000</strong><span>字数</span></div>
+              <div class="stat"><strong>18</strong><span>人物</span></div>
+              <div class="stat"><strong>9</strong><span>设定</span></div>
+            </div>
+
+            <div class="chapters-preview">
+              <h4>章节列表</h4>
+              <div class="chapter-list">
+                <div class="chapter-item"><span class="chapter-title">第一章 开端</span><span class="chapter-words">3,200字</span></div>
+                <div class="chapter-item"><span class="chapter-title">第二章 转折</span><span class="chapter-words">3,450字</span></div>
+                <div class="chapter-item"><span class="chapter-title">第三章 危机</span><span class="chapter-words">3,180字</span></div>
+                <div class="chapter-item more">...还有 39 章</div>
+              </div>
+            </div>
+
+            <div class="progress">
+              <div class="progress-label">解析进度（导入后显示）</div>
+              <div class="bar"><span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="import-dialog-footer">
+        <button class="button button-secondary">取消</button>
+        <button class="button button-primary">确认导入</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
