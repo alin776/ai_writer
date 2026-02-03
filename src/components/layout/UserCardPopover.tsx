@@ -116,7 +116,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
         left: '12px',
         boxShadow: '0 8px 16px rgba(0, 0, 0, 0.24)',
       }}
-      className="bg-white dark:bg-[#232428]"
+      className="bg-white dark:bg-[#1e293b]"
     >
       {/* 顶部横幅 - 品红色 */}
       <div
@@ -144,14 +144,14 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
           }}
         >
           <div style={{ position: 'relative' }}>
-            <Avatar
-              style={{
-                width: '92px',
-                height: '92px',
-                borderRadius: '50%',
-                overflow: 'visible',
-              }}
-              className="border-[7px] border-white dark:border-[#232428]"
+              <Avatar
+                style={{
+                  width: '92px',
+                  height: '92px',
+                  borderRadius: '50%',
+                  overflow: 'visible',
+                }}
+              className="border-[7px] border-white dark:border-[#1e293b]"
             >
               <AvatarImage
                 src={user.avatar}
@@ -184,7 +184,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
                 background: currentStatusOption.color,
                 zIndex: 6,
               }}
-              className="border-4 border-white dark:border-[#232428]"
+              className="border-4 border-white dark:border-[#1e293b]"
             />
           </div>
         </div>
@@ -225,7 +225,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
         {/* 分隔线 */}
         <div
           style={{ height: '1px', margin: '12px 0' }}
-          className="bg-[#e1e2e4] dark:bg-[#3f4147]"
+          className="bg-[#e1e2e4] dark:bg-[#334155]"
         />
 
         {/* 编辑个人资料 */}
@@ -240,7 +240,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
             cursor: 'pointer',
             transition: 'background 0.15s',
           }}
-          className="hover:bg-[#e8e9eb] dark:hover:bg-[#3f4147]"
+          className="hover:bg-[#e8e9eb] dark:hover:bg-[#334155]"
         >
           <div
             style={{
@@ -289,7 +289,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
               cursor: 'pointer',
               transition: 'background 0.15s',
             }}
-            className="hover:bg-[#e8e9eb] dark:hover:bg-[#3f4147]"
+            className="hover:bg-[#e8e9eb] dark:hover:bg-[#334155]"
           >
             <div
               style={{
@@ -325,7 +325,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
                 boxShadow: '0 8px 16px rgba(0, 0, 0, 0.18)',
                 zIndex: 10,
               }}
-              className="bg-white dark:bg-[#111214] border border-[#e1e2e4] dark:border-[#1e1f22]"
+              className="bg-white dark:bg-[#0f172a] border border-[#e1e2e4] dark:border-[#334155]"
             >
               {statusOptions.map((option) => (
                 <div
@@ -365,7 +365,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
         {/* 分隔线 */}
         <div
           style={{ height: '1px', margin: '8px 0' }}
-          className="bg-[#e1e2e4] dark:bg-[#3f4147]"
+          className="bg-[#e1e2e4] dark:bg-[#334155]"
         />
 
         {/* 个人主页 */}
@@ -380,7 +380,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
             cursor: 'pointer',
             transition: 'background 0.15s',
           }}
-          className="hover:bg-[#e8e9eb] dark:hover:bg-[#3f4147]"
+          className="hover:bg-[#e8e9eb] dark:hover:bg-[#334155]"
         >
           <div
             style={{
@@ -410,7 +410,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
         {/* 分隔线 */}
         <div
           style={{ height: '1px', margin: '8px 0' }}
-          className="bg-[#e1e2e4] dark:bg-[#3f4147]"
+          className="bg-[#e1e2e4] dark:bg-[#334155]"
         />
 
         {/* 管理后台入口 - 仅管理员可见 */}
@@ -426,7 +426,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
               cursor: 'pointer',
               transition: 'background 0.15s',
             }}
-            className="hover:bg-[#e8e9eb] dark:hover:bg-[#3f4147]"
+            className="hover:bg-[#e8e9eb] dark:hover:bg-[#334155]"
           >
             <div
               style={{
@@ -466,7 +466,7 @@ export function UserCardPopover({ isOpen, onClose }: UserCardPopoverProps) {
             cursor: 'pointer',
             transition: 'background 0.15s',
           }}
-          className="hover:bg-[#e8e9eb] dark:hover:bg-[#3f4147]"
+          className="hover:bg-[#e8e9eb] dark:hover:bg-[#334155]"
         >
           <div
             style={{

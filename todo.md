@@ -2369,3 +2369,12 @@
 
 #### review
 - 移除知识库子菜单列表项右侧的小箭头图标，避免视觉干扰。`src/components/editor/AIPanel.tsx`
+
+#### 用户卡片弹窗暗色匹配（待确认）
+
+- [x] 定位 UserCardPopover 弹窗暗色背景/分隔线/hover 的色值
+- [x] 使用全局暗色主题变量替换 discord 灰，保持与整体暗色一致
+- [x] 自检暗色模式下弹窗层级、文字对比与下拉菜单背景
+
+#### review
+- 用户卡片弹窗暗色底色/分隔线/hover 全部对齐项目深色体系：主卡改为 #1e293b、分隔与 hover 改为 #334155，下拉菜单改为 #0f172a + #334155 边框，避免“discord 黑灰”突兀。`src/components/layout/UserCardPopover.tsx`

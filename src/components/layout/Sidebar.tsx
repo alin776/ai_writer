@@ -2,6 +2,7 @@
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
+  BookOpen,
   LibraryBig,
   Settings,
   ChevronLeft,
