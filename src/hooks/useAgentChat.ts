@@ -198,7 +198,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   }, [sessionId, sessionManager]);
 
   useEffect(() => {
-    let cancelled = false;
     // 先确保会话存在，再更新数据
     sessionManager.getOrCreateSession(sessionId, { mode: 'plan' });
 
@@ -223,30 +222,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         mode: persisted.mode || 'plan',
         tasks: restoredTasks  // 恢复任务列表
       });
-    } else if (useBackendSessions) {
-      (async () => {
-        try {
-          const backendMessages = await agentApi.getSessionMessages(sessionId, { order: 'asc', limit: 200 });
-          if (cancelled || backendMessages.length === 0) return;
-
-          const mapped = backendMessages.map((m: any) => ({
-            role: (m.role === 'assistant' ? 'agent' : m.role) as Message['role'],
-            content: m.content,
-            metadata: m.metadata,
-            timestamp: m.created_at || new Date().toISOString()
-          }));
-
-          sessionManager.updateSession(sessionId, {
-            messages: mapped as Message[],
-            conversationId: sessionId,
-            mode: 'plan'
-          });
-          saveSessionRef.current(mapped as Message[], sessionId, { mode: 'plan', workId, chapterId });
-          refreshSessionSnapshot();
-        } catch (error) {
-          console.warn('[useAgentChat] Failed to hydrate session from backend:', error);
-        }
-      })();
     }
     refreshSessionSnapshot();
 
@@ -258,7 +233,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     });
 
     return () => {
-      cancelled = true;
       unsubscribe();
       // 组件卸载时强制持久化当前状态，确保切换章节时数据不丢失
       const currentSession = sessionManager.getSession(sessionId);
@@ -270,7 +244,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         );
       }
     };
-  }, [chapterId, loadSession, refreshSessionSnapshot, sessionId, sessionManager, useBackendSessions, workId]);
+  }, [loadSession, refreshSessionSnapshot, sessionId, sessionManager]);
 
   const sendMessage = useCallback(
     async (request: AgentChatRequest): Promise<AgentChatResponse | null> => {
@@ -425,8 +399,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           const resp = await agentApi.createSession({
             title: '新会话',
             work_id: workId,
-            chapter_id: chapterId,
-            conversation_id: sessionId
+            chapter_id: chapterId
           });
           streamConversationId = resp.conversation_id || resp.session_id || streamConversationId;
           sessionManager.updateSession(sessionId, { conversationId: streamConversationId });
@@ -978,7 +951,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     type: 'summarization',
                     data: {
                       status: 'running',
-                      reason: event.reason,
                       taskClassification: {
                         inputTasks: event.task_classification?.input_tasks || [],
                         outputTasks: event.task_classification?.output_tasks || [],
@@ -1157,9 +1129,23 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
               // 启动打字机 Worker（如果未启动）
               if (typewriterWorkerRef.current === null) {
-                // V3.4.1 优化：批量更新计数器（每 50 个字符更新一次 UI，避免性能问题）
+                // V3.4.1 优化：批量更新计数器
                 let charsSinceLastUpdate = 0;
-                const BATCH_UPDATE_SIZE = 50; // 每 50 个字符更新一次 UI
+
+                // ✅ 内容感知的动态批量大小：表格/代码块使用更大的批量，减少渲染次数
+                const getDynamicBatchSize = (content: string): number => {
+                  // 检测是否包含表格（Markdown 表格语法：| xxx | xxx |）
+                  const hasTable = /\|[^|]+\|[^|]+\|/.test(content);
+                  // 检测是否包含代码块
+                  const hasCodeBlock = /```[\s\S]*/.test(content);
+                  // 检测是否在表格中间（最后 200 字符包含 | 但没有完整的行结束）
+                  const recentContent = content.slice(-200);
+                  const isInTableRow = recentContent.includes('|') && !recentContent.endsWith('\n');
+
+                  if (hasTable || isInTableRow) return 200;  // 表格：200 字符更新一次
+                  if (hasCodeBlock) return 150;              // 代码块：150 字符更新一次
+                  return 50;                                 // 普通文本：50 字符更新一次
+                };
 
                 const processQueue = () => {
                   if (stopRequestedRef.current || typewriterQueueRef.current.length === 0) {
@@ -1202,8 +1188,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     streamingContent += char;
                     charsSinceLastUpdate++;
 
-                    // V3.4.1 优化：只有达到批量大小时才更新 UI
-                    if (charsSinceLastUpdate >= BATCH_UPDATE_SIZE) {
+                    // ✅ 使用动态批量大小：根据内容类型调整更新频率
+                    const currentBatchSize = getDynamicBatchSize(streamingContent);
+                    if (charsSinceLastUpdate >= currentBatchSize) {
                       const currentSession = sessionManager.getSession(sessionId);
                       const currentMessages = currentSession?.messages || baseMessages;
                       const updated = [...currentMessages];
@@ -1653,9 +1640,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           selected_version: selectedVersion
         });
 
-        // 🆕 采纳后派发确认事件，通知 WorkDetailView 刷新列表（覆盖跨章节内容修订）
+        // 🆕 章节操作采纳后派发确认事件，通知 WorkDetailView 刷新列表
         const targetWorkId = (pending as any).work_id || workId;
-        if (approved && targetWorkId) {
+        if (approved && targetWorkId && ['create', 'rename', 'delete'].includes(pending.action_type || '')) {
           window.dispatchEvent(
             new CustomEvent('agent-chapter-confirm', {
               detail: { work_id: targetWorkId }
