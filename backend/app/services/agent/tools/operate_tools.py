@@ -27,6 +27,8 @@ from .tool_registry import register_as_tool
 from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
 from .editor_tools import apply_chapter_edit
 from .chapter_tools import create_chapter, update_chapter_title
+from app.services.ai.humanize_service import HumanizeService
+from app.core.humanize_config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -390,6 +392,53 @@ def get_operator() -> ContentOperator:
     return _operator
 
 
+def _normalize_intensity(value: Optional[str]) -> str:
+    if value in {"light", "medium", "strong"}:
+        return value
+    return "medium"
+
+
+async def _humanize_content_if_needed(content: Optional[str], intensity: Optional[str]) -> Optional[str]:
+    if not content:
+        return content
+
+    try:
+        humanize_conf = get_config()
+        if len(content) > humanize_conf.max_text_chars:
+            logger.warning(
+                "[operate_apply] content too long for humanize (%s > %s), skip",
+                len(content),
+                humanize_conf.max_text_chars
+            )
+            return content
+
+        humanize_service = HumanizeService()
+        detected_patterns = None
+        if humanize_conf.enable_detection and not humanize_conf.should_skip_detection(len(content)):
+            try:
+                detection_result, _ = await humanize_service.detect_ai_traces(content)
+                if detection_result and detection_result.detected_patterns:
+                    detected_patterns = detection_result.detected_patterns
+            except Exception as detect_err:
+                logger.warning(f"[operate_apply] humanize detection failed, continue rewrite: {detect_err}")
+
+        chunks = []
+        async for chunk, _ in humanize_service.humanize_stream(
+            text=content,
+            intensity=_normalize_intensity(intensity),
+            use_nlp_preprocessing=None,
+            detected_patterns=detected_patterns
+        ):
+            if chunk:
+                chunks.append(chunk)
+
+        humanized = "".join(chunks).strip()
+        return humanized or content
+    except Exception as err:
+        logger.error(f"[operate_apply] humanize failed: {err}", exc_info=True)
+        return content
+
+
 # ==================== operate_apply 工具 ====================
 
 @tool
@@ -420,6 +469,8 @@ async def operate_apply(
     work_id: Optional[str] = None,
     content: Optional[str] = None,
     title: Optional[str] = None,
+    use_optimization: bool = False,
+    optimization_intensity: Optional[str] = None,
     original_text: Optional[str] = None,
     target_description: Optional[str] = None,
     paragraph_index: Optional[int] = None,
@@ -439,6 +490,8 @@ async def operate_apply(
         work_id: 作品ID（create 时必填）
         content: AI生成的内容
         title: AI生成的标题（create/title 时使用）
+        use_optimization: 是否对写入内容启用去痕迹
+        optimization_intensity: 去痕迹强度 (light/medium/strong)
         original_text: 原文（仅用于描述，不参与定位）
         target_description: 目标位置描述（仅用于描述，不参与定位）
         paragraph_index: 段落索引（优先级最高的定位方式）
@@ -452,11 +505,30 @@ async def operate_apply(
         JSON 格式的操作结果
     """
     operator = get_operator()
+    content_to_apply = content
+    if use_optimization and content and operation in {"append", "replace", "insert", "content", "create"}:
+        intensity = _normalize_intensity(optimization_intensity)
+        logger.info(
+            "[operate_apply] humanize start: op=%s intensity=%s input_len=%s",
+            operation,
+            intensity,
+            len(content)
+        )
+        content_to_apply = await _humanize_content_if_needed(content, optimization_intensity)
+        output_len = len(content_to_apply) if content_to_apply is not None else 0
+        change_flag = "changed" if content_to_apply != content else "no_change"
+        logger.info(
+            "[operate_apply] humanize done: op=%s output_len=%s %s",
+            operation,
+            output_len,
+            change_flag
+        )
+
     result = await operator.operate(
         operation=operation,
         chapter_id=chapter_id,
         work_id=work_id,
-        content=content,
+        content=content_to_apply,
         title=title,
         original_text=original_text,
         target_description=target_description,
@@ -480,6 +552,8 @@ class OperateApplyInput(ToolInput):
     work_id: Optional[str] = Field(default=None, description="作品ID（create 时必填）")
     content: Optional[str] = Field(default=None, description="AI生成的内容")
     title: Optional[str] = Field(default=None, description="AI生成的标题（create/title 时使用）")
+    use_optimization: bool = Field(default=False, description="是否对写入内容启用去痕迹")
+    optimization_intensity: Optional[str] = Field(default=None, description="去痕迹强度：light/medium/strong")
     original_text: Optional[str] = Field(default=None, description="原文（replace 时用于定位）")
     target_description: Optional[str] = Field(default=None, description="目标位置描述（insert 时用于语义定位）")
     paragraph_index: Optional[int] = Field(default=None, description="段落索引（优先级最高的定位方式）")
@@ -505,6 +579,8 @@ async def operate_apply_executor(input_data: OperateApplyInput) -> OperateApplyO
             "work_id": input_data.work_id,
             "content": input_data.content,
             "title": input_data.title,
+            "use_optimization": input_data.use_optimization,
+            "optimization_intensity": input_data.optimization_intensity,
             "original_text": input_data.original_text,
             "target_description": input_data.target_description,
             "paragraph_index": input_data.paragraph_index,

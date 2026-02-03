@@ -1367,8 +1367,12 @@ async def agent_chat_stream(
                     except Exception as worldview_err:
                         logger.warning(f"[agent_chat_stream] 世界观数据加载失败: {worldview_err}")
 
-                # ✨ 优先处理 @optimization: 直接走去痕迹流程
-                if context.get("use_optimization"):
+                # ✅ use_optimization 仅作为“写入前去痕”的标记，未开启 humanize-only 时继续走规划链路
+                if context.get("use_optimization") and not context.get("optimization_only"):
+                    logger.info("[agent_chat_stream] use_optimization enabled; continue planning chain (optimization_only=False)")
+
+                # ✨ 仅在显式 humanize-only 时才走去痕迹短路
+                if context.get("use_optimization") and context.get("optimization_only"):
                     # 优先使用选中文本，其次使用整章内容
                     humanize_text = context.get("selected_text") or context.get("current_content") or context.get("text") or ""
 

@@ -1,5 +1,17 @@
 # TODO
 
+#### 提取反AI检测规范库（待确认）
+
+- [x] 盘点 `article-writer/spec/presets/anti-ai-detection/` 下全部文件与内容范围
+- [x] 将三份规范完整合并到 `article-writer/反AI检测规范库.md`（保留原文结构并标注来源文件）
+- [x] 对照文件清单复核无遗漏
+- [x] 在 todo.md 追加 review（输出位置与核对结果）
+
+#### review
+
+- 已汇总 `spec/presets/anti-ai-detection/` 下 3 个文件到 `article-writer/反AI检测规范库.md`，保留原文结构并添加来源标注，避免遗漏。
+- 在该目录未发现 `audit-config.json` 或其他规则文件，仅包含 3 个 Markdown 文件（套话库/AI句式库/书面词汇替换库）。
+
 #### 去掉修订采纳态的撤销按钮（待确认）
 
 - [x] 定位撤销按钮渲染位置（RevisionCard）并确认仅影响修订胶囊
@@ -2667,3 +2679,122 @@
 - Planning 阶段除了把“可用探索结果”注入对话历史，也写入 `context.session_artifacts`，使规划后处理能直接读取会话级 artifact 指针。`backend/app/services/agent/langgraph_agent.py`
 - 规划后处理新增自动复用逻辑：在用户未要求“重新/最新/更新”的情况下，若同 work_id 的 artifact 预览覆盖了部分条目，则先插入 `load_explore_artifact(summary)` 任务，并将 `explore_content` 的 target_task/keywords 改为“只补缺失项”。`backend/app/services/agent/planning/plan_generator.py`
 - 当所有条目都已覆盖且无下游 $ref 依赖时，自动移除 explore_content，避免重复探索；若有依赖则保留 explore。`backend/app/services/agent/planning/plan_generator.py`
+
+#### 文本自然化功能深度探索（待确认）
+
+- [x] 通读前端入口与交互（AIPanel/ChatInput/HumanizeView），明确“文本自然化”触发与参数
+- [x] 通读后端接口与执行链路（agent use_optimization + humanize API/Service），确认实际调用与处理流程
+- [x] 汇总关键限制/开关/强度/长度规则与证据
+- [x] 输出直白结论（功能定位、触发方式、真正做了什么、会/不会记录历史）
+
+#### review
+
+- “文本自然化”在编辑器 AIPanel 内是 @ 菜单项，点击后仅设置 `use_optimization`，并显示“文本自然化”胶囊；发送请求时把章节内容截断到 5000 字并写入 `current_content/text`。`src/components/editor/AIPanel.tsx:374-387,637-646,1200-1207,1297-1352,1526-1539`
+- Agent ChatInput 的 @optimization 入口支持强度（light/medium/strong），同时也把 `use_optimization` 与 `intensity` 写入上下文，长度同样按 5000 字截断。`src/components/agent/ChatInput.tsx:60-96,139-154,398-425`
+- 前端明确标注“@optimization 不写 humanize 历史”；后端 agent 在 `use_optimization` 分支内直接走 HumanizeService（检测+改写），并把结果作为会话消息持久化，而不是 humanize 历史会话。`src/hooks/useAgentChat.ts:324-345`、`backend/app/api/v1/agent.py:1370-1472`
+- HumanizeService 支持检测与改写阶段，并默认启用 NLP 预处理；后端配置默认 `max_text_chars=5000`、检测启用、验证默认关闭。`backend/app/services/ai/humanize_service.py:1-199`、`backend/app/core/humanize_config.py:15-38`
+- 去痕迹的具体策略来自 humanize prompts：重点移除 AI 套话/模板化结构、增加口语化与句式变化。`backend/app/services/ai/humanize_prompts.py:181-205`
+
+#### Create/smart* 与文本自然化关系排查（待确认）
+
+- [x] 核对 smart* 工具的分类与数量（Create/Creative），确认是否只有一个创作工具
+- [x] 核对 Create → operate_apply 的写回链路与适用场景（何时写入编辑器）
+- [x] 核对“文本自然化/@optimization”触发链路与是否自动接入 smart* 流程
+- [x] 输出直白结论（是否只有一个 smart*、文本自然化的真实使用时机）
+
+#### review
+
+- smart* 创作类工具不止一个：至少有 `smart_continue`、`smart_rewrite`、`smart_insert`，且全部标记为 `ToolCategory.CREATIVE`（只生成内容，不直接写入）。`backend/app/services/agent/tools/editor_tools.py:1165-1299`
+- Create → operate_apply 的写回链路是系统级规则：CREATIVE 只生成，必须再走 operate_apply 才会写入编辑器；操作类型包括 append/replace/insert/content/create/title。`backend/app/services/agent/prompts/planning_prompts.py:85-107`、`backend/app/services/agent/tools/operate_tools.py:3-103`
+- 文本自然化/@optimization 不会自动进入 smart* 流程；它在 agent chat 的 `use_optimization` 分支里直接调用 HumanizeService（检测+改写），流式返回结果，不经过 smart_* 或 operate_apply。`src/hooks/useAgentChat.ts:324-345`、`backend/app/api/v1/agent.py:1370-1436`
+
+#### 启用文本自然化时“先创作再去痕”改造（待确认）
+
+- [x] 明确规则：@optimization 仅对“写入编辑器”的 smart_* 结果生效；title 不处理
+- [x] 选型实现路径：operate_apply 内部统一后处理（不改变 smart_* → operate_apply 外部链路）
+- [x] 最小实现：透传 use_optimization + intensity 到 operate_apply，并在写入前 Humanize
+- [x] 回归核对：非 @optimization 的创作链路不受影响
+
+#### review
+
+- @optimization 不再强行短路创作链路：仅当 `optimization_only` 显式为真才走“直接去痕迹”分支，其余照常进入 smart_* → operate_apply。`backend/app/api/v1/agent.py`
+- operate_apply 在写入前执行 Humanize：当 `use_optimization` 为真且操作为 append/replace/insert/content/create 时，先检测+改写再写入；title 不处理。`backend/app/services/agent/tools/operate_tools.py`
+- ToolExecutor 透传 `use_optimization` 与强度到 operate_apply（默认 medium），保证外部任务链路不变，只在写入前去痕。`backend/app/services/agent/execution/tool_executor.py`
+
+#### Backend.md 日志问题深度排查（待确认）
+
+- [x] 通读 Backend.md 关键错误日志，定位失败环节与时间线
+- [x] 追踪 explore_content/定位链路，找出“缺少 paragraph_index/node_id”的根因
+- [x] 追踪参数解析失败链路（locate_targets/versions 缺失）与写回失败的直接影响
+- [x] 汇总证据并给出直白结论（核心问题 + 影响范围）
+
+#### review
+
+- 失败起点是 explore_content：日志显示 ContentExplorer 被锁定在“第7-191章”，但该作品只有 5 章，随后“章节范围映射为空，保持原始范围”，最终报“探索未产出可定位段落”。`Backend.md:65-79`
+- 章节范围异常来自目标任务含“章节 <UUID>”，`_parse_chapter_scopes` 在“章节”分支仍会匹配 `(\d{1,3})-(\d{1,3})`，UUID 中的 `e7-1917` 被误识为 7-191，导致范围错误。`backend/app/services/agent/tools/explore_tools.py:388-406`
+- 因为 explore_content 未产出 locate_targets，后续任务取不到 locate_targets/versions，ParameterResolver 全部降级为 fallback，smart_rewrite/operate_apply 的关键参数缺失，写回自然失败。`Backend.md:84-108`
+- 最终响应也验证了根因：“未能成功改写句子，因未能获取章节内容并定位用户选中的文本。”`Backend.md:120-121`
+
+#### 修复章节范围误匹配 UUID（待确认）
+
+- [x] 在 `_parse_chapter_scopes` 入口剔除标准 UUID，避免“章节 <UUID>”误触发范围解析
+- [x] 自检：不影响“章节1-2/第X章”等正常范围解析
+
+#### review
+
+- UUID 过滤前置：进入范围解析前先移除标准 UUID（8-4-4-4-12），防止 `e7-1917` 这类片段被误当作章节范围。`backend/app/services/agent/tools/explore_tools.py`
+
+#### 导入作品自动解析世界观功能排查（待确认）
+
+- [x] 通读导入入口与参数流转（前端导入对话框、后端 import 路由）
+- [x] 追踪“自动解析世界观”的实际执行链路与触发条件（后台任务、扫描范围与限制）
+- [x] 梳理解析算法/AI 调用与数据落库路径，标注关键约束
+- [x] 汇总可复现缺陷与证据（文件/行号），形成直白结论
+
+#### review
+
+- 自动解析仅在文本/Markdown导入生效：前端默认 `autoExtractWorldview` 为 true（非 JSON），后端仅在 `format in ["markdown","txt"]` 且 `auto_extract_worldview=true` 时排队后台任务。`src/views/WorksView/index.tsx:632-709`、`src/components/import/ImportDialog.tsx:430-459`、`backend/app/api/v1/import_routes.py:124-204`
+- 自动解析实际扫描逻辑有硬性上限：固定从第 1 章开始、最多 50 章，合并内容超过 50,000 字符直接截断；超过 50 章或长文后半段不会被分析。`backend/app/api/v1/import_routes.py:24-49`、`backend/app/services/worldview_sync_service.py:70-170`
+- 追加导入时也从第 1 章扫描（非仅新章节），导致新增章节若排在 50 章以后完全不被解析；这是“追加导入 + 自动解析”最直接的漏检点。`backend/app/api/v1/import_routes.py:24-49`、`backend/app/services/worldview_sync_service.py:70-170`
+- 导入文本会先转成 HTML 段落，再被世界观解析直接读取；解析时未做 HTML 清洗，AI 实际看到的是带 `<p>` 标签的内容，可能降低抽取准确度。`backend/app/services/import_service.py:846-890`、`backend/app/services/chapter_content_provider.py:12-24`、`backend/app/services/worldview_sync_service.py:124-170`
+- 章节拆分会丢弃“第1章”之前的所有内容（只有在未识别到章节时才整体导入），导致前言/世界观设定等正文前置内容不会进入解析。`backend/app/services/import_service.py:720-842`
+- 自动解析只应用“新增人物/地点/设定/关系”，忽略 `updated_characters`，因此对已有作品追加导入时无法同步人物变化。`backend/app/services/worldview_sync_service.py:185-299`
+- 自动解析异步执行但前端导入后立即预加载世界观数据且不自动刷新，用户容易看到“空世界观”；且后台失败只写日志，无进度/错误回传。`src/views/WorksView/index.tsx:664-711`、`src/views/WorkDetailView/index.tsx:408-502`、`backend/app/api/v1/import_routes.py:24-55`
+
+#### 彻底修：导入解析世界观（待确认）
+
+- [ ] 增加“导入上下文”返回新增章节范围/ID，后台解析仅扫描本次新增章节，支持追加导入
+- [ ] 世界观扫描改为分批处理 + 去重合并，支持按章节ID扫描；导入时可选“全书扫描”则遍历全书分批解析（不再截断）
+- [ ] 解析输入先转纯文本（HTML 清洗），可选纳入“前言/设定”段落
+- [ ] apply_changes 补齐 `updated_characters` 的更新逻辑（必要时扩展到地点/设定）
+- [ ] 增加后台解析进度/结果查询接口，前端导入后轮询并自动刷新世界观数据 + 状态提示
+
+#### 文本自然化日志与链路核验（待确认）
+
+- [x] 通读 Backend.md，确认是否存在 humanize/use_optimization 相关日志与证据
+- [x] 追踪前端 @文本自然化 是否把 use_optimization 写入请求上下文（AIPanel/ChatInput）
+- [x] 追踪后端 use_optimization 到 operate_apply 的透传与触发条件（ToolExecutor/operate_apply）
+- [x] 设计最小可观测性修复：补充必要日志（use_optimization 命中、人类化开始/结束、长度/强度）
+- [x] 给出可复现验证步骤与预期日志点
+
+#### review
+
+- Backend.md 中无 humanize/use_optimization 关键词命中（日志缺失导致无法从日志证明是否执行）。
+- 前端 @文本自然化/AIPanel 与 ChatInput 均会在请求上下文写入 use_optimization，并附带 current_content/text（上限 5000）。
+- 后端 ToolExecutor 会把 context.use_optimization 透传到 operate_apply，并在 operate_apply 内部触发写入前 humanize。
+- 补充可观测性日志：agent_chat_stream 标记 use_optimization 进入规划链路；operate_apply 增加 humanize start/done 日志（含强度与长度）。
+- 新证据显示执行走 StandardTool 路径（Backend.md 记录了 `TaskRunner 使用统一接口调用未知工具: operate_apply` 与 `[StandardTool] operate_apply 执行成功`），但 ToolExecutor 的 **StandardTool 预处理分支**未把 `context.use_optimization` 注入 `operate_apply` 参数，导致写回时仍是 `use_optimization=false`，humanize 不会触发也不会产生日志。
+- 已修复 StandardTool 分支的透传：`prepare_params` 中 operate_apply 现在会从 `state.context` 注入 `use_optimization` 与强度，并打印启用日志，确保 humanize 能真正触发。`backend/app/services/agent/execution/tool_executor.py`
+- [ ] 前端导入弹窗增加“世界观解析”配置区（自动解析开关 + 扫描范围：新增章节/全书），并把参数传给后端
+
+#### 导入作品页面预览 HTML（待确认）
+
+- [x] 确定预览文件路径（`preview/import-worldview-preview.html`）
+- [x] 按当前导入弹窗风格搭建静态 HTML 结构与样式
+- [x] 加入“世界观解析”配置区（自动解析开关 + 扫描范围：新增章节/全书）
+- [x] 加入导入预览与解析进度的示例占位
+- [x] 调整预览页样式对齐现有 ImportDialog.css（浅色默认 + 暗色对应）
+
+#### review
+
+- 新增静态预览页用于确认导入弹窗布局与“世界观解析”配置区样式，包含自动解析开关、扫描范围选择、导入预览与解析进度占位；样式对齐现有 ImportDialog.css 的浅色/暗色配色与按钮形态。`preview/import-worldview-preview.html`
