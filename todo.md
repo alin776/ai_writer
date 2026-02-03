@@ -1,5 +1,17 @@
 # TODO
 
+#### 提取反AI检测规范库（待确认）
+
+- [x] 盘点 `article-writer/spec/presets/anti-ai-detection/` 下全部文件与内容范围
+- [x] 将三份规范完整合并到 `article-writer/反AI检测规范库.md`（保留原文结构并标注来源文件）
+- [x] 对照文件清单复核无遗漏
+- [x] 在 todo.md 追加 review（输出位置与核对结果）
+
+#### review
+
+- 已汇总 `spec/presets/anti-ai-detection/` 下 3 个文件到 `article-writer/反AI检测规范库.md`，保留原文结构并添加来源标注，避免遗漏。
+- 在该目录未发现 `audit-config.json` 或其他规则文件，仅包含 3 个 Markdown 文件（套话库/AI句式库/书面词汇替换库）。
+
 #### 去掉修订采纳态的撤销按钮（待确认）
 
 - [x] 定位撤销按钮渲染位置（RevisionCard）并确认仅影响修订胶囊
@@ -1578,12 +1590,91 @@
 
 #### Explore 结果持久化与上下文策略（待确认）
 
-- [ ] 明确“按需取回”策略：哪些场景触发读取完整 Explore（证据/原文/截断补全/用户明确要求）
-- [ ] Explore 结果落盘（Artifact）：保存完整结果+元数据（work_id/chapter_id/关键词/时间/范围/版本）
-- [ ] explore_content 返回 artifact_id + 摘要/预览（不把全文塞进上下文）
-- [ ] 新增 load_explore_artifact 工具：按 artifact_id 取回全文或指定片段
-- [ ] 上下文记忆只保存“引用指针”（artifact_id + 摘要），避免重复探索且控制上下文体积
-- [ ] 失效/清理策略：章节更新/导入/恢复触发失效；保留期与大小上限
+- [x] 明确“按需取回”策略：证据/原文/截断补全/用户明确要求 → 触发读取完整 Explore
+- [x] Explore 结果落盘（Artifact）：保存完整结果+元数据（work_id/user_id/关键词/时间/范围/版本）
+- [x] explore_content 返回 artifact_id + 摘要/预览（不把全文塞进上下文）
+- [x] 新增 load_explore_artifact 工具：按 artifact_id 取回全文（支持 max_chars/模式）
+- [x] 上下文记忆只保存“引用指针”（artifact_id + 摘要），避免重复探索且控制上下文体积
+- [x] 失效/清理策略：章节更新/导入/恢复触发失效；TTL=7天、单条上限=200k字符、单 work_id=200、全局=10000
+
+#### review
+
+- 新增 Explore Artifact 落盘与清理：`backend/app/services/agent/utils/explore_artifact.py` 保存完整结果并支持 TTL(7天)/单 work(200)/全局(10000) 清理；超出 200k 字符会跳过存储。
+- explore_content 增加 artifact 写入与回传：返回 `artifact_id / artifact_preview / artifact_created_at`，并将 artifact_id 写入 explore_summary，便于后续按需取回。`backend/app/services/agent/tools/explore_tools.py`
+- 新增 load_explore_artifact 工具与上下文压缩上限：支持 full/summary/metadata 读取，full 可选 max_chars；并加入 `FULL_CONTENT_TOOLS` 限制。`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/utils/context_builder.py`
+- 失效联动：explore_cache 失效时同步删除落盘 artifacts，继承现有章节更新/导入/恢复触发点。`backend/app/services/agent/utils/explore_cache.py`
+- 工具描述补齐：explore_content 返回 artifact_id，新增 load_explore_artifact 说明。`backend/app/services/agent/prompts/tool_descriptions.py`
+
+#### Explore Artifact 深度 Review（待确认）
+
+- [x] 全量复核新增与改动文件（explore_artifact/explore_tools/tool_descriptions/context_builder/tool_dispatcher/explore_cache）
+- [x] 验证是否引入新问题（权限校验/路径错误/清理误删/并发冲突）
+- [x] 验证是否真正解决原问题（避免重复探索，支持按需取回）
+- [x] 检查修改完整性（工具注册/提示词/上下文压缩/失效链路）
+- [x] 验证逻辑一致性（artifact_id 生成与回传/读取权限/TTL与上限）
+- [x] 更深入验证（问题是否真实存在/是否仍有遗漏）
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- 逻辑完整性：artifact 落盘、工具注册、提示词、上下文压缩与失效链路均已覆盖。`backend/app/services/agent/utils/explore_artifact.py`、`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/core/tool_dispatcher.py`、`backend/app/services/agent/utils/context_builder.py`、`backend/app/services/agent/utils/explore_cache.py`
+- ✅ 原问题覆盖：Explore 结果可落盘并生成 `artifact_id`，可用 `load_explore_artifact` 取回，避免重复探索。`backend/app/services/agent/tools/explore_tools.py`
+- ⚠️ 潜在遗漏1：artifact 只有在**最终回复包含 artifact_id**时才会进入“对话记忆”；目前仅把 artifact_id 写入 explore_summary，**不保证最终回答一定输出**，导致下一轮可能拿不到指针。可选补强：在 ResponseBuilder 输出中强制附带 artifact_id（或写入 MemoryPack）。`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/planning/response_builder.py`
+- ⚠️ 潜在遗漏2：超出 200k 字符会跳过存储（`size_limit`），大范围读取仍可能无法持久化，重复探索问题未完全消除。`backend/app/services/agent/utils/explore_artifact.py`
+- ⚠️ 权限边界：`user_id` 可选，若未传入则 artifacts 仅以 work_id 保护；若存在跨用户共享 work_id，需强制传 user_id 或在读取时拒绝空 user_id。`backend/app/services/agent/utils/explore_artifact.py`
+
+#### 写入 Redis 会话状态（待确认）
+
+- [x] 通读与会话状态相关实现（ContextManager / session store / tool policy）
+- [x] 设计 Redis 结构：按 session_id 存 last_artifact_id 列表（去重/上限）
+- [x] explore_content 写入会话状态（保存 artifact_id）
+- [x] 规划阶段/响应阶段读取会话状态并注入上下文（确保下轮可取回）
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- 新增会话级 Redis 状态：按 session_id 记录最近 20 个 artifact_id（含 work_id/preview），TTL=7天；写入在 explore_content 成功保存 artifact 时触发。`backend/app/services/agent/utils/explore_artifact.py`、`backend/app/services/agent/tools/explore_tools.py`
+- 规划阶段读取并注入上下文：在 Planning 构建 history_parts 时追加“【可用探索结果】”列表，确保下轮能看到 artifact_id。`backend/app/services/agent/langgraph_agent.py`
+- ToolExecutor 补默认参数：load_explore_artifact 自动补 work_id/user_id/mode，避免漏参。`backend/app/services/agent/execution/tool_executor.py`
+
+#### Explore 持久化功能测试（待确认）
+
+- [x] 读取素材《一夕千悟，从杂役弟子开始.txt》，提取可定位的角色/事件/术语
+- [x] 设计 5 条测试 prompt：覆盖 Explore → artifact_id → load_explore_artifact（summary/full）
+- [x] 设计失效测试：章节更新后再次 Explore 应触发新结果
+- [x] 输出可直接复制的测试步骤与提示词
+
+#### review
+
+- 素材要素已提取：段融、赵穆、牛尾刀、吞噬器灵、浑圆桩、一夕千悟、源顺镖局等可用于精确定位。
+- 测试覆盖：Explore→artifact_id 回传、load_explore_artifact(summary/full)、会话内复用、章节更新失效。
+
+#### load_explore_artifact 返回空 排查（待确认）
+
+- [x] 通读 Backend.md 日志，定位 load_explore_artifact 调用链与结果长度
+- [x] 核对 artifact 文件是否存在与内容是否含 explore_summary
+- [x] 核对 load_explore_artifact 入参是否缺 work_id / user_id 导致 not_found
+- [x] 输出核心原因+证据+直白结论
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- 证据1：artifact 文件存在且含摘要，路径为 `backend/uploads/explore_artifacts/73d0f930-3cc8-42c7-b48f-da2992952358/475634a1fce04a00ba68ad0e39d9bc7a.json`，其中 `payload.explore_summary` 长度为 1502，`context_for_task` 长度为 3122。
+- 证据2：Backend.md 显示 load_explore_artifact 被调用，但规划阶段提示“用户提供了 artifact_id”并未包含 work_id 作为参数（实际由 ToolExecutor 兜底注入），且响应中没有直接暴露 tool 返回内容。
+- 结论（直白）：**不是 artifact 不存在，也不是没有摘要**；问题更可能出在“LLM 总结阶段未正确取用/展示 load_explore_artifact 的返回内容”，导致前端看到“结果为空”的提示。进一步验证需要在 load_explore_artifact 内部增加日志（记录返回内容长度）或在 ResponseBuilder 中直接输出工具结果用于核对。
+
+#### 修复 load_explore_artifact 读取空结果（待确认）
+
+- [x] 修复 UPLOAD_DIR 相对路径歧义（统一为绝对路径并保留旧路径回退）
+- [x] 增加 artifact_id → 路径 Redis 索引，读取时优先索引回查
+- [x] load_explore_artifact 找不到文件时输出可诊断日志
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- UPLOAD_DIR 相对路径已改为“候选根目录”解析（优先 repo root，其次 backend root），避免不同 cwd 造成找不到文件；读取时会尝试旧路径回退。`backend/app/services/agent/utils/explore_artifact.py`
+- 保存时写入 Redis 索引（artifact_id → path/work_id/user_id），读取时优先索引回查，显著降低路径歧义导致的 not_found。`backend/app/services/agent/utils/explore_artifact.py`
+- 读取失败时增加可诊断日志，便于定位 work_id/path 问题。`backend/app/services/agent/utils/explore_artifact.py`
 - [ ] 更新 todo.md review（证据与结论）
 
 #### Create 阶段缺少 node_id/paragraph_index 原因复盘（待确认）
@@ -2351,3 +2442,359 @@
 - [ ] 设计并实现“仅保存引用信息”的数据结构与保存时机
 - [ ] 前端/后端透出引用信息（doc_id/标题/时间/标签）
 - [ ] 更新 todo.md review
+
+#### 主菜单/子菜单适配浅色模式（待确认）
+
+- [x] 定位命令菜单主/子面板的样式配置
+- [x] 为浅色模式补充背景、文字、边框与高亮样式
+- [x] 更新 todo.md review
+
+#### review
+- 主菜单与子菜单在浅色模式下使用白底/浅边框/深色文字，高亮与 hover 状态也同步适配，暗色模式保持原样。`src/components/editor/AIPanel.tsx`
+
+#### 知识库子菜单去掉小箭头（待确认）
+
+- [x] 定位子菜单列表项右侧 ChevronRight 图标渲染
+- [x] 移除子菜单列表项的小箭头图标
+- [x] 更新 todo.md review
+
+#### review
+- 移除知识库子菜单列表项右侧的小箭头图标，避免视觉干扰。`src/components/editor/AIPanel.tsx`
+
+#### 用户卡片弹窗暗色匹配（待确认）
+
+- [x] 定位 UserCardPopover 弹窗暗色背景/分隔线/hover 的色值
+- [x] 使用全局暗色主题变量替换 discord 灰，保持与整体暗色一致
+- [x] 自检暗色模式下弹窗层级、文字对比与下拉菜单背景
+
+#### review
+- 用户卡片弹窗暗色底色/分隔线/hover 全部对齐项目深色体系：主卡改为 #1e293b、分隔与 hover 改为 #334155，下拉菜单改为 #0f172a + #334155 边框，避免“discord 黑灰”突兀。`src/components/layout/UserCardPopover.tsx`
+
+#### 管理员界面去掉页眉（待确认）
+
+- [x] 确认管理员布局中页眉渲染入口（AdminLayout/Header）
+- [x] 移除管理后台页面顶部 Header（不影响侧边栏与内容区）
+- [x] 自检 admin/works 页面顶栏消失且布局无错位
+
+#### review
+- 管理员布局移除顶部 Header，只保留侧边栏与内容区，`/admin/works` 顶部条消失且结构不变。`src/components/layout/AdminLayout.tsx`
+
+#### 管理后台侧边栏标题去掉（待确认）
+
+- [x] 定位 AdminSidebar 中“管理后台”标题区块
+- [x] 移除该标题区块，保持返回入口与菜单列表布局不变
+- [x] 自检 admin 页面侧边栏间距与样式无异常
+
+#### review
+- 已移除管理后台侧边栏的“管理后台”标题区块，保留返回入口与菜单列表，间距由菜单自身 padding 接管。`src/components/layout/AdminSidebar.tsx`
+
+#### 去掉侧边栏“管理员模式”提示（待确认）
+
+- [x] 定位 AdminSidebar 底部“管理员模式/具有完整系统权限”区块
+- [x] 移除该提示区块，保持菜单滚动与布局不变
+- [x] 自检 admin 页面侧边栏底部无残留空白
+
+#### review
+- 已移除侧边栏底部“管理员模式/具有完整系统权限”提示卡片，菜单区域更简洁，底部不再占位。`src/components/layout/AdminSidebar.tsx`
+
+#### 管理后台侧边栏背景匹配（待确认）
+
+- [x] 定位 AdminSidebar 背景/边框色值与暗色模式配置
+- [x] 调整侧边栏暗色背景与右侧内容区域匹配（必要时同步边框色）
+- [x] 自检 admin 页面整体对比与层级保持清晰
+
+#### review
+- 侧边栏暗色背景调整为 `gray-800` 并同步边框为 `gray-700`，hover 暗色改为 `gray-700`，与右侧内容卡片暗色更协调。`src/components/layout/AdminSidebar.tsx`
+
+#### 管理后台作品列表顶部区域固定（待确认）
+
+- [x] 定位 AdminWorksView 顶部“标题 + 搜索/统计”区域结构
+- [x] 将该区域设为 sticky，避免随列表滚动
+- [x] 自检滚动时顶部区域固定且不遮挡列表
+
+#### 管理后台作品默认封面（待确认）
+
+- [x] 复用默认封面资源（/default-cover.jpg）并处理缺失/加载失败
+- [x] 替换 AdminWorksView 封面渲染为带兜底方案
+- [x] 自检无封面时显示默认图
+
+#### review
+- 作品管理页顶部“标题 + 搜索/统计”区域改为 sticky，滚动列表时固定在顶部。`src/views/AdminWorksView.tsx`
+- 作品封面使用默认封面兜底，并改为 ImageWithFallback 渲染，缺失/加载失败时也有默认图。`src/views/AdminWorksView.tsx`
+
+#### 管理后台作品页顶部“轻微滚动”修正（待确认）
+
+- [x] 调整 AdminWorksView 布局：移除父级 top padding，改由 sticky 区域内 padding 保持间距
+- [x] 确保 sticky 从滚动开始即固定，消除顶部“滑动 1 次才吸顶”的视觉
+- [x] 自检滚动时顶部区域不再产生位移
+
+#### review
+- 取消父级顶部 padding，并把顶部间距移入 sticky 容器，避免滚动时出现“轻微位移后才吸顶”的视觉跳动。`src/views/AdminWorksView.tsx`
+
+#### 管理后台多页面顶部区域固定（待确认）
+
+- [x] 盘点 admin 视图顶部区域结构（Dashboard/Users/Reports/Notifications/Invitations/Credits/Cost/Tasks/AIModels）
+- [x] 为需要固定的页面增加 sticky 顶部块，并调整 padding/背景避免轻微位移
+- [x] 自检多个 admin 页面滚动时顶部区域不再出现位移
+
+#### review
+- 为多个 admin 页面增加顶部 sticky 区域：Dashboard/Users/Reports/Notifications/Invitations/Credits/Cost/Tasks/AIModels/Channels，顶部信息与筛选区滚动不再位移。`src/views/AdminDashboardView/index.tsx` `src/views/AdminUsersView/index.tsx` `src/views/AdminReportsView.tsx` `src/views/AdminNotificationsView.tsx` `src/views/AdminInvitationsView/index.tsx` `src/views/AdminCreditsView/index.tsx` `src/views/AdminCostView/index.tsx` `src/views/AdminTasksView/index.tsx` `src/views/AdminAIModelsView/index.tsx` `src/views/AdminChannelsView.tsx`
+- 处理有顶距页面的“轻微位移”：AdminReports/AdminTasks 将顶部 padding 移入 sticky 容器，避免滚动后才吸顶。`src/views/AdminReportsView.tsx` `src/views/AdminTasksView/index.tsx`
+
+#### INFO.md 末尾 100 条日志核对（待确认）
+
+- [x] 读取 INFO.md 最后 100 行并统计 hit=0 频次
+- [x] 关联触发链路（exact_search/read_paragraphs）与关键词
+- [x] 在 todo.md 追加 review：直白结论 + 关键证据行号
+
+#### review
+
+- `INFO.md` 最后 100 行里只有 2 条 exact_search 相关日志，且 hits=5 / hits=12，没有出现 hit=0；其余是 explore 完成、summarization、上下文保存等流程日志。证据：`INFO.md` 末尾 100 行（15:50:45 之后）。
+
+#### Backend.md 17:23 read_paragraphs 失败原因排查（待确认）
+
+- [x] 定位 2026-02-03 17:23:08 前后 read_paragraphs 调用与参数
+- [x] 结合 explore_tools 过滤/预算/范围逻辑确定触发路径
+- [x] 在 todo.md 追加 review：直白结论 + 证据行号 + “超出范围”具体指向
+
+#### review
+
+- 17:23:08 这次失败并非“真正超出范围”，而是 **ExploreTool 过滤后 items 为空**触发的兜底错误。日志显示 call=read_paragraphs 传入了 6 个 item，但 done=read_paragraphs success=False count=0 且 empty_reason/index_base 均为 None，符合 ExploreTool 本地过滤后直接构造错误的路径。证据：`Backend.md:183-185`、`backend/app/services/agent/tools/explore_tools.py:4066-4085`、`backend/app/services/agent/tools/explore_tools.py:4101-4107`。
+- 触发“过滤为空”的具体机制：items 必须满足 **章节范围允许 + 未读去重 + 未超章节阅读预算**，否则会被剔除；全部被剔除就返回“没有可读取的段落（可能超出范围）”。证据：`backend/app/services/agent/tools/explore_tools.py:4066-4085`。
+- 这段任务前日志显示已复用共享状态 `read_paragraphs=50`，结合“按章阅读上限”逻辑，最可能是 **章节预算已耗尽或已读去重**导致 items 全部被过滤。证据：`Backend.md:156`、`backend/app/services/agent/tools/explore_tools.py:2299-2309`。
+
+#### 移除按章阅读上限机制（待确认）
+
+- [x] 确认按章阅读上限的关键入口（_init_chapter_read_caps/_get_chapter_remaining_reads）
+- [x] 最小改动禁用按章 cap（不影响全局读取上限）
+- [x] 自检 read_paragraphs/read_paragraph 仍可正常执行
+- [x] 在 todo.md 追加 review：改动点与行为变化说明
+
+#### review
+
+- 已禁用按章阅读上限：`_get_chapter_remaining_reads` 直接返回 `None`，所有“每章剩余可读数”判断将不再生效，仅保留全局读取上限与已读去重。`backend/app/services/agent/tools/explore_tools.py`
+
+#### 空读硬停 + 共享状态隔离 + 空读原因统计（待确认）
+
+- [x] 共享状态隔离：调整 explore 共享 key（加入任务指纹或清空 read_paragraph_positions）
+- [x] 空读硬停：连续空读 N 次停止或切换策略（read_paragraphs/read_paragraph）
+- [x] 空读原因统计：记录过滤原因计数并输出更准确的错误文案
+- [x] 自检：空读时不再死循环，日志可读性提升
+- [x] 在 todo.md 追加 review：改动点与行为变化说明
+
+#### review
+
+- 共享状态隔离：`_build_explore_shared_key` 新增 `target_task` 指纹，避免不同任务复用已读段落状态导致“全被过滤”。`backend/app/services/agent/tools/explore_tools.py`
+- 空读硬停：新增空读计数，连续空读达到 `TOOL_LOOP_EMPTY_READ_STREAK_LIMIT=3` 将停止工具循环，防止反复重试。`backend/app/services/agent/tools/explore_tools.py`
+- 空读原因统计：read_paragraphs(items) 过滤后为空时记录过滤统计并生成更准确的错误文案与 `empty_reason`，日志可直接看出是“已读/超范围/无效/预算”。`backend/app/services/agent/tools/explore_tools.py`
+
+#### Backend.md 缺陷复核（待确认）
+
+- [x] 通读 Backend.md（优先关注最新日志区段）
+- [x] 提取可疑/异常行为并关联到具体模块或逻辑路径
+- [x] 在 todo.md 追加 review：缺陷清单 + 证据行号 + 直白结论
+
+#### review
+
+- **read_paragraphs 反复失败但仍连续重试**：17:23:46～17:25:17 期间多次调用 `read_paragraphs`，全部 `count=0` 且 `empty_reason=None`，但工具循环继续重试（只调整 context_before/after 或 items 组合），造成明显的无效调用风暴。证据：`Backend.md:257-273`（多次 call/done/failed）以及 `Backend.md:276-282`。
+- **章节阅读预算耗尽导致 range 读取直接失败**：分页模式 `read_paragraphs` 在 17:25:24 与 17:28:28 返回“该章节读取预算已用尽”，随后探索完成理由也明确写“相关章节的阅读预算已用尽”。这会阻断后续原文读取，使探索只能停在“搜索命中”层。证据：`Backend.md:291`、`Backend.md:395`、`Backend.md:292`。
+- **共享状态复用造成“已读/预算”持续卡死**：每次新探索开始都会复用共享状态（read_paragraphs 计数持续增加），随后读段全部失败，说明“已读/预算状态”跨任务继承过重，导致新任务也无法读取原文。证据：`Backend.md:240`（read_paragraphs=53）结合连续 read_paragraphs 失败（`Backend.md:257-282`）。
+
+#### read_paragraphs 报“超出范围”原因排查（待确认）
+
+- [x] 定位 ExploreTool read_paragraphs 失败日志来源与触发条件（items 过滤/分页范围）
+- [x] 对比 `explore_tools.py` 与 `langgraph_tools.py` 的空结果返回路径与字段差异
+- [x] 结合日志字段（empty_reason=None 等）判断触发路径并标注证据行号
+- [x] 在 todo.md 追加 review：直白结论 + 关键证据 + “超出范围”误导点
+
+#### review
+
+- “超出范围”并不是唯一/真实原因：`ExploreTool` 在**本地过滤后无可读项**或**预算裁剪后 limit<=0**时会直接构造 `{"success": False, "error": "没有可读取的段落（可能超出范围）"}`，并未进入底层 `read_paragraphs`，因此日志里 `empty_reason/index_base/invalid_items` 全是 `None`。证据：`backend/app/services/agent/tools/explore_tools.py:3968-3984`、`backend/app/services/agent/tools/explore_tools.py:4066-4085`、`backend/app/services/agent/tools/explore_tools.py:4101-4107`。
+- 触发“无可读项”的核心过滤链：items 必须能解析出 `chapter_order+paragraph_index`（或 `chapter_id/node_id` 映射成功），且在章节范围内、未读、未超预算，否则会被剔除；当全部被剔除就会触发上面的通用错误。证据：`backend/app/services/agent/tools/explore_tools.py:4031-4081`。
+- 如果真的是“分页超出范围”，底层 `langgraph_tools.read_paragraphs` 会返回 `empty_reason`（如 `offset 超出段落总数/章节无段落`）并带 `index_base`，日志不应为 `None`。证据：`backend/app/services/agent/langgraph_tools.py:1781-1805`。
+
+#### Backend.md 测试日志复核（待确认）
+
+- [ ] 摘取 2026-02-03 15:35 左右的 read_paragraphs 失败日志，确认参数与错误字段组合
+- [ ] 结合 ExploreTool 过滤/预算路径，判断这批 items 为何会被过滤成空
+- [ ] 对照同一时段的“成功 read_paragraphs”日志，确认 index_base/调用路径差异
+- [ ] 在 todo.md 追加 review：基于 Backend.md 的直接证据与直白结论
+
+#### “源顺镖局”反复搜索原因排查（待确认）
+
+- [x] 从日志中定位反复搜索的关键词与触发链路（search/exact_search/tool_loop）
+- [x] 核对 ExploreState 的去重逻辑与“相似词”判断是否覆盖该关键词
+- [x] 追踪 Planning/Prompt 是否重复注入同一关键词导致循环
+- [x] 在 todo.md 追加 review：直接证据 + 直白结论 + 如何“没有就跳过”
+
+#### review
+
+- 反复搜索并非“没有命中仍继续”，而是**任务本身要求查询“源顺镖局”**：15:38:45 开始的任务明确是“查找关于组织‘源顺镖局’的信息”，并且 explore_content 记录“规划传入关键词: ['源顺镖局']”。证据：`Backend.md:664-670`。
+- “源顺镖局”在搜索中**确实有命中**：多次 exact_search 命中（如 15:39:17 hits=15，后续 15:40:54/15:41:56/15:46:57 等仍有 hits），因此不会触发“0 命中即跳过”的拦截条件。证据：`Backend.md:688-691`、`Backend.md:709-712`、`Backend.md:734-737`、`Backend.md:833-836`。
+- 代码层面，“规划传入关键词”会被当作**必带关键词**，每次 exact_search 都会被强制合并并绕过去重/拦截：`required_keywords → force_set`，force_set 直接进入 allowed_keywords，不走 should_block_search。证据：`backend/app/services/agent/tools/explore_tools.py:3286-3341`、`backend/app/services/agent/tools/explore_tools.py:3411-3423`。
+- 现有“没有就跳过”只在 **0 命中** 或 **已穷尽** 时触发（且对强制关键词不生效）；而“源顺镖局”既有命中，又被 force_set 强制保留，所以不会跳过。证据：`backend/app/services/agent/tools/explore_tools.py:1120-1148`、`backend/app/services/agent/tools/explore_tools.py:658-670`。
+
+#### Explore Artifact 路径基准改为 backend/（待确认）
+
+- [x] 核对当前 UPLOAD_DIR 相对路径与服务工作目录（backend/）一致性
+- [x] 调整 Explore Artifact 根目录优先使用 backend 根路径，保留 repo 根路径作为兼容读取
+- [x] 自检保存/读取：新写入落在 backend/uploads，旧文件仍可读取
+- [x] 在 todo.md 追加 review（改动位置 + 兼容性说明）
+
+#### review
+
+- UPLOAD_DIR 仍为相对路径（`./uploads`），但 Explore Artifact 优先以 backend 根目录作为基准，适配服务运行在 backend/ 的工作目录。`backend/app/services/agent/utils/explore_artifact.py`
+- 保留兼容读取：当当前根目录找不到文件时，会在其他 upload 根目录下依次尝试 `root/<work_id>/...` 和旧版 `root/explore_artifacts/<work_id>/...`，避免历史 artifact 失效。`backend/app/services/agent/utils/explore_artifact.py`
+
+#### load_explore_artifact 摘要丢失排查与修复（待确认）
+
+- [x] 复核工具返回结构与执行层提取逻辑，定位 summary 被丢弃的原因
+- [x] 在 extract_result 增加 load_explore_artifact 分支，返回完整 JSON 结果
+- [x] 自检：摘要字段不会被提取逻辑丢弃
+- [x] 在 todo.md 追加 review（证据 + 改动位置）
+
+#### review
+
+- `load_explore_artifact` 工具返回的是顶层 `success/summary` 结构，没有 `data` 字段，但 `ToolExecutor.extract_result` 默认只取 `data` 并返回 `{}`，导致 summary 被丢弃，最终 Summarization 看不到摘要。证据：`backend/app/services/agent/execution/tool_executor.py:1626-1705`，以及 artifact 文件内确有 `payload.explore_summary`。`backend/uploads/73db1555-41d1-427a-bac1-2e2164c2a427/50fe756714434d5dbabee3b6eafcbd57.json`
+- 修复：为 `load_explore_artifact` 增加专用分支，直接返回完整 JSON（和 locate_content/explore_content 一致），确保 summary 不会被提取逻辑丢弃。`backend/app/services/agent/execution/tool_executor.py`
+
+#### 自动复用 Explore Artifact Hook（待确认）
+
+- [x] 将会话 artifact 列表注入 planning context（不只写入对话历史）
+- [x] 规划后处理加入“自动复用”逻辑：在满足条件时用 load_explore_artifact(summary) 替换 explore_content
+- [x] 增加“重新/最新/更新”等新鲜度判断，避免错误复用
+- [x] 只在 explore_content 无下游依赖时替换，避免破坏 $ref 依赖
+- [x] 在 todo.md 追加 review（规则 + 改动点）
+
+#### Explore 按条目补缺（部分复用）（待确认）
+
+- [x] 在规划阶段先自动取回最近 artifact_summary（同 work_id）
+- [x] 从用户请求中提取“需获取的条目”（支持编号/列表/显式条目）
+- [x] 用“条目文本是否出现在 summary”做轻量覆盖判断
+- [x] 仅对未覆盖条目触发 explore_content，并在 target_task 中声明“只补缺失项”
+- [x] 汇总时合并“已覆盖 + 新探索”结果
+
+#### review
+
+- Planning 阶段除了把“可用探索结果”注入对话历史，也写入 `context.session_artifacts`，使规划后处理能直接读取会话级 artifact 指针。`backend/app/services/agent/langgraph_agent.py`
+- 规划后处理新增自动复用逻辑：在用户未要求“重新/最新/更新”的情况下，若同 work_id 的 artifact 预览覆盖了部分条目，则先插入 `load_explore_artifact(summary)` 任务，并将 `explore_content` 的 target_task/keywords 改为“只补缺失项”。`backend/app/services/agent/planning/plan_generator.py`
+- 当所有条目都已覆盖且无下游 $ref 依赖时，自动移除 explore_content，避免重复探索；若有依赖则保留 explore。`backend/app/services/agent/planning/plan_generator.py`
+
+#### 文本自然化功能深度探索（待确认）
+
+- [x] 通读前端入口与交互（AIPanel/ChatInput/HumanizeView），明确“文本自然化”触发与参数
+- [x] 通读后端接口与执行链路（agent use_optimization + humanize API/Service），确认实际调用与处理流程
+- [x] 汇总关键限制/开关/强度/长度规则与证据
+- [x] 输出直白结论（功能定位、触发方式、真正做了什么、会/不会记录历史）
+
+#### review
+
+- “文本自然化”在编辑器 AIPanel 内是 @ 菜单项，点击后仅设置 `use_optimization`，并显示“文本自然化”胶囊；发送请求时把章节内容截断到 5000 字并写入 `current_content/text`。`src/components/editor/AIPanel.tsx:374-387,637-646,1200-1207,1297-1352,1526-1539`
+- Agent ChatInput 的 @optimization 入口支持强度（light/medium/strong），同时也把 `use_optimization` 与 `intensity` 写入上下文，长度同样按 5000 字截断。`src/components/agent/ChatInput.tsx:60-96,139-154,398-425`
+- 前端明确标注“@optimization 不写 humanize 历史”；后端 agent 在 `use_optimization` 分支内直接走 HumanizeService（检测+改写），并把结果作为会话消息持久化，而不是 humanize 历史会话。`src/hooks/useAgentChat.ts:324-345`、`backend/app/api/v1/agent.py:1370-1472`
+- HumanizeService 支持检测与改写阶段，并默认启用 NLP 预处理；后端配置默认 `max_text_chars=5000`、检测启用、验证默认关闭。`backend/app/services/ai/humanize_service.py:1-199`、`backend/app/core/humanize_config.py:15-38`
+- 去痕迹的具体策略来自 humanize prompts：重点移除 AI 套话/模板化结构、增加口语化与句式变化。`backend/app/services/ai/humanize_prompts.py:181-205`
+
+#### Create/smart* 与文本自然化关系排查（待确认）
+
+- [x] 核对 smart* 工具的分类与数量（Create/Creative），确认是否只有一个创作工具
+- [x] 核对 Create → operate_apply 的写回链路与适用场景（何时写入编辑器）
+- [x] 核对“文本自然化/@optimization”触发链路与是否自动接入 smart* 流程
+- [x] 输出直白结论（是否只有一个 smart*、文本自然化的真实使用时机）
+
+#### review
+
+- smart* 创作类工具不止一个：至少有 `smart_continue`、`smart_rewrite`、`smart_insert`，且全部标记为 `ToolCategory.CREATIVE`（只生成内容，不直接写入）。`backend/app/services/agent/tools/editor_tools.py:1165-1299`
+- Create → operate_apply 的写回链路是系统级规则：CREATIVE 只生成，必须再走 operate_apply 才会写入编辑器；操作类型包括 append/replace/insert/content/create/title。`backend/app/services/agent/prompts/planning_prompts.py:85-107`、`backend/app/services/agent/tools/operate_tools.py:3-103`
+- 文本自然化/@optimization 不会自动进入 smart* 流程；它在 agent chat 的 `use_optimization` 分支里直接调用 HumanizeService（检测+改写），流式返回结果，不经过 smart_* 或 operate_apply。`src/hooks/useAgentChat.ts:324-345`、`backend/app/api/v1/agent.py:1370-1436`
+
+#### 启用文本自然化时“先创作再去痕”改造（待确认）
+
+- [x] 明确规则：@optimization 仅对“写入编辑器”的 smart_* 结果生效；title 不处理
+- [x] 选型实现路径：operate_apply 内部统一后处理（不改变 smart_* → operate_apply 外部链路）
+- [x] 最小实现：透传 use_optimization + intensity 到 operate_apply，并在写入前 Humanize
+- [x] 回归核对：非 @optimization 的创作链路不受影响
+
+#### review
+
+- @optimization 不再强行短路创作链路：仅当 `optimization_only` 显式为真才走“直接去痕迹”分支，其余照常进入 smart_* → operate_apply。`backend/app/api/v1/agent.py`
+- operate_apply 在写入前执行 Humanize：当 `use_optimization` 为真且操作为 append/replace/insert/content/create 时，先检测+改写再写入；title 不处理。`backend/app/services/agent/tools/operate_tools.py`
+- ToolExecutor 透传 `use_optimization` 与强度到 operate_apply（默认 medium），保证外部任务链路不变，只在写入前去痕。`backend/app/services/agent/execution/tool_executor.py`
+
+#### Backend.md 日志问题深度排查（待确认）
+
+- [x] 通读 Backend.md 关键错误日志，定位失败环节与时间线
+- [x] 追踪 explore_content/定位链路，找出“缺少 paragraph_index/node_id”的根因
+- [x] 追踪参数解析失败链路（locate_targets/versions 缺失）与写回失败的直接影响
+- [x] 汇总证据并给出直白结论（核心问题 + 影响范围）
+
+#### review
+
+- 失败起点是 explore_content：日志显示 ContentExplorer 被锁定在“第7-191章”，但该作品只有 5 章，随后“章节范围映射为空，保持原始范围”，最终报“探索未产出可定位段落”。`Backend.md:65-79`
+- 章节范围异常来自目标任务含“章节 <UUID>”，`_parse_chapter_scopes` 在“章节”分支仍会匹配 `(\d{1,3})-(\d{1,3})`，UUID 中的 `e7-1917` 被误识为 7-191，导致范围错误。`backend/app/services/agent/tools/explore_tools.py:388-406`
+- 因为 explore_content 未产出 locate_targets，后续任务取不到 locate_targets/versions，ParameterResolver 全部降级为 fallback，smart_rewrite/operate_apply 的关键参数缺失，写回自然失败。`Backend.md:84-108`
+- 最终响应也验证了根因：“未能成功改写句子，因未能获取章节内容并定位用户选中的文本。”`Backend.md:120-121`
+
+#### 修复章节范围误匹配 UUID（待确认）
+
+- [x] 在 `_parse_chapter_scopes` 入口剔除标准 UUID，避免“章节 <UUID>”误触发范围解析
+- [x] 自检：不影响“章节1-2/第X章”等正常范围解析
+
+#### review
+
+- UUID 过滤前置：进入范围解析前先移除标准 UUID（8-4-4-4-12），防止 `e7-1917` 这类片段被误当作章节范围。`backend/app/services/agent/tools/explore_tools.py`
+
+#### 导入作品自动解析世界观功能排查（待确认）
+
+- [x] 通读导入入口与参数流转（前端导入对话框、后端 import 路由）
+- [x] 追踪“自动解析世界观”的实际执行链路与触发条件（后台任务、扫描范围与限制）
+- [x] 梳理解析算法/AI 调用与数据落库路径，标注关键约束
+- [x] 汇总可复现缺陷与证据（文件/行号），形成直白结论
+
+#### review
+
+- 自动解析仅在文本/Markdown导入生效：前端默认 `autoExtractWorldview` 为 true（非 JSON），后端仅在 `format in ["markdown","txt"]` 且 `auto_extract_worldview=true` 时排队后台任务。`src/views/WorksView/index.tsx:632-709`、`src/components/import/ImportDialog.tsx:430-459`、`backend/app/api/v1/import_routes.py:124-204`
+- 自动解析实际扫描逻辑有硬性上限：固定从第 1 章开始、最多 50 章，合并内容超过 50,000 字符直接截断；超过 50 章或长文后半段不会被分析。`backend/app/api/v1/import_routes.py:24-49`、`backend/app/services/worldview_sync_service.py:70-170`
+- 追加导入时也从第 1 章扫描（非仅新章节），导致新增章节若排在 50 章以后完全不被解析；这是“追加导入 + 自动解析”最直接的漏检点。`backend/app/api/v1/import_routes.py:24-49`、`backend/app/services/worldview_sync_service.py:70-170`
+- 导入文本会先转成 HTML 段落，再被世界观解析直接读取；解析时未做 HTML 清洗，AI 实际看到的是带 `<p>` 标签的内容，可能降低抽取准确度。`backend/app/services/import_service.py:846-890`、`backend/app/services/chapter_content_provider.py:12-24`、`backend/app/services/worldview_sync_service.py:124-170`
+- 章节拆分会丢弃“第1章”之前的所有内容（只有在未识别到章节时才整体导入），导致前言/世界观设定等正文前置内容不会进入解析。`backend/app/services/import_service.py:720-842`
+- 自动解析只应用“新增人物/地点/设定/关系”，忽略 `updated_characters`，因此对已有作品追加导入时无法同步人物变化。`backend/app/services/worldview_sync_service.py:185-299`
+- 自动解析异步执行但前端导入后立即预加载世界观数据且不自动刷新，用户容易看到“空世界观”；且后台失败只写日志，无进度/错误回传。`src/views/WorksView/index.tsx:664-711`、`src/views/WorkDetailView/index.tsx:408-502`、`backend/app/api/v1/import_routes.py:24-55`
+
+#### 彻底修：导入解析世界观（待确认）
+
+- [ ] 增加“导入上下文”返回新增章节范围/ID，后台解析仅扫描本次新增章节，支持追加导入
+- [ ] 世界观扫描改为分批处理 + 去重合并，支持按章节ID扫描；导入时可选“全书扫描”则遍历全书分批解析（不再截断）
+- [ ] 解析输入先转纯文本（HTML 清洗），可选纳入“前言/设定”段落
+- [ ] apply_changes 补齐 `updated_characters` 的更新逻辑（必要时扩展到地点/设定）
+- [ ] 增加后台解析进度/结果查询接口，前端导入后轮询并自动刷新世界观数据 + 状态提示
+
+#### 文本自然化日志与链路核验（待确认）
+
+- [x] 通读 Backend.md，确认是否存在 humanize/use_optimization 相关日志与证据
+- [x] 追踪前端 @文本自然化 是否把 use_optimization 写入请求上下文（AIPanel/ChatInput）
+- [x] 追踪后端 use_optimization 到 operate_apply 的透传与触发条件（ToolExecutor/operate_apply）
+- [x] 设计最小可观测性修复：补充必要日志（use_optimization 命中、人类化开始/结束、长度/强度）
+- [x] 给出可复现验证步骤与预期日志点
+
+#### review
+
+- Backend.md 中无 humanize/use_optimization 关键词命中（日志缺失导致无法从日志证明是否执行）。
+- 前端 @文本自然化/AIPanel 与 ChatInput 均会在请求上下文写入 use_optimization，并附带 current_content/text（上限 5000）。
+- 后端 ToolExecutor 会把 context.use_optimization 透传到 operate_apply，并在 operate_apply 内部触发写入前 humanize。
+- 补充可观测性日志：agent_chat_stream 标记 use_optimization 进入规划链路；operate_apply 增加 humanize start/done 日志（含强度与长度）。
+- 新证据显示执行走 StandardTool 路径（Backend.md 记录了 `TaskRunner 使用统一接口调用未知工具: operate_apply` 与 `[StandardTool] operate_apply 执行成功`），但 ToolExecutor 的 **StandardTool 预处理分支**未把 `context.use_optimization` 注入 `operate_apply` 参数，导致写回时仍是 `use_optimization=false`，humanize 不会触发也不会产生日志。
+- 已修复 StandardTool 分支的透传：`prepare_params` 中 operate_apply 现在会从 `state.context` 注入 `use_optimization` 与强度，并打印启用日志，确保 humanize 能真正触发。`backend/app/services/agent/execution/tool_executor.py`
+- [ ] 前端导入弹窗增加“世界观解析”配置区（自动解析开关 + 扫描范围：新增章节/全书），并把参数传给后端
+
+#### 导入作品页面预览 HTML（待确认）
+
+- [x] 确定预览文件路径（`preview/import-worldview-preview.html`）
+- [x] 按当前导入弹窗风格搭建静态 HTML 结构与样式
+- [x] 加入“世界观解析”配置区（自动解析开关 + 扫描范围：新增章节/全书）
+- [x] 加入导入预览与解析进度的示例占位
+- [x] 调整预览页样式对齐现有 ImportDialog.css（浅色默认 + 暗色对应）
+
+#### review
+
+- 新增静态预览页用于确认导入弹窗布局与“世界观解析”配置区样式，包含自动解析开关、扫描范围选择、导入预览与解析进度占位；样式对齐现有 ImportDialog.css 的浅色/暗色配色与按钮形态。`preview/import-worldview-preview.html`

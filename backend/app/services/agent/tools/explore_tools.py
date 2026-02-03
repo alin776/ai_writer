@@ -342,6 +342,8 @@ def _parse_chapter_scopes(target_task: str) -> List[Tuple[int, int]]:
     if not target_task:
         return []
     text = target_task
+    # 避免 UUID 中的“数字-数字”片段被误识别为章节范围（如 e7-1917 -> 7-191）
+    text = re.sub(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b", " ", text)
     scopes: List[Tuple[int, int]] = []
 
     # 2026-01-21: 先处理排除性描述，如"禁止使用第6章及以后的内容"

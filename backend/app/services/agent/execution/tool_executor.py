@@ -717,8 +717,14 @@ class ToolExecutor:
             }
             params = {key: value for key, value in params.items() if key in allowed_keys}
 
+        elif tool_name == "load_explore_artifact":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("user_id", state.get("user_id", ""))
+            params.setdefault("mode", "full")
+
         # 🆕 2026-01-23: operate_apply 统一操作工具
         elif tool_name == "operate_apply":
+            context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
             # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
             current_chapter_id = state.get("chapter_id", "")
             expected_chapter_id, expected_source = self._get_target_chapter_id(state)
@@ -776,6 +782,20 @@ class ToolExecutor:
                 chapter_source,
                 params.get("chapter_id")
             )
+            use_optimization = params.get("use_optimization")
+            if use_optimization is None:
+                use_optimization = bool(context.get("use_optimization"))
+            if use_optimization:
+                params["use_optimization"] = True
+                params["optimization_intensity"] = (
+                    params.get("optimization_intensity")
+                    or context.get("intensity")
+                    or "medium"
+                )
+                logger.info(
+                    "[ToolExecutor] operate_apply use_optimization enabled (intensity=%s)",
+                    params.get("optimization_intensity")
+                )
             params.setdefault("work_id", state.get("work_id", ""))
             params.setdefault("user_id", state.get("user_id", ""))
             params.setdefault("conversation_id", state.get("conversation_id", ""))
@@ -1636,6 +1656,10 @@ class ToolExecutor:
             # 返回完整 JSON 供下游工具使用
             return json.dumps(result, ensure_ascii=False)
 
+        elif tool_name == "load_explore_artifact":
+            # load_explore_artifact 返回 summary 在顶层，需保留完整 JSON
+            return json.dumps(result, ensure_ascii=False)
+
         elif tool_name == "get_context":
             return data.get("context", "")
 
@@ -1937,6 +1961,16 @@ class ToolExecutor:
                         "user_id": tool_args.get("user_id", state.get("user_id", "")),
                         "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", "")),
                     }
+                    use_optimization = tool_args.get("use_optimization")
+                    if use_optimization is None:
+                        use_optimization = bool(context.get("use_optimization"))
+                    if use_optimization:
+                        params["use_optimization"] = True
+                        params["optimization_intensity"] = (
+                            tool_args.get("optimization_intensity")
+                            or context.get("intensity")
+                            or "medium"
+                        )
                     if same_chapter:
                         if not params.get("original_text") and context.get("locate_original_text"):
                             params["original_text"] = context.get("locate_original_text")
