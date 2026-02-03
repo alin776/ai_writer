@@ -67,6 +67,7 @@ QUERY_TOOLS = [
     "get_worldview_summary",
     "get_style_guidance_tool",
     "explore_content",  # 2026-01-18: 统一信息获取入口
+    "load_explore_artifact",  # 2026-02-03: Explore Artifact 读取
     "locate_content",   # 2026-01-18: 定位工具
 ]
 

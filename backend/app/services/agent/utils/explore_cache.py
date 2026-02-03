@@ -20,8 +20,18 @@ async def invalidate_explore_result_cache(work_id: str) -> int:
     if not work_id:
         return 0
     pattern = f"{EXPLORE_RESULT_CACHE_PREFIX}:*:{work_id}:*"
+    deleted = 0
     try:
-        return await RedisClient.delete_pattern(pattern)
+        deleted = await RedisClient.delete_pattern(pattern)
     except Exception as exc:
         logger.debug(f"[ExploreCache] Failed to invalidate cache: {exc}")
-        return 0
+        deleted = 0
+
+    # 同步清理 Explore Artifact（落盘结果）
+    try:
+        from app.services.agent.utils.explore_artifact import invalidate_explore_artifacts
+        deleted += await invalidate_explore_artifacts(work_id)
+    except Exception as exc:
+        logger.debug(f"[ExploreCache] Failed to invalidate artifacts: {exc}")
+
+    return deleted

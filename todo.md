@@ -1578,12 +1578,91 @@
 
 #### Explore 结果持久化与上下文策略（待确认）
 
-- [ ] 明确“按需取回”策略：证据/原文/截断补全/用户明确要求 → 触发读取完整 Explore
-- [ ] Explore 结果落盘（Artifact）：保存完整结果+元数据（work_id/user_id/关键词/时间/范围/版本）
-- [ ] explore_content 返回 artifact_id + 摘要/预览（不把全文塞进上下文）
-- [ ] 新增 load_explore_artifact 工具：按 artifact_id 取回全文（支持 max_chars/模式）
-- [ ] 上下文记忆只保存“引用指针”（artifact_id + 摘要），避免重复探索且控制上下文体积
-- [ ] 失效/清理策略：章节更新/导入/恢复触发失效；TTL=7天、单条上限=200k字符、单 work_id=200、全局=10000
+- [x] 明确“按需取回”策略：证据/原文/截断补全/用户明确要求 → 触发读取完整 Explore
+- [x] Explore 结果落盘（Artifact）：保存完整结果+元数据（work_id/user_id/关键词/时间/范围/版本）
+- [x] explore_content 返回 artifact_id + 摘要/预览（不把全文塞进上下文）
+- [x] 新增 load_explore_artifact 工具：按 artifact_id 取回全文（支持 max_chars/模式）
+- [x] 上下文记忆只保存“引用指针”（artifact_id + 摘要），避免重复探索且控制上下文体积
+- [x] 失效/清理策略：章节更新/导入/恢复触发失效；TTL=7天、单条上限=200k字符、单 work_id=200、全局=10000
+
+#### review
+
+- 新增 Explore Artifact 落盘与清理：`backend/app/services/agent/utils/explore_artifact.py` 保存完整结果并支持 TTL(7天)/单 work(200)/全局(10000) 清理；超出 200k 字符会跳过存储。
+- explore_content 增加 artifact 写入与回传：返回 `artifact_id / artifact_preview / artifact_created_at`，并将 artifact_id 写入 explore_summary，便于后续按需取回。`backend/app/services/agent/tools/explore_tools.py`
+- 新增 load_explore_artifact 工具与上下文压缩上限：支持 full/summary/metadata 读取，full 可选 max_chars；并加入 `FULL_CONTENT_TOOLS` 限制。`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/utils/context_builder.py`
+- 失效联动：explore_cache 失效时同步删除落盘 artifacts，继承现有章节更新/导入/恢复触发点。`backend/app/services/agent/utils/explore_cache.py`
+- 工具描述补齐：explore_content 返回 artifact_id，新增 load_explore_artifact 说明。`backend/app/services/agent/prompts/tool_descriptions.py`
+
+#### Explore Artifact 深度 Review（待确认）
+
+- [x] 全量复核新增与改动文件（explore_artifact/explore_tools/tool_descriptions/context_builder/tool_dispatcher/explore_cache）
+- [x] 验证是否引入新问题（权限校验/路径错误/清理误删/并发冲突）
+- [x] 验证是否真正解决原问题（避免重复探索，支持按需取回）
+- [x] 检查修改完整性（工具注册/提示词/上下文压缩/失效链路）
+- [x] 验证逻辑一致性（artifact_id 生成与回传/读取权限/TTL与上限）
+- [x] 更深入验证（问题是否真实存在/是否仍有遗漏）
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- 逻辑完整性：artifact 落盘、工具注册、提示词、上下文压缩与失效链路均已覆盖。`backend/app/services/agent/utils/explore_artifact.py`、`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/core/tool_dispatcher.py`、`backend/app/services/agent/utils/context_builder.py`、`backend/app/services/agent/utils/explore_cache.py`
+- ✅ 原问题覆盖：Explore 结果可落盘并生成 `artifact_id`，可用 `load_explore_artifact` 取回，避免重复探索。`backend/app/services/agent/tools/explore_tools.py`
+- ⚠️ 潜在遗漏1：artifact 只有在**最终回复包含 artifact_id**时才会进入“对话记忆”；目前仅把 artifact_id 写入 explore_summary，**不保证最终回答一定输出**，导致下一轮可能拿不到指针。可选补强：在 ResponseBuilder 输出中强制附带 artifact_id（或写入 MemoryPack）。`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/planning/response_builder.py`
+- ⚠️ 潜在遗漏2：超出 200k 字符会跳过存储（`size_limit`），大范围读取仍可能无法持久化，重复探索问题未完全消除。`backend/app/services/agent/utils/explore_artifact.py`
+- ⚠️ 权限边界：`user_id` 可选，若未传入则 artifacts 仅以 work_id 保护；若存在跨用户共享 work_id，需强制传 user_id 或在读取时拒绝空 user_id。`backend/app/services/agent/utils/explore_artifact.py`
+
+#### 写入 Redis 会话状态（待确认）
+
+- [x] 通读与会话状态相关实现（ContextManager / session store / tool policy）
+- [x] 设计 Redis 结构：按 session_id 存 last_artifact_id 列表（去重/上限）
+- [x] explore_content 写入会话状态（保存 artifact_id）
+- [x] 规划阶段/响应阶段读取会话状态并注入上下文（确保下轮可取回）
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- 新增会话级 Redis 状态：按 session_id 记录最近 20 个 artifact_id（含 work_id/preview），TTL=7天；写入在 explore_content 成功保存 artifact 时触发。`backend/app/services/agent/utils/explore_artifact.py`、`backend/app/services/agent/tools/explore_tools.py`
+- 规划阶段读取并注入上下文：在 Planning 构建 history_parts 时追加“【可用探索结果】”列表，确保下轮能看到 artifact_id。`backend/app/services/agent/langgraph_agent.py`
+- ToolExecutor 补默认参数：load_explore_artifact 自动补 work_id/user_id/mode，避免漏参。`backend/app/services/agent/execution/tool_executor.py`
+
+#### Explore 持久化功能测试（待确认）
+
+- [x] 读取素材《一夕千悟，从杂役弟子开始.txt》，提取可定位的角色/事件/术语
+- [x] 设计 5 条测试 prompt：覆盖 Explore → artifact_id → load_explore_artifact（summary/full）
+- [x] 设计失效测试：章节更新后再次 Explore 应触发新结果
+- [x] 输出可直接复制的测试步骤与提示词
+
+#### review
+
+- 素材要素已提取：段融、赵穆、牛尾刀、吞噬器灵、浑圆桩、一夕千悟、源顺镖局等可用于精确定位。
+- 测试覆盖：Explore→artifact_id 回传、load_explore_artifact(summary/full)、会话内复用、章节更新失效。
+
+#### load_explore_artifact 返回空 排查（待确认）
+
+- [x] 通读 Backend.md 日志，定位 load_explore_artifact 调用链与结果长度
+- [x] 核对 artifact 文件是否存在与内容是否含 explore_summary
+- [x] 核对 load_explore_artifact 入参是否缺 work_id / user_id 导致 not_found
+- [x] 输出核心原因+证据+直白结论
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- 证据1：artifact 文件存在且含摘要，路径为 `backend/uploads/explore_artifacts/73d0f930-3cc8-42c7-b48f-da2992952358/475634a1fce04a00ba68ad0e39d9bc7a.json`，其中 `payload.explore_summary` 长度为 1502，`context_for_task` 长度为 3122。
+- 证据2：Backend.md 显示 load_explore_artifact 被调用，但规划阶段提示“用户提供了 artifact_id”并未包含 work_id 作为参数（实际由 ToolExecutor 兜底注入），且响应中没有直接暴露 tool 返回内容。
+- 结论（直白）：**不是 artifact 不存在，也不是没有摘要**；问题更可能出在“LLM 总结阶段未正确取用/展示 load_explore_artifact 的返回内容”，导致前端看到“结果为空”的提示。进一步验证需要在 load_explore_artifact 内部增加日志（记录返回内容长度）或在 ResponseBuilder 中直接输出工具结果用于核对。
+
+#### 修复 load_explore_artifact 读取空结果（待确认）
+
+- [x] 修复 UPLOAD_DIR 相对路径歧义（统一为绝对路径并保留旧路径回退）
+- [x] 增加 artifact_id → 路径 Redis 索引，读取时优先索引回查
+- [x] load_explore_artifact 找不到文件时输出可诊断日志
+- [x] 更新 todo.md review（证据与结论）
+
+#### review
+
+- UPLOAD_DIR 相对路径已改为“候选根目录”解析（优先 repo root，其次 backend root），避免不同 cwd 造成找不到文件；读取时会尝试旧路径回退。`backend/app/services/agent/utils/explore_artifact.py`
+- 保存时写入 Redis 索引（artifact_id → path/work_id/user_id），读取时优先索引回查，显著降低路径歧义导致的 not_found。`backend/app/services/agent/utils/explore_artifact.py`
+- 读取失败时增加可诊断日志，便于定位 work_id/path 问题。`backend/app/services/agent/utils/explore_artifact.py`
 - [ ] 更新 todo.md review（证据与结论）
 
 #### Create 阶段缺少 node_id/paragraph_index 原因复盘（待确认）
@@ -2378,3 +2457,142 @@
 
 #### review
 - 用户卡片弹窗暗色底色/分隔线/hover 全部对齐项目深色体系：主卡改为 #1e293b、分隔与 hover 改为 #334155，下拉菜单改为 #0f172a + #334155 边框，避免“discord 黑灰”突兀。`src/components/layout/UserCardPopover.tsx`
+
+#### 管理员界面去掉页眉（待确认）
+
+- [x] 确认管理员布局中页眉渲染入口（AdminLayout/Header）
+- [x] 移除管理后台页面顶部 Header（不影响侧边栏与内容区）
+- [x] 自检 admin/works 页面顶栏消失且布局无错位
+
+#### review
+- 管理员布局移除顶部 Header，只保留侧边栏与内容区，`/admin/works` 顶部条消失且结构不变。`src/components/layout/AdminLayout.tsx`
+
+#### 管理后台侧边栏标题去掉（待确认）
+
+- [x] 定位 AdminSidebar 中“管理后台”标题区块
+- [x] 移除该标题区块，保持返回入口与菜单列表布局不变
+- [x] 自检 admin 页面侧边栏间距与样式无异常
+
+#### review
+- 已移除管理后台侧边栏的“管理后台”标题区块，保留返回入口与菜单列表，间距由菜单自身 padding 接管。`src/components/layout/AdminSidebar.tsx`
+
+#### 去掉侧边栏“管理员模式”提示（待确认）
+
+- [x] 定位 AdminSidebar 底部“管理员模式/具有完整系统权限”区块
+- [x] 移除该提示区块，保持菜单滚动与布局不变
+- [x] 自检 admin 页面侧边栏底部无残留空白
+
+#### review
+- 已移除侧边栏底部“管理员模式/具有完整系统权限”提示卡片，菜单区域更简洁，底部不再占位。`src/components/layout/AdminSidebar.tsx`
+
+#### 管理后台侧边栏背景匹配（待确认）
+
+- [x] 定位 AdminSidebar 背景/边框色值与暗色模式配置
+- [x] 调整侧边栏暗色背景与右侧内容区域匹配（必要时同步边框色）
+- [x] 自检 admin 页面整体对比与层级保持清晰
+
+#### review
+- 侧边栏暗色背景调整为 `gray-800` 并同步边框为 `gray-700`，hover 暗色改为 `gray-700`，与右侧内容卡片暗色更协调。`src/components/layout/AdminSidebar.tsx`
+
+#### 管理后台作品列表顶部区域固定（待确认）
+
+- [x] 定位 AdminWorksView 顶部“标题 + 搜索/统计”区域结构
+- [x] 将该区域设为 sticky，避免随列表滚动
+- [x] 自检滚动时顶部区域固定且不遮挡列表
+
+#### 管理后台作品默认封面（待确认）
+
+- [x] 复用默认封面资源（/default-cover.jpg）并处理缺失/加载失败
+- [x] 替换 AdminWorksView 封面渲染为带兜底方案
+- [x] 自检无封面时显示默认图
+
+#### review
+- 作品管理页顶部“标题 + 搜索/统计”区域改为 sticky，滚动列表时固定在顶部。`src/views/AdminWorksView.tsx`
+- 作品封面使用默认封面兜底，并改为 ImageWithFallback 渲染，缺失/加载失败时也有默认图。`src/views/AdminWorksView.tsx`
+
+#### 管理后台作品页顶部“轻微滚动”修正（待确认）
+
+- [x] 调整 AdminWorksView 布局：移除父级 top padding，改由 sticky 区域内 padding 保持间距
+- [x] 确保 sticky 从滚动开始即固定，消除顶部“滑动 1 次才吸顶”的视觉
+- [x] 自检滚动时顶部区域不再产生位移
+
+#### review
+- 取消父级顶部 padding，并把顶部间距移入 sticky 容器，避免滚动时出现“轻微位移后才吸顶”的视觉跳动。`src/views/AdminWorksView.tsx`
+
+#### 管理后台多页面顶部区域固定（待确认）
+
+- [x] 盘点 admin 视图顶部区域结构（Dashboard/Users/Reports/Notifications/Invitations/Credits/Cost/Tasks/AIModels）
+- [x] 为需要固定的页面增加 sticky 顶部块，并调整 padding/背景避免轻微位移
+- [x] 自检多个 admin 页面滚动时顶部区域不再出现位移
+
+#### review
+- 为多个 admin 页面增加顶部 sticky 区域：Dashboard/Users/Reports/Notifications/Invitations/Credits/Cost/Tasks/AIModels/Channels，顶部信息与筛选区滚动不再位移。`src/views/AdminDashboardView/index.tsx` `src/views/AdminUsersView/index.tsx` `src/views/AdminReportsView.tsx` `src/views/AdminNotificationsView.tsx` `src/views/AdminInvitationsView/index.tsx` `src/views/AdminCreditsView/index.tsx` `src/views/AdminCostView/index.tsx` `src/views/AdminTasksView/index.tsx` `src/views/AdminAIModelsView/index.tsx` `src/views/AdminChannelsView.tsx`
+- 处理有顶距页面的“轻微位移”：AdminReports/AdminTasks 将顶部 padding 移入 sticky 容器，避免滚动后才吸顶。`src/views/AdminReportsView.tsx` `src/views/AdminTasksView/index.tsx`
+
+#### INFO.md 末尾 100 条日志核对（待确认）
+
+- [x] 读取 INFO.md 最后 100 行并统计 hit=0 频次
+- [x] 关联触发链路（exact_search/read_paragraphs）与关键词
+- [x] 在 todo.md 追加 review：直白结论 + 关键证据行号
+
+#### review
+
+- `INFO.md` 最后 100 行里只有 2 条 exact_search 相关日志，且 hits=5 / hits=12，没有出现 hit=0；其余是 explore 完成、summarization、上下文保存等流程日志。证据：`INFO.md` 末尾 100 行（15:50:45 之后）。
+
+#### read_paragraphs 报“超出范围”原因排查（待确认）
+
+- [x] 定位 ExploreTool read_paragraphs 失败日志来源与触发条件（items 过滤/分页范围）
+- [x] 对比 `explore_tools.py` 与 `langgraph_tools.py` 的空结果返回路径与字段差异
+- [x] 结合日志字段（empty_reason=None 等）判断触发路径并标注证据行号
+- [x] 在 todo.md 追加 review：直白结论 + 关键证据 + “超出范围”误导点
+
+#### review
+
+- “超出范围”并不是唯一/真实原因：`ExploreTool` 在**本地过滤后无可读项**或**预算裁剪后 limit<=0**时会直接构造 `{"success": False, "error": "没有可读取的段落（可能超出范围）"}`，并未进入底层 `read_paragraphs`，因此日志里 `empty_reason/index_base/invalid_items` 全是 `None`。证据：`backend/app/services/agent/tools/explore_tools.py:3968-3984`、`backend/app/services/agent/tools/explore_tools.py:4066-4085`、`backend/app/services/agent/tools/explore_tools.py:4101-4107`。
+- 触发“无可读项”的核心过滤链：items 必须能解析出 `chapter_order+paragraph_index`（或 `chapter_id/node_id` 映射成功），且在章节范围内、未读、未超预算，否则会被剔除；当全部被剔除就会触发上面的通用错误。证据：`backend/app/services/agent/tools/explore_tools.py:4031-4081`。
+- 如果真的是“分页超出范围”，底层 `langgraph_tools.read_paragraphs` 会返回 `empty_reason`（如 `offset 超出段落总数/章节无段落`）并带 `index_base`，日志不应为 `None`。证据：`backend/app/services/agent/langgraph_tools.py:1781-1805`。
+
+#### Backend.md 测试日志复核（待确认）
+
+- [ ] 摘取 2026-02-03 15:35 左右的 read_paragraphs 失败日志，确认参数与错误字段组合
+- [ ] 结合 ExploreTool 过滤/预算路径，判断这批 items 为何会被过滤成空
+- [ ] 对照同一时段的“成功 read_paragraphs”日志，确认 index_base/调用路径差异
+- [ ] 在 todo.md 追加 review：基于 Backend.md 的直接证据与直白结论
+
+#### “源顺镖局”反复搜索原因排查（待确认）
+
+- [x] 从日志中定位反复搜索的关键词与触发链路（search/exact_search/tool_loop）
+- [x] 核对 ExploreState 的去重逻辑与“相似词”判断是否覆盖该关键词
+- [x] 追踪 Planning/Prompt 是否重复注入同一关键词导致循环
+- [x] 在 todo.md 追加 review：直接证据 + 直白结论 + 如何“没有就跳过”
+
+#### review
+
+- 反复搜索并非“没有命中仍继续”，而是**任务本身要求查询“源顺镖局”**：15:38:45 开始的任务明确是“查找关于组织‘源顺镖局’的信息”，并且 explore_content 记录“规划传入关键词: ['源顺镖局']”。证据：`Backend.md:664-670`。
+- “源顺镖局”在搜索中**确实有命中**：多次 exact_search 命中（如 15:39:17 hits=15，后续 15:40:54/15:41:56/15:46:57 等仍有 hits），因此不会触发“0 命中即跳过”的拦截条件。证据：`Backend.md:688-691`、`Backend.md:709-712`、`Backend.md:734-737`、`Backend.md:833-836`。
+- 代码层面，“规划传入关键词”会被当作**必带关键词**，每次 exact_search 都会被强制合并并绕过去重/拦截：`required_keywords → force_set`，force_set 直接进入 allowed_keywords，不走 should_block_search。证据：`backend/app/services/agent/tools/explore_tools.py:3286-3341`、`backend/app/services/agent/tools/explore_tools.py:3411-3423`。
+- 现有“没有就跳过”只在 **0 命中** 或 **已穷尽** 时触发（且对强制关键词不生效）；而“源顺镖局”既有命中，又被 force_set 强制保留，所以不会跳过。证据：`backend/app/services/agent/tools/explore_tools.py:1120-1148`、`backend/app/services/agent/tools/explore_tools.py:658-670`。
+
+#### Explore Artifact 路径基准改为 backend/（待确认）
+
+- [x] 核对当前 UPLOAD_DIR 相对路径与服务工作目录（backend/）一致性
+- [x] 调整 Explore Artifact 根目录优先使用 backend 根路径，保留 repo 根路径作为兼容读取
+- [x] 自检保存/读取：新写入落在 backend/uploads，旧文件仍可读取
+- [x] 在 todo.md 追加 review（改动位置 + 兼容性说明）
+
+#### review
+
+- UPLOAD_DIR 仍为相对路径（`./uploads`），但 Explore Artifact 优先以 backend 根目录作为基准，适配服务运行在 backend/ 的工作目录。`backend/app/services/agent/utils/explore_artifact.py`
+- 保留兼容读取：当当前根目录找不到文件时，会在其他 upload 根目录下依次尝试 `root/<work_id>/...` 和旧版 `root/explore_artifacts/<work_id>/...`，避免历史 artifact 失效。`backend/app/services/agent/utils/explore_artifact.py`
+
+#### load_explore_artifact 摘要丢失排查与修复（待确认）
+
+- [x] 复核工具返回结构与执行层提取逻辑，定位 summary 被丢弃的原因
+- [x] 在 extract_result 增加 load_explore_artifact 分支，返回完整 JSON 结果
+- [x] 自检：摘要字段不会被提取逻辑丢弃
+- [x] 在 todo.md 追加 review（证据 + 改动位置）
+
+#### review
+
+- `load_explore_artifact` 工具返回的是顶层 `success/summary` 结构，没有 `data` 字段，但 `ToolExecutor.extract_result` 默认只取 `data` 并返回 `{}`，导致 summary 被丢弃，最终 Summarization 看不到摘要。证据：`backend/app/services/agent/execution/tool_executor.py:1626-1705`，以及 artifact 文件内确有 `payload.explore_summary`。`backend/uploads/73db1555-41d1-427a-bac1-2e2164c2a427/50fe756714434d5dbabee3b6eafcbd57.json`
+- 修复：为 `load_explore_artifact` 增加专用分支，直接返回完整 JSON（和 locate_content/explore_content 一致），确保 summary 不会被提取逻辑丢弃。`backend/app/services/agent/execution/tool_executor.py`

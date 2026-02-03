@@ -103,13 +103,15 @@ const AdminTasksView: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <Settings2 className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold">任务配置管理</h1>
+    <div className="container mx-auto px-6 pb-6 max-w-6xl">
+      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pt-6">
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <Settings2 className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold">任务配置管理</h1>
+          </div>
+          <p className="text-muted-foreground">管理系统任务及奖励积分</p>
         </div>
-        <p className="text-muted-foreground">管理系统任务及奖励积分</p>
       </div>
 
       {/* 成功提示 */}

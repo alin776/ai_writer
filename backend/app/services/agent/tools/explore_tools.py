@@ -24,6 +24,11 @@ from .tool_registry import register_as_tool
 from app.utils.datetime_utils import get_utc_now
 from app.services.agent.utils.tool_context import get_stream_event_handler, get_explore_step_id
 from app.services.agent.utils.performance import MemoryCache
+from app.services.agent.utils.explore_artifact import (
+    save_explore_artifact as _save_explore_artifact,
+    load_explore_artifact as _load_explore_artifact,
+    record_session_artifact as _record_session_artifact
+)
 from app.core.database import AsyncSessionLocal
 from app.core.redis import RedisClient
 
@@ -4973,6 +4978,63 @@ async def explore_content(
     stream_handler = get_stream_event_handler()
     emit_callback = stream_handler.emit_flow_event if stream_handler else None
     step_id_value = get_explore_step_id()
+
+    async def _attach_artifact(result_payload: Dict[str, Any]) -> None:
+        """保存 Explore 完整结果到 Artifact，并注入 artifact_id/preview"""
+        try:
+            metadata = {
+                "target_task": target_task,
+                "output_mode": output_mode_norm,
+                "force_global_search": force_global_search,
+                "require_paragraph_index": bool(require_paragraph_index) if require_paragraph_index is not None else None,
+                "search_keywords": search_keywords or []
+            }
+            artifact_info = await _save_explore_artifact(
+                payload=result_payload,
+                work_id=work_id,
+                user_id=user_id,
+                metadata=metadata
+            )
+        except Exception as exc:
+            logger.debug(f"[explore_content] Artifact 保存失败: {exc}")
+            return
+
+        if artifact_info.get("stored"):
+            artifact_id = artifact_info.get("artifact_id") or ""
+            preview_source = result_payload.get("explore_summary") or result_payload.get("context_for_task") or ""
+            if not preview_source:
+                evidences = result_payload.get("evidences") or []
+                if isinstance(evidences, list):
+                    preview_source = "；".join(
+                        [str(item.get("text", "")) for item in evidences[:3] if isinstance(item, dict)]
+                    )
+            preview_text = _truncate_text(preview_source, 1200)
+            result_payload["artifact_id"] = artifact_id
+            result_payload["artifact_preview"] = preview_text
+            result_payload["artifact_created_at"] = artifact_info.get("created_at")
+            # 写入 Redis 会话状态（便于下轮取回）
+            if conversation_id:
+                try:
+                    await _record_session_artifact(
+                        session_id=conversation_id,
+                        artifact_id=artifact_id,
+                        work_id=work_id,
+                        created_at=artifact_info.get("created_at"),
+                        preview=preview_text
+                    )
+                except Exception as exc:
+                    logger.debug(f"[explore_content] 记录会话 artifact 失败: {exc}")
+            # 将 artifact_id 写入 explore_summary，便于后续按需取回
+            if result_payload.get("explore_summary"):
+                result_payload["explore_summary"] = (
+                    str(result_payload.get("explore_summary"))
+                    + f"\n\n[artifact_id] {artifact_id}"
+                )
+            else:
+                result_payload["explore_summary"] = f"[artifact_id] {artifact_id}"
+        else:
+            result_payload["artifact_id"] = ""
+            result_payload["artifact_skipped_reason"] = artifact_info.get("reason", "unknown")
     events_emitted = emit_callback is not None
 
     chapter_scopes = _parse_chapter_scopes(target_task_for_explorer)
@@ -5114,6 +5176,7 @@ async def explore_content(
                 "evidences": evidences_output,
                 "locate_targets": locate_targets
             }
+            await _attach_artifact(result_payload)
             if use_cache and cache_key:
                 await _set_cached_explore_result(cache_key, result_payload)
             return json.dumps(result_payload, ensure_ascii=False, indent=2)
@@ -5259,6 +5322,7 @@ async def explore_content(
             "worldview": worldview_dict,
             "events_emitted": events_emitted
         }
+        await _attach_artifact(result_payload)
         if use_cache and cache_key:
             await _set_cached_explore_result(cache_key, result_payload)
         return json.dumps(result_payload, ensure_ascii=False, indent=2)
@@ -5270,3 +5334,22 @@ async def explore_content(
             "error": str(e),
             "work_id": work_id
         }, ensure_ascii=False)
+
+
+@register_as_tool("load_explore_artifact", "explore", "读取已保存的探索结果")
+async def load_explore_artifact(
+    artifact_id: str,
+    work_id: str,
+    user_id: Optional[str] = None,
+    mode: str = "full",
+    max_chars: Optional[int] = None
+) -> str:
+    """按 artifact_id 读取 Explore 结果（可选 summary/metadata/full）"""
+    result = await _load_explore_artifact(
+        artifact_id=artifact_id,
+        work_id=work_id,
+        user_id=user_id,
+        mode=mode,
+        max_chars=max_chars
+    )
+    return json.dumps(result, ensure_ascii=False, indent=2)

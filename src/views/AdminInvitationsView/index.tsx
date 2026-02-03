@@ -181,121 +181,129 @@ const AdminInvitationsView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">邀请码管理</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">生成和管理系统邀请码</p>
+      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
+        <div className="space-y-6">
+          {/* 页面标题 */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">邀请码管理</h1>
+              <p className="mt-2 text-gray-600 dark:text-gray-400">生成和管理系统邀请码</p>
+            </div>
+            <Button onClick={() => setShowGenerateModal(true)} icon={<Plus className="w-4 h-4" />}>
+              生成邀请码
+            </Button>
+          </div>
+
+          {/* 统计卡片 */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card background="blue">
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">总数</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stats.totalCodes}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
+                    <Gift className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                </div>
+              </div>
+            </Card>
+            <Card background="blue">
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">有效</p>
+                    <p className="mt-2 text-3xl font-bold text-green-600 dark:text-green-400">{stats.activeCodes}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
+                  </div>
+                </div>
+              </div>
+            </Card>
+            <Card background="blue">
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">已过期</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-600 dark:text-gray-400">{stats.expiredCodes}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                    <AlertCircle className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+                  </div>
+                </div>
+              </div>
+            </Card>
+            <Card background="blue">
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">已用完</p>
+                    <p className="mt-2 text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.exhaustedCodes}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex items-center justify-center">
+                    <AlertCircle className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* 搜索和筛选 */}
+          <Card background="blue">
+            <div className="p-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <Input
+                    placeholder="搜索邀请码或备注..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    icon={<Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      statusFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    全部
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('active')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      statusFilter === 'active' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    有效
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('expired')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      statusFilter === 'expired' ? 'bg-gray-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    已过期
+                  </button>
+                  <button
+                    onClick={() => setStatusFilter('exhausted')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      statusFilter === 'exhausted' ? 'bg-orange-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    已用完
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Card>
         </div>
-        <Button onClick={() => setShowGenerateModal(true)} icon={<Plus className="w-4 h-4" />}>
-          生成邀请码
-        </Button>
       </div>
 
-      {/* 统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card background="blue">
-          <div className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">总数</p>
-                <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stats.totalCodes}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
-                <Gift className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
-            </div>
-          </div>
-        </Card>
-        <Card background="blue">
-          <div className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">有效</p>
-                <p className="mt-2 text-3xl font-bold text-green-600 dark:text-green-400">{stats.activeCodes}</p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
-                <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
-              </div>
-            </div>
-          </div>
-        </Card>
-        <Card background="blue">
-          <div className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">已过期</p>
-                <p className="mt-2 text-3xl font-bold text-gray-600 dark:text-gray-400">{stats.expiredCodes}</p>
-              </div>
-              <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-gray-600 dark:text-gray-400" />
-              </div>
-            </div>
-          </div>
-        </Card>
-        <Card background="blue">
-          <div className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">已用完</p>
-                <p className="mt-2 text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.exhaustedCodes}</p>
-              </div>
-              <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* 搜索和筛选 */}
       <Card background="blue">
-        <div className="p-6 space-y-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <Input
-                placeholder="搜索邀请码或备注..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                icon={<Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  statusFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                全部
-              </button>
-              <button
-                onClick={() => setStatusFilter('active')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  statusFilter === 'active' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                有效
-              </button>
-              <button
-                onClick={() => setStatusFilter('expired')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  statusFilter === 'expired' ? 'bg-gray-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                已过期
-              </button>
-              <button
-                onClick={() => setStatusFilter('exhausted')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  statusFilter === 'exhausted' ? 'bg-orange-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                已用完
-              </button>
-            </div>
-          </div>
-
+        <div className="p-6">
           {/* 邀请码表格 */}
           <div className="overflow-x-auto">
             <table className="w-full">

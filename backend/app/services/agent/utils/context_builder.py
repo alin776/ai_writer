@@ -45,6 +45,7 @@ FULL_CONTENT_TOOLS = {
     "read_paragraph": 3000,  # 读取段落完整内容
     # === 探索类工具 - 返回大量证据 ===
     "explore_content": 20000,
+    "load_explore_artifact": 8000,
     # === 世界观/一致性类工具 ===
     "get_worldview_summary": 6000,  # 角色/地点/设定列表
     "check_story_consistency_tool": 5000,  # 一致性分析报告

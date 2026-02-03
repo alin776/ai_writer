@@ -25,8 +25,18 @@ def _get_new_aggregated_tools_section() -> str:
     evidences,        # 证据原文列表（只读结果）
     locate_targets    # 定位目标（chapter_id + query + node_id 等）
   }
+  🆕 返回字段包含 artifact_id / artifact_preview（用于后续按需取回完整结果）
   ⚠️ 默认返回完整字段（含 frontend_display/explore_summary）；如需精简，仅返回 evidences/locate_targets 时设置 output_mode="evidence_only"
   ⚠️ 后续工具参数只允许引用 evidences / locate_targets；旧字段仅用于兼容
+
+- load_explore_artifact: **按需取回探索结果**
+  参数:
+    - artifact_id: 探索结果ID（必需）
+    - work_id: 作品ID（必需）
+    - user_id: 用户ID（可选）
+    - mode: "full" | "summary" | "metadata"
+    - max_chars: 最大字符数（可选，full 模式下可用）
+  返回: {success, payload/summary/metadata}
 
   ✅ **所有信息获取场景都用这个工具**:
     - 续写/改写前获取上下文 → explore_content(target_task="续写第5章，需要第4-5章内容和世界观")

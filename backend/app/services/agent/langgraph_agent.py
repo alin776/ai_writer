@@ -1448,6 +1448,20 @@ class WritingAgentGraph:
                         if recent_lines:
                             history_parts.append("【近期对话】\n" + "\n".join(recent_lines))
 
+                        # 注入会话级 Explore Artifact 指针（Redis 会话状态）
+                        if conversation_id:
+                            try:
+                                from app.services.agent.utils.explore_artifact import get_session_artifacts
+                                artifacts = await get_session_artifacts(conversation_id)
+                                if artifacts:
+                                    artifact_lines = [
+                                        f"- {item.get('artifact_id')} (work_id={item.get('work_id')}) {item.get('preview', '')}"
+                                        for item in artifacts
+                                    ]
+                                    history_parts.append("【可用探索结果】\n" + "\n".join(artifact_lines))
+                            except Exception as exc:
+                                logger.debug(f"[Planning] 读取会话 artifact 失败: {exc}")
+
                         if history_parts:
                             conversation_history = "\n\n".join(history_parts)
                 except Exception as e:

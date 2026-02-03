@@ -1,7 +1,6 @@
 import React from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import Header from './Header';
 import AdminSidebar from './AdminSidebar';
 
 /**
@@ -10,7 +9,7 @@ import AdminSidebar from './AdminSidebar';
  * 功能：
  * - 检查用户是否为管理员
  * - 非管理员重定向到作品页
- * - 管理员显示管理后台布局（Header + AdminSidebar + 内容区域）
+ * - 管理员显示管理后台布局（AdminSidebar + 内容区域）
  */
 export const AdminLayout: React.FC = () => {
   const { user } = useAuthStore();
@@ -27,9 +26,6 @@ export const AdminLayout: React.FC = () => {
    */
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      {/* 顶部导航栏 */}
-      <Header />
-
       {/* 主要内容区域 */}
       <div className="flex flex-1 overflow-hidden">
         {/* 管理后台侧边栏 */}

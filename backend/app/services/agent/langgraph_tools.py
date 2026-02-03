@@ -1886,11 +1886,12 @@ from app.services.agent.tools.show_dont_tell import show_emotion_tool, enhance_s
 from app.services.agent.tools.style_learning import learn_style_tool, get_style_guidance_tool, analyze_style_tool
 
 # 导入探索工具（2026-01-17）
-from app.services.agent.tools.explore_tools import explore_content
+from app.services.agent.tools.explore_tools import explore_content, load_explore_artifact
 
 LANGGRAPH_TOOLS = [
     # 统一信息获取入口（2026-01-18 更新）
     explore_content,  # 深度探索 - 替代 search_content 和 get_writing_context
+    load_explore_artifact,  # 读取已保存的探索结果
     # 分析工具
     analyze_content,
     # 创作工具

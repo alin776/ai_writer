@@ -717,6 +717,11 @@ class ToolExecutor:
             }
             params = {key: value for key, value in params.items() if key in allowed_keys}
 
+        elif tool_name == "load_explore_artifact":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("user_id", state.get("user_id", ""))
+            params.setdefault("mode", "full")
+
         # 🆕 2026-01-23: operate_apply 统一操作工具
         elif tool_name == "operate_apply":
             # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
@@ -1634,6 +1639,10 @@ class ToolExecutor:
         elif tool_name == "locate_content":
             # locate_content 返回的 success 在顶层，data 就是整个结果
             # 返回完整 JSON 供下游工具使用
+            return json.dumps(result, ensure_ascii=False)
+
+        elif tool_name == "load_explore_artifact":
+            # load_explore_artifact 返回 summary 在顶层，需保留完整 JSON
             return json.dumps(result, ensure_ascii=False)
 
         elif tool_name == "get_context":

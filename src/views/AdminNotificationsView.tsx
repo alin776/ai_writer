@@ -472,8 +472,9 @@ const AdminNotificationsView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* 页面头部 - 简约黑白风格 */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
+        {/* 页面头部 - 简约黑白风格 */}
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
@@ -526,6 +527,7 @@ const AdminNotificationsView: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
 
