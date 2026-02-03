@@ -2006,7 +2006,7 @@ ${selectionContext.selected_text}
           >
             {atStage === 'knowledge' && knowledgePanelOpen ? (
               <div ref={menuRef} className="grid grid-cols-2 gap-2 items-start">
-                <div className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden w-full self-start">
+                <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full self-start dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50">
                   <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2" onWheel={stopMenuScrollChain}>
                     {filteredRootOptions.length > 0 ? (
                       filteredRootOptions.map((option, idx) => {
@@ -2022,14 +2022,14 @@ ${selectionContext.selected_text}
                             onMouseEnter={() => handleRootHover(option, idx)}
                             className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
                               isHighlighted
-                                ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
-                                : 'hover:bg-slate-800/60'
+                                ? 'bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-600/60'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
                             }`}
                           >
                             <div className="flex items-center gap-2">
-                              <span className="text-slate-200">{option.icon}</span>
+                              <span className="text-slate-700 dark:text-slate-200">{option.icon}</span>
                               <div className="flex flex-col">
-                                <span className="text-[12px] text-white">{option.label}</span>
+                                <span className="text-[12px] text-slate-900 dark:text-white">{option.label}</span>
                               </div>
                             </div>
                             {option.hasChildren && <ChevronRight className="w-4 h-4 text-slate-400" />}
@@ -2041,7 +2041,7 @@ ${selectionContext.selected_text}
                     )}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden w-full -mt-4">
+                <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full -mt-4 dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50">
                   <div
                     ref={knowledgeListRef}
                     className="max-h-[220px] overflow-y-auto overscroll-contain custom-scrollbar px-2 py-2"
@@ -2049,18 +2049,18 @@ ${selectionContext.selected_text}
                   >
                     <div className="space-y-1">
                       {knowledgeLoading && (
-                        <div className="px-3 py-2 text-[12px] text-slate-400 flex items-center gap-2">
+                        <div className="px-3 py-2 text-[12px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           {'\u6b63\u5728\u52a0\u8f7d\u77e5\u8bc6\u5e93\u6587\u6863...'}
                         </div>
                       )}
                       {knowledgeError && !knowledgeLoading && (
-                        <div className="px-3 py-2 text-[12px] text-amber-200">
+                        <div className="px-3 py-2 text-[12px] text-amber-600 dark:text-amber-200">
                           {knowledgeError}
                         </div>
                       )}
                       {!knowledgeLoading && !knowledgeError && filteredKnowledgeDocs.length === 0 && (
-                        <div className="px-3 py-2 text-[12px] text-slate-400">暂无可用文档</div>
+                        <div className="px-3 py-2 text-[12px] text-slate-500 dark:text-slate-400">暂无可用文档</div>
                       )}
                       {!knowledgeLoading &&
                         !knowledgeError &&
@@ -2073,15 +2073,14 @@ ${selectionContext.selected_text}
                             onMouseEnter={() => setHighlightIndex(idx)}
                             className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
                               idx === highlightIndex
-                                ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
-                                : 'hover:bg-slate-800/60'
+                                ? 'bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-600/60'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
                             }`}
                           >
                             <div className="flex items-center gap-2 min-w-0">
-                              <Tag className="w-4 h-4 text-slate-200" />
-                              <span className="text-[12px] text-white truncate max-w-[150px]">{doc.title}</span>
+                              <Tag className="w-4 h-4 text-slate-600 dark:text-slate-200" />
+                              <span className="text-[12px] text-slate-900 dark:text-white truncate max-w-[150px]">{doc.title}</span>
                             </div>
-                            <ChevronRight className="w-4 h-4 text-slate-400 opacity-60" />
                           </button>
                         ))}
                     </div>
@@ -2091,7 +2090,7 @@ ${selectionContext.selected_text}
             ) : (
               <div
                 ref={menuRef}
-                className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden w-full"
+                className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50"
               >
                 <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2" onWheel={stopMenuScrollChain}>
                   {filteredRootOptions.length > 0 ? (
@@ -2104,14 +2103,14 @@ ${selectionContext.selected_text}
                         onMouseEnter={() => handleRootHover(option, idx)}
                         className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
                           idx === highlightIndex
-                            ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
-                            : 'hover:bg-slate-800/60'
+                            ? 'bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-600/60'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-slate-200">{option.icon}</span>
+                          <span className="text-slate-700 dark:text-slate-200">{option.icon}</span>
                           <div className="flex flex-col">
-                            <span className="text-[12px] text-white">{option.label}</span>
+                            <span className="text-[12px] text-slate-900 dark:text-white">{option.label}</span>
                           </div>
                         </div>
                         {option.hasChildren && <ChevronRight className="w-4 h-4 text-slate-400" />}

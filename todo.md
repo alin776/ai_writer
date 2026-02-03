@@ -1578,12 +1578,12 @@
 
 #### Explore 结果持久化与上下文策略（待确认）
 
-- [ ] 明确“按需取回”策略：哪些场景触发读取完整 Explore（证据/原文/截断补全/用户明确要求）
-- [ ] Explore 结果落盘（Artifact）：保存完整结果+元数据（work_id/chapter_id/关键词/时间/范围/版本）
+- [ ] 明确“按需取回”策略：证据/原文/截断补全/用户明确要求 → 触发读取完整 Explore
+- [ ] Explore 结果落盘（Artifact）：保存完整结果+元数据（work_id/user_id/关键词/时间/范围/版本）
 - [ ] explore_content 返回 artifact_id + 摘要/预览（不把全文塞进上下文）
-- [ ] 新增 load_explore_artifact 工具：按 artifact_id 取回全文或指定片段
+- [ ] 新增 load_explore_artifact 工具：按 artifact_id 取回全文（支持 max_chars/模式）
 - [ ] 上下文记忆只保存“引用指针”（artifact_id + 摘要），避免重复探索且控制上下文体积
-- [ ] 失效/清理策略：章节更新/导入/恢复触发失效；保留期与大小上限
+- [ ] 失效/清理策略：章节更新/导入/恢复触发失效；TTL=7天、单条上限=200k字符、单 work_id=200、全局=10000
 - [ ] 更新 todo.md review（证据与结论）
 
 #### Create 阶段缺少 node_id/paragraph_index 原因复盘（待确认）
@@ -2351,3 +2351,21 @@
 - [ ] 设计并实现“仅保存引用信息”的数据结构与保存时机
 - [ ] 前端/后端透出引用信息（doc_id/标题/时间/标签）
 - [ ] 更新 todo.md review
+
+#### 主菜单/子菜单适配浅色模式（待确认）
+
+- [x] 定位命令菜单主/子面板的样式配置
+- [x] 为浅色模式补充背景、文字、边框与高亮样式
+- [x] 更新 todo.md review
+
+#### review
+- 主菜单与子菜单在浅色模式下使用白底/浅边框/深色文字，高亮与 hover 状态也同步适配，暗色模式保持原样。`src/components/editor/AIPanel.tsx`
+
+#### 知识库子菜单去掉小箭头（待确认）
+
+- [x] 定位子菜单列表项右侧 ChevronRight 图标渲染
+- [x] 移除子菜单列表项的小箭头图标
+- [x] 更新 todo.md review
+
+#### review
+- 移除知识库子菜单列表项右侧的小箭头图标，避免视觉干扰。`src/components/editor/AIPanel.tsx`
