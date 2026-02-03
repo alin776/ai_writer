@@ -52,7 +52,7 @@ def _get_cached_worldview_data(cache_key: str, log_miss: bool = True):
     if redis_client.is_available():
         cached = redis_client.get_json(cache_key)
         if cached:
-            logger.info(f"✅ [Worldview] 缓存命中: {cache_key}")
+            logger.debug(f"✅ [Worldview] 缓存命中: {cache_key}")
             return cached
         if log_miss:
             logger.debug(f"[Worldview] 缓存未命中: {cache_key}")  # 改为debug级别
@@ -120,7 +120,7 @@ def _cache_worldview_data(cache_key: str, data, ttl: int = 300):
 
         success = redis_client.set_json(cache_key, data, expire=ttl)
         if success:
-            logger.info(f"💾 [Worldview] 缓存已保存: {cache_key} (expire={ttl}s)")
+            logger.debug(f"💾 [Worldview] 缓存已保存: {cache_key} (expire={ttl}s)")
         else:
             logger.warning(f"⚠️ [Worldview] 缓存保存失败: {cache_key}")
 
@@ -147,7 +147,7 @@ def _invalidate_worldview_cache(work_id: str, cache_types: list):
         cache_key = f"worldview:{cache_type}:{work_id}"
         try:
             redis_client.client.delete(cache_key)
-            logger.info(f"🗑️ [Worldview] 缓存已失效: {cache_key}")
+            logger.debug(f"🗑️ [Worldview] 缓存已失效: {cache_key}")
         except Exception as e:
             logger.error(f"⚠️ [Worldview] 缓存失效失败: {cache_key}, error={e}")
 
@@ -157,7 +157,7 @@ def _invalidate_worldview_cache(work_id: str, cache_types: list):
         worlddata_key = f"worldview:worlddata:{work_id}"
         try:
             redis_client.client.delete(worlddata_key)
-            logger.info(f"🗑️ [Worldview] 聚合缓存已失效: {worlddata_key}")
+            logger.debug(f"🗑️ [Worldview] 聚合缓存已失效: {worlddata_key}")
         except Exception as e:
             logger.error(f"⚠️ [Worldview] 聚合缓存失效失败: {worlddata_key}, error={e}")
 
@@ -196,7 +196,7 @@ async def _preheat_worldview_cache(work_id: str, cache_type: str, worldview_serv
 
         # 缓存最新数据
         _cache_worldview_data(cache_key, data)
-        logger.info(f"🔥 [Worldview] 缓存预热完成: {cache_key}")
+        logger.debug(f"🔥 [Worldview] 缓存预热完成: {cache_key}")
 
     except Exception as e:
         logger.error(f"⚠️ [Worldview] 缓存预热失败: {cache_type}, error={e}")

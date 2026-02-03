@@ -115,6 +115,27 @@ class ParallelExecutor:
         task_results.sort(key=lambda x: x["task_id"])
         return task_results
 
+    @staticmethod
+    def _extract_target_chapter_id(explore_result: Dict[str, Any]) -> tuple[str, str]:
+        if not isinstance(explore_result, dict):
+            return "", ""
+        locate_targets = explore_result.get("locate_targets")
+        if isinstance(locate_targets, list):
+            for item in locate_targets:
+                if isinstance(item, dict) and item.get("chapter_id"):
+                    return str(item.get("chapter_id")), "explore.locate_targets"
+        evidences = explore_result.get("evidences")
+        if isinstance(evidences, list):
+            for item in evidences:
+                if isinstance(item, dict) and item.get("chapter_id"):
+                    return str(item.get("chapter_id")), "explore.evidences"
+        chapters = explore_result.get("chapters")
+        if isinstance(chapters, list) and len(chapters) == 1:
+            entry = chapters[0]
+            if isinstance(entry, dict) and entry.get("id"):
+                return str(entry.get("id")), "explore.chapters"
+        return "", ""
+
     async def _execute_with_dag(
         self,
         tasks: List[Dict[str, Any]],
@@ -534,6 +555,18 @@ class ParallelExecutor:
                         resolved_task["params"],
                         current_task_id=task_id
                     )
+                    # 绑定写回目标章节（只写入 state，不传给工具）
+                    target_chapter = resolved_task["params"].pop("__target_chapter_id", None)
+                    if target_chapter:
+                        if not isinstance(target_chapter, str):
+                            target_chapter = str(target_chapter)
+                        task_state["target_chapter_id"] = target_chapter
+                        task_state["target_chapter_source"] = "task_binding"
+                        logger.info(
+                            "[ParallelExecution] 任务%s 绑定目标章节: %s",
+                            task_id,
+                            target_chapter
+                        )
                     logger.debug(f"[ParameterResolver] 任务{task_id}参数已解析")
 
                 # 执行任务
@@ -556,6 +589,19 @@ class ParallelExecutor:
                     raw_result, result_text = await self._handle_explore_content_result(
                         result, task_id, step_id
                     )
+                    if isinstance(shared_state, dict) and isinstance(raw_result, dict):
+                        if raw_result.get("success"):
+                            shared_state["last_explore_result"] = raw_result
+                            shared_state["last_explore_summary"] = result_text
+                            target_id, source = self._extract_target_chapter_id(raw_result)
+                            if target_id:
+                                shared_state["target_chapter_id"] = target_id
+                                shared_state["target_chapter_source"] = source
+                                logger.info(
+                                    "[ParallelExecution] 目标章节已固化: %s (source=%s)",
+                                    target_id,
+                                    source
+                                )
 
                 # 注册任务结果（保留结构体）
                 await resolver.register_result(task_id, raw_result)
@@ -667,13 +713,18 @@ class ParallelExecutor:
             return result_data, json.dumps(result_data, ensure_ascii=False)
 
         # 发射 explore_round 和 explore_summary 事件
-        if not result_data.get("events_emitted"):
+        if result_data.get("frontend_display") and not result_data.get("events_emitted"):
             await self._emit_explore_events(result_data, step_id or task_id)
 
         # 提取 explore_summary 供后续工具使用
         explore_summary = result_data.get("explore_summary", "")
         if not explore_summary:
             explore_summary = result_data.get("context_for_task", "")
+        if not explore_summary:
+            try:
+                explore_summary = json.dumps(result_data, ensure_ascii=False)
+            except Exception:
+                explore_summary = ""
 
         # 返回 explore_summary 作为结果（供 ParameterResolver 解析）
         # 但保留完整 result_data 作为 raw_result（供调试）

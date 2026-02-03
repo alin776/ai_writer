@@ -1,7 +1,7 @@
 """
 关系Schema定义
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -53,10 +53,7 @@ class RelationshipResponse(RelationshipBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class RelationshipListResponse(BaseModel):
     """关系列表响应"""
     items: List[RelationshipResponse]

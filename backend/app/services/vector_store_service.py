@@ -664,7 +664,8 @@ class VectorStoreService:
         query: str,
         user_id: str,
         top_k: int = 10,
-        similarity_threshold: float = 0.3
+        similarity_threshold: float = 0.3,
+        doc_ids: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
         搜索知识库
@@ -674,6 +675,7 @@ class VectorStoreService:
             user_id: 用户ID
             top_k: 返回前K个最相关的结果
             similarity_threshold: 相似度阈值（0-1）
+            doc_ids: 仅在指定知识条目ID范围内检索（可选）
 
         Returns:
             List[Dict]: 相关的知识条目，每项包含：
@@ -682,7 +684,7 @@ class VectorStoreService:
                 - text: 文本内容
         """
         try:
-            logger.info(f"知识库RAG检索: user_id={user_id}, query={query[:50]}...")
+            logger.info(f"知识库RAG检索: user_id={user_id}, query={query[:50]}..., doc_ids={len(doc_ids) if doc_ids else 0}")
 
             # 1. 向量化查询
             model = self._get_model()
@@ -692,6 +694,19 @@ class VectorStoreService:
             # 2. 执行相似度搜索
             from uuid import UUID
             user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+            doc_uuid_list: Optional[List[UUID]] = None
+            if doc_ids:
+                doc_uuid_list = []
+                for doc_id in doc_ids:
+                    if not doc_id:
+                        continue
+                    try:
+                        doc_uuid_list.append(UUID(doc_id) if isinstance(doc_id, str) else doc_id)
+                    except Exception:
+                        logger.warning(f"非法知识条目ID，已跳过: {doc_id}")
+                if not doc_uuid_list:
+                    logger.warning("doc_ids 为空或无效，返回空检索结果")
+                    return []
 
             stmt = (
                 select(
@@ -700,9 +715,13 @@ class VectorStoreService:
                 )
                 .where(NovelAnalysisVector.user_id == user_uuid)
                 .where(NovelAnalysisVector.source_type == "knowledge")
-                .order_by(NovelAnalysisVector.embedding.cosine_distance(query_embedding_list))
-                .limit(top_k)
             )
+            if doc_uuid_list:
+                stmt = stmt.where(NovelAnalysisVector.source_id.in_(doc_uuid_list))
+
+            stmt = stmt.order_by(
+                NovelAnalysisVector.embedding.cosine_distance(query_embedding_list)
+            ).limit(top_k)
 
             result = await self.db.execute(stmt)
             rows = result.all()

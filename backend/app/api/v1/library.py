@@ -16,7 +16,7 @@ from app.models.rating import WorkRating
 from app.models.channel import Channel, ChannelType, ChannelStatus
 from app.models.channel_member import ChannelMember, MemberRole
 from app.schemas.work import WorkResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import uuid
 from app.services.notification_service import NotificationService
 from app.services.chapter_content_provider import ChapterContentProvider
@@ -34,10 +34,7 @@ class PublishedChapterResponse(BaseModel):
     view_count: int
     published_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class LibraryWorkResponse(BaseModel):
     """图书馆作品响应"""
     id: str
@@ -58,10 +55,7 @@ class LibraryWorkResponse(BaseModel):
     published_chapter_count: int
     is_featured: bool = False
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class LibraryWorkDetailResponse(LibraryWorkResponse):
     """图书馆作品详情响应(包含章节列表)"""
     chapters: List[PublishedChapterResponse]

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -105,9 +105,7 @@ class NotificationResponse(NotificationBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('id', 'created_by')
     def serialize_uuid(self, value: Optional[UUID], _info) -> Optional[str]:
         """将 UUID 序列化为字符串"""
@@ -154,9 +152,7 @@ class UserNotificationResponse(BaseModel):
     valid_from: Optional[datetime] = None
     valid_until: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         """将 UUID 序列化为字符串"""
@@ -259,9 +255,7 @@ class NotificationTemplateResponse(NotificationTemplateBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('id')
     def serialize_uuid(self, value: UUID, _info) -> str:
         """将 UUID 序列化为字符串"""

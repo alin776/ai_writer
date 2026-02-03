@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { FilePen, Check, X, ChevronDown, ChevronUp, Undo2, Redo2 } from 'lucide-react';
+import { FilePen, Check, X, ChevronDown, ChevronUp, Redo2 } from 'lucide-react';
 import type { RevisionFlowData } from '@/types/agent';
 
 interface RevisionCardProps extends RevisionFlowData {
@@ -25,7 +25,6 @@ export function RevisionCard({
   versions,
   onAccept,
   onDiscard,
-  onUndo,
   onRedo,
   onJump
 }: RevisionCardProps) {
@@ -43,6 +42,16 @@ export function RevisionCard({
       rename: '修改标题'
     };
     return titles[revisionType] || '章节修订';
+  };
+
+  const getPreviewLabel = () => {
+    const labels: Record<string, string> = {
+      create: '章节内容预览',
+      insert: '新增内容预览',
+      append: '续写内容预览',
+      replace: '改写内容预览'
+    };
+    return labels[revisionType] || '内容预览';
   };
 
   // 状态标签样式
@@ -173,7 +182,7 @@ export function RevisionCard({
                 }}
               >
                 <div className="text-[11px] text-gray-400 dark:text-slate-500 mb-1">
-                  {revisionType === 'create' ? '章节内容预览' : '新增内容预览'}
+                  {getPreviewLabel()}
                 </div>
                 <div className="text-[13px] text-gray-600 dark:text-slate-300 leading-[1.6] line-clamp-2">
                   "{contentPreview}..."
@@ -201,21 +210,12 @@ export function RevisionCard({
               </button>
             </div>
           ) : status === 'accepted' ? (
-            // v7.2: 已采纳状态 - 显示撤销按钮（create/rename 类型不支持撤销）
+            // v7.2: 已采纳状态 - 仅显示提示
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1 text-[12px] text-emerald-600 dark:text-emerald-400">
                 <Check size={12} />
                 修订已采纳
               </span>
-              {onUndo && revisionType !== 'create' && revisionType !== 'rename' && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onUndo(); }}
-                  className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
-                >
-                  <Undo2 size={10} />
-                  撤销
-                </button>
-              )}
             </div>
           ) : (
             // v7.2: 已弃用状态 - 显示重做按钮（create/rename 类型不支持重做）

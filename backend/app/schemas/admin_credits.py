@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, EmailStr
+from pydantic import BaseModel, Field, field_validator, EmailStr, ConfigDict
 
 
 # ============ 兑换码管理 ============
@@ -32,10 +32,7 @@ class AdminRedeemCodeResponse(BaseModel):
     remark: Optional[str] = None
     created_at: str
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class AdminRedeemCodeListRequest(BaseModel):
     """管理端兑换码列表请求"""
     page: int = Field(1, ge=1, description="页码")
@@ -72,10 +69,7 @@ class AdminGiftCreditsResponse(BaseModel):
     description: str
     created_at: str
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============ 积分统计 ============
 
 class AdminCreditsStatsResponse(BaseModel):
@@ -87,5 +81,4 @@ class AdminCreditsStatsResponse(BaseModel):
     total_gifted: float = Field(..., description="总赠送")
     total_transactions: int = Field(..., description="总交易数")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

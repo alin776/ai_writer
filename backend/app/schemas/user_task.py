@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class TaskTemplateResponse(BaseModel):
@@ -20,10 +20,7 @@ class TaskTemplateResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class TaskTemplateUpdate(BaseModel):
     """更新任务模板（管理员）"""
     reward_credits: Optional[int] = None
@@ -47,20 +44,14 @@ class UserTaskResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class UserTaskWithTemplate(BaseModel):
     """带模板信息的用户任务"""
     task: UserTaskResponse
     template: TaskTemplateResponse
     progress_percentage: int
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class TaskListResponse(BaseModel):
     """任务列表响应"""
     tasks: list[UserTaskWithTemplate]
@@ -68,5 +59,4 @@ class TaskListResponse(BaseModel):
     completed_count: int
     total_credits_earned: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

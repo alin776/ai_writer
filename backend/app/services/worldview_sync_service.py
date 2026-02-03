@@ -139,12 +139,12 @@ class WorldviewSyncService:
         combined_content = ""
         for chapter in chapters:
             content = self.content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
-            logger.info(f"[世界观同步] 章节 {chapter.order} '{chapter.title}': 内容长度={len(content)}")
+            logger.debug(f"[世界观同步] 章节 {chapter.order} '{chapter.title}': 内容长度={len(content)}")
             if content:
                 combined_content += f"\n\n【第{chapter.order}章 {chapter.title}】\n{content}"
 
-        logger.info(f"[世界观同步] 合并 {len(chapters)} 个章节，总内容长度: {len(combined_content)}")
-        logger.info(f"[世界观同步] 内容预览: {combined_content[:500]}...")
+        logger.debug(f"[世界观同步] 合并 {len(chapters)} 个章节，总内容长度: {len(combined_content)}")
+        logger.debug(f"[世界观同步] 内容预览: {combined_content[:500]}...")
 
         # 如果没有内容，返回空结果
         if len(combined_content) < 100:
@@ -520,9 +520,9 @@ class WorldviewSyncService:
 4. 返回严格的JSON格式"""
 
         try:
-            logger.info(f"[世界观同步] 开始AI分析，章节数: {chapter_count}, 内容长度: {len(combined_content)}")
-            logger.info(f"[世界观同步] 现有世界观: {existing_summary[:200]}...")
-            logger.info(f"[世界观同步] db={self.db}, user_id={self.user_id}")
+            logger.debug(f"[世界观同步] 开始AI分析，章节数: {chapter_count}, 内容长度: {len(combined_content)}")
+            logger.debug(f"[世界观同步] 现有世界观: {existing_summary[:200]}...")
+            logger.debug(f"[世界观同步] db={self.db}, user_id={self.user_id}")
 
             # 使用 gemini 模型进行世界观分析（更稳定）
             ai_service = HTTPAIService(db=self.db, user_id=self.user_id, model="gemini-2.5-pro")
@@ -540,8 +540,8 @@ class WorldviewSyncService:
                 if chunk:  # 忽略空chunk（最后一个是空的，只包含usage）
                     full_response += chunk
 
-            logger.info(f"[世界观同步] AI响应长度: {len(full_response)}")
-            logger.info(f"[世界观同步] AI响应内容: {full_response[:500]}...")
+            logger.debug(f"[世界观同步] AI响应长度: {len(full_response)}")
+            logger.debug(f"[世界观同步] AI响应内容: {full_response[:500]}...")
 
             result = self._parse_changes_json(full_response)
             logger.info(f"[世界观同步] 解析结果: 新人物={len(result.get('new_characters', []))}, 新地点={len(result.get('new_locations', []))}, 新设定={len(result.get('new_settings', []))}")

@@ -10,7 +10,7 @@ Agent 智能助手 API 路由
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
@@ -387,6 +387,8 @@ class AgentSessionResponse(BaseModel):
     archived_at: Optional[str] = None
     expires_at: Optional[str] = None
     title_locked: Optional[bool] = None
+    message_count: Optional[int] = None
+    last_message_preview: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -1073,6 +1075,87 @@ async def agent_chat_stream(
                     )
                     logger.info(f"[Session] 创建新会话归属: {conversation_id} -> {user_id}")
 
+                # 如果没有绑定的 AgentSession，创建一条，确保消息可持久化
+                if not session:
+                    try:
+                        # 兼容：前端可能把 session_id 作为 conversation_id 传入
+                        try:
+                            from uuid import UUID as PyUUID
+                            conv_uuid = PyUUID(conversation_id)
+                            stmt = select(AgentSession).where(
+                                AgentSession.id == conv_uuid,
+                                AgentSession.user_id == user_id
+                            ).limit(1)
+                            result = await db.execute(stmt)
+                            session = result.scalar_one_or_none()
+                            if session and not session.conversation_id:
+                                session.conversation_id = conversation_id
+                                session.updated_at = datetime.utcnow()
+                                session.expires_at = datetime.utcnow() + timedelta(days=30)
+                                db.add(session)
+                                await db.commit()
+                                await db.refresh(session)
+                        except ValueError:
+                            pass
+                        except Exception as bind_err:
+                            await db.rollback()
+                            logger.warning(f"[agent_chat_stream] 绑定会话ID失败: {bind_err}")
+
+                        if session:
+                            logger.info(f"[agent_chat_stream] 已绑定会话: {session.id} -> {conversation_id}")
+                            # 已绑定则不需要新建会话
+                            pass
+                        else:
+                            validated_chapter_id = None
+                            validated_work_id = None
+
+                            if request.work_id:
+                                try:
+                                    from uuid import UUID as PyUUID
+                                    PyUUID(request.work_id)
+                                    validated_work_id = request.work_id
+                                except ValueError:
+                                    logger.debug(
+                                        f"[agent_chat_stream] work_id {request.work_id} 格式无效，已忽略"
+                                    )
+
+                            if request.chapter_id:
+                                try:
+                                    from uuid import UUID as PyUUID
+                                    chapter_uuid = PyUUID(request.chapter_id)
+                                    stmt = select(Chapter).where(Chapter.id == chapter_uuid)
+                                    result = await db.execute(stmt)
+                                    chapter = result.scalar_one_or_none()
+                                    if chapter:
+                                        validated_chapter_id = request.chapter_id
+                                        if not validated_work_id and chapter.work_id:
+                                            validated_work_id = str(chapter.work_id)
+                                    else:
+                                        logger.debug(
+                                            f"[agent_chat_stream] chapter_id {request.chapter_id} 未找到，已忽略"
+                                        )
+                                except ValueError:
+                                    logger.debug(
+                                        f"[agent_chat_stream] chapter_id {request.chapter_id} 格式无效，已忽略"
+                                    )
+
+                            new_session = AgentSession(
+                                user_id=current_user.id,
+                                title="New session",
+                                conversation_id=conversation_id,
+                                work_id=validated_work_id,
+                                chapter_id=validated_chapter_id,
+                                expires_at=datetime.utcnow() + timedelta(days=30),
+                                title_locked=False,
+                            )
+                            db.add(new_session)
+                            await db.commit()
+                            await db.refresh(new_session)
+                            session = new_session
+                    except Exception as session_err:
+                        await db.rollback()
+                        logger.warning(f"[agent_chat_stream] 创建会话失败: {session_err}")
+
                 logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
 
                 # 发送开始事件（包含mode信息）
@@ -1115,29 +1198,91 @@ async def agent_chat_stream(
 
                 doc_ids = context.get("knowledge_doc_ids") if isinstance(context.get("knowledge_doc_ids"), list) else []
                 if doc_ids:
+                    # 去重并保持原顺序
                     seen_ids = set()
+                    unique_doc_ids = []
                     for doc_id in doc_ids:
                         if not doc_id or doc_id in seen_ids:
                             continue
                         seen_ids.add(doc_id)
-                        try:
-                            item = await knowledge_service.get_item(doc_id, user_id, increment_view=False)
-                            if item:
-                                knowledge_docs.append({
-                                    "id": str(item.id),
-                                    "title": item.title,
-                                    "content": item.content,
-                                    "tags": item.tags,
-                                    "source_type": getattr(item.source_type, "value", str(item.source_type)),
-                                })
-                                try:
-                                    await knowledge_service.increment_reference_count(doc_id, user_id)
-                                except Exception as ref_err:
-                                    logger.debug(f"[agent_chat_stream] increment_reference_count failed: {ref_err}")
-                            else:
-                                logger.warning(f"[agent_chat_stream] Knowledge doc not found: doc_id={doc_id}")
-                        except Exception as load_err:
-                            logger.warning(f"[agent_chat_stream] load knowledge item failed: {load_err}")
+                        unique_doc_ids.append(doc_id)
+
+                    # 可配置的知识库引用上限（默认5）
+                    raw_limit = context.get("knowledge_doc_limit", 5)
+                    try:
+                        knowledge_doc_limit = int(raw_limit)
+                    except (TypeError, ValueError):
+                        knowledge_doc_limit = 5
+                    if knowledge_doc_limit <= 0:
+                        knowledge_doc_limit = 5
+                    if knowledge_doc_limit > 10:
+                        knowledge_doc_limit = 10
+
+                    limited_doc_ids = unique_doc_ids[:knowledge_doc_limit]
+
+                    # 方案A：优先基于用户问题进行语义检索，返回最相关片段
+                    search_results = []
+                    try:
+                        search_results = await knowledge_service.search_by_semantic(
+                            user_id=str(user_id),
+                            query=request.message,
+                            top_k=min(knowledge_doc_limit, len(limited_doc_ids)),
+                            doc_ids=limited_doc_ids
+                        )
+                    except Exception as search_err:
+                        logger.warning(f"[agent_chat_stream] knowledge semantic search failed: {search_err}")
+
+                    if search_results:
+                        for result in search_results:
+                            item = result.get("item")
+                            if not item:
+                                continue
+                            highlight = result.get("highlight") or ""
+                            knowledge_docs.append({
+                                "id": str(item.id),
+                                "title": item.title,
+                                "content": highlight or item.content,
+                                "highlight": highlight,
+                                "tags": item.tags,
+                                "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                            })
+                            try:
+                                await knowledge_service.increment_reference_count(str(item.id), user_id)
+                            except Exception as ref_err:
+                                logger.debug(f"[agent_chat_stream] increment_reference_count failed: {ref_err}")
+                    else:
+                        # 兜底：若检索不到片段，回退为原始全文注入
+                        for doc_id in limited_doc_ids:
+                            try:
+                                item = await knowledge_service.get_item(doc_id, user_id, increment_view=False)
+                                if item:
+                                    knowledge_docs.append({
+                                        "id": str(item.id),
+                                        "title": item.title,
+                                        "content": item.content,
+                                        "tags": item.tags,
+                                        "source_type": getattr(item.source_type, "value", str(item.source_type)),
+                                    })
+                                    try:
+                                        await knowledge_service.increment_reference_count(doc_id, user_id)
+                                    except Exception as ref_err:
+                                        logger.debug(f"[agent_chat_stream] increment_reference_count failed: {ref_err}")
+                                else:
+                                    logger.warning(f"[agent_chat_stream] Knowledge doc not found: doc_id={doc_id}")
+                            except Exception as load_err:
+                                logger.warning(f"[agent_chat_stream] load knowledge item failed: {load_err}")
+
+                    # ✅ 透出本次知识库使用状态（检索片段 or 回退全文）
+                    try:
+                        from app.services.agent.stream.flow_events import FlowEventBuilder
+
+                        used_count = len(knowledge_docs)
+                        total_count = len(limited_doc_ids)
+                        mode_text = "检索片段" if search_results else "回退全文"
+                        status_text = f"知识库引用：{mode_text}（{used_count}/{total_count}）"
+                        await event_queue.put(('text', FlowEventBuilder.text(status_text)))
+                    except Exception as status_err:
+                        logger.debug(f"[agent_chat_stream] emit knowledge status failed: {status_err}")
 
                 if knowledge_docs:
                     context["knowledge_docs"] = knowledge_docs
@@ -1609,12 +1754,6 @@ async def agent_chat_stream(
                             token_usage=(result.get("metadata") or {}).get("token_usage"),
                         )
                         await db.commit()
-                        try:
-                            redis_client = get_redis_client()
-                            redis_client.delete(_session_detail_cache_key(str(session.id)))
-                            _invalidate_session_caches(redis_client, user_id)
-                        except Exception as cache_err:
-                            logger.warning(f"[LangGraph Agent Stream] Clear session cache failed: {cache_err}")
                 except Exception as persist_err:
                     await db.rollback()
                     logger.warning(f"[LangGraph Agent Stream] Persist message failed: {persist_err}")
@@ -2133,7 +2272,11 @@ async def update_preferences(
 
 # ==================== 会话管理 ====================
 
-def _session_to_response(session: AgentSession) -> Dict[str, Any]:
+def _session_to_response(
+    session: AgentSession,
+    message_count: Optional[int] = None,
+    last_message_preview: Optional[str] = None,
+) -> Dict[str, Any]:
     return {
         "session_id": str(session.id),
         "title": session.title,
@@ -2145,6 +2288,8 @@ def _session_to_response(session: AgentSession) -> Dict[str, Any]:
         "archived_at": session.archived_at.isoformat() if getattr(session, "archived_at", None) else None,
         "expires_at": session.expires_at.isoformat() if getattr(session, "expires_at", None) else None,
         "title_locked": bool(getattr(session, "title_locked", False)),
+        "message_count": message_count if message_count is not None else 0,
+        "last_message_preview": last_message_preview or "",
     }
 
 
@@ -2245,6 +2390,7 @@ async def _persist_message(
 ) -> None:
     if not session:
         return
+    user_id = str(session.user_id)
     message = AgentSessionMessage(
         session_id=session.id,
         role=role,
@@ -2256,6 +2402,12 @@ async def _persist_message(
     # 触发 updated_at/expires_at 更新
     session.updated_at = datetime.utcnow()
     session.expires_at = datetime.utcnow() + timedelta(days=30)
+    try:
+        redis_client = get_redis_client()
+        redis_client.delete(_session_detail_cache_key(str(session.id)))
+        _invalidate_session_caches(redis_client, user_id)
+    except Exception as cache_err:
+        logger.warning(f"[SessionCache] invalidate failed: {cache_err}")
 
 
 @router.post("/sessions", response_model=AgentSessionResponse, summary="创建 Agent 会话")
@@ -2267,6 +2419,20 @@ async def create_agent_session(
     title = payload.title or "New session"
     now = datetime.utcnow()
     expires_at = now + timedelta(days=30)
+    user_id = str(current_user.id)
+
+    # 避免同一 conversation_id 重复创建会话
+    if payload.conversation_id:
+        existing = await _find_session_by_conversation(db, user_id, payload.conversation_id)
+        if existing:
+            response = _session_to_response(existing)
+            if payload.title_locked:
+                try:
+                    redis_client = get_redis_client()
+                    _set_title_lock(redis_client, str(existing.id), True)
+                except Exception as e:
+                    logger.warning(f"[Redis] set title lock failed: {e}")
+            return response
 
     # 验证 chapter_id 是否有效（如果提供）
     validated_chapter_id = None
@@ -2349,10 +2515,45 @@ async def list_agent_sessions(
     result = await db.execute(stmt)
     sessions = result.scalars().all()
 
+    session_ids = [str(s.id) for s in sessions]
+    counts_map: Dict[str, int] = {}
+    previews_map: Dict[str, str] = {}
+
+    if session_ids:
+        count_rows = await db.execute(
+            select(
+                AgentSessionMessage.session_id,
+                func.count(AgentSessionMessage.id)
+            )
+            .where(AgentSessionMessage.session_id.in_(session_ids))
+            .group_by(AgentSessionMessage.session_id)
+        )
+        counts_map = {str(row[0]): int(row[1]) for row in count_rows.all()}
+
+        preview_rows = await db.execute(
+            select(
+                AgentSessionMessage.session_id,
+                AgentSessionMessage.content,
+                func.row_number().over(
+                    partition_by=AgentSessionMessage.session_id,
+                    order_by=AgentSessionMessage.created_at.desc()
+                ).label("rn")
+            )
+            .where(AgentSessionMessage.session_id.in_(session_ids))
+        )
+        for session_id, content, rn in preview_rows.all():
+            if rn == 1 and content:
+                previews_map[str(session_id)] = content[:80]
+
     redis_client = get_redis_client()
     response = []
     for s in sessions:
-        resp = _session_to_response(s)
+        sid = str(s.id)
+        resp = _session_to_response(
+            s,
+            message_count=counts_map.get(sid, 0),
+            last_message_preview=previews_map.get(sid, ""),
+        )
         lock_redis = _get_title_lock(redis_client, resp["session_id"])
         resp["title_locked"] = resp["title_locked"] or lock_redis
         response.append(resp)

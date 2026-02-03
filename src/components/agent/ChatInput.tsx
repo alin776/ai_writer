@@ -38,7 +38,38 @@ interface ChatInputProps {
   onClearSelection?: () => void;
 }
 
-type AtCommandStage = 'root' | 'knowledge';
+type AtCommandStage = 'root' | 'knowledge' | 'optimization';
+
+// 去痕迹强度选项
+type OptimizationIntensity = 'light' | 'medium' | 'strong';
+
+interface IntensityOption {
+  key: OptimizationIntensity;
+  label: string;
+  description: string;
+  changePercent: string;
+}
+
+const INTENSITY_OPTIONS: IntensityOption[] = [
+  {
+    key: 'light',
+    label: '轻度',
+    description: '仅去除明显AI套话，保持原文风格',
+    changePercent: '~5%',
+  },
+  {
+    key: 'medium',
+    label: '中度',
+    description: '平衡自然度与内容保留，推荐使用',
+    changePercent: '~20%',
+  },
+  {
+    key: 'strong',
+    label: '强度',
+    description: '深度重构句式，最大化自然度',
+    changePercent: '~40%',
+  },
+];
 
 type RootCommandOption = {
   key: 'knowledge' | 'optimization';
@@ -61,6 +92,7 @@ const ROOT_OPTIONS: RootCommandOption[] = [
     label: '@optimization',
     description: '开启 AI 去痕迹',
     icon: <Sparkles className="w-4 h-4" />,
+    hasChildren: true,
   },
 ];
 
@@ -99,10 +131,16 @@ export default function ChatInput({
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   // 已选择的文档（用于胶囊显示和发送）
   const [selectedDocs, setSelectedDocs] = useState<KnowledgeDoc[]>([]);
+  // 已选择的去痕迹强度
+  const [selectedIntensity, setSelectedIntensity] = useState<OptimizationIntensity | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const optimizationEnabled = useMemo(() => message.toLowerCase().includes('@optimization'), [message]);
+  // 检测是否启用了优化（通过@optimization或选择了强度）
+  const optimizationEnabled = useMemo(
+    () => message.toLowerCase().includes('@optimization') || selectedIntensity !== null,
+    [message, selectedIntensity]
+  );
   const containsAt = useMemo(() => message.includes('@') || message.includes('＠'), [message]);
 
   const MAX_HUMANIZE_CHARS = 5000;
@@ -296,7 +334,10 @@ export default function ChatInput({
       return;
     }
     if (option.key === 'optimization') {
-      insertDirectiveText('@optimization');
+      setAtStage('optimization');
+      setAtQuery('');
+      setHighlightIndex(0);
+      return;
     }
   };
 
@@ -318,11 +359,29 @@ export default function ChatInput({
     closeAtMenu();
   };
 
+  const handleOptimizationOption = (intensity: IntensityOption) => {
+    // 设置选择的强度
+    setSelectedIntensity(intensity.key);
+    // 关闭菜单，清除 @ 触发文本
+    const textarea = textareaRef.current;
+    const caret = textarea?.selectionStart ?? message.length;
+    const start = atTriggerIndex ?? Math.max(caret - (atQuery.length + 1), 0);
+    const rest = message.slice(start + 1);
+    const nextSpaceIndex = rest.search(/[\s]/);
+    const end = nextSpaceIndex === -1 ? message.length : start + 1 + nextSpaceIndex;
+    const newValue = message.slice(0, start) + message.slice(end);
+    setMessage(newValue.trim());
+    closeAtMenu();
+  };
+
   const handleMenuSelect = (index: number) => {
     if (!atMenuOpen) return;
     if (atStage === 'knowledge') {
       const doc = filteredKnowledgeDocs[index];
       if (doc) handleKnowledgeOption(doc);
+    } else if (atStage === 'optimization') {
+      const intensity = INTENSITY_OPTIONS[index];
+      if (intensity) handleOptimizationOption(intensity);
     } else {
       const option = filteredRootOptions[index];
       if (option) handleRootOption(option);
@@ -355,6 +414,7 @@ export default function ChatInput({
             ...(optimizationEnabled
               ? {
                   use_optimization: true,
+                  intensity: selectedIntensity || 'medium',
                   ...(truncatedChapterContent
                     ? {
                         current_content: truncatedChapterContent,
@@ -386,6 +446,7 @@ export default function ChatInput({
     setContextText('');
     setShowContext(false);
     setSelectedDocs([]);
+    setSelectedIntensity(null);
     closeAtMenu();
     if (onClearSelection) onClearSelection();
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -393,7 +454,11 @@ export default function ChatInput({
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     const activeLength =
-      atStage === 'knowledge' ? filteredKnowledgeDocs.length : filteredRootOptions.length;
+      atStage === 'knowledge'
+        ? filteredKnowledgeDocs.length
+        : atStage === 'optimization'
+        ? INTENSITY_OPTIONS.length
+        : filteredRootOptions.length;
 
     if (atMenuOpen && activeLength > 0) {
       if (e.key === 'ArrowDown') {
@@ -439,6 +504,7 @@ export default function ChatInput({
 
   const removeOptimization = () => {
     setMessage((prev) => prev.replace(/\s*@optimization\s*/gi, ' ').replace(/\s+/g, ' ').trimStart());
+    setSelectedIntensity(null);
   };
 
   const charCount = message.length;
@@ -481,6 +547,23 @@ export default function ChatInput({
             <span className="font-medium text-gray-800">@Knowledge</span>
             <span className="text-gray-400">·</span>
             <span className="text-gray-500">选择知识库文档</span>
+          </div>
+        ) : atStage === 'optimization' ? (
+          <div className="flex items-center gap-2 px-1 pb-1 text-xs text-gray-600">
+            <button
+              type="button"
+              onClick={() => {
+                setAtStage('root');
+                setAtQuery('');
+                setHighlightIndex(0);
+              }}
+              className="p-1 rounded-md hover:bg-gray-100 text-gray-500"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="font-medium text-gray-800">@optimization</span>
+            <span className="text-gray-400">·</span>
+            <span className="text-gray-500">选择去痕强度</span>
           </div>
         ) : (
           <div className="px-1 pb-1 text-xs text-gray-500">选择要插入的 @ 指令</div>
@@ -530,6 +613,47 @@ export default function ChatInput({
                     </button>
                   );
                 })}
+            </>
+          ) : atStage === 'optimization' ? (
+            <>
+              {INTENSITY_OPTIONS.map((intensity, index) => {
+                const selected = index === highlightIndex;
+                const isCurrentSelection = selectedIntensity === intensity.key;
+                return (
+                  <button
+                    key={intensity.key}
+                    onClick={() => handleOptimizationOption(intensity)}
+                    onMouseEnter={() => setHighlightIndex(index)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors ${
+                      isCurrentSelection
+                        ? 'bg-purple-50 border border-purple-200 text-purple-800'
+                        : selected
+                        ? 'bg-blue-50 border border-blue-100 text-blue-800'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-md ${
+                        isCurrentSelection ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        <Sparkles className="w-4 h-4" />
+                      </span>
+                      <div className="text-left">
+                        <div className="text-sm font-medium flex items-center gap-2">
+                          {intensity.label}
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                            {intensity.changePercent}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">{intensity.description}</div>
+                      </div>
+                    </div>
+                    {isCurrentSelection && (
+                      <span className="text-xs text-purple-600 font-medium">当前</span>
+                    )}
+                  </button>
+                );
+              })}
             </>
           ) : (
             <>
@@ -705,6 +829,11 @@ export default function ChatInput({
               <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-medium border border-purple-100">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>AI去痕迹</span>
+                {selectedIntensity && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 font-medium">
+                    {INTENSITY_OPTIONS.find(i => i.key === selectedIntensity)?.label || '中度'}
+                  </span>
+                )}
                 {truncatedCount > 0 && (
                   <span className="text-[10px] text-amber-600 ml-1">
                     已截断 {truncatedCount} 字

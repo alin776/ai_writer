@@ -44,7 +44,7 @@
 
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from collections import defaultdict
 import logging
 import json
@@ -87,24 +87,23 @@ class APICallRecord(BaseModel):
     success: bool = Field(default=True, description="是否成功")
     error_message: Optional[str] = Field(None, description="错误信息")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "call_123",
-                "user_id": "user_001",
-                "model_provider": "google",
-                "model_id": "gemini-2.5-flash",
-                "model_name": "Gemini 2.5 Flash",
-                "input_tokens": 1000,
-                "output_tokens": 500,
-                "total_tokens": 1500,
-                "input_cost": 0.0005,
-                "output_cost": 0.00075,
-                "total_cost": 0.00125,
-                "task_type": "content_creation",
-                "success": True
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "id": "call_123",
+            "user_id": "user_001",
+            "model_provider": "google",
+            "model_id": "gemini-2.5-flash",
+            "model_name": "Gemini 2.5 Flash",
+            "input_tokens": 1000,
+            "output_tokens": 500,
+            "total_tokens": 1500,
+            "input_cost": 0.0005,
+            "output_cost": 0.00075,
+            "total_cost": 0.00125,
+            "task_type": "content_creation",
+            "success": True
         }
+    })
 
 
 class CostStatistics(BaseModel):

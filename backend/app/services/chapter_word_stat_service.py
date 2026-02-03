@@ -71,7 +71,7 @@ class ChapterWordStatService:
 
         # 幂等性检查
         if edit_event_id and await self.check_edit_event_exists(edit_event_id):
-            logger.info(f"编辑事件已存在，跳过: edit_event_id={edit_event_id}")
+            logger.debug(f"编辑事件已存在，跳过: edit_event_id={edit_event_id}")
             return None
 
         stat = ChapterWordStat(
@@ -85,7 +85,7 @@ class ChapterWordStatService:
             await self.db.commit()
             await self.db.refresh(stat)
 
-        logger.info(f"记录字数增量: chapter_id={chapter_id}, delta={delta}, edit_event_id={edit_event_id}")
+        logger.debug(f"记录字数增量: chapter_id={chapter_id}, delta={delta}, edit_event_id={edit_event_id}")
         return stat
 
     async def sum_delta_for_author_since(self, author_id: str, since: datetime) -> int:

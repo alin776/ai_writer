@@ -31,8 +31,8 @@ def _get_planning_core_rules() -> str:
 1. **查询/分析请求**（不涉及创作）
    - "获取第三章"、"第五章有多少字" → 直接生成任务
    - "世界观里有什么" → 直接生成 explore_content(target_task="获取世界观设定") 任务
-   - "第三章讲了什么" → 直接生成[explore_content → 概括]
-   - "分析主角人设" → 直接生成[explore_content → analyze_content]
+   - "第三章讲了什么" → 直接生成[explore_content → 直接输出概括]
+   - "分析主角人设" → 直接生成[explore_content → 直接输出（允许推演）]
 
 2. **章节操作请求**（OPERATION 工具，直接执行）
    - "创建新章节"、"新建一个章节" → 直接生成 create_chapter 任务
@@ -107,6 +107,10 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 - smart_rewrite → operate_apply(operation="replace")
 - smart_insert → operate_apply(operation="insert")
 
+⚠️ **单结果规则**：
+- smart_rewrite/smart_insert/smart_continue 只生成**单条内容**
+- 即使用户要求“多版本/多候选/两版”，任务描述也必须改成“生成一条内容”
+
 **什么时候需要写入编辑器？**
 - 用户说"续写"、"插入"、"改写"、"润色"、"扩写" → ✅ 需要！
 - 用户说"帮我写一段XX给我看看"、"生成一个大纲" → ❌ 不需要
@@ -126,10 +130,10 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 
 ✅ **需要调用工具**的情况（明确提到作品内容）：
 - "获取第三章" → 直接生成 [explore_content(target_task="读取第三章内容")]
-- "第三章讲了什么" → 直接生成 [explore_content → analyze_content]
+- "第三章讲了什么" → 直接生成 [explore_content → 直接输出概括]
 - "续写第五章" → 分阶段：先 [explore_content(target_task="续写准备，获取第4-5章和世界观")]，看到内容后询问续写细节
 - "帮我写第一章" → 分阶段：先 [explore_content(target_task="创作准备，获取世界观和大纲")]，看到世界观后询问创作细节
-- "分析一下主角的人设" → 直接生成 [explore_content → analyze_content]
+- "分析一下主角的人设" → 直接生成 [explore_content → 直接输出（允许推演）]
 - "做对照/证据/引用原文" → 只用 explore_content + 直接输出（禁止 analyze_content）
 
 ⚠️ **判断原则**：
@@ -188,9 +192,15 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 
 - **直接回答**（知识问答，不需要操作作品）→ 使用 direct_answer 字段
 - 直接返回（无处理）→ 只用获取工具
-- 概括/分析现有内容 → 获取 + analyze_content
-- 创作新内容（包括大纲/规划/设定）→ smart_continue
+- 概括/分析/推演/大纲/伏笔/设定补充 → 先获取证据，再**直接输出**（默认不使用 analyze_content）
+- **创作故事正文**（续写/创作章节内容，写入编辑器）→ smart_continue
+- **结构化评估/报告**（一致性/风格/质量/打分/结构化报告）→ 获取 + analyze_content
 - 对照/证据/引用原文 → 获取 + 检索 + 直接输出（不要 analyze_content）
+
+⚠️ **smart_continue vs analyze_content 区分规则**：
+- smart_continue：只用于生成**小说故事正文**，输出会写入编辑器
+- analyze_content：仅用于**结构化评估/报告**（一致性/风格/质量/打分），输出仅展示给用户
+- 其他分析/推演/大纲/设定补充 → 默认直接输出（不调用 smart_* / analyze_content）
 
 【可用工具】
 {all_tools}
@@ -208,14 +218,22 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 | 插入 | smart_insert | operate_apply(operation="insert") |
 | 整章重写 | smart_rewrite | operate_apply(operation="content") |
 
-⚠️ **operate_apply 会自动处理定位**！不需要单独调用 locate_content！
-- replace 操作：传入 original_text，operate_apply 内部自动 text_match 定位
-- insert 操作：传入 target_description，operate_apply 内部自动 semantic 定位
+⚠️ **operate_apply 不再自动定位**！
+- replace/insert 必须传 node_id 或 paragraph_index
+- 需要先用 locate_content 或 list_paragraphs/read_paragraphs 精确定位
 
-⚠️ **参数引用规则**：后续工具参数只允许引用 explore_content 的 `chapters[...]` / `explore_summary` / `context_for_task`
-（`frontend_display` 仅用于展示，禁止作为参数来源）
+⚠️ **参数引用规则**：后续工具参数只允许引用 explore_content 的 `evidences` / `locate_targets`
+（默认输出完整字段；如需精简，请显式传 output_mode="evidence_only"）
+⚠️ smart_* 必须注入 explore 证据（evidence_context），否则不允许创作写入
+⚠️ smart_rewrite 的 text_to_rewrite **必须**引用 `evidences[0].text`（禁止使用 locate_targets[0].text）
 
-✅ 正确流程：smart_rewrite → operate_apply(operation="replace", original_text="要替换的原文")
+⚠️ **locate_content 输出字段规则**：
+- locate_content 的输出字段在顶层：`chapter_id` / `paragraph_index` / `node_id` / `text` / `before_anchor` / `after_anchor`
+- ❌ 禁止引用 `results` / `found_paragraphs` / `frontend_display.locations`
+
+⚠️ **insert 降级规则**：已禁用（不允许降级）
+
+✅ 正确流程：smart_rewrite → operate_apply(operation="replace", paragraph_index=..., node_id=...)
 ❌ 错误流程：smart_rewrite 后未通过 operate_apply 写入（不要分步调用！）
 
 ---
@@ -246,9 +264,9 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 
 当 Prompt 中包含【用户选中的文本】时，这表示用户在编辑器中选中了一段文字：
 1. **必须先获取上下文**（如果有 chapter_id）：调用 explore_content
-2. 然后使用 analyze_content 分析选中的文本
-3. 将选中的文本作为 analyze_content 的 content 参数
-4. 根据用户指令确定 aspects 参数
+2. **若用户要评估/分析（风格/质量/一致性）** → 使用 analyze_content
+3. **若用户要改写/润色/优化** → 使用 smart_rewrite → operate_apply
+4. 其余“概括/解释/推演” → explore_content 后直接输出
 """
 
 
@@ -256,6 +274,10 @@ def _get_output_format() -> str:
     """输出格式定义"""
     return """
 【输出格式】
+
+⚠️ **必须仅输出 JSON 对象**：禁止任何自然语言、解释、Markdown、代码块、前后缀文字。
+⚠️ 输出必须以 `{` 开头，以 `}` 结尾，且内容可被严格 JSON 解析。
+⚠️ 禁止使用 ```json 或 ``` 代码块包裹输出。
 
 {
   "thinking": {
@@ -298,6 +320,7 @@ def _get_output_format() -> str:
 - 只填写**实际要搜索的内容关键词**（如人名、地名、概念、事件）
 - 禁止填写指令性词语（如"精确"、"段落"、"章节"、"提取"、"检索"）
 - 关键词应从用户请求中提取，而非从任务描述模板中提取
+- 若用户明确要求“重新读取/刷新/重新探索/忽略缓存/最新内容”，在 params 中加入 `force_refresh: true`（可选同时设置 `use_cache: false`）
 
 ✅ 正确示例：
 ```json
@@ -326,7 +349,7 @@ def _get_output_format() -> str:
   "task_id": 2,
   "tool": "analyze_content",
   "params": {
-    "content": {"$ref": {"task_id": 1, "path": "chapters[0].content"}}
+    "content": {"$ref": {"task_id": 1, "path": "evidences[0].text"}}
   },
   "depends_on": [1]
 }
@@ -413,7 +436,7 @@ async def get_planning_static_prompt() -> str:
     output_format = _get_output_format()
     examples = get_all_planning_examples()
 
-    return core_rules + output_format + examples + "\n返回纯JSON（必须包含thinking字段）:"
+    return core_rules + output_format + examples + "\n必须仅返回JSON对象（禁止任何多余文字，必须包含thinking字段）:"
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:planning_agent:{PROMPT_VERSION}")
@@ -437,7 +460,7 @@ async def get_planning_agent_mode_prompt() -> str:
         examples +
         checkpoint_section +
         agent_examples +
-        "\n返回纯JSON（必须包含thinking字段，Agent模式下任务需包含checkpoint字段）:"
+        "\n必须仅返回JSON对象（禁止任何多余文字，必须包含thinking字段，Agent模式下任务需包含checkpoint字段）:"
     )
 
 

@@ -23,7 +23,6 @@ from app.services.agent.tools.editor_tools import (
     smart_insert,
     apply_chapter_edit
 )
-from app.services.agent.utils.tool_helpers import resolve_version_reference
 from app.services.agent.model_selector import TaskType
 
 logger = logging.getLogger(__name__)
@@ -344,16 +343,6 @@ class SecondaryToolHandler:
         state: Dict[str, Any]
     ) -> str:
         """调用 smart_rewrite 工具"""
-        # 智能版本引用
-        base_version = tool_args.get("base_version", "")
-        if base_version is None:
-            base_version = ""
-        elif not isinstance(base_version, str):
-            if isinstance(base_version, (int, float)) and base_version == 0:
-                base_version = ""
-            else:
-                base_version = str(base_version)
-
         context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
         selected_text = context.get("selected_text", "")
         locate_original_text = context.get("locate_original_text", "")
@@ -362,12 +351,6 @@ class SecondaryToolHandler:
             text_to_rewrite = selected_text
         elif locate_original_text and not text_to_rewrite:
             text_to_rewrite = locate_original_text
-        last_versions = state.get("context", {}).get("last_rewrite_versions", {})
-        if base_version and last_versions:
-            resolved = resolve_version_reference(base_version, last_versions)
-            if resolved:
-                logger.info(f"[SecondaryToolHandler] 🔄 智能版本解析: '{base_version}' → 完整内容({len(resolved)}字)")
-                base_version = resolved
 
         logger.info(f"[SecondaryToolHandler] 🚀 调用 smart_rewrite, chapter_id={tool_args.get('chapter_id')}")
 
@@ -377,8 +360,8 @@ class SecondaryToolHandler:
                 "text_to_rewrite": text_to_rewrite,
                 "chapter_content": None,
                 "user_requirement": tool_args.get("user_requirement", ""),
-                "base_version": base_version,
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
             if isinstance(result, dict) and result.get("success"):
                 return json.dumps(result.get("data", {}), ensure_ascii=False)
@@ -390,8 +373,8 @@ class SecondaryToolHandler:
                 "text_to_rewrite": text_to_rewrite,
                 "chapter_content": None,
                 "user_requirement": tool_args.get("user_requirement", ""),
-                "base_version": base_version,
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
 
     async def _call_smart_continue(
@@ -409,7 +392,8 @@ class SecondaryToolHandler:
                 "chapter_content": tool_args.get("chapter_content"),
                 "user_requirement": tool_args.get("user_requirement", ""),
                 "word_count": tool_args.get("word_count", 500),
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
             if isinstance(result, dict) and result.get("success"):
                 return json.dumps(result.get("data", {}), ensure_ascii=False)
@@ -421,7 +405,8 @@ class SecondaryToolHandler:
                 "chapter_content": tool_args.get("chapter_content"),
                 "user_requirement": tool_args.get("user_requirement", ""),
                 "word_count": tool_args.get("word_count", 500),
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
 
     async def _call_smart_insert(
@@ -440,7 +425,8 @@ class SecondaryToolHandler:
                 "chapter_content": tool_args.get("chapter_content"),
                 "insert_context": tool_args.get("insert_context"),
                 "word_count": tool_args.get("word_count", 200),
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
             if isinstance(result, dict) and result.get("success"):
                 return json.dumps(result.get("data", {}), ensure_ascii=False)
@@ -453,7 +439,8 @@ class SecondaryToolHandler:
                 "chapter_content": tool_args.get("chapter_content"),
                 "insert_context": tool_args.get("insert_context"),
                 "word_count": tool_args.get("word_count", 200),
-                "user_id": state.get("user_id")
+                "user_id": state.get("user_id"),
+                "source_locator": tool_args.get("source_locator")
             })
 
     async def _call_apply_chapter_edit(

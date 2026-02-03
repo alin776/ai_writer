@@ -119,16 +119,26 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
 
             # 8. 记录详细日志
             trace_id = getattr(request.state, "trace_id", None)
-            logger.info(
-                f"API请求完成: {method} {path}",
-                extra={
-                    "trace_id": trace_id,
-                    "path": path,
-                    "method": method,
-                    "duration_ms": duration * 1000,
-                    "status_code": getattr(response, "status_code", None) if 'response' in locals() else None
-                }
-            )
+            status_code = getattr(response, "status_code", None) if 'response' in locals() else None
+            duration_ms = duration * 1000
+            is_error_status = isinstance(status_code, int) and status_code >= 400
+            is_slow = duration_ms >= 500
+
+            # 仅记录错误响应或慢请求，减少高频日志
+            if is_error_status or is_slow:
+                level = logging.WARNING if is_error_status else logging.INFO
+                logger.log(
+                    level,
+                    f"API请求完成: {method} {path}",
+                    extra={
+                        "trace_id": trace_id,
+                        "path": path,
+                        "method": method,
+                        "duration_ms": duration_ms,
+                        "status_code": status_code,
+                        "slow": is_slow
+                    }
+                )
 
     def _should_skip_monitoring(self, path: str) -> bool:
         """

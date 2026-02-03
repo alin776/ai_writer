@@ -2,7 +2,7 @@
 管理后台相关的Pydantic schemas
 用于请求参数验证和响应数据格式化
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from uuid import UUID
 
@@ -45,10 +45,7 @@ class UserBasicInfo(BaseModel):
     is_active: bool
     is_admin: bool
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class UserActionResponse(BaseModel):
     """
     用户操作响应模型（封禁/解封/角色切换）

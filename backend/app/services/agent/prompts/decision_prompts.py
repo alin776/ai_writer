@@ -15,7 +15,7 @@ from .tool_descriptions import (
 )
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.40.0"  # 2026-01-23: 添加 operate_apply 统一操作工具描述
+PROMPT_VERSION = "v2.41.0"  # 2026-01-26: smart_rewrite 单结果输出，移除 base_version
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")
@@ -53,20 +53,20 @@ async def get_tool_decision_static_prompt() -> str:
 【第二步：如果需要工具，选择合适的工具】
 
 【编辑器工具 - 修改内容时优先使用】
-- smart_rewrite: 改写/修改章节内容（生成3个版本供选择）
-  参数: chapter_id, text_to_rewrite, user_requirement, base_version
+- smart_rewrite: 改写/修改章节内容（只生成1个改写结果）
+  参数: chapter_id, text_to_rewrite, user_requirement, evidence_context
 - smart_continue: 智能续写（根据上下文生成续写内容）
-  参数: chapter_id, chapter_content, user_requirement, word_count
+  参数: chapter_id, chapter_content, user_requirement, evidence_context, word_count
 - smart_insert: 智能插入（根据意图生成插入内容）
-  参数: chapter_id, user_intent, chapter_content, insert_context, word_count
+  参数: chapter_id, user_intent, chapter_content, insert_context, evidence_context, word_count
 - operate_apply: 🆕 统一应用内容到编辑器（推荐！）
   参数: operation(append/replace/insert/content/create/title), chapter_id, content, ...
   ⚠️ smart_* 生成内容后，必须用 operate_apply 应用到编辑器
-  ⚠️ operate_apply 会自动处理定位，不需要单独调用 locate_content
+  ⚠️ operate_apply 不会自动定位，replace/insert 必须传 node_id/paragraph_index
 
 【读取工具】⚠️ 优先使用 explore_content 统一入口！
 - explore_content: 深度探索工具，自动判断任务复杂度并获取所需信息（推荐！）
-- analyze_content: 一站式内容分析（推荐！）
+- analyze_content: 一站式内容分析（仅用于明确的结构化评估/一致性/风格/质量报告）
 {retrieval_tools}
 {operation_tools}
 {creative_tools}
@@ -88,11 +88,11 @@ async def get_tool_decision_static_prompt() -> str:
 9. 用户说"分析风格"、"写作特点" → 使用 analyze_content（analysis_types=["style"]）
 10. 用户说"情感描写"、"展示情绪" → 使用 show_emotion_tool
 11. 用户说"增强场景"、"画面感" → 使用 enhance_scene_tool
+12. 用户要“暗线/伏笔/剧情大纲/设定补充/推演方案” → 只用 explore_content（取证据后直接回答，不用 analyze_content）
 
-⚠️ **operate_apply 会自动处理定位**：
-- 改写时传入 original_text（要替换的原文），operate_apply 自动 text_match 定位
-- 插入时传入 target_description（插入位置描述），operate_apply 自动 semantic 定位
-- **不需要单独调用 locate_content**
+⚠️ **operate_apply 定位规则**：
+- replace/insert 必须传 node_id 或 paragraph_index
+- 需要先用 locate_content 或 list_paragraphs/read_paragraphs 定位
 
 ⚠️ 【搜索兜底规则】：
 - 如果用户提供的文字**过于简短**（少于3个字）或是**通用描述**（如"这一章"、"这段话"）
@@ -130,6 +130,7 @@ async def get_tool_decision_static_prompt() -> str:
 "把第二章标题改成觉醒" → {{"need_tools": true, "tool_name": "operate_apply", "tool_args": {{"operation": "title", "chapter_id": "xxx", "title": "觉醒"}}}}
 "检查前五章有没有矛盾" → {{"need_tools": true, "tool_name": "analyze_content", "tool_args": {{"analysis_types": ["consistency"], "work_id": "xxx", "content": "..."}}}}
 "分析一下我的写作风格" → {{"need_tools": true, "tool_name": "analyze_content", "tool_args": {{"analysis_types": ["style"], "content": "..."}}}}
+"基于原文设计暗线和伏笔" → {{"need_tools": true, "tool_name": "explore_content", "tool_args": {{"target_task": "收集暗线/伏笔相关原文证据，便于推演方案"}}}}
 "帮我写一段愤怒的情感描写" → {{"need_tools": true, "tool_name": "show_emotion_tool", "tool_args": {{"emotion": "愤怒", "intensity": 4}}}}
 
 ⚠️ 如果不确定用户是否需要工具，选择直接回答。请严格返回JSON格式:"""

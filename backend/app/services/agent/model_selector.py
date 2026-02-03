@@ -13,7 +13,7 @@
 
 from enum import Enum
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import logging
 
 logger = logging.getLogger(__name__)
@@ -82,20 +82,19 @@ class ModelTier(BaseModel):
         description="推荐使用的任务复杂度"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "name": "DeepSeek Chat",
-                "provider": "deepseek",
-                "model_id": "deepseek-chat",
-                "cost_per_1m_input": 0.14,
-                "cost_per_1m_output": 0.28,
-                "max_tokens": 4096,
-                "speed": "fast",
-                "quality_score": 7.5,
-                "recommended_for": ["simple", "medium"]
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "name": "DeepSeek Chat",
+            "provider": "deepseek",
+            "model_id": "deepseek-chat",
+            "cost_per_1m_input": 0.14,
+            "cost_per_1m_output": 0.28,
+            "max_tokens": 4096,
+            "speed": "fast",
+            "quality_score": 7.5,
+            "recommended_for": ["simple", "medium"]
         }
+    })
 
 
 # ==================== 预定义模型配置 ====================

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional, Any
 from uuid import UUID
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, field_serializer, ConfigDict
 
 
 class ChapterRevisionStatusEnum(str, Enum):
@@ -34,9 +34,7 @@ class ChapterRevisionResponse(BaseModel):
     description: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer("id", "work_id", "chapter_id")
     def serialize_uuid(self, value: UUID, _info) -> str:
         return str(value)

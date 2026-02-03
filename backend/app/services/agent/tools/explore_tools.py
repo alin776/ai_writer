@@ -14,6 +14,7 @@ Version: 2.0 - AI 驱动的 SubAgent 模式
 import json
 import logging
 import re
+import hashlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple, Any, Optional, Callable, Awaitable
 from datetime import datetime
@@ -24,6 +25,7 @@ from app.utils.datetime_utils import get_utc_now
 from app.services.agent.utils.tool_context import get_stream_event_handler, get_explore_step_id
 from app.services.agent.utils.performance import MemoryCache
 from app.core.database import AsyncSessionLocal
+from app.core.redis import RedisClient
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +36,32 @@ AUTO_LOCATE_LIMIT_STRICT = 12
 AUTO_READ_LIMIT_STRICT = 12
 LOCATE_QUERY_MAX_LEN = 200
 
+TOOL_LOOP_MAX_CALLS_DEFAULT = 200
+TOOL_LOOP_MAX_READS_DEFAULT = 200
+TOOL_LOOP_RESULT_PREVIEW_LIMIT = 1200
+SEARCH_HIT_TEXT_LIMIT = 2000
+KEYWORD_READ_MAX_PER_TERM = 1
+KEYWORD_COVERAGE_MAX = 20
+SEARCH_HIT_PREVIEW_LIMIT = 100
+SEARCH_HIT_TOTAL_CHAR_LIMIT = 20000
+SEARCH_HIT_MIN_ITEMS = 5
+LIST_PARAGRAPHS_PAGE_SIZE = 50
+PER_CHAPTER_READ_CAP_RATIO = 0.2
+PER_CHAPTER_READ_CAP_MIN = 10
+PER_CHAPTER_READ_CAP_MAX = 30
+TOOL_LOOP_ALLOWED_TOOLS = (
+    "list_chapters",
+    "list_paragraphs",
+    "exact_search_paragraphs",
+    "read_paragraph",
+    "read_paragraphs"
+)
+
 EXPLORE_SHARED_TTL_SECONDS = 20 * 60
 _EXPLORE_SHARED_CACHE = MemoryCache(max_size=50, default_ttl=EXPLORE_SHARED_TTL_SECONDS)
+EXPLORE_RESULT_CACHE_TTL_SECONDS = 60 * 60
+EXPLORE_RESULT_CACHE_MAX_CHARS = 200000
+EXPLORE_RESULT_CACHE_VERSION = "v1"
 
 PARAGRAPH_REQUIRED_KEYWORDS = (
     "段落号",
@@ -47,6 +73,14 @@ PARAGRAPH_REQUIRED_KEYWORDS = (
     "只允许精确段落读取",
     "只读段落",
     "仅段落",
+    "改写",
+    "替换",
+    "润色",
+    "插入",
+    "扩写",
+    "优化",
+    "smart_rewrite",
+    "smart_insert",
 )
 
 UNREACHABLE_MISSING_KEYWORDS = (
@@ -118,6 +152,16 @@ def _normalize_locate_query(query: str, max_len: int = LOCATE_QUERY_MAX_LEN) -> 
     if len(text) > max_len:
         text = text[:max_len]
     return text
+
+
+def _strip_chapter_hint_for_global_search(text: str) -> str:
+    if not text:
+        return text
+    cleaned = text
+    cleaned = re.sub(r"在章节\s*[0-9a-fA-F-]{8,36}\s*中", "在全文中", cleaned)
+    cleaned = re.sub(r"章节\s*[0-9a-fA-F-]{8,36}", "全文", cleaned)
+    cleaned = re.sub(r"(本章|当前章节|当前章|这一章|该章|此章)", "全文", cleaned)
+    return cleaned
 
 
 def _requires_paragraph_index(target_task: str) -> bool:
@@ -260,13 +304,14 @@ def _parse_chapter_scope(target_task: str) -> Optional[Tuple[int, int]]:
         return None
     text = target_task
 
-    range_match = re.search(r"第\s*(\d+)\s*[到至\-~—～]\s*(\d+)\s*章", text)
+    # 兼容 “第5章至第20章 / 第5章到第20章 / 第5-第20章”
+    range_match = re.search(r"第\s*(\d+)\s*(?:章)?\s*[到至\-~—～–]\s*第?\s*(\d+)\s*章", text)
     if range_match:
         start = int(range_match.group(1))
         end = int(range_match.group(2))
         return (min(start, end), max(start, end))
 
-    range_cn_match = re.search(r"第\s*([一二两三四五六七八九十]+)\s*[到至\-~—～]\s*([一二两三四五六七八九十]+)\s*章", text)
+    range_cn_match = re.search(r"第\s*([一二两三四五六七八九十]+)\s*章?\s*[到至\-~—～–]\s*第?\s*([一二两三四五六七八九十]+)\s*章", text)
     if range_cn_match:
         start = _chinese_to_int(range_cn_match.group(1))
         end = _chinese_to_int(range_cn_match.group(2))
@@ -322,35 +367,40 @@ def _parse_chapter_scopes(target_task: str) -> List[Tuple[int, int]]:
         elif isinstance(exclude_from, int):
             return []
 
-    for match in re.finditer(r"第\s*(\d+)\s*[到至\-~—～]\s*(\d+)\s*章", text):
+    for match in re.finditer(r"第\s*(\d+)\s*(?:章)?\s*[到至\-~—～–]\s*第?\s*(\d+)\s*章", text):
         start = int(match.group(1))
         end = int(match.group(2))
         scopes.append((min(start, end), max(start, end)))
 
-    for match in re.finditer(r"第\s*([一二两三四五六七八九十]+)\s*[到至\-~—～]\s*([一二两三四五六七八九十]+)\s*章", text):
+    for match in re.finditer(r"第\s*([一二两三四五六七八九十]+)\s*章?\s*[到至\-~—～–]\s*第?\s*([一二两三四五六七八九十]+)\s*章", text):
         start = _chinese_to_int(match.group(1))
         end = _chinese_to_int(match.group(2))
         if isinstance(start, int) and isinstance(end, int):
             scopes.append((min(start, end), max(start, end)))
 
-    # 兼容“章节1-2”“章节(1-2, 34-35)”等写法
+    # 兼容"章节1-2""章节(1-2, 34-35)"等写法
     if "章节" in text:
-        for match in re.finditer(r"章节\s*\(?\s*(\d+)\s*[到至\-~—～]\s*(\d+)", text):
+        for match in re.finditer(r"章节\s*\(?\s*(\d+)\s*[到至\-~—～–]\s*(\d+)", text):
             start = int(match.group(1))
             end = int(match.group(2))
             scopes.append((min(start, end), max(start, end)))
-        for match in re.finditer(r"章节\s*\(?\s*([一二两三四五六七八九十]+)\s*[到至\-~—～]\s*([一二两三四五六七八九十]+)", text):
+        for match in re.finditer(r"章节\s*\(?\s*([一二两三四五六七八九十]+)\s*[到至\-~—～–]\s*([一二两三四五六七八九十]+)", text):
             start = _chinese_to_int(match.group(1))
             end = _chinese_to_int(match.group(2))
             if isinstance(start, int) and isinstance(end, int):
                 scopes.append((min(start, end), max(start, end)))
-        for match in re.finditer(r"(\d+)\s*[到至\-~—～]\s*(\d+)", text):
+        # 2026-01-27: 移除贪心正则，避免误匹配 UUID 中的数字
+        # 原来的正则 r"(\d+)\s*[到至\-~—～]\s*(\d+)" 会匹配任何数字范围
+        # 改为只匹配紧跟在"章节"后面、且范围合理（<=1000）的数字
+        for match in re.finditer(r"章节[^第]*?(\d{1,3})\s*[到至\-~—～–]\s*(\d{1,3})(?!\s*章)", text):
             start = int(match.group(1))
             end = int(match.group(2))
-            scopes.append((min(start, end), max(start, end)))
+            # 额外校验：范围不超过 1000 章，避免误匹配大数字
+            if start <= 1000 and end <= 1000:
+                scopes.append((min(start, end), max(start, end)))
 
     # 兼容“1-2章”写法
-    for match in re.finditer(r"(\d+)\s*[到至\-~—～]\s*(\d+)\s*章", text):
+    for match in re.finditer(r"(\d+)\s*[到至\-~—～–]\s*(\d+)\s*章", text):
         start = int(match.group(1))
         end = int(match.group(2))
         scopes.append((min(start, end), max(start, end)))
@@ -400,10 +450,22 @@ def _extract_title_chapter_number(title: str) -> Optional[int]:
 
 def _map_scopes_to_orders(
     scopes: List[Tuple[int, int]],
-    title_order_map: Dict[int, int]
+    title_order_map: Dict[int, int],
+    total_chapters: int = 0
 ) -> List[Tuple[int, int]]:
-    if not scopes or not title_order_map:
+    """将标题号范围映射到实际序号。
+
+    2026-01-27 改进：映射失败时返回合理的默认范围，而非空列表。
+    """
+    if not scopes:
         return []
+
+    if not title_order_map:
+        # 无映射表时，如果有总章节数，限制范围；否则返回原始范围
+        if total_chapters > 0:
+            return [(max(1, s), min(e, total_chapters)) for s, e in scopes if s <= total_chapters]
+        return scopes  # 保留原始范围
+
     mapped: List[Tuple[int, int]] = []
     for start, end in scopes:
         orders = [
@@ -411,10 +473,21 @@ def _map_scopes_to_orders(
             if start <= title_no <= end
         ]
         if not orders:
+            # 2026-01-27: 映射失败时，尝试使用原始范围（限制在合理范围内）
+            max_order = max(title_order_map.values()) if title_order_map else total_chapters
+            if max_order > 0 and start <= max_order:
+                # 原始范围有效，限制上界
+                mapped.append((start, min(end, max_order)))
             continue
         mapped.append((min(orders), max(orders)))
+
     if not mapped:
-        return []
+        # 所有范围都映射失败，返回原始范围（限制在合理范围内）
+        max_order = max(title_order_map.values()) if title_order_map else total_chapters
+        if max_order > 0:
+            return [(max(1, s), min(e, max_order)) for s, e in scopes if s <= max_order]
+        return scopes  # 最后兜底：返回原始范围
+
     mapped.sort(key=lambda item: (item[0], item[1]))
     merged: List[Tuple[int, int]] = []
     for start, end in mapped:
@@ -465,20 +538,11 @@ def _get_ai_service():
     global _ai_service
     if _ai_service is None:
         from app.services.ai.http_ai_service import HTTPAIService
-        _ai_service = HTTPAIService()
+        _ai_service = HTTPAIService(model="gemini-2.5-flash", enable_model_selector=False)
     return _ai_service
 
 
 # ==================== AI 决策数据结构 ====================
-
-@dataclass
-class ExplorationPlan:
-    """AI 生成的探索计划（第0步）"""
-    key_entities: List[str]           # 关键实体
-    aspects_to_find: List[str]        # 需要了解的方面
-    initial_queries: List[str]        # 初始搜索词
-    understanding: str                # AI 对任务的理解
-
 
 @dataclass
 class RoundPlan:
@@ -491,45 +555,12 @@ class RoundPlan:
 
 
 @dataclass
-class SufficiencyAssessment:
-    """AI 对信息充足性的评估"""
-    sufficient: bool                  # 是否充足
-    coverage: str                     # 覆盖情况描述
-    missing: List[str]                # 缺失的信息
-    summary: str = ""                 # 探索总结（AI生成）
-    next_action: str = ""             # 下一步行动（AI生成）
-
-
-@dataclass
-class EvidenceExtraction:
-    """
-    AI 提取的客观指标（V3.4：分离提取与判断）
-
-    核心理念：让 AI 只做客观提取，代码做确定性判断
-    - AI 提取：关键词覆盖、章节范围、内容质量等客观指标
-    - 代码判断：基于提取结果用规则判断是否充足
-    """
-    # 关键词覆盖情况（AI 提取）
-    keyword_coverage: Dict[str, bool]  # {"林仙": True, "叶凡": True, "系统10086": False}
-
-    # 章节覆盖情况（AI 提取）
-    chapters_with_evidence: List[int]  # [1, 5, 10, 15]
-
-    # 内容质量评估（AI 提取）
-    has_direct_quotes: bool           # 是否有直接引用原文
-    has_character_interactions: bool  # 是否有人物互动描写
-    has_plot_details: bool            # 是否有情节细节
-
-    # 探索总结（AI 生成，用于后续任务）
-    summary: str                      # 探索过程和收集到的关键内容
-    next_action: str                  # 下一步将如何完成任务
-
-    # 可选：AI 认为可能缺失的内容（仅供参考，不影响判断）
-    potential_gaps: List[str] = None  # ["试探博弈阶段", "具体对话内容"]
-
-    def __post_init__(self):
-        if self.potential_gaps is None:
-            self.potential_gaps = []
+class ToolLoopDecision:
+    """LLM 工具循环决策结果"""
+    action: str
+    tool: str = ""
+    args: Dict[str, Any] = field(default_factory=dict)
+    reason: str = ""
 
 
 # ==================== 数据结构 ====================
@@ -546,6 +577,7 @@ class Evidence:
     round_idx: int               # 第几轮搜索到的
     chapter_id: str = ""         # 章节ID（可选）
     chapter_title: str = ""      # 章节标题（可选）
+    node_id: str = ""            # 节点ID（可选）
 
 
 @dataclass
@@ -558,6 +590,8 @@ class ParagraphRead:
     context_before: List[str]    # 前文段落
     context_after: List[str]     # 后文段落
     round_idx: int               # 第几轮读取的
+    node_id: str = ""            # 节点ID（如果解析到）
+    is_target: bool = True       # 是否为明确目标段落（上下文范围读取为 False）
 
 
 @dataclass
@@ -591,6 +625,48 @@ class ToolCall:
 
 
 @dataclass
+class SearchRecord:
+    """搜索记录（类似 OpenCode 的 ToolPart）
+
+    设计原则（来自 OpenCode）：
+    - 元数据永久保留（query, tool, chapters）
+    - 摘要智能压缩（hits_summary）
+    - AI 决策时可见完整搜索历史
+
+    穷尽标记设计：
+    - chapter_scope: 搜索的章节范围，None 表示全书
+    - worldview_checked: 是否已检查过世界观库
+    - exhausted: 计算属性，判断是否已穷尽所有数据源
+    """
+    query: str                      # 搜索关键词
+    tool: str                       # 工具名称
+    hits_count: int                 # 命中数量
+    hits_summary: str               # 结果摘要（关键信息，≤100字符）
+    chapters_covered: List[int]     # 覆盖的章节号
+    round_idx: int                  # 第几轮搜索的
+    timestamp: datetime = field(default_factory=get_utc_now)
+    compacted: bool = False         # 是否已被压缩（旧记录）
+    chapter_scope: Optional[Tuple[int, int]] = None  # 搜索范围，None=全书
+    worldview_checked: bool = False                   # 是否检查过世界观库
+    worldview_hits: int = 0                           # 世界观命中数
+
+    @property
+    def exhausted(self) -> bool:
+        """是否已穷尽所有数据源
+
+        穷尽条件：
+        1. 章节原文 0 命中 + 无范围限制（或已搜全书）
+        2. 世界观也查过且 0 命中
+        """
+        return (
+            self.hits_count == 0
+            and self.chapter_scope is None
+            and self.worldview_checked
+            and self.worldview_hits == 0
+        )
+
+
+@dataclass
 class ExploreRound:
     """单轮探索记录"""
     round_idx: int
@@ -614,7 +690,10 @@ class ExploreState:
     # ========== 收集到的内容（原样保留，不压缩）==========
 
     evidences: List[Evidence] = field(default_factory=list)
-    # 搜索到的所有证据片段
+    # 读取原文得到的证据片段（只读原文入证据）
+
+    search_hits: List[Evidence] = field(default_factory=list)
+    # 搜索/精确匹配得到的候选片段（非证据）
 
     paragraphs: List[ParagraphRead] = field(default_factory=list)
     # 精确读取的段落原文
@@ -633,11 +712,17 @@ class ExploreState:
     evidence_keys: Set[str] = field(default_factory=set)
     # 证据去重指纹
 
+    search_hit_keys: Set[str] = field(default_factory=set)
+    # 搜索候选去重指纹
+
     skipped_evidences_strict: int = 0
     # 严格模式下无段落号的证据数（保留待补齐）
 
     read_paragraph_positions: Set[Tuple[int, int]] = field(default_factory=set)
     # 已读取的段落位置 (chapter_order, paragraph_index)
+
+    context_coverage: Dict[Tuple[int, int], Tuple[int, int]] = field(default_factory=dict)
+    # 目标段落的上下文覆盖范围 {(chapter_order, target_index): (start_index, end_index)}
 
     read_chapter_orders: Set[int] = field(default_factory=set)
     # 已读取完整原文的章节序号
@@ -649,6 +734,11 @@ class ExploreState:
 
     rounds: List[ExploreRound] = field(default_factory=list)
     # 每轮的执行记录
+
+    # ========== 搜索历史（类似 OpenCode 的 ToolPart 历史）==========
+
+    search_history: List['SearchRecord'] = field(default_factory=list)
+    # 完整的搜索历史，包含每次搜索的结果摘要
 
     # ========== 去重方法 ==========
 
@@ -708,16 +798,26 @@ class ExploreState:
     def should_read_paragraph(self, chapter_order: int, paragraph_index: int) -> bool:
         """判断是否应该读取段落"""
         position = (chapter_order, paragraph_index)
-        if position not in self.read_paragraph_positions:
-            return True
-        for p in self.paragraphs:
-            if p.chapter_order == chapter_order and p.paragraph_index == paragraph_index:
-                return False
-        return True
+        return position not in self.read_paragraph_positions
 
     def record_paragraph_read(self, chapter_order: int, paragraph_index: int):
         """记录已读取的段落"""
         self.read_paragraph_positions.add((chapter_order, paragraph_index))
+
+    def record_context_coverage(
+        self,
+        chapter_order: int,
+        target_index: int,
+        start_index: int,
+        end_index: int
+    ) -> None:
+        """记录目标段落的上下文覆盖范围"""
+        key = (chapter_order, target_index)
+        if key in self.context_coverage:
+            prev_start, prev_end = self.context_coverage[key]
+            start_index = min(prev_start, start_index)
+            end_index = max(prev_end, end_index)
+        self.context_coverage[key] = (start_index, end_index)
 
     def should_read_chapter(self, chapter_order: int) -> bool:
         """判断是否应该读取章节"""
@@ -756,6 +856,49 @@ class ExploreState:
             key_parts.append(query[:30])
         return ":".join(key_parts)
 
+    def add_search_hit(
+        self,
+        result: Dict,
+        query: str,
+        round_idx: int,
+        chapter_scope_filter: Optional[Callable[[Optional[int]], bool]] = None
+    ) -> bool:
+        """添加搜索候选（不作为证据，仅用于定位/展示）"""
+        chapter_order = result.get("chapter_order")
+        if isinstance(chapter_order, str) and chapter_order.isdigit():
+            chapter_order = int(chapter_order)
+            result["chapter_order"] = chapter_order
+        if chapter_scope_filter and not chapter_scope_filter(chapter_order):
+            return False
+
+        paragraph_index = result.get("paragraph_index")
+        if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+            paragraph_index = int(paragraph_index)
+            result["paragraph_index"] = paragraph_index
+
+        hit_key = self._build_evidence_key(result, query)
+        if hit_key in self.search_hit_keys:
+            return False
+        self.search_hit_keys.add(hit_key)
+
+        chapter_id = result.get("chapter_id") or ""
+        chapter_title = result.get("chapter_title") or ""
+        node_id = result.get("node_id") or ""
+        hit = Evidence(
+            text=result.get("snippet", result.get("content", ""))[:SEARCH_HIT_TEXT_LIMIT],
+            chapter_order=result.get("chapter_order", 0),
+            paragraph_index=paragraph_index,
+            similarity=result.get("similarity", 0),
+            source_type=result.get("source", "search"),
+            query=query,
+            round_idx=round_idx,
+            chapter_id=chapter_id,
+            chapter_title=chapter_title,
+            node_id=node_id
+        )
+        self.search_hits.append(hit)
+        return True
+
     def add_evidence(
         self,
         result: Dict,
@@ -790,6 +933,8 @@ class ExploreState:
             paragraph_index = int(paragraph_index)
             result["paragraph_index"] = paragraph_index
         source_type = result.get("source", "")
+        if source_type not in ("paragraph", "read_paragraph"):
+            return False
         if require_paragraph_index:
             if paragraph_index is None:
                 text_preview = result.get("snippet", result.get("content", "")) or ""
@@ -799,8 +944,6 @@ class ExploreState:
                     _truncate_text(text_preview, 80)
                 )
                 self.skipped_evidences_strict += 1
-                return False
-            if source_type not in ("paragraph", "read_paragraph", "exact_search"):
                 return False
         similarity = result.get("similarity")
         if isinstance(similarity, (int, float)) and 0 < similarity <= 1:
@@ -814,6 +957,7 @@ class ExploreState:
 
         chapter_id = result.get("chapter_id") or ""
         chapter_title = result.get("chapter_title") or ""
+        node_id = result.get("node_id") or ""
         evidence = Evidence(
             # 🔧 2026-01-21: 增加单条证据文本长度 200→500，保留更多上下文
             text=result.get("snippet", result.get("content", ""))[:500],
@@ -824,7 +968,8 @@ class ExploreState:
             query=query,
             round_idx=round_idx,
             chapter_id=chapter_id,
-            chapter_title=chapter_title
+            chapter_title=chapter_title,
+            node_id=node_id
         )
         self.evidences.append(evidence)
         return True
@@ -838,7 +983,9 @@ class ExploreState:
             text=data.get("text", ""),
             context_before=data.get("context_before", []),
             context_after=data.get("context_after", []),
-            round_idx=round_idx
+            round_idx=round_idx,
+            node_id=data.get("node_id", "") or "",
+            is_target=bool(data.get("is_target", True))
         )
         self.paragraphs.append(paragraph_read)
 
@@ -896,6 +1043,120 @@ class ExploreState:
             "rounds_count": len(self.rounds)
         }
 
+    # ========== 搜索历史管理（类似 OpenCode 的 Compaction）==========
+
+    def add_search_record(self, record: 'SearchRecord') -> None:
+        """添加搜索记录，并执行智能压缩"""
+        self.search_history.append(record)
+        self._compact_old_records()
+
+    def _compact_old_records(self, keep_recent: int = 10) -> None:
+        """压缩旧的搜索记录（类似 OpenCode 的 Prune）
+
+        策略：
+        - 保留最近 keep_recent 条记录的完整摘要
+        - 旧记录标记为 compacted，摘要被简化
+        """
+        if len(self.search_history) <= keep_recent:
+            return
+
+        # 标记旧记录为已压缩
+        for record in self.search_history[:-keep_recent]:
+            if not record.compacted:
+                record.compacted = True
+                # 简化摘要，只保留关键数字
+                record.hits_summary = f"命中{record.hits_count}条"
+
+    def get_search_history_summary(self) -> str:
+        """获取搜索历史摘要（用于 AI 决策）
+
+        类似 OpenCode 的 toModelMessages，为 AI 构建可见的搜索历史
+        """
+        if not self.search_history:
+            return ""
+
+        lines = []
+
+        # 1. 最近的详细展示（未压缩，最多 6 条）
+        recent = [r for r in self.search_history if not r.compacted]
+        if recent:
+            lines.append("【近期搜索】")
+            # 最后 6 条详细展示
+            detailed = recent[-6:]
+            for r in detailed:
+                chapters_str = ""
+                if r.chapters_covered:
+                    if len(r.chapters_covered) == 1:
+                        chapters_str = f" 第{r.chapters_covered[0]}章"
+                    else:
+                        chapters_str = f" 第{min(r.chapters_covered)}-{max(r.chapters_covered)}章"
+                lines.append(f"  · {r.query}: {r.hits_summary}{chapters_str}")
+
+            # 其他未压缩但未详细展示的记录，简化显示
+            other_recent = recent[:-6] if len(recent) > 6 else []
+            if other_recent:
+                other_queries = [f"{r.query}({r.hits_count}条)" for r in other_recent]
+                lines.append(f"  （另有 {len(other_recent)} 条：{', '.join(other_queries)}）")
+
+        # 2. 旧记录的压缩展示（排除已穷尽的，避免重复显示）
+        compacted = [r for r in self.search_history if r.compacted and not r.exhausted]
+        if compacted:
+            queries = [r.query for r in compacted]
+            lines.append(f"【历史搜索】已搜过: {', '.join(queries)}")
+
+        # 3. 已穷尽的关键词（特别标注）
+        exhausted = [r for r in self.search_history if r.exhausted]
+        if exhausted:
+            exhausted_queries = [r.query for r in exhausted]
+            lines.append(f"【已确认不存在】{', '.join(exhausted_queries)}（章节原文+世界观均无结果，无需再搜）")
+
+        return "\n".join(lines)
+
+    def should_block_search(self, keyword: str, scope: Optional[Tuple[int, int]]) -> Tuple[bool, str]:
+        """判断是否应该拦截搜索
+
+        Args:
+            keyword: 搜索关键词（单个）
+            scope: 当前搜索范围，None 表示全书
+
+        Returns:
+            (是否拦截, 拦截原因)
+        """
+        # 查找该关键词的搜索记录
+        for record in self.search_history:
+            # 检查关键词是否在记录的 query 中（支持多关键词组合）
+            record_keywords = [kw.strip() for kw in record.query.split(",") if kw.strip()]
+            if keyword not in record_keywords:
+                continue
+            # 多关键词组合 0 命中时，不拦截单个关键词（避免因组合/解析问题误判）
+            if len(record_keywords) > 1 and record.hits_count == 0 and record.worldview_hits == 0:
+                continue
+
+            # 情况1: 已穷尽 → 拦截
+            if record.exhausted:
+                return True, f"关键词'{keyword}'已确认不存在（章节原文+世界观均无结果）"
+
+            # 情况2: 相同范围 + 0 命中 → 拦截（换参数无意义）
+            if record.hits_count == 0 and record.worldview_hits == 0 and record.chapter_scope == scope:
+                scope_desc = f"第{scope[0]}-{scope[1]}章" if scope else "全书"
+                return True, f"关键词'{keyword}'在{scope_desc}范围内已搜索过，0命中"
+
+        return False, ""
+
+    def get_search_record(self, keyword: str) -> Optional['SearchRecord']:
+        """获取关键词的搜索记录"""
+        for record in reversed(self.search_history):  # 从最新的开始找
+            if record.query == keyword:
+                return record
+        return None
+
+    def update_search_record_worldview(self, keyword: str, worldview_hits: int) -> None:
+        """更新搜索记录的世界观检查状态"""
+        record = self.get_search_record(keyword)
+        if record:
+            record.worldview_checked = True
+            record.worldview_hits = worldview_hits
+
 
 # ==================== 输出结果 ====================
 
@@ -905,6 +1166,7 @@ class ExploreResult:
 
     # 原文内容
     evidences: List[Evidence]
+    search_hits: List[Evidence]
     paragraphs: List[ParagraphRead]
     chapters: Dict[int, ChapterRead]
     worldview: Dict[str, List[WorldviewItem]]
@@ -925,32 +1187,19 @@ class ExploreResult:
 
 def _get_round_title(round_idx: int) -> str:
     """生成轮次标题"""
-    titles = {
-        1: "初次检索与定位",
-        2: "补漏检索与二次定位",
-        3: "交叉验证与收敛",
-    }
-    return titles.get(round_idx, f"深度探索（第{round_idx}轮）")
+    return f"深度探索（{round_idx}）"
 
 
 def _get_review_status(round_data: ExploreRound) -> str:
     """获取审查状态"""
-    if round_data.sufficient:
-        return "通过"
-    elif round_data.missing_items:
-        return "覆盖不足"
-    else:
-        return "补齐要点"
+    # 仅用于前端展示，不参与判停逻辑
+    return ""
 
 
 def _get_status_text(round_data: ExploreRound) -> str:
     """获取状态文本（灰色显示）"""
-    if round_data.missing_items:
-        return ""  # 有缺失项时不显示状态文本
-    elif round_data.sufficient:
-        return "覆盖度达标"
-    else:
-        return "补漏完成"
+    # 仅用于前端展示，不参与判停逻辑
+    return ""
 
 
 def _scopes_cache_key(scopes: List[Tuple[int, int]]) -> str:
@@ -974,19 +1223,110 @@ def _build_explore_shared_key(
     return f"{work_id}:{user_part}:{convo_part}:{scope_part}"
 
 
+def _normalize_search_keywords(keywords: Optional[List[str]]) -> List[str]:
+    if not keywords:
+        return []
+    normalized = []
+    for item in keywords:
+        value = str(item).strip()
+        if value:
+            normalized.append(value)
+    if not normalized:
+        return []
+    return sorted(set(normalized))
+
+
+def _build_explore_result_cache_key(
+    work_id: str,
+    user_id: Optional[str],
+    chapter_scopes: List[Tuple[int, int]],
+    target_task: str,
+    search_keywords: Optional[List[str]],
+    output_mode: str,
+    require_paragraph_index: Optional[bool] = None,
+    force_global_search: Optional[bool] = None
+) -> str:
+    work_id = str(work_id or "").strip()
+    if not work_id:
+        return ""
+    user_part = str(user_id or "anonymous").strip() or "anonymous"
+    scope_part = _scopes_cache_key(chapter_scopes)
+    payload = {
+        "task": (target_task or "").strip(),
+        "keywords": _normalize_search_keywords(search_keywords),
+        "output_mode": (output_mode or "").strip().lower(),
+        "require_paragraph_index": bool(require_paragraph_index) if require_paragraph_index is not None else None,
+        "force_global_search": bool(force_global_search) if force_global_search is not None else None,
+        "schema": EXPLORE_RESULT_CACHE_VERSION
+    }
+    digest = hashlib.sha1(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:16]
+    return f"explore:result:{EXPLORE_RESULT_CACHE_VERSION}:{work_id}:{user_part}:{scope_part}:{digest}"
+
+
+async def _get_cached_explore_result(cache_key: str) -> Optional[Dict[str, Any]]:
+    if not cache_key:
+        return None
+    try:
+        cached = await RedisClient.get(cache_key)
+    except Exception as e:
+        logger.debug(f"[explore_content] Redis缓存读取失败: {e}")
+        return None
+    if not cached:
+        return None
+    if isinstance(cached, dict):
+        return cached
+    if isinstance(cached, str):
+        try:
+            return json.loads(cached)
+        except Exception:
+            return None
+    return None
+
+
+async def _set_cached_explore_result(cache_key: str, payload: Dict[str, Any]) -> None:
+    if not cache_key:
+        return
+    try:
+        serialized = json.dumps(payload, ensure_ascii=False)
+        if len(serialized) > EXPLORE_RESULT_CACHE_MAX_CHARS:
+            logger.info(
+                "[explore_content] 缓存跳过：结果过大（%s chars > %s）",
+                len(serialized),
+                EXPLORE_RESULT_CACHE_MAX_CHARS
+            )
+            return
+        await RedisClient.set(cache_key, payload, expire=EXPLORE_RESULT_CACHE_TTL_SECONDS)
+    except Exception as e:
+        logger.debug(f"[explore_content] Redis缓存写入失败: {e}")
+
+
+def _decorate_cached_payload(payload: Dict[str, Any], cache_key: str) -> Dict[str, Any]:
+    data = dict(payload)
+    data["cache_hit"] = True
+    data["cache_key"] = cache_key
+    data["events_emitted"] = False
+    return data
+
+
 def _clone_explore_state(state: ExploreState) -> ExploreState:
     return ExploreState(
         evidences=[],
+        search_hits=[],
         paragraphs=[],
         chapters={},
         worldview={},
         searched_queries=set(state.searched_queries),
         evidence_keys=set(),
+        search_hit_keys=set(),
         skipped_evidences_strict=0,
         read_paragraph_positions=set(state.read_paragraph_positions),
+        context_coverage=dict(state.context_coverage),
         read_chapter_orders=set(state.read_chapter_orders),
         read_worldview_categories=set(),
         rounds=[],
+        search_history=list(state.search_history),  # 保留搜索历史
     )
 
 
@@ -995,6 +1335,19 @@ def _merge_explore_states(base: ExploreState, incoming: ExploreState) -> Explore
     merged.searched_queries |= incoming.searched_queries
     merged.read_paragraph_positions |= incoming.read_paragraph_positions
     merged.read_chapter_orders |= incoming.read_chapter_orders
+    for key, value in incoming.context_coverage.items():
+        if key not in merged.context_coverage:
+            merged.context_coverage[key] = value
+            continue
+        prev_start, prev_end = merged.context_coverage[key]
+        start_index, end_index = value
+        merged.context_coverage[key] = (min(prev_start, start_index), max(prev_end, end_index))
+    # 合并搜索历史（去重，基于 query）
+    seen_queries = {r.query for r in merged.search_history}
+    for record in incoming.search_history:
+        if record.query not in seen_queries:
+            merged.search_history.append(record)
+            seen_queries.add(record.query)
     return merged
 
 def build_context_for_task(result: ExploreResult) -> str:
@@ -1142,12 +1495,19 @@ def _build_explore_summary(result: ExploreResult) -> str:
     return "\n".join(summary_parts)
 
 
-def _build_search_results(result: ExploreResult, limit: int = 10) -> List[Dict[str, Any]]:
+def _build_search_results(
+    result: ExploreResult,
+    limit: int = 10,
+    node_id_map: Optional[Dict[Tuple[int, int], str]] = None
+) -> List[Dict[str, Any]]:
     """构建兼容 frontend_display.search_results 的精简列表"""
     results: List[Dict[str, Any]] = []
     seen = set()
-    evidences = sorted(result.evidences, key=lambda e: e.similarity or 0, reverse=True)
-    for e in evidences:
+    if node_id_map is None:
+        node_id_map = _build_node_id_map(result)
+    candidates = result.search_hits if getattr(result, "search_hits", None) else result.evidences
+    candidates = sorted(candidates, key=lambda e: e.similarity or 0, reverse=True)
+    for e in candidates:
         text = _truncate_text(e.text or "", 400)
         if not text:
             continue
@@ -1160,6 +1520,7 @@ def _build_search_results(result: ExploreResult, limit: int = 10) -> List[Dict[s
             "chapter_order": e.chapter_order,
             "chapter_title": e.chapter_title or "",
             "paragraph_index": e.paragraph_index,
+            "node_id": node_id_map.get((e.chapter_order, e.paragraph_index), ""),
             "text": text,
             "paragraphs": [
                 {
@@ -1174,6 +1535,236 @@ def _build_search_results(result: ExploreResult, limit: int = 10) -> List[Dict[s
         if len(results) >= limit:
             break
     return results
+
+
+def _build_node_id_map(result: ExploreResult) -> Dict[Tuple[int, int], str]:
+    """构建 (chapter_order, paragraph_index) -> node_id 映射"""
+    node_id_map: Dict[Tuple[int, int], str] = {}
+
+    for p in result.paragraphs:
+        if isinstance(p.chapter_order, int) and isinstance(p.paragraph_index, int) and p.node_id:
+            node_id_map[(p.chapter_order, p.paragraph_index)] = p.node_id
+
+    for e in result.evidences:
+        if isinstance(e.chapter_order, int) and isinstance(e.paragraph_index, int) and e.node_id:
+            node_id_map.setdefault((e.chapter_order, e.paragraph_index), e.node_id)
+
+    if getattr(result, "search_hits", None):
+        for h in result.search_hits:
+            if isinstance(h.chapter_order, int) and isinstance(h.paragraph_index, int) and h.node_id:
+                node_id_map.setdefault((h.chapter_order, h.paragraph_index), h.node_id)
+
+    for order, ch in result.chapters.items():
+        if not ch.content:
+            continue
+        try:
+            from app.services.agent.tools.locate_tools import _split_paragraphs
+            parsed = _split_paragraphs(ch.content)
+            for para in parsed:
+                idx = para.get("index")
+                node_id = para.get("node_id")
+                if isinstance(idx, int) and node_id:
+                    node_id_map.setdefault((order, idx), node_id)
+        except Exception:
+            continue
+
+    return node_id_map
+
+
+def _extract_target_quotes(target_task: str) -> List[str]:
+    if not isinstance(target_task, str) or not target_task.strip():
+        return []
+    segments: List[str] = []
+    seen = set()
+    for match in re.findall(r'["“”‘’「」『』《》](.+?)["“”‘’「」『』》]', target_task):
+        seg = (match or "").strip()
+        if not seg or len(seg) < 4:
+            continue
+        if seg in seen:
+            continue
+        segments.append(seg)
+        seen.add(seg)
+    return segments
+
+
+def _normalize_keywords(keywords: Optional[List[str]]) -> List[str]:
+    normalized: List[str] = []
+    seen = set()
+    for kw in (keywords or []):
+        text = str(kw).strip()
+        if not text:
+            continue
+        if text in seen:
+            continue
+        normalized.append(text)
+        seen.add(text)
+    return normalized
+
+
+def _score_paragraph_target(
+    text: str,
+    quoted_segments: List[str],
+    keywords: List[str]
+) -> Tuple[int, int, int]:
+    score = 0
+    quote_hits = 0
+    keyword_hits = 0
+    if text:
+        for seg in quoted_segments:
+            if seg and seg in text:
+                quote_hits += 1
+                score += 5
+        lowered = text.lower()
+        for kw in keywords:
+            if kw and kw.lower() in lowered:
+                keyword_hits += 1
+                score += 1
+    return score, quote_hits, keyword_hits
+
+
+def _select_unique_target_paragraphs(
+    result: ExploreResult,
+    target_task: str,
+    search_keywords: Optional[List[str]]
+) -> None:
+    if not result or not result.paragraphs:
+        return
+    candidates = [
+        p for p in result.paragraphs
+        if getattr(p, "is_target", True) and isinstance(getattr(p, "text", ""), str)
+    ]
+    if len(candidates) <= 1:
+        return
+    quoted_segments = _extract_target_quotes(target_task)
+    keywords = _normalize_keywords(search_keywords)
+    scored = []
+    for p in candidates:
+        score, quote_hits, keyword_hits = _score_paragraph_target(p.text, quoted_segments, keywords)
+        scored.append((score, quote_hits, keyword_hits, p))
+    scored.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    top = scored[0]
+    runner_up = scored[1] if len(scored) > 1 else None
+    top_score, top_quotes, _, top_para = top
+    strong = False
+    if runner_up is None:
+        strong = True
+    else:
+        second_score, second_quotes, _, _ = runner_up
+        if top_score >= 6 and (top_score - second_score) >= 2:
+            strong = True
+        elif top_quotes > 0 and second_quotes == 0:
+            strong = True
+    if not strong:
+        return
+    for _, _, _, para in scored:
+        para.is_target = para is top_para
+
+
+def _build_locate_targets(
+    result: ExploreResult,
+    chapters_by_order: Dict[int, Dict[str, Any]],
+    node_id_map: Optional[Dict[Tuple[int, int], str]] = None,
+    candidates: Optional[List[Evidence]] = None
+) -> List[Dict[str, Any]]:
+    """构建 locate_content 需要的明确定位目标"""
+    targets: List[Dict[str, Any]] = []
+    seen = set()
+    if node_id_map is None:
+        node_id_map = _build_node_id_map(result)
+
+    def _add_target(
+        chapter_order: int,
+        paragraph_index: Optional[int],
+        chapter_id: str,
+        query: str,
+        reason: str,
+        node_id: str = "",
+        text: str = "",
+        before_anchor: str = "",
+        after_anchor: str = ""
+    ) -> None:
+        query_text = (query or "").strip()
+        if not query_text or not chapter_id:
+            return
+        query_text = query_text[:200]
+        key = (chapter_id, paragraph_index, query_text[:80])
+        if key in seen:
+            return
+        seen.add(key)
+        parts = [part for part in [before_anchor, text or query_text, after_anchor] if part]
+        insert_context = "\n".join(parts) if parts else (text or query_text)
+        if node_id:
+            locator_seed = f"{chapter_id}:{node_id}"
+        elif paragraph_index is not None:
+            locator_seed = f"{chapter_id}:{paragraph_index}"
+        else:
+            locator_seed = f"{chapter_id}:{query_text[:80]}"
+        locator_id = hashlib.md5(locator_seed.encode("utf-8")).hexdigest()
+        targets.append({
+            "chapter_id": chapter_id,
+            "chapter_order": chapter_order,
+            "query": query_text,
+            "text": text or query_text,
+            "paragraph_index": paragraph_index,
+            "node_id": node_id or "",
+            "locator_id": locator_id,
+            "reason": reason,
+            "before_anchor": before_anchor,
+            "after_anchor": after_anchor,
+            "insert_context": insert_context,
+            "allow_global_fallback": False
+        })
+
+    # 优先使用已读取段落（原文）
+    for p in result.paragraphs:
+        if not getattr(p, "is_target", True):
+            continue
+        chapter_id = ""
+        entry = chapters_by_order.get(p.chapter_order, {})
+        if entry:
+            chapter_id = entry.get("id") or entry.get("chapter_id") or ""
+        before_anchor = ""
+        after_anchor = ""
+        if p.context_before:
+            before_anchor = (p.context_before[-1] or "")[-50:]
+        if p.context_after:
+            after_anchor = (p.context_after[0] or "")[:50]
+        _add_target(
+            chapter_order=p.chapter_order,
+            paragraph_index=p.paragraph_index,
+            chapter_id=chapter_id,
+            query=p.text,
+            reason="已读取原文段落",
+            node_id=p.node_id or node_id_map.get((p.chapter_order, p.paragraph_index), ""),
+            text=p.text,
+            before_anchor=before_anchor,
+            after_anchor=after_anchor
+        )
+
+    return targets
+
+
+def _build_evidences_output(
+    result: ExploreResult,
+    node_id_map: Optional[Dict[Tuple[int, int], str]] = None
+) -> List[Dict[str, Any]]:
+    """构建对外输出的证据列表（含定位元数据）"""
+    if node_id_map is None:
+        node_id_map = _build_node_id_map(result)
+    items: List[Dict[str, Any]] = []
+    for e in result.evidences:
+        items.append({
+            "text": e.text,
+            "chapter_id": e.chapter_id,
+            "chapter_order": e.chapter_order,
+            "chapter_title": e.chapter_title,
+            "paragraph_index": e.paragraph_index,
+            "node_id": node_id_map.get((e.chapter_order, e.paragraph_index), ""),
+            "source": e.source_type,
+            "query": e.query,
+            "round_idx": e.round_idx
+        })
+    return items
 
 
 def _build_chapter_paragraphs(
@@ -1213,7 +1804,7 @@ def _build_chapter_paragraphs(
         paragraphs.append({
             "text": text,
             "paragraph_index": p.paragraph_index,
-            "node_id": node_id_by_index.get(p.paragraph_index)
+            "node_id": p.node_id or node_id_by_index.get(p.paragraph_index)
         })
 
     if paragraphs:
@@ -1263,9 +1854,6 @@ def _build_chapter_paragraphs(
 def to_frontend_display(result: ExploreResult) -> Dict[str, Any]:
     """转换为前端展示格式（V2 完整版）"""
     last_round = result.rounds[-1] if result.rounds else None
-    coverage_label = "未知"
-    if last_round and last_round.coverage:
-        coverage_label = "充足" if last_round.sufficient else "覆盖不足"
     return {
         "rounds": [
             {
@@ -1293,16 +1881,13 @@ def to_frontend_display(result: ExploreResult) -> Dict[str, Any]:
             "summary": result.analysis,
             "next_action": "基于这些背景信息，我将执行续写，重点描写收集到的关键情节要素。",
             "next_tool": "",  # 空字符串，前端不显示
-            "sufficient": last_round.sufficient if last_round and last_round.coverage else None,
-            "coverage": last_round.coverage if last_round and last_round.coverage else "",
             "stats": {
                 "worldview": sum(len(items) for items in result.worldview.values()),
                 "chapters": _format_chapters_range(result.chapters),
                 "evidences": len(result.evidences),
-                "coverage": coverage_label
             }
         },
-        "step_description": "多轮检索-定位-原文读取，逐轮 review 覆盖度，补漏后输出完整证据链。",
+        "step_description": "多轮检索-定位-原文读取，由 LLM 自检驱动继续收集，最终输出完整证据链。",
         "tool_operation": {
             "icon": "Scan",
             "name": f"explore_content (max_rounds: {len(result.rounds)})"
@@ -1318,7 +1903,29 @@ def _format_tool_calls_for_frontend(round_data: ExploreRound) -> List[Dict[str, 
     tags = []
 
     for tc in round_data.tool_calls:
-        if tc.tool_name == "search_content":
+        if tc.tool_name == "list_chapters":
+            tags.append({
+                "type": "ListChapters",
+                "value": "列章节"
+            })
+        elif tc.tool_name == "list_paragraphs":
+            tags.append({
+                "type": "ListParagraphs",
+                "value": "列段落预览"
+            })
+        elif tc.tool_name == "exact_search_paragraphs":
+            # 精确关键词搜索
+            keywords = tc.params.get("keywords", "")
+            if isinstance(keywords, list):
+                keywords = ", ".join(keywords[:3])
+            elif isinstance(keywords, str) and "|" in keywords:
+                keywords = ", ".join(keywords.split("|")[:3])
+            tags.append({
+                "type": "Search",
+                "value": keywords[:30] + ("..." if len(keywords) > 30 else ""),
+                "highlight": keywords[:30]
+            })
+        elif tc.tool_name == "search_content":
             query = tc.params.get("query", "")
             tags.append({
                 "type": "Search",
@@ -1358,6 +1965,52 @@ def _format_tool_calls_for_frontend(round_data: ExploreRound) -> List[Dict[str, 
                 "type": "ReadParagraph",
                 "value": f"第{chapter}章 · 第{para}段"
             })
+        elif tc.tool_name == "read_paragraphs":
+            # 批量段落读取：显示读取数量
+            items = tc.params.get("items", [])
+            count = len(items) if isinstance(items, list) else 0
+            if count > 0:
+                first = items[0] if items else {}
+                chapter = first.get("chapter_order", "?")
+                tags.append({
+                    "type": "ReadParagraph",
+                    "value": f"第{chapter}章 · {count}段"
+                })
+            else:
+                # 分页模式：chapter_order/chapter_id + offset/limit
+                chapter = tc.params.get("chapter_order") or tc.params.get("chapter")
+                if not chapter and isinstance(tc.result, dict):
+                    chapter = tc.result.get("chapter_order") or tc.result.get("chapter")
+                if isinstance(chapter, str) and chapter.isdigit():
+                    chapter = int(chapter)
+
+                offset = tc.params.get("offset")
+                limit = tc.params.get("limit")
+                if offset is None and isinstance(tc.result, dict):
+                    offset = tc.result.get("offset")
+                if limit is None and isinstance(tc.result, dict):
+                    limit = tc.result.get("limit")
+                if isinstance(offset, str) and offset.isdigit():
+                    offset = int(offset)
+                if isinstance(limit, str) and limit.isdigit():
+                    limit = int(limit)
+
+                range_label = "分页读取"
+                if isinstance(limit, int) and limit > 0:
+                    start = (offset if isinstance(offset, int) else 0) + 1
+                    end = start + limit - 1
+                    range_label = f"第{start}~{end}段" if end > start else f"第{start}段"
+
+                if isinstance(chapter, int):
+                    chapter_label = f"第{chapter}章"
+                    value = f"{chapter_label} · {range_label}"
+                else:
+                    value = range_label
+
+                tags.append({
+                    "type": "ReadParagraph",
+                    "value": value
+                })
         elif tc.tool_name == "get_chapter_by_order_tool":
             # 整章阅读：仅在未禁止时使用
             chapter = tc.params.get("chapter_order", "?")
@@ -1380,12 +2033,6 @@ def _format_tool_calls_for_frontend(round_data: ExploreRound) -> List[Dict[str, 
                     "type": "Worldview",
                     "value": "世界观设定"
                 })
-
-    # 添加 Review 标签
-    tags.append({
-        "type": "Review",
-        "value": _get_review_status(round_data)
-    })
 
     return tags
 
@@ -1417,16 +2064,21 @@ def _format_scope_ranges(scopes: List[Tuple[int, int]]) -> str:
 class ContentExplorer:
     """内容探索器（AI 驱动版本）"""
 
-    MAX_ROUNDS = 10  # 安全上限，防止死循环
+    MAX_ROUNDS = 200  # 安全上限，防止死循环
 
     def __init__(
         self,
         work_id: str,
         target_task: str,
-        max_rounds: int = 10,
+        max_rounds: int = 200,
         emit_callback: Optional[Callable[[dict], Awaitable[None]]] = None,
         step_id: Optional[int] = None,
-        search_keywords: Optional[List[str]] = None
+        search_keywords: Optional[List[str]] = None,
+        explore_mode: str = "pipeline",
+        max_tool_calls: Optional[int] = None,
+        max_read_paragraphs: Optional[int] = None,
+        require_paragraph_index: Optional[bool] = None,
+        force_global_search: Optional[bool] = None
     ):
         """
         初始化内容探索器
@@ -1442,7 +2094,10 @@ class ContentExplorer:
         self.work_id = work_id
         self.target_task = target_task
         self.search_keywords = search_keywords  # 规划阶段传入的关键词
+        self.force_global_search = bool(force_global_search)
         self.chapter_scopes_raw = _parse_chapter_scopes(target_task)
+        if self.force_global_search:
+            self.chapter_scopes_raw = []
         self.chapter_scopes = list(self.chapter_scopes_raw)
         self.scope_chapter_id: Optional[str] = None
         self.scope_look_ahead = 0
@@ -1453,7 +2108,14 @@ class ContentExplorer:
         self.forbid_full_chapter = _forbid_full_chapter(target_task)
         self.require_full_chapter = _requires_full_chapter(target_task)
         self.require_paragraph_index = _requires_paragraph_index(target_task)
+        if require_paragraph_index is not None:
+            self.require_paragraph_index = bool(require_paragraph_index)
         self.max_rounds = min(max_rounds, self.MAX_ROUNDS)
+        self.explore_mode = (explore_mode or "pipeline").strip().lower()
+        self.max_tool_calls = max_tool_calls if isinstance(max_tool_calls, int) and max_tool_calls > 0 else TOOL_LOOP_MAX_CALLS_DEFAULT
+        self.max_read_paragraphs = (
+            max_read_paragraphs if isinstance(max_read_paragraphs, int) and max_read_paragraphs > 0 else None
+        )
         self.emit_callback = emit_callback
         if isinstance(step_id, int) and step_id > 0:
             self.step_id = step_id
@@ -1461,12 +2123,20 @@ class ContentExplorer:
             self.step_id = 1
         self.state = ExploreState()
         self.start_time = get_utc_now()
-        self.exploration_plan: Optional[ExplorationPlan] = None  # AI 生成的探索计划
-        self.missing_items_from_assessment: List[str] = []  # V3: 阶段2评估后的缺失项，用于指导阶段3
+        self.chapter_list_cache: Optional[List[Dict[str, Any]]] = None
+        self.paragraph_node_id_cache: Dict[int, Dict[str, int]] = {}
+        self.paragraph_list_ranges: Dict[int, List[Tuple[int, int]]] = {}
+        self.allowed_chapter_orders: List[int] = []
+        self.chapter_paragraph_counts: Dict[int, int] = {}
+        self.chapter_read_caps: Dict[int, int] = {}
+        self.flow_listed_chapters = False
+        self.flow_listed_paragraphs: set[int] = set()
         if self.require_paragraph_index:
             logger.info("[ContentExplorer] 启用严格段落号模式")
         if self.chapter_scopes_raw:
             logger.info("[ContentExplorer] 章节范围锁定: %s", _format_scope_ranges(self.chapter_scopes_raw))
+        if self.force_global_search:
+            logger.info("[ContentExplorer] force_global_search 启用：忽略章节范围")
         if self.require_full_chapter:
             logger.info("[ContentExplorer] 任务要求完整章节原文")
         if self.forbid_full_chapter:
@@ -1482,14 +2152,23 @@ class ContentExplorer:
                 chapter_svc = ChapterService(db)
                 chapters = await chapter_svc.get_chapters_by_work(self.work_id)
             title_order_map: Dict[int, int] = {}
+            self.chapter_list_cache = []
             for chapter in chapters:
+                self.chapter_list_cache.append({
+                    "chapter_id": str(chapter.id) if chapter.id else "",
+                    "id": str(chapter.id) if chapter.id else "",
+                    "order": chapter.order,
+                    "title": chapter.title or "",
+                    "word_count": getattr(chapter, "word_count", 0) or 0
+                })
                 title_no = _extract_title_chapter_number(chapter.title or "")
                 if not isinstance(title_no, int):
                     continue
                 if title_no not in title_order_map:
                     title_order_map[title_no] = chapter.order
             self.title_order_map = title_order_map
-            mapped = _map_scopes_to_orders(self.chapter_scopes_raw, title_order_map)
+            total_chapters = len(chapters) if chapters else 0
+            mapped = _map_scopes_to_orders(self.chapter_scopes_raw, title_order_map, total_chapters)
             if mapped:
                 self.chapter_scopes = mapped
                 logger.info(
@@ -1505,6 +2184,168 @@ class ContentExplorer:
         except Exception as e:
             logger.warning(f"[ContentExplorer] 章节范围映射异常: {e}")
             self.title_order_map = {}
+            self.chapter_list_cache = None
+
+    async def _get_chapter_list(self) -> List[Dict[str, Any]]:
+        if self.chapter_list_cache is not None:
+            return self.chapter_list_cache
+        try:
+            async with AsyncSessionLocal() as db:
+                from app.services.chapter_service import ChapterService
+                chapter_svc = ChapterService(db)
+                chapters = await chapter_svc.get_chapters_by_work(self.work_id)
+            self.chapter_list_cache = []
+            for chapter in chapters or []:
+                self.chapter_list_cache.append({
+                    "chapter_id": str(chapter.id) if chapter.id else "",
+                    "id": str(chapter.id) if chapter.id else "",
+                    "order": chapter.order,
+                    "title": chapter.title or "",
+                    "word_count": getattr(chapter, "word_count", 0) or 0
+                })
+            self.chapter_list_cache.sort(key=lambda x: x.get("order") or 0)
+            return self.chapter_list_cache
+        except Exception as e:
+            logger.warning(f"[ContentExplorer] 读取章节清单失败: {e}")
+            self.chapter_list_cache = []
+            return self.chapter_list_cache
+
+    async def _get_chapter_info_by_order(self, chapter_order: int) -> Dict[str, Any]:
+        chapters = await self._get_chapter_list()
+        for ch in chapters:
+            if ch.get("order") == chapter_order:
+                return ch
+        return {}
+
+    def _cache_paragraph_index_map(self, chapter_order: int, result_data: Dict[str, Any]) -> None:
+        if not isinstance(chapter_order, int):
+            return
+        paragraphs = result_data.get("paragraphs") if isinstance(result_data, dict) else None
+        if not isinstance(paragraphs, list):
+            return
+        total = result_data.get("total_paragraphs") if isinstance(result_data, dict) else None
+        if isinstance(total, int) and total > 0:
+            self.chapter_paragraph_counts[chapter_order] = total
+            self.chapter_read_caps[chapter_order] = self._calc_read_cap(total)
+        node_map = self.paragraph_node_id_cache.setdefault(chapter_order, {})
+        for para in paragraphs:
+            if not isinstance(para, dict):
+                continue
+            idx = para.get("paragraph_index")
+            if idx is None:
+                idx = para.get("index")
+            if isinstance(idx, str) and idx.isdigit():
+                idx = int(idx)
+            node_id = para.get("node_id") or ""
+            if isinstance(idx, int) and node_id and node_id not in node_map:
+                node_map[node_id] = idx
+
+    def _record_listed_paragraph_range(
+        self,
+        chapter_order: int,
+        offset: Optional[int],
+        limit: Optional[int],
+        total: Optional[int],
+        approximate: bool = False
+    ) -> None:
+        if approximate:
+            return
+        if not isinstance(chapter_order, int):
+            return
+        if not isinstance(offset, int):
+            offset = 0
+        if not isinstance(limit, int) or limit <= 0:
+            return
+        start = max(0, offset)
+        end = start + limit - 1
+        if isinstance(total, int) and total > 0:
+            end = min(end, total - 1)
+        ranges = self.paragraph_list_ranges.setdefault(chapter_order, [])
+        # 避免重复记录完全覆盖的范围
+        for existing_start, existing_end in ranges:
+            if existing_start <= start and existing_end >= end:
+                return
+        ranges.append((start, end))
+
+    def _is_paragraph_index_listed(self, chapter_order: int, paragraph_index: int) -> bool:
+        ranges = self.paragraph_list_ranges.get(chapter_order)
+        if not ranges:
+            return False
+        for start, end in ranges:
+            if start <= paragraph_index <= end:
+                return True
+        return False
+
+    def _calc_read_cap(self, total_paragraphs: Optional[int]) -> int:
+        if not isinstance(total_paragraphs, int) or total_paragraphs <= 0:
+            return PER_CHAPTER_READ_CAP_MIN
+        cap = int((total_paragraphs * PER_CHAPTER_READ_CAP_RATIO) + 0.9999)
+        if cap < PER_CHAPTER_READ_CAP_MIN:
+            cap = PER_CHAPTER_READ_CAP_MIN
+        if cap > PER_CHAPTER_READ_CAP_MAX:
+            cap = PER_CHAPTER_READ_CAP_MAX
+        return cap
+
+    def _get_chapter_read_count(self, chapter_order: int) -> int:
+        if not isinstance(chapter_order, int):
+            return 0
+        return sum(1 for ch, _ in self.state.read_paragraph_positions if ch == chapter_order)
+
+    def _get_chapter_remaining_reads(self, chapter_order: int) -> Optional[int]:
+        cap = self.chapter_read_caps.get(chapter_order)
+        if not isinstance(cap, int) or cap <= 0:
+            return None
+        used = self._get_chapter_read_count(chapter_order)
+        return max(0, cap - used)
+
+    def _can_read_chapter(self, chapter_order: int, planned_reads: int = 1) -> bool:
+        remaining = self._get_chapter_remaining_reads(chapter_order)
+        if remaining is None:
+            return True
+        return remaining >= planned_reads
+
+    async def _load_chapter_paragraph_counts(self, chapter_orders: List[int]) -> None:
+        if not chapter_orders:
+            return
+        try:
+            from uuid import UUID
+            from sqlalchemy import select, func
+            from app.models.novel_chapter_vector import NovelChapterVector
+            work_uuid = UUID(self.work_id) if isinstance(self.work_id, str) else self.work_id
+            stmt = select(
+                NovelChapterVector.chapter_order,
+                func.count(NovelChapterVector.id).label("count")
+            ).where(
+                NovelChapterVector.work_id == work_uuid,
+                NovelChapterVector.chapter_order.in_(chapter_orders)
+            ).group_by(NovelChapterVector.chapter_order)
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(stmt)
+            for row in result.all():
+                order = row[0]
+                count = row[1]
+                if isinstance(order, int) and isinstance(count, int) and count > 0:
+                    self.chapter_paragraph_counts[order] = count
+        except Exception as e:
+            logger.warning(f"[ContentExplorer] 获取段落数失败: {e}")
+
+    async def _init_chapter_read_caps(self, chapter_orders: List[int]) -> None:
+        if not chapter_orders:
+            return
+        await self._load_chapter_paragraph_counts(chapter_orders)
+        for order in chapter_orders:
+            if order in self.chapter_read_caps:
+                continue
+            total = self.chapter_paragraph_counts.get(order)
+            self.chapter_read_caps[order] = self._calc_read_cap(total)
+
+    async def _get_allowed_chapter_orders(self) -> List[int]:
+        await self._ensure_scope_mapping()
+        chapters = await self._get_chapter_list()
+        orders = [ch.get("order") for ch in chapters if isinstance(ch.get("order"), int)]
+        if self.chapter_scopes:
+            orders = [order for order in orders if self._is_chapter_in_scope(order)]
+        return orders
 
     async def _ensure_scope_context(self) -> Tuple[str, int]:
         await self._ensure_scope_mapping()
@@ -1594,6 +2435,10 @@ class ContentExplorer:
         for item in results:
             if not isinstance(item, dict):
                 continue
+            # 世界观结果不受章节范围限制
+            if item.get("source") == "worldview":
+                filtered.append(item)
+                continue
             chapter_order = item.get("chapter_order")
             if isinstance(chapter_order, str) and chapter_order.isdigit():
                 chapter_order = int(chapter_order)
@@ -1657,20 +2502,19 @@ class ContentExplorer:
             bool: 是否成功获取到结果
         """
         from app.services.chapter_vector_service import ChapterVectorService
+        from app.services.agent.langgraph_tools import read_paragraph
 
         logger.info("[ContentExplorer] ========== 阶段1：精确搜索 ==========")
 
-        # 1. 优先使用规划阶段传入的关键词（最精准）
-        if self.search_keywords and len(self.search_keywords) >= 2:
-            keywords = self.search_keywords
-            logger.info(f"[ContentExplorer] 使用规划传入的关键词: {keywords[:10]}")
-        else:
-            # 兜底：从任务描述中提取关键词
-            keywords = _extract_keywords_for_search(self.target_task)
-            if not keywords:
-                logger.warning("[ContentExplorer] 未提取到关键词，跳过精确搜索")
-                return False
-            logger.info(f"[ContentExplorer] 使用提取的关键词: {keywords[:10]}")
+        # 1. 仅使用规划阶段传入的关键词（外部驱动）
+        if not self.search_keywords:
+            logger.info("[ContentExplorer] 未提供 search_keywords，跳过精确搜索")
+            return False
+        keywords = [kw for kw in self.search_keywords if isinstance(kw, str) and kw.strip()]
+        if not keywords:
+            logger.info("[ContentExplorer] search_keywords 为空，跳过精确搜索")
+            return False
+        logger.info(f"[ContentExplorer] 使用规划传入的关键词: {keywords[:10]}")
 
         # 2. 确定章节范围
         chapter_range = None
@@ -1685,7 +2529,16 @@ class ContentExplorer:
         try:
             async with AsyncSessionLocal() as db:
                 vector_service = ChapterVectorService(db)
-                results = await vector_service.exact_search_paragraphs(
+                use_vector = await vector_service.are_vectors_fresh(
+                    work_id=self.work_id,
+                    chapter_ranges=self.chapter_scopes or None
+                )
+                search_fn = (
+                    vector_service.exact_search_paragraphs
+                    if use_vector
+                    else vector_service.exact_search_paragraphs_from_content
+                )
+                results = await search_fn(
                     work_id=self.work_id,
                     keywords=keywords[:15],  # 最多使用 15 个关键词
                     chapter_range=chapter_range,
@@ -1693,34 +2546,100 @@ class ContentExplorer:
                     limit=100
                 )
 
-            logger.info(f"[ContentExplorer] 精确搜索命中: {len(results)} 条")
+            logger.info(
+                "[ContentExplorer] 精确搜索命中: %s 条 (path=%s)",
+                len(results),
+                "vector" if use_vector else "content"
+            )
 
             if not results:
                 return False
 
-            # 4. 将结果添加到 evidences
+            # 4. 将结果添加到候选列表，并按需读取原文
+            read_limit = AUTO_READ_LIMIT_STRICT if self.require_paragraph_index else AUTO_READ_LIMIT
+            read_used = 0
             for r in results:
                 # 检查章节范围（二次过滤）
                 if self.chapter_scopes and not self._is_chapter_in_scope(r["chapter_order"]):
                     continue
 
-                evidence = {
+                candidate = {
                     "content": r["text"],
+                    "chapter_id": r.get("chapter_id", ""),
                     "chapter_order": r["chapter_order"],
                     "chapter_title": r.get("chapter_title", ""),
                     "paragraph_index": r["paragraph_index"],
+                    "node_id": r.get("node_id", ""),
                     "similarity": 1.0,  # 精确匹配
                     "source": "exact_search",
                     "matched_keywords": r.get("matched_keywords", [])
                 }
 
-                self.state.add_evidence(
-                    evidence,
+                self.state.add_search_hit(
+                    candidate,
                     query=",".join(r.get("matched_keywords", [])[:3]),
                     round_idx=0,  # 0 表示精确搜索阶段
-                    require_paragraph_index=self.require_paragraph_index,
                     chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
                 )
+
+                if read_used >= read_limit:
+                    continue
+                chapter_order = r.get("chapter_order")
+                if isinstance(chapter_order, str) and chapter_order.isdigit():
+                    chapter_order = int(chapter_order)
+                paragraph_index = r.get("paragraph_index")
+                if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                    paragraph_index = int(paragraph_index)
+                if (
+                    paragraph_index is None
+                    or not chapter_order
+                    or not self.state.should_read_paragraph(chapter_order, paragraph_index)
+                ):
+                    continue
+
+                try:
+                    read_result = await read_paragraph.ainvoke({
+                        "work_id": self.work_id,
+                        "chapter_order": chapter_order,
+                        "paragraph_index": paragraph_index,
+                        "context_before": 2,
+                        "context_after": 2,
+                        "index_base": "zero"
+                    })
+                    read_data = json.loads(read_result) if isinstance(read_result, str) else read_result
+                    if read_data.get("success"):
+                        self.state.record_paragraph_read(chapter_order, paragraph_index)
+                        target_text, context_before, context_after = _extract_read_paragraph(read_data)
+                        if not target_text:
+                            target_text = read_data.get("content") or read_data.get("target_paragraph", "")
+                        self.state.add_paragraph({
+                            "chapter_order": chapter_order,
+                            "chapter_title": read_data.get("chapter_title", ""),
+                            "paragraph_index": paragraph_index,
+                            "text": target_text,
+                            "context_before": context_before,
+                            "context_after": context_after,
+                            "node_id": read_data.get("node_id", "")
+                        }, 0)
+                        if target_text:
+                            evidence = {
+                                "content": target_text,
+                                "chapter_order": chapter_order,
+                                "paragraph_index": paragraph_index,
+                                "similarity": 1.0,
+                                "source": "read_paragraph",
+                                "chapter_title": read_data.get("chapter_title", "")
+                            }
+                            if self.state.add_evidence(
+                                evidence,
+                                query=",".join(r.get("matched_keywords", [])[:3]),
+                                round_idx=0,
+                                require_paragraph_index=self.require_paragraph_index,
+                                chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
+                            ):
+                                read_used += 1
+                except Exception as e:
+                    logger.warning(f"[ContentExplorer] 精确搜索自动读取失败: {e}")
 
             logger.info(f"[ContentExplorer] 精确搜索添加证据: {len(self.state.evidences)} 条")
             return len(self.state.evidences) > 0
@@ -1729,213 +2648,174 @@ class ContentExplorer:
             logger.error(f"[ContentExplorer] 精确搜索失败: {e}", exc_info=True)
             return False
 
-    async def explore(self) -> ExploreResult:
-        """
-        执行探索（V3：精确搜索 + AI 评估 + AI 补充循环）
+    async def explore_tool_loop(self) -> ExploreResult:
+        """执行探索（opencode 风格：LLM 工具调用循环）"""
+        logger.info(f"[ContentExplorer] 开始探索 V5: work_id={self.work_id}, target={self.target_task[:50]}...")
 
-        流程：
-        1. 阶段1：精确搜索（SQL ILIKE，确定性，无 AI 调用）
-        2. 阶段2：AI 评估覆盖度（1次 AI 调用）
-           - sufficient=true → 直接返回
-           - sufficient=false → 保存 missing_items，进入阶段3
-        3. 阶段3：AI 补充循环（最多3轮，参考 missing_items）
+        stop_reason = "达到工具调用上限"
+        tool_calls_left = self.max_tool_calls
+        reads_left = self.max_read_paragraphs
+        last_tool_name = ""
+        last_tool_result = ""
+        round_idx = 0
 
-        Returns:
-            ExploreResult: 探索结果
-        """
-        logger.info(f"[ContentExplorer] 开始探索 V3: work_id={self.work_id}, target={self.target_task[:50]}...")
+        # 范围预检查
+        allowed_orders = await self._get_allowed_chapter_orders()
+        self.allowed_chapter_orders = allowed_orders
+        await self._init_chapter_read_caps(allowed_orders)
+        if self.chapter_scopes and not allowed_orders:
+            stop_reason = "范围内无可用章节"
+            analysis = await self._generate_analysis()
+            total_duration_ms = int((get_utc_now() - self.start_time).total_seconds() * 1000)
+            result = ExploreResult(
+                evidences=self.state.evidences,
+                search_hits=self.state.search_hits,
+                paragraphs=self.state.paragraphs,
+                chapters=self.state.chapters,
+                worldview=self.state.worldview,
+                analysis=analysis,
+                stats=self.state.get_stats(),
+                rounds=self.state.rounds,
+                stop_reason=stop_reason,
+                total_duration_ms=total_duration_ms
+            )
+            # 不再发射探索总结事件（避免前端冗余模块）
+            return result
 
-        stop_reason = "达到最大轮次"
-
-        # ========== 阶段1：精确搜索（确定性，无 AI 调用）==========
-        exact_search_success = await self._execute_exact_search_phase()
-        exact_evidence_count = len(self.state.evidences)
-
-        # ========== 阶段2：AI 评估覆盖度（无论精确搜索结果数量）==========
-        if exact_search_success and exact_evidence_count > 0:
-            logger.info(f"[ContentExplorer] 阶段2：AI 评估覆盖度 (精确搜索找到 {exact_evidence_count} 条证据)")
-
+        # 首轮自动获取世界观（复用旧模式逻辑，不受章节范围限制）
+        if self.state.should_read_worldview("all"):
             try:
-                # 调用 AI 评估
-                assessment = await self._ai_assess_sufficiency()
+                from app.services.agent.langgraph_tools import get_writing_context
+                logger.info("[ContentExplorer] 自动获取世界观...")
+                wv_result = await get_writing_context.ainvoke({
+                    "work_id": self.work_id,
+                    "include": "worldview"
+                })
+                wv_data = json.loads(wv_result) if isinstance(wv_result, str) else wv_result
+                if "worldview" in wv_data:
+                    wv = wv_data["worldview"]
+                    for cat, items in wv.items():
+                        if isinstance(items, list):
+                            self.state.add_worldview_items(items, cat)
+                self.state.record_worldview_read("all")
+                wv_count = sum(len(items) for items in self.state.worldview.values())
+                logger.info(f"[ContentExplorer] 世界观获取完成: {wv_count} 条")
+            except Exception as e:
+                logger.warning(f"[ContentExplorer] 获取世界观失败: {e}")
 
-                # 创建精确搜索轮次记录（包含 AI 评估结果）
-                exact_search_round = ExploreRound(
-                    round_idx=0,
-                    title="精确搜索",
-                    tool_calls=[],
-                    new_evidences_count=exact_evidence_count,
-                    new_paragraphs_count=0,
-                    missing_items=assessment.missing if not assessment.sufficient else [],
-                    sufficient=assessment.sufficient,
-                    reason=assessment.coverage,  # V3.4.1: 使用 AI 评估的覆盖度描述，而非硬编码
-                    coverage=assessment.coverage,
-                    summary=assessment.summary,
-                    next_action=assessment.next_action
+        while tool_calls_left > 0:
+            decision: Optional[ToolLoopDecision] = None
+            if not self.flow_listed_chapters:
+                reason = await self._ai_generate_forced_reason("list_chapters", {})
+                decision = ToolLoopDecision(
+                    action="tool",
+                    tool="list_chapters",
+                    args={},
+                    reason=reason
                 )
-                self.state.rounds.append(exact_search_round)
-
-                # 发射轮次事件
-                if self.emit_callback:
-                    await self._emit_round_event(exact_search_round)
-
-                # V3 核心改动：AI 判断充足则直接返回（仅1次 AI 调用）
-                if assessment.sufficient:
-                    logger.info(f"[ContentExplorer] AI 判断信息充足，跳过补充循环: {assessment.coverage}")
-                    stop_reason = f"AI 判断信息充足: {assessment.coverage}"
-
-                    total_duration_ms = int((get_utc_now() - self.start_time).total_seconds() * 1000)
-                    return ExploreResult(
-                        evidences=self.state.evidences,
-                        paragraphs=self.state.paragraphs,
-                        chapters=self.state.chapters,
-                        worldview=self.state.worldview,
-                        analysis=assessment.summary,
-                        stats=self.state.get_stats(),
-                        rounds=self.state.rounds,
-                        stop_reason=stop_reason,
-                        total_duration_ms=total_duration_ms
+            elif not self.flow_listed_paragraphs:
+                chapter_order = None
+                if self.chapter_scopes:
+                    chapter_order = self.chapter_scopes[0][0]
+                else:
+                    chapters = await self._get_chapter_list()
+                    if chapters:
+                        chapter_order = chapters[0].get("order")
+                if isinstance(chapter_order, int):
+                    chapter_order = self._map_title_order_if_needed(chapter_order)
+                    reason = await self._ai_generate_forced_reason(
+                        "list_paragraphs",
+                        {
+                            "chapter_order": chapter_order,
+                            "offset": 0,
+                            "limit": 50,
+                            "preview_len": 80
+                        }
+                    )
+                    decision = ToolLoopDecision(
+                        action="tool",
+                        tool="list_paragraphs",
+                        args={
+                            "chapter_order": chapter_order,
+                            "offset": 0,
+                            "limit": 50,
+                            "preview_len": 80
+                        },
+                        reason=reason
                     )
 
-                # 保存 missing_items 用于阶段3规划
-                self.missing_items_from_assessment = assessment.missing
-                logger.info(f"[ContentExplorer] AI 评估不足，缺失项: {self.missing_items_from_assessment}")
-
-            except Exception as e:
-                logger.warning(f"[ContentExplorer] AI 评估失败，直接进入补充循环: {e}")
-                # V3: AI 评估失败时不再用数量判断，直接进入阶段3补充循环
-                exact_search_round = ExploreRound(
-                    round_idx=0,
-                    title="精确搜索",
-                    tool_calls=[],
-                    new_evidences_count=exact_evidence_count,
-                    new_paragraphs_count=0,
-                    missing_items=["AI 评估失败，需要补充探索"],
-                    sufficient=False,
-                    reason="AI 评估异常，进入补充循环",
-                    coverage=f"精确搜索找到 {exact_evidence_count} 条证据，待进一步补充",
-                    summary=f"通过精确搜索，找到 {exact_evidence_count} 条相关证据。",
-                    next_action="启动补充探索以确保信息覆盖完整。"
+            if decision:
+                logger.info("[ContentExplorer] 强制流程步骤: %s", decision.tool)
+            else:
+                decision = await self._ai_tool_loop_decide(
+                    round_idx=round_idx + 1,
+                    last_tool_name=last_tool_name,
+                    last_tool_result=last_tool_result,
+                    tool_calls_left=tool_calls_left,
+                    reads_left=reads_left
                 )
-                self.state.rounds.append(exact_search_round)
+            if decision.action == "stop":
+                stop_reason = decision.reason or "LLM 停止"
+                break
 
-                if self.emit_callback:
-                    await self._emit_round_event(exact_search_round)
-                # 不再用 >=5 条规则返回，直接继续进入阶段3
+            if decision.tool not in TOOL_LOOP_ALLOWED_TOOLS:
+                stop_reason = f"不支持的工具: {decision.tool}"
+                break
 
-        # ========== 阶段3：AI 补充循环（如果阶段2评估不足）==========
-        logger.info(f"[ContentExplorer] 阶段3：AI 补充循环，当前 {exact_evidence_count} 条证据")
+            if decision.tool in ("read_paragraph", "read_paragraphs") and reads_left is not None and reads_left <= 0:
+                stop_reason = "达到读取上限"
+                break
 
-        # 第0步：AI 理解任务
-        try:
-            self.exploration_plan = await self._ai_understand_task()
-            logger.info(f"[ContentExplorer] AI 任务理解完成: {self.exploration_plan.understanding[:100]}...")
-        except Exception as e:
-            logger.warning(f"[ContentExplorer] AI 任务理解失败，使用默认策略: {e}")
-            self.exploration_plan = ExplorationPlan(
-                key_entities=[],
-                aspects_to_find=[],
-                initial_queries=[self.target_task[:30]],
-                understanding=self.target_task
+            before_evidences = len(self.state.evidences)
+            before_paragraphs = len(self.state.paragraphs)
+
+            tool_call, result_preview, reads_used = await self._execute_tool_action(
+                decision.tool,
+                decision.args,
+                round_idx + 1,
+                reads_left
             )
 
-        # 限制 AI 补充轮次（最多 3 轮，而不是 10 轮）
-        max_supplement_rounds = min(self.max_rounds, 3)
+            tool_calls_left -= 1
+            if reads_left is not None:
+                reads_left = max(0, reads_left - reads_used)
 
-        for round_idx in range(1, max_supplement_rounds + 1):
-            round_start = get_utc_now()
+            new_evidences = len(self.state.evidences) - before_evidences
+            new_paragraphs = len(self.state.paragraphs) - before_paragraphs
 
-            # AI 决定本轮行动
-            try:
-                round_plan = await self._ai_plan_round(round_idx)
-            except Exception as e:
-                logger.warning(f"[ContentExplorer] AI 轮次规划失败，使用默认策略: {e}")
-                # 首轮优先使用 exploration_plan.initial_queries 作为语义搜索
-                default_queries = []
-                if round_idx == 1:
-                    if self.exploration_plan and self.exploration_plan.initial_queries:
-                        default_queries = self.exploration_plan.initial_queries[:3]
-                    else:
-                        default_queries = [self.target_task[:30]]
-                round_plan = RoundPlan(
-                    exact_keywords=[],  # V3: 默认不做精确搜索
-                    semantic_queries=default_queries,  # V3: 使用语义搜索
-                    chapters_to_read=[],
-                    paragraphs_to_read=[],
-                    reason="默认策略"
-                )
-
-            # 执行本轮探索
-            round_data = await self._execute_round_with_plan(round_idx, round_plan)
+            round_data = ExploreRound(
+                round_idx=round_idx + 1,
+                title=_get_round_title(round_idx + 1),
+                tool_calls=[tool_call],
+                new_evidences_count=new_evidences,
+                new_paragraphs_count=new_paragraphs,
+                missing_items=[],
+                sufficient=False,
+                reason=decision.reason or ""
+            )
             self.state.rounds.append(round_data)
 
-            # 发射轮次事件
             if self.emit_callback:
                 await self._emit_round_event(round_data)
 
-            # AI 评估信息充足性
-            try:
-                assessment = await self._ai_assess_sufficiency()
-                round_data.coverage = assessment.coverage
-                round_data.summary = assessment.summary  # 保存 AI 生成的总结
-                round_data.next_action = assessment.next_action  # 保存 AI 生成的下一步行动
-                reachable_missing, unreachable_missing = self._filter_unreachable_missing(assessment.missing)
-                requires_unreachable = _requires_unreachable_items(self.target_task)
-                if unreachable_missing:
-                    note = "已忽略不可达缺失项：" + "、".join(unreachable_missing[:3])
-                    if requires_unreachable:
-                        note = "存在不可达缺失项（已标记，不再继续检索）：" + "、".join(unreachable_missing[:3])
-                    if round_data.coverage:
-                        round_data.coverage = f"{round_data.coverage}（{note}）"
-                    else:
-                        round_data.coverage = note
-                if assessment.sufficient:
-                    stop_reason = f"AI 判断信息充足: {assessment.coverage}"
-                    round_data.sufficient = True
-                    round_data.missing_items = []
-                    break
-                else:
-                    if requires_unreachable and unreachable_missing:
-                        stop_reason = "存在不可达缺失项"
-                        round_data.sufficient = False
-                        round_data.missing_items = reachable_missing + unreachable_missing
-                        break
-                    if not reachable_missing:
-                        stop_reason = "可达信息已覆盖（存在不可达缺失项）"
-                        round_data.sufficient = True
-                        round_data.missing_items = []
-                        break
-                    round_data.missing_items = reachable_missing
-                    # V3: 更新缺失项，用于下一轮规划
-                    self.missing_items_from_assessment = reachable_missing
-            except Exception as e:
-                logger.warning(f"[ContentExplorer] AI 充足性评估失败: {e}")
-                # V3: AI 评估失败时，不使用数量判断，继续循环直到收敛或达到最大轮次
-                # 设置兜底信息，让循环继续
-                round_data.coverage = f"AI 评估失败，当前 {len(self.state.evidences)} 条证据"
-                round_data.missing_items = ["AI 评估失败，继续探索"]
+            last_tool_name = tool_call.tool_name
+            last_tool_result = result_preview
+            round_idx += 1
 
-            # 检查是否收敛（连续无新信息）
-            if self.state.check_convergence():
-                if not round_data.missing_items:
-                    stop_reason = "信息收敛"
-                    break
-                stop_reason = "连续无新增信息（覆盖不足）"
+            if reads_left is not None and reads_left <= 0:
+                stop_reason = "达到读取上限"
                 break
 
-        if stop_reason == "达到最大轮次" and self.state.rounds:
-            last_round = self.state.rounds[-1]
-            if last_round.missing_items:
-                stop_reason = "达到最大轮次（覆盖不足）"
+        if self.state.rounds:
+            self.state.rounds[-1].sufficient = True
+            if stop_reason and not self.state.rounds[-1].reason:
+                self.state.rounds[-1].reason = stop_reason
 
-        # 生成分析
         analysis = await self._generate_analysis()
-
-        # 计算总耗时
         total_duration_ms = int((get_utc_now() - self.start_time).total_seconds() * 1000)
-
         result = ExploreResult(
             evidences=self.state.evidences,
+            search_hits=self.state.search_hits,
             paragraphs=self.state.paragraphs,
             chapters=self.state.chapters,
             worldview=self.state.worldview,
@@ -1946,681 +2826,1360 @@ class ContentExplorer:
             total_duration_ms=total_duration_ms
         )
 
-        # 发射汇总事件
-        if self.emit_callback:
-            await self._emit_summary_event(result)
+        # 不再发射探索总结事件（避免前端冗余模块）
 
-        logger.info(f"[ContentExplorer] 探索完成: {len(self.state.rounds)}轮, 原因={stop_reason}")
-
+        logger.info(f"[ContentExplorer] 探索完成(工具循环): {len(self.state.rounds)}轮, 原因={stop_reason}")
         return result
 
-    async def _execute_round(self, round_idx: int) -> ExploreRound:
-        """执行一轮探索"""
-        from app.services.agent.langgraph_tools import search_content, get_writing_context
-
-        tool_calls = []
-        new_evidences = 0
-        new_paragraphs = 0
-        missing_items = []
-
-        # 1. 首轮：获取基础信息
-        if round_idx == 1:
-            # 获取世界观
-            if self.state.should_read_worldview("all"):
-                start = get_utc_now()
-                try:
-                    result = await get_writing_context.ainvoke({
-                        "work_id": self.work_id,
-                        "include": "worldview"
-                    })
-                    result_data = json.loads(result) if isinstance(result, str) else result
-                    if "worldview" in result_data:
-                        wv = result_data["worldview"]
-                        for cat, items in wv.items():
-                            if isinstance(items, list):
-                                self.state.add_worldview_items(items, cat)
-                    self.state.record_worldview_read("all")
-                    duration = int((get_utc_now() - start).total_seconds() * 1000)
-                    tool_calls.append(ToolCall(
-                        tool_name="get_writing_context",
-                        params={"include": "worldview"},
-                        result=result_data,
-                        duration_ms=duration
-                    ))
-                except Exception as e:
-                    logger.warning(f"[ContentExplorer] 获取世界观失败: {e}")
-
-        # 2. 执行搜索
-        search_queries = self._generate_search_queries(round_idx)
-        for query in search_queries:
-            if not self.state.should_search(query):
-                continue
-
-            start = get_utc_now()
-            try:
-                result = await search_content.ainvoke({
-                    "work_id": self.work_id,
-                    "query": query,
-                    "top_k": 5
-                })
-                result_data = json.loads(result) if isinstance(result, str) else result
-                self.state.record_search(query)
-
-                # 添加证据
-                for item in result_data.get("results", []):
-                    if self.state.add_evidence(
-                        item,
-                        query,
-                        round_idx,
-                        require_paragraph_index=self.require_paragraph_index,
-                        chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
-                    ):
-                        new_evidences += 1
-
-                duration = int((get_utc_now() - start).total_seconds() * 1000)
-                tool_calls.append(ToolCall(
-                    tool_name="search_content",
-                    params={"query": query},
-                    result=result_data,
-                    duration_ms=duration
-                ))
-            except Exception as e:
-                logger.warning(f"[ContentExplorer] 搜索失败: {e}")
-
-        # 3. 读取相关章节
-        chapters_to_read = self._filter_chapters_for_reading(
-            self._determine_chapters_to_read(),
-            limit=2
+    async def explore(self) -> ExploreResult:
+        """执行探索（pipeline 已弃用，统一走 tool_loop）"""
+        logger.info(
+            f"[ContentExplorer] pipeline 已弃用，改为 tool_loop: work_id={self.work_id}, "
+            f"target={self.target_task[:50]}..."
         )
-        for chapter_order in chapters_to_read:
-            if not self.state.should_read_chapter(chapter_order):
-                continue
+        return await self.explore_tool_loop()
 
-            start = get_utc_now()
-            try:
-                result = await get_writing_context.ainvoke({
-                    "work_id": self.work_id,
-                    "chapter_orders": str(chapter_order),
-                    "include": "chapter"
-                })
-                result_data = json.loads(result) if isinstance(result, str) else result
-                self.state.record_chapter_read(chapter_order)
+    # ==================== LLM 自检 ====================
 
-                # 添加章节
-                for ch in result_data.get("chapters", []):
-                    self.state.add_chapter(ch, round_idx)
+    def _build_tool_loop_summary(
+        self,
+        last_tool_name: str,
+        last_tool_result: str,
+        tool_calls_left: int,
+        reads_left: int
+    ) -> str:
+        lines = []
+        if self.chapter_scopes:
+            lines.append(f"- 任务章节范围：{_format_scope_ranges(self.chapter_scopes)}")
+        reads_desc = "不限" if reads_left is None else str(reads_left)
+        lines.append(f"- 工具调用剩余：{tool_calls_left}，可读段落剩余：{reads_desc}")
+        if self.chapter_read_caps and self.allowed_chapter_orders:
+            budget_parts = []
+            for order in self.allowed_chapter_orders[:10]:
+                cap = self.chapter_read_caps.get(order)
+                if not isinstance(cap, int):
+                    continue
+                used = self._get_chapter_read_count(order)
+                budget_parts.append(f"第{order}章 {used}/{cap}")
+            if budget_parts:
+                lines.append(f"- 各章读取进度（已读/上限）：{'; '.join(budget_parts)}")
 
-                duration = int((get_utc_now() - start).total_seconds() * 1000)
-                tool_calls.append(ToolCall(
-                    tool_name="get_writing_context",
-                    params={"chapter_orders": str(chapter_order)},
-                    result=result_data,
-                    duration_ms=duration
-                ))
-            except Exception as e:
-                logger.warning(f"[ContentExplorer] 读取章节失败: {e}")
+        # 优先展示搜索历史摘要（核心改进：类似 OpenCode 的 toModelMessages）
+        search_summary = self.state.get_search_history_summary()
+        if search_summary:
+            lines.append(f"- 搜索历史：\n{search_summary}")
+        elif self.state.searched_queries:
+            # 兼容旧逻辑：如果没有搜索历史，显示已搜索词
+            all_queries = list(self.state.searched_queries)
+            lines.append(f"- 已搜索关键词（{len(all_queries)}个）：{', '.join(all_queries)}")
 
-        # 4. 评估信息充足性
-        sufficient, missing = self._evaluate_sufficiency(round_idx)
-        missing_items = missing
+        # 最近一次搜索命中列表（对标 grep 输出：命中行列表）
+        if self.state.search_hits:
+            latest_query = None
+            if self.state.search_history:
+                latest_query = self.state.search_history[-1].query
+            recent_hits: List[Evidence] = []
+            if latest_query:
+                recent_hits = [hit for hit in self.state.search_hits if hit.query == latest_query]
+            if not recent_hits:
+                latest_round = 0
+                for hit in self.state.search_hits:
+                    if isinstance(hit.round_idx, int) and hit.round_idx > latest_round:
+                        latest_round = hit.round_idx
+                recent_hits = [
+                    hit for hit in self.state.search_hits
+                    if not latest_round or hit.round_idx == latest_round
+                ]
+                label = f"第{latest_round}轮" if latest_round else "最近"
+            else:
+                label = f"关键词:{latest_query}"
 
-        return ExploreRound(
-            round_idx=round_idx,
-            title=_get_round_title(round_idx),
-            reason="",  # 旧规则方法无 AI 决策理由
-            tool_calls=tool_calls,
-            new_evidences_count=new_evidences,
-            new_paragraphs_count=new_paragraphs,
-            missing_items=missing_items,
-            sufficient=sufficient
-        )
+            def _hit_score(item: Evidence) -> float:
+                sim = item.similarity
+                return float(sim) if isinstance(sim, (int, float)) else 0.0
 
-    # ==================== AI 决策方法 ====================
+            preview_hits = sorted(recent_hits, key=_hit_score, reverse=True)
+            total_hits = len(preview_hits)
+            preview_hits = preview_hits[:SEARCH_HIT_PREVIEW_LIMIT]
+            lines.append(
+                f"- 搜索命中列表（{label}，{total_hits}条，展示{len(preview_hits)}条）："
+            )
 
-    async def _ai_understand_task(self) -> ExplorationPlan:
-        """
-        AI 理解任务，生成探索计划（第0步）
+            used_chars = 0
+            shown = 0
+            for hit in preview_hits:
+                chapter_label = ""
+                if isinstance(hit.chapter_order, int) and hit.chapter_order > 0:
+                    chapter_label = f"第{hit.chapter_order}章"
+                para_label = f"第{hit.paragraph_index}段" if isinstance(hit.paragraph_index, int) else ""
+                if chapter_label:
+                    location = f"{chapter_label}{para_label}"
+                elif para_label:
+                    location = para_label
+                else:
+                    location = hit.source_type or "search"
+                meta_parts = []
+                if hit.chapter_id:
+                    meta_parts.append(f"chapter_id={hit.chapter_id}")
+                if hit.node_id:
+                    meta_parts.append(f"node_id={hit.node_id}")
+                if not isinstance(hit.paragraph_index, int) and (hit.chapter_order or hit.chapter_id):
+                    meta_parts.append("无段落号，先 list_paragraphs")
+                if meta_parts:
+                    location = f"{location} | " + " | ".join(meta_parts)
+                text = (hit.text or "")[:SEARCH_HIT_TEXT_LIMIT]
+                entry = f"  · [{location}] {text}"
+                if shown >= SEARCH_HIT_MIN_ITEMS and used_chars + len(entry) > SEARCH_HIT_TOTAL_CHAR_LIMIT:
+                    break
+                lines.append(entry)
+                used_chars += len(entry)
+                shown += 1
 
-        使用 DEEP_ANALYSIS 任务类型确保理解质量
-        """
+            omitted = total_hits - shown
+            if omitted > 0:
+                lines.append(f"  （另有 {omitted} 条命中已省略）")
+
+        # 已收集证据原文（让 AI 看到完整内容，判断是否符合预期）
+        # 类似 OpenCode 的 toModelMessages：完整返回，超过上限再压缩旧的
+        if self.state.evidences:
+            EVIDENCE_PROTECT_CHARS = 8000  # 保护最近 8000 字符的证据原文
+            evidence_lines = []
+            total_chars = 0
+            # 从最新的开始，保留完整原文
+            for e in reversed(self.state.evidences):
+                para_label = f"第{e.paragraph_index}段" if isinstance(e.paragraph_index, int) else ""
+                entry = f"  · [第{e.chapter_order}章{para_label}] {e.text}"
+                total_chars += len(entry)
+                if total_chars >= EVIDENCE_PROTECT_CHARS:
+                    remaining = len(self.state.evidences) - len(evidence_lines) - 1
+                    if remaining > 0:
+                        evidence_lines.append(f"  （另有 {remaining} 条旧证据已省略）")
+                    break
+                evidence_lines.append(entry)
+            evidence_lines.reverse()
+            lines.append(f"- 已收集证据（{len(self.state.evidences)}条）：")
+            lines.extend(evidence_lines)
+
+        # 已读段落位置（避免 AI 重复读取）
+        if self.state.read_paragraph_positions:
+            read_positions = sorted(self.state.read_paragraph_positions)
+            chapter_reads: Dict[int, List[int]] = {}
+            for ch, pi in read_positions:
+                if ch not in chapter_reads:
+                    chapter_reads[ch] = []
+                chapter_reads[ch].append(pi)
+            read_parts = []
+            for ch in sorted(chapter_reads.keys()):
+                paragraphs = chapter_reads[ch]
+                if len(paragraphs) <= 5:
+                    part = f"第{ch}章: 段落{','.join(map(str, paragraphs))}"
+                else:
+                    part = f"第{ch}章: 段落{min(paragraphs)}-{max(paragraphs)}（共{len(paragraphs)}段）"
+                read_parts.append(part)
+            lines.append(f"- 已读段落（{len(read_positions)}个，勿重复读取）：{'; '.join(read_parts)}")
+
+        # 已覆盖的上下文范围（明确告诉 AI 无需重复读取）
+        if self.state.context_coverage:
+            coverage_parts = []
+            for (chapter_order, target_index), (start_index, end_index) in sorted(
+                self.state.context_coverage.items(),
+                key=lambda item: (item[0][0], item[0][1])
+            ):
+                if start_index == end_index:
+                    range_label = f"{start_index}"
+                else:
+                    range_label = f"{start_index}-{end_index}"
+                coverage_parts.append(
+                    f"第{chapter_order}章 目标段{target_index} 已覆盖段落{range_label}"
+                )
+            lines.append(f"- 上下文已覆盖（无需重复读取）：{'; '.join(coverage_parts)}")
+
+        if last_tool_name:
+            lines.append(f"- 上一次工具：{last_tool_name}")
+        if last_tool_result:
+            lines.append(f"- 上一次结果：{_truncate_text(last_tool_result, TOOL_LOOP_RESULT_PREVIEW_LIMIT)}")
+        return "\n".join(lines)
+
+    async def _ai_tool_loop_decide(
+        self,
+        round_idx: int,
+        last_tool_name: str,
+        last_tool_result: str,
+        tool_calls_left: int,
+        reads_left: int
+    ) -> ToolLoopDecision:
+        """LLM 工具循环决策（只读工具）"""
         from app.services.agent.model_selector import TaskType
 
         ai_service = _get_ai_service()
+        summary = self._build_tool_loop_summary(
+            last_tool_name,
+            last_tool_result,
+            tool_calls_left,
+            reads_left
+        )
 
-        prompt = f"""你是一个信息收集专家。请分析以下任务，理解需要收集哪些信息。
+        # 🔧 2026-01-28: 隐藏 work_id 参数，由代码自动注入，避免 AI 误将参数名当作值
+        tools_desc = """可用工具（只读）：
+1) list_chapters()
+   - 作用：列出章节清单
+2) list_paragraphs(chapter_order, offset, limit, preview_len)
+   - 作用：列出某章段落索引（仅预览）
+3) exact_search_paragraphs(keywords, match_mode, limit)
+   - 作用：精确关键词匹配（Grep），返回候选段落
+4) read_paragraph(chapter_order, paragraph_index, context_before, context_after)
+   - 作用：读取指定段落原文
+5) read_paragraphs(items, context_before, context_after)
+   - 作用：批量读取多个段落原文（items 模式）
+   - 或：read_paragraphs(chapter_order/chapter_id, offset, limit, context_before, context_after) 分页读取范围段落
+
+禁止使用 search_content（语义检索）。
+"""
+
+        prompt = f"""你是只读探索器，只能在限定工具内选择下一步行动。
 
 目标任务：{self.target_task}
+当前轮次：第 {round_idx} 轮
 
-请分析这个任务：
-1. 识别关键实体（人物、地点、物品、概念等）
-2. 确定需要了解的方面（关系、事件、状态、背景等）
-3. 设计初始搜索策略
+当前状态：
+{summary}
 
-请输出 JSON 格式（不要包含其他内容）：
+{tools_desc}
+
+固定流程（尽量遵守）：
+1) list_chapters → 2) list_paragraphs → 3) exact_search_paragraphs → 4) read_paragraph/read_paragraphs
+说明：只有在已经明确范围或已知段落时，才允许跳过前面的步骤。
+
+请输出 JSON（不要其他内容）：
 {{
-  "key_entities": ["实体1", "实体2"],
-  "aspects_to_find": ["方面1", "方面2"],
-  "initial_queries": ["搜索词1", "搜索词2"],
-  "understanding": "对任务的理解（一句话）"
-}}"""
+  "action": "tool" 或 "stop",
+  "tool": "工具名（action=tool 时必填）",
+  "args": {{ "参数": "值" }},
+  "reason": "一句话说明"
+}}
+
+注意：
+- 必须遵守章节范围约束（如有）。
+- 读取原文证据只能来自 read_paragraph/read_paragraphs。
+- read_paragraph 必须提供 chapter_order + paragraph_index（可用 list_paragraphs 的 index/paragraph_index）。
+- read_paragraphs 可用两种模式：items 列表（chapter_order+paragraph_index）或分页模式（chapter_order/chapter_id + offset+limit）。
+- items 模式不要用 chapter_id/node_id 直接定位；分页模式可用 chapter_id。
+- 不要搜索已搜索过的关键词或其变体（检查上方"搜索历史"中已搜过的内容）。
+- 若上方提示“上下文已覆盖”，则不要再次调用 read_paragraph/read_paragraphs 读取同一目标段落。
+
+何时应选择 action="stop"：
+1. 目标任务所需的关键信息已获取足够（检查搜索历史中的命中摘要）
+2. 已搜索的关键词已覆盖目标概念（不要反复搜索同义词/变体）
+3. 可读段落剩余不足 30 时，应优先停止而非继续搜索
+4. 连续多轮搜索未发现新的有价值信息
+"""
 
         try:
             response = await ai_service.call_ai(
-                system_prompt="你是信息收集专家，擅长分析任务并制定搜索策略。只输出 JSON，不要有其他内容。",
+                system_prompt="你是只读探索器。只输出 JSON，不要有其他内容。",
                 user_prompt=prompt,
                 max_tokens=500,
-                temperature=0.3,
-                task_type=TaskType.DEEP_ANALYSIS
-            )
-
-            # 解析 JSON
-            result = self._parse_json_response(response)
-
-            return ExplorationPlan(
-                key_entities=result.get("key_entities", []),
-                aspects_to_find=result.get("aspects_to_find", []),
-                initial_queries=result.get("initial_queries", [self.target_task[:30]]),
-                understanding=result.get("understanding", self.target_task)
-            )
-        except Exception as e:
-            logger.warning(f"[ContentExplorer] AI 任务理解解析失败: {e}")
-            raise
-
-    async def _ai_plan_round(self, round_idx: int) -> RoundPlan:
-        """
-        AI 决定本轮行动计划（V3.1：仅语义搜索，删除精确搜索）
-
-        V3.1 改动说明：
-        - AI 补充阶段只用语义搜索，不再用精确搜索
-        - 精确搜索在阶段1已完成，AI 补充阶段的目的是找"语义相关但字面不同"的内容
-        - 删除 exact_keywords 字段，只保留 semantic_queries
-
-        使用 SIMPLE_QA 任务类型优化成本
-        """
-        from app.services.agent.model_selector import TaskType
-
-        ai_service = _get_ai_service()
-
-        # 构建已收集信息摘要
-        collected_summary = self._build_collected_summary()
-
-        # V3: 参考阶段2评估的缺失项
-        missing_hint = ""
-        if self.missing_items_from_assessment:
-            missing_hint = f"\n缺失信息（需重点补充）：{', '.join(self.missing_items_from_assessment[:5])}"
-
-        # 首轮提示 AI 参考 initial_queries
-        initial_hint = ""
-        if round_idx == 1 and self.exploration_plan and self.exploration_plan.initial_queries:
-            initial_hint = f"\n建议的初始搜索词（供参考）：{', '.join(self.exploration_plan.initial_queries)}"
-
-        scope_hint = ""
-        if self.chapter_scopes_raw:
-            scope_hint = f"\n章节范围约束：仅限{_format_scope_ranges(self.chapter_scopes_raw)}，禁止跨章扩展。"
-
-        # V3.1: 只用语义搜索，删除精确搜索
-        example_payload = {
-            "semantic_queries": ["某人的性格特点", "两人之间的关系发展", "某事件的具体经过"],
-            "chapters_to_read": [],
-            "paragraphs_to_read": [{"chapter": 3, "paragraph": 15}],
-            "reason": "决策理由"
-        }
-        example_json = json.dumps(example_payload, ensure_ascii=False, indent=2)
-
-        prompt = f"""你是信息收集专家。请根据当前状态决定本轮行动。
-
-目标任务：{self.target_task}
-任务理解：{self.exploration_plan.understanding if self.exploration_plan else self.target_task}
-需要了解：{', '.join(self.exploration_plan.aspects_to_find) if self.exploration_plan else '未知'}{missing_hint}{initial_hint}{scope_hint}
-
-当前轮次：第 {round_idx} 轮
-已收集信息：
-{collected_summary}
-
-已搜索过的关键词（避免重复）：{', '.join(list(self.state.searched_queries)[:10])}
-
-请决定本轮要搜索什么内容：
-
-【搜索策略】使用语义搜索（semantic_queries）：
-- 生成 1-3 个语义查询，用于查找缺失的信息
-- 查询应该是完整的语义短语，如"女主与主角的关系发展"
-- 避免与已搜索过的关键词重复
-
-其他字段说明：
-- chapters_to_read: 需要读取哪些章节？（仅在任务明确要求整章/全文时填写，否则留空）
-- paragraphs_to_read: 需要精确读取哪些段落？（优先使用，格式为 {{"chapter": 章节号, "paragraph": 段落号}}）
-
-请输出 JSON 格式（不要包含其他内容）：
-{example_json}"""
-
-        try:
-            response = await ai_service.call_ai(
-                system_prompt="你是信息收集专家。只输出 JSON，不要有其他内容。",
-                user_prompt=prompt,
-                max_tokens=400,
                 temperature=0.2,
                 task_type=TaskType.SIMPLE_QA
             )
-
             result = self._parse_json_response(response)
-
-            # V3.1: 只处理语义搜索，删除精确搜索
-            semantic_queries = [
-                q for q in result.get("semantic_queries", [])
-                if q and self.state.should_search(q)
-            ]
-
-            # 兼容旧格式：如果 AI 返回 search_queries，当作语义搜索处理
-            if not semantic_queries and "search_queries" in result:
-                semantic_queries = [
-                    q for q in result.get("search_queries", [])
-                    if q and self.state.should_search(q)
-                ]
-
-            # 过滤已读取的章节
-            chapters_to_read = [
-                c for c in result.get("chapters_to_read", [])
-                if isinstance(c, int) and self.state.should_read_chapter(c)
-            ]
-
-            return RoundPlan(
-                exact_keywords=[],  # V3.1: AI 补充阶段不再使用精确搜索
-                semantic_queries=semantic_queries[:3],  # 最多3个语义搜索
-                chapters_to_read=chapters_to_read[:2],  # 最多2个章节
-                paragraphs_to_read=result.get("paragraphs_to_read", [])[:3],
-                reason=result.get("reason", "")
-            )
         except Exception as e:
-            logger.warning(f"[ContentExplorer] AI 轮次规划解析失败: {e}")
-            raise
+            return ToolLoopDecision(action="stop", reason=f"决策失败: {e}")
 
-    def _calculate_keyword_coverage(self) -> float:
-        """
-        计算关键词覆盖率（V3.3：用于规则判断）
+        action_raw = str(result.get("action", "")).strip().lower()
+        tool_name = str(result.get("tool") or result.get("tool_name") or "").strip()
+        args = result.get("args") or result.get("params") or {}
+        reason = result.get("reason", "") if isinstance(result, dict) else ""
+        if not isinstance(args, dict):
+            args = {}
 
-        Returns:
-            float: 覆盖率 0.0-1.0
-        """
-        if not self.search_keywords:
-            return 1.0  # 无关键词时默认充足
+        if action_raw in ("stop", "end", "finish", "false", "no"):
+            return ToolLoopDecision(action="stop", reason=reason)
 
-        covered = 0
-        for kw in self.search_keywords:
-            for e in self.state.evidences:
-                if kw in e.text or kw in e.query:
-                    covered += 1
-                    break
+        if not action_raw:
+            # 如果未明确 action，但给了 tool，则默认执行工具
+            if tool_name:
+                action_raw = "tool"
+            else:
+                return ToolLoopDecision(action="stop", reason=reason or "缺少 action/tool")
 
-        return covered / len(self.search_keywords)
+        if action_raw not in ("tool", "call", "use", "continue"):
+            return ToolLoopDecision(action="stop", reason=reason or "非法 action")
 
-    def _generate_rule_based_summary(self, evidence_count: int, chapter_count: int, keyword_coverage: float) -> str:
-        """生成规则判断时的总结"""
-        # 收集章节信息
-        chapter_orders = sorted(set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0))
-        chapter_range = f"第{min(chapter_orders)}-{max(chapter_orders)}章" if chapter_orders else "未知章节"
+        return ToolLoopDecision(action="tool", tool=tool_name, args=args, reason=reason)
 
-        # 收集关键词信息
-        covered_keywords = []
-        if self.search_keywords:
-            for kw in self.search_keywords[:5]:
-                for e in self.state.evidences:
-                    if kw in e.text or kw in e.query:
-                        covered_keywords.append(kw)
-                        break
-
-        keyword_info = f"，涉及{', '.join(covered_keywords[:3])}等关键内容" if covered_keywords else ""
-
-        return f"通过精确搜索，收集到 {evidence_count} 条证据，覆盖 {chapter_count} 个章节（{chapter_range}）{keyword_info}。"
-
-    def _rule_based_sufficiency(self) -> Optional[SufficiencyAssessment]:
-        """
-        规则优先的充足性判断（V3.3：减少 AI 不稳定性）
-
-        判断规则：
-        1. 证据 ≥ 30 条 且 章节 ≥ 3 个 → 直接充足
-        2. 关键词覆盖率 ≥ 80% 且 证据 ≥ 20 条 → 直接充足
-        3. 证据 < 5 条 → 直接不足
-        4. 其他情况 → 返回 None，交给 AI 判断
-
-        Returns:
-            SufficiencyAssessment 或 None（需要 AI 判断）
-        """
-        evidence_count = len(self.state.evidences)
-        chapter_count = len(set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0))
-        keyword_coverage = self._calculate_keyword_coverage()
-
-        logger.info(
-            "[ContentExplorer] 规则判断: 证据=%d, 章节=%d, 关键词覆盖=%.1f%%",
-            evidence_count, chapter_count, keyword_coverage * 100
-        )
-
-        # 规则1：数量充足 → 直接通过
-        if evidence_count >= 30 and chapter_count >= 3:
-            logger.info("[ContentExplorer] 规则1命中: 证据≥30 且 章节≥3 → 直接充足")
-            return SufficiencyAssessment(
-                sufficient=True,
-                coverage=f"证据充足：{evidence_count}条证据，覆盖{chapter_count}个章节",
-                missing=[],
-                summary=self._generate_rule_based_summary(evidence_count, chapter_count, keyword_coverage),
-                next_action="基于充足的背景信息，将执行后续任务。"
-            )
-
-        # 规则2：关键词高覆盖 → 直接通过
-        if keyword_coverage >= 0.8 and evidence_count >= 20:
-            logger.info("[ContentExplorer] 规则2命中: 关键词覆盖≥80%% 且 证据≥20 → 直接充足")
-            return SufficiencyAssessment(
-                sufficient=True,
-                coverage=f"关键词覆盖率：{keyword_coverage:.0%}，证据{evidence_count}条",
-                missing=[],
-                summary=self._generate_rule_based_summary(evidence_count, chapter_count, keyword_coverage),
-                next_action="关键信息已覆盖，将执行后续任务。"
-            )
-
-        # 规则3：证据极少 → 直接不足
-        if evidence_count < 5:
-            logger.info("[ContentExplorer] 规则3命中: 证据<5 → 直接不足")
-            return SufficiencyAssessment(
-                sufficient=False,
-                coverage=f"证据不足：仅{evidence_count}条",
-                missing=["需要更多相关信息"],
-                summary=f"当前仅收集到 {evidence_count} 条证据，信息量不足。",
-                next_action="需要继续探索以收集更多背景信息。"
-            )
-
-        # 其他情况：返回 None，交给 AI 判断
-        logger.info("[ContentExplorer] 边界情况: 证据=%d, 章节=%d → 交给AI判断", evidence_count, chapter_count)
-        return None
-
-    async def _ai_assess_sufficiency(self) -> SufficiencyAssessment:
-        """
-        AI 评估信息充足性（V3.4：分离提取与判断）
-
-        核心改进：
-        - AI 只做客观指标提取（关键词覆盖、内容质量等）
-        - 代码规则做确定性判断（基于提取结果）
-        - 消除 AI 主观判断的不稳定性
-
-        流程：
-        1. AI 提取客观指标 → EvidenceExtraction
-        2. 代码规则判断 → SufficiencyAssessment
-        """
-        # 第一步：AI 提取客观指标
-        extraction = await self._ai_extract_evidence_metrics()
-
-        # 第二步：代码规则判断
-        return self._evaluate_from_extraction(extraction)
-
-    async def _ai_extract_evidence_metrics(self) -> EvidenceExtraction:
-        """
-        AI 提取客观指标（不做主观判断）
-
-        V3.4 核心：让 AI 只回答"是什么"，不回答"够不够"
-        """
+    async def _ai_generate_forced_reason(
+        self,
+        tool_name: str,
+        args: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """为强制流程步骤生成 LLM 理由（用于描述行，不影响胶囊）"""
         from app.services.agent.model_selector import TaskType
 
         ai_service = _get_ai_service()
-
-        collected_summary = self._build_collected_summary()
-        evidence_count = len(self.state.evidences)
-        chapter_count = len(set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0))
-
-        # 构建关键词列表（用于 AI 检查覆盖情况）
-        keywords_to_check = self.search_keywords[:10] if self.search_keywords else []
-        keywords_json = ", ".join([f'"{kw}"' for kw in keywords_to_check])
-
-        prompt = f"""你是信息提取专家。请从已收集的信息中提取客观指标，不要做主观判断。
+        args = args or {}
+        prompt = f"""你是只读探索器。请为当前强制步骤生成一句简短理由（不超过20字），用于UI描述。
 
 目标任务：{self.target_task}
-任务理解：{self.exploration_plan.understanding if self.exploration_plan else self.target_task}
-需要了解的方面：{', '.join(self.exploration_plan.aspects_to_find) if self.exploration_plan else '未知'}
+当前强制工具：{tool_name}
+参数：{json.dumps(args, ensure_ascii=False)}
 
-已收集信息：
-{collected_summary}
-
-【你的任务】提取以下客观指标：
-
-1. **关键词覆盖**：检查以下关键词在证据中是否有相关内容
-   关键词列表：[{keywords_json}]
-   对每个关键词，判断证据中是否有相关描述（true/false）
-
-2. **章节覆盖**：列出有证据的章节编号
-
-3. **内容质量**：
-   - has_direct_quotes: 是否有直接引用原文对话或描述？
-   - has_character_interactions: 是否有人物之间的互动描写？
-   - has_plot_details: 是否有具体的情节细节？
-
-4. **探索总结**：用2-3句话客观描述收集到的内容（不评价够不够）
-
-5. **下一步行动**：假设信息已经足够，描述将如何完成任务
-
-6. **可能的缺口**（可选）：如果发现某些方面完全没有证据，列出来（最多3项）
-
-请输出 JSON 格式（不要包含其他内容）：
-{{
-  "keyword_coverage": {{"{keywords_json.replace('"', '').replace(', ', '": true, "')}": true}},
-  "chapters_with_evidence": [1, 5, 10],
-  "has_direct_quotes": true,
-  "has_character_interactions": true,
-  "has_plot_details": true,
-  "summary": "收集到关于XXX的描述，包括...",
-  "next_action": "基于这些信息，将执行...",
-  "potential_gaps": ["某方面完全无证据"]
-}}"""
-
+输出要求：
+- 只输出一句中文理由
+- 不要包含英文或工具名
+"""
         try:
             response = await ai_service.call_ai(
-                system_prompt="你是信息提取专家。只提取客观指标，不做主观判断。只输出 JSON。",
+                system_prompt="你是只读探索器。只输出一句中文理由。",
                 user_prompt=prompt,
-                max_tokens=600,
-                temperature=0,  # V3.4: 使用 temperature=0 确保提取稳定
-                task_type=TaskType.DEEP_ANALYSIS
+                max_tokens=80,
+                temperature=0.2,
+                task_type=TaskType.SIMPLE_QA
             )
-
-            logger.info(
-                "[ContentExplorer] V3.4 指标提取原始响应(截断): %s",
-                _truncate_text(response)
-            )
-
-            result = self._parse_json_response(response)
-
-            # 解析关键词覆盖
-            keyword_coverage = result.get("keyword_coverage", {})
-            if not isinstance(keyword_coverage, dict):
-                keyword_coverage = {}
-
-            # 解析章节覆盖
-            chapters = result.get("chapters_with_evidence", [])
-            if not isinstance(chapters, list):
-                chapters = []
-
-            extraction = EvidenceExtraction(
-                keyword_coverage=keyword_coverage,
-                chapters_with_evidence=chapters,
-                has_direct_quotes=bool(result.get("has_direct_quotes", False)),
-                has_character_interactions=bool(result.get("has_character_interactions", False)),
-                has_plot_details=bool(result.get("has_plot_details", False)),
-                summary=result.get("summary", ""),
-                next_action=result.get("next_action", ""),
-                potential_gaps=result.get("potential_gaps", [])
-            )
-
-            logger.info(
-                "[ContentExplorer] V3.4 指标提取结果: 关键词覆盖=%d/%d, 章节=%s, 质量=[引用=%s,互动=%s,情节=%s]",
-                sum(1 for v in keyword_coverage.values() if v),
-                len(keyword_coverage),
-                chapters[:5],
-                extraction.has_direct_quotes,
-                extraction.has_character_interactions,
-                extraction.has_plot_details
-            )
-
-            return extraction
-
+            return (response or "").strip()
         except Exception as e:
-            logger.warning(f"[ContentExplorer] V3.4 指标提取失败: {e}")
-            # 返回默认提取结果，让规则判断兜底
-            # 生成兜底的 summary 和 next_action
-            evidence_count = len(self.state.evidences)
-            chapter_count = len(set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0))
-            fallback_summary = f"收集到 {evidence_count} 条证据，覆盖 {chapter_count} 个章节。"
-            fallback_action = "基于已收集的信息继续执行任务。"
+            logger.warning(f"[ContentExplorer] 强制步骤理由生成失败: {e}")
+            return ""
 
-            return EvidenceExtraction(
-                keyword_coverage={},
-                chapters_with_evidence=[],
-                has_direct_quotes=False,
-                has_character_interactions=False,
-                has_plot_details=False,
-                summary=fallback_summary,
-                next_action=fallback_action,
-                potential_gaps=[]
-            )
+    async def _execute_tool_action(
+        self,
+        tool_name: str,
+        args: Dict[str, Any],
+        round_idx: int,
+        read_budget: Optional[int]
+    ) -> Tuple[ToolCall, str, int]:
+        """执行工具调用（只读）"""
+        from app.services.agent.langgraph_tools import (
+            list_chapters,
+            list_paragraphs,
+            read_paragraph,
+            read_paragraphs
+        )
+        from app.services.chapter_vector_service import ChapterVectorService
 
-    def _evaluate_from_extraction(self, extraction: EvidenceExtraction) -> SufficiencyAssessment:
-        """
-        基于提取结果进行确定性规则判断（V3.4 核心）
+        tool_name = (tool_name or "").strip()
+        params = dict(args or {})
+        # 🔧 2026-01-28: 无条件覆盖 work_id，防止 AI 生成错误值（如 "work_id" 字面字符串）
+        params["work_id"] = self.work_id
+        reads_used = 0
+        start = get_utc_now()
 
-        判断规则（全部用代码实现，100% 确定性）：
-        1. 证据 ≥ 30 条 → 充足
-        2. 关键词覆盖率 ≥ 70% 且 证据 ≥ 15 条 → 充足
-        3. 章节 ≥ 3 个 且 内容质量 ≥ 2/3 → 充足
-        4. 证据 < 5 条 → 不足
-        5. 其他 → 不足（保守策略）
+        def _preview_results(items: List[Dict[str, Any]], limit: int = 5) -> List[Dict[str, Any]]:
+            preview = []
+            for item in items[:limit]:
+                if not isinstance(item, dict):
+                    continue
+                preview.append({
+                    "chapter_order": item.get("chapter_order"),
+                    "paragraph_index": item.get("paragraph_index"),
+                    "snippet": _truncate_text(item.get("snippet") or item.get("content") or "", 80)
+                })
+            return preview
 
-        注意：关键词覆盖率使用代码计算（_calculate_keyword_coverage），确保 100% 确定性
-        """
-        evidence_count = len(self.state.evidences)
-        chapter_count = len(set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0))
-
-        # V3.4 修正：使用代码计算的关键词覆盖率，确保 100% 确定性
-        # 不再依赖 AI 提取的 keyword_coverage，避免潜在的不稳定性
-        coverage_rate = self._calculate_keyword_coverage()
-
-        # 计算内容质量分数（仍使用 AI 提取，因为这是语义判断）
-        quality_score = sum([
-            extraction.has_direct_quotes,
-            extraction.has_character_interactions,
-            extraction.has_plot_details
-        ])
-
+        result_data: Any = {"success": False, "error": "未执行"}
         logger.info(
-            "[ContentExplorer] V3.4 规则判断: 证据=%d, 章节=%d, 关键词覆盖=%.1f%%, 质量=%d/3",
-            evidence_count, chapter_count, coverage_rate * 100, quality_score
+            "[ExploreTool] call=%s params=%s",
+            tool_name,
+            _truncate_text(json.dumps(params, ensure_ascii=False), 800)
         )
 
-        # ========== 确定性规则判断 ==========
-
-        # 规则0（最高优先级）：关键词覆盖率过低 → 必须继续探索
-        # V3.4.1 修复：防止证据多但关键词覆盖低时误判为充足
-        if coverage_rate < 0.5 and len(self.search_keywords) >= 3:
-            logger.info("[ContentExplorer] V3.4 规则0命中: 关键词覆盖<50%% → 不足（需继续探索）")
-            return SufficiencyAssessment(
-                sufficient=False,
-                coverage=f"关键词覆盖不足：{coverage_rate:.0%}覆盖率，{evidence_count}条证据",
-                missing=extraction.potential_gaps[:3] if extraction.potential_gaps else ["关键词覆盖不足，需要继续探索"],
-                summary=extraction.summary,
-                next_action=extraction.next_action
+        if tool_name == "list_chapters":
+            chapters = await self._get_chapter_list()
+            if self.chapter_scopes:
+                chapters = [ch for ch in chapters if self._is_chapter_in_scope(ch.get("order"))]
+            result_data = {
+                "success": True,
+                "count": len(chapters),
+                "chapters": chapters
+            }
+            self.flow_listed_chapters = True
+            logger.info(
+                "[ExploreTool] done=%s success=%s count=%s",
+                tool_name,
+                True,
+                len(chapters)
             )
 
-        # 规则1：证据数量充足 且 关键词覆盖达标
-        # V3.4.1 修复：添加覆盖率条件，避免证据多但覆盖低时误判
-        if evidence_count >= 30 and coverage_rate >= 0.5:
-            logger.info("[ContentExplorer] V3.4 规则1命中: 证据≥30 且 覆盖≥50%% → 充足")
-            return SufficiencyAssessment(
-                sufficient=True,
-                coverage=f"证据充足：{evidence_count}条证据，覆盖{chapter_count}个章节，关键词覆盖{coverage_rate:.0%}",
-                missing=[],
-                summary=extraction.summary,
-                next_action=extraction.next_action
+        elif tool_name == "list_paragraphs":
+            chapter_order = params.get("chapter_order") or params.get("chapter")
+            chapter_id = params.get("chapter_id") or ""
+            if isinstance(chapter_order, str) and chapter_order.isdigit():
+                chapter_order = int(chapter_order)
+            if not isinstance(chapter_order, int) and chapter_id:
+                chapters = await self._get_chapter_list()
+                for ch in chapters:
+                    if ch.get("id") == chapter_id or ch.get("chapter_id") == chapter_id:
+                        chapter_order = ch.get("order")
+                        break
+            if not isinstance(chapter_order, int):
+                result_data = {"success": False, "error": "缺少 chapter_order 或 chapter_id"}
+            elif self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                result_data = {"success": False, "error": f"章节超出范围: {chapter_order}"}
+            else:
+                params["work_id"] = self.work_id
+                params["chapter_order"] = chapter_order
+                result = await list_paragraphs.ainvoke(params)
+                result_data = json.loads(result) if isinstance(result, str) else result
+                if isinstance(result_data, dict) and result_data.get("success") and isinstance(chapter_order, int):
+                    self.flow_listed_paragraphs.add(chapter_order)
+                    self._cache_paragraph_index_map(chapter_order, result_data)
+                    approx = bool(result_data.get("approximate"))
+                    offset_val = params.get("offset")
+                    limit_val = params.get("limit")
+                    if isinstance(offset_val, str) and offset_val.isdigit():
+                        offset_val = int(offset_val)
+                    if isinstance(limit_val, str) and limit_val.isdigit():
+                        limit_val = int(limit_val)
+                    if not isinstance(limit_val, int) or limit_val <= 0:
+                        limit_val = LIST_PARAGRAPHS_PAGE_SIZE
+                    self._record_listed_paragraph_range(
+                        chapter_order=chapter_order,
+                        offset=offset_val if isinstance(offset_val, int) else 0,
+                        limit=limit_val,
+                        total=result_data.get("total_paragraphs"),
+                        approximate=approx
+                    )
+            logger.info(
+                "[ExploreTool] done=%s success=%s chapter=%s offset=%s limit=%s approximate=%s",
+                tool_name,
+                bool(result_data.get("success")) if isinstance(result_data, dict) else False,
+                chapter_order,
+                params.get("offset"),
+                params.get("limit"),
+                result_data.get("approximate") if isinstance(result_data, dict) else None
             )
 
-        # 规则2：关键词高覆盖 + 一定证据量
-        if coverage_rate >= 0.7 and evidence_count >= 15:
-            logger.info("[ContentExplorer] V3.4 规则2命中: 关键词覆盖≥70%% 且 证据≥15 → 充足")
-            return SufficiencyAssessment(
-                sufficient=True,
-                coverage=f"关键词覆盖充足：{coverage_rate:.0%}覆盖率，{evidence_count}条证据",
-                missing=[],
-                summary=extraction.summary,
-                next_action=extraction.next_action
-            )
+        elif tool_name == "exact_search_paragraphs":
+            raw_keywords = params.get("keywords") or params.get("keyword") or params.get("query") or []
+            def _split_keywords(text: str) -> List[str]:
+                parts = [text]
+                for sep in ("|", "｜", "/", "，", "、", ";", "；", ","):
+                    new_parts: List[str] = []
+                    for part in parts:
+                        if sep in part:
+                            new_parts.extend(part.split(sep))
+                        else:
+                            new_parts.append(part)
+                    parts = new_parts
+                return [p.strip() for p in parts if p.strip()]
 
-        # 规则3：多章节 + 高质量内容
-        if chapter_count >= 3 and quality_score >= 2:
-            logger.info("[ContentExplorer] V3.4 规则3命中: 章节≥3 且 质量≥2/3 → 充足")
-            return SufficiencyAssessment(
-                sufficient=True,
-                coverage=f"内容质量充足：覆盖{chapter_count}个章节，质量评分{quality_score}/3",
-                missing=[],
-                summary=extraction.summary,
-                next_action=extraction.next_action
-            )
+            if isinstance(raw_keywords, str):
+                keywords = _split_keywords(raw_keywords)
+            elif isinstance(raw_keywords, list):
+                keywords = []
+                for item in raw_keywords:
+                    text = str(item).strip()
+                    if not text:
+                        continue
+                    keywords.extend(_split_keywords(text))
+            else:
+                keywords = []
+            if not keywords:
+                result_data = {"success": False, "error": "缺少 keywords"}
+            else:
+                required_keywords: List[str] = []
+                if self.search_keywords:
+                    for item in self.search_keywords:
+                        text = str(item).strip()
+                        if not text:
+                            continue
+                        required_keywords.extend(_split_keywords(text))
 
-        # 规则4：证据极少
-        if evidence_count < 5:
-            logger.info("[ContentExplorer] V3.4 规则4命中: 证据<5 → 不足")
-            return SufficiencyAssessment(
-                sufficient=False,
-                coverage=f"证据不足：仅{evidence_count}条",
-                missing=extraction.potential_gaps[:3] if extraction.potential_gaps else ["需要更多相关信息"],
-                summary=extraction.summary,
-                next_action=extraction.next_action
-            )
+                expanded = []
+                seen_kw = set()
+                for kw in keywords:
+                    cleaned = kw.strip().strip("\"'“”‘’《》")
+                    variants = [kw, cleaned, cleaned.replace(" ", ""), cleaned.replace("　", "")]
+                    for item in variants:
+                        if not item:
+                            continue
+                        if item in seen_kw:
+                            continue
+                        seen_kw.add(item)
+                        expanded.append(item)
+                required_expanded = []
+                for kw in required_keywords:
+                    cleaned = str(kw).strip().strip("\"'“”‘’《》")
+                    variants = [kw, cleaned, cleaned.replace(" ", ""), cleaned.replace("　", "")]
+                    for item in variants:
+                        if not item:
+                            continue
+                        if item in seen_kw:
+                            continue
+                        seen_kw.add(item)
+                        required_expanded.append(item)
 
-        # 规则5：其他情况（保守判断为不足，进入补充循环）
-        logger.info("[ContentExplorer] V3.4 规则5: 边界情况 → 不足（保守策略）")
-        return SufficiencyAssessment(
-            sufficient=False,
-            coverage=f"边界情况：{evidence_count}条证据，{chapter_count}章节，{coverage_rate:.0%}覆盖率",
-            missing=extraction.potential_gaps[:3] if extraction.potential_gaps else [],
-            summary=extraction.summary,
-            next_action=extraction.next_action
+                keywords = expanded
+                force_set = set(required_expanded)
+                if required_expanded:
+                    merged = []
+                    for kw in keywords + required_expanded:
+                        if kw in merged:
+                            continue
+                        merged.append(kw)
+                        if len(merged) >= KEYWORD_COVERAGE_MAX:
+                            break
+                    keywords = merged
+                    if len(merged) >= KEYWORD_COVERAGE_MAX and len(required_expanded) > KEYWORD_COVERAGE_MAX:
+                        logger.info(
+                            "[ExploreTool] 关键词覆盖截断: %s -> %s",
+                            len(required_expanded),
+                            KEYWORD_COVERAGE_MAX
+                        )
+                # 去重 & 过滤已搜索
+                deduped = []
+                for kw in keywords:
+                    if not kw:
+                        continue
+                    if kw in force_set or self.state.should_search(kw):
+                        deduped.append(kw)
+                keywords = deduped or keywords
+
+                def _coerce_int(value: Any) -> Optional[int]:
+                    if isinstance(value, int):
+                        return value
+                    if isinstance(value, str) and value.strip().isdigit():
+                        return int(value.strip())
+                    return None
+
+                def _add_range(target: List[Tuple[int, int]], start: Any, end: Any) -> None:
+                    start_val = _coerce_int(start)
+                    end_val = _coerce_int(end)
+                    if start_val is None and end_val is None:
+                        return
+                    if start_val is None:
+                        start_val = end_val
+                    if end_val is None:
+                        end_val = start_val
+                    if start_val is None or end_val is None:
+                        return
+                    if start_val > end_val:
+                        start_val, end_val = end_val, start_val
+                    target.append((start_val, end_val))
+
+                def _parse_param_ranges(param_dict: Dict[str, Any]) -> List[Tuple[int, int]]:
+                    parsed: List[Tuple[int, int]] = []
+                    raw_range = param_dict.get("chapter_range")
+                    if raw_range:
+                        if isinstance(raw_range, str):
+                            nums = [int(n) for n in re.findall(r"\d+", raw_range)]
+                            if nums:
+                                start_num = nums[0]
+                                end_num = nums[1] if len(nums) > 1 else nums[0]
+                                _add_range(parsed, start_num, end_num)
+                        elif isinstance(raw_range, (list, tuple)) and len(raw_range) >= 2:
+                            _add_range(parsed, raw_range[0], raw_range[1])
+                        elif isinstance(raw_range, dict):
+                            _add_range(
+                                parsed,
+                                raw_range.get("chapter_order_start") or raw_range.get("start"),
+                                raw_range.get("chapter_order_end") or raw_range.get("end")
+                            )
+                    raw_ranges = param_dict.get("chapter_ranges")
+                    if raw_ranges and isinstance(raw_ranges, list):
+                        for item in raw_ranges:
+                            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                                _add_range(parsed, item[0], item[1])
+                            elif isinstance(item, dict):
+                                _add_range(
+                                    parsed,
+                                    item.get("chapter_order_start") or item.get("start"),
+                                    item.get("chapter_order_end") or item.get("end")
+                                )
+                    return parsed
+
+                param_ranges = _parse_param_ranges(params)
+                if not param_ranges:
+                    chapter_order_param = _coerce_int(params.get("chapter_order") or params.get("chapter"))
+                    if isinstance(chapter_order_param, int):
+                        param_ranges = [(chapter_order_param, chapter_order_param)]
+                ranges_to_use = param_ranges or (self.chapter_scopes or [])
+
+                # 计算当前搜索范围（优先使用本次请求的范围）
+                current_scope: Optional[Tuple[int, int]] = None
+                if ranges_to_use:
+                    min_order = min(s[0] for s in ranges_to_use)
+                    max_order = max(s[1] for s in ranges_to_use)
+                    current_scope = (min_order, max_order)
+
+                # 拦截检查：已穷尽或相同范围+0命中的关键词
+                blocked_keywords = []
+                allowed_keywords = []
+                for kw in keywords:
+                    if "," in kw:
+                        allowed_keywords.append(kw)
+                        continue
+                    if kw in force_set:
+                        allowed_keywords.append(kw)
+                        continue
+                    should_block, block_reason = self.state.should_block_search(kw, current_scope)
+                    if should_block:
+                        blocked_keywords.append((kw, block_reason))
+                        logger.info(f"[ContentExplorer] 拦截搜索: {block_reason}")
+                    else:
+                        allowed_keywords.append(kw)
+
+                # 如果所有关键词都被拦截，返回拦截信息
+                if not allowed_keywords and blocked_keywords:
+                    block_reasons = [f"{kw}: {reason}" for kw, reason in blocked_keywords]
+                    result_data = {
+                        "success": True,
+                        "keywords": keywords,
+                        "hits": 0,
+                        "blocked": True,
+                        "block_reasons": block_reasons,
+                        "message": "所有关键词已搜索过或已确认不存在"
+                    }
+                    logger.info(f"[ExploreTool] done={tool_name} blocked=True keywords={','.join(keywords[:6])}")
+                    # 跳过后续搜索逻辑
+                    search_blocked = True
+                else:
+                    # 使用未被拦截的关键词继续搜索
+                    keywords = allowed_keywords if allowed_keywords else keywords
+                    search_blocked = False
+
+                if not search_blocked:
+                    for kw in keywords:
+                        self.state.record_search(kw)
+
+                    match_mode = params.get("match_mode") or params.get("mode") or "any"
+                    limit = params.get("limit") or 50
+                    if not isinstance(limit, int):
+                        try:
+                            limit = int(limit)
+                        except Exception:
+                            limit = 50
+                    if match_mode not in ("any", "all", "phrase"):
+                        match_mode = "any"
+
+                    results: List[Dict[str, Any]] = []
+
+                    # 1. 先在世界观中查找匹配
+                    worldview_matches = self._search_worldview_for_keywords(keywords)
+                    if worldview_matches:
+                        logger.info(f"[ContentExplorer] 世界观匹配: {len(worldview_matches)} 条")
+                        # 把世界观匹配作为特殊结果
+                        for wv_item in worldview_matches:
+                            results.append({
+                                "snippet": wv_item.get("description", "")[:200],
+                                "content": wv_item.get("description", ""),
+                                "chapter_order": None,
+                                "paragraph_index": None,
+                                "source": "worldview",
+                                "similarity": 1.0,
+                                "worldview_category": wv_item.get("category", ""),
+                                "worldview_name": wv_item.get("name", "")
+                            })
+
+                    def _extract_matched_keywords(item: Dict[str, Any], pool: List[str]) -> List[str]:
+                        matched_list = item.get("matched_keywords") if isinstance(item, dict) else None
+                        if isinstance(matched_list, list) and matched_list:
+                            return [kw for kw in matched_list if kw in pool]
+                        text = (
+                            item.get("text")
+                            or item.get("content")
+                            or item.get("snippet")
+                            or ""
+                        )
+                        if not text:
+                            return []
+                        text_lower = text.lower()
+                        return [kw for kw in pool if kw.lower() in text_lower]
+
+                    # 2. 搜索章节原文
+                    async with AsyncSessionLocal() as db:
+                        vector_service = ChapterVectorService(db)
+                        use_vector = await vector_service.are_vectors_fresh(
+                            work_id=self.work_id,
+                            chapter_ranges=ranges_to_use or None
+                        )
+                        search_fn = (
+                            vector_service.exact_search_paragraphs
+                            if use_vector
+                            else vector_service.exact_search_paragraphs_from_content
+                        )
+                        if ranges_to_use:
+                            for start_order, end_order in ranges_to_use:
+                                part = await search_fn(
+                                    work_id=self.work_id,
+                                    keywords=keywords,
+                                    chapter_range=(start_order, end_order),
+                                    match_mode=match_mode,
+                                    limit=limit
+                                )
+                                results.extend(part or [])
+                        else:
+                            chapter_results = await search_fn(
+                                work_id=self.work_id,
+                                keywords=keywords,
+                                chapter_range=None,
+                                match_mode=match_mode,
+                                limit=limit
+                            )
+                            results.extend(chapter_results or [])
+
+                        # 2.1 对未命中关键词补搜（单词级）
+                        coverage_pool = list(keywords)
+                        matched_set = set()
+                        for item in results:
+                            if not isinstance(item, dict):
+                                continue
+                            if item.get("source") == "worldview":
+                                continue
+                            for mk in _extract_matched_keywords(item, coverage_pool):
+                                matched_set.add(mk)
+                        missing_keywords = [kw for kw in coverage_pool if kw not in matched_set]
+                        if missing_keywords:
+                            supplement_limit = min(5, limit)
+                            for kw in missing_keywords:
+                                if not kw:
+                                    continue
+                                part: List[Dict[str, Any]] = []
+                                if ranges_to_use:
+                                    for start_order, end_order in ranges_to_use:
+                                        part.extend(
+                                            await search_fn(
+                                                work_id=self.work_id,
+                                                keywords=[kw],
+                                                chapter_range=(start_order, end_order),
+                                                match_mode="any",
+                                                limit=supplement_limit
+                                            ) or []
+                                        )
+                                else:
+                                    part = await search_fn(
+                                        work_id=self.work_id,
+                                        keywords=[kw],
+                                        chapter_range=None,
+                                        match_mode="any",
+                                        limit=supplement_limit
+                                    ) or []
+                                if part:
+                                    results.extend(part)
+
+                    if param_ranges:
+                        results = [
+                            r for r in results
+                            if isinstance(r, dict)
+                            and isinstance(r.get("chapter_order"), int)
+                            and any(start <= r.get("chapter_order") <= end for start, end in param_ranges)
+                        ]
+
+                    # 章节范围过滤
+                    if self.chapter_scopes:
+                        results = self._filter_results_in_scope(results)
+
+                    # 候选去重
+                    merged = {}
+                    for item in results:
+                        if not isinstance(item, dict):
+                            continue
+                        if "snippet" not in item and "content" not in item:
+                            item["content"] = item.get("text", "")
+                        if "source" not in item:
+                            item["source"] = "exact_search"
+                        if "similarity" not in item:
+                            item["similarity"] = 1.0
+                        chapter_order = item.get("chapter_order")
+                        paragraph_index = item.get("paragraph_index")
+                        snippet = item.get("snippet") or item.get("content") or ""
+                        # 世界观结果用 name 作为 key
+                        if item.get("source") == "worldview":
+                            key = ("worldview", item.get("worldview_name"), str(snippet)[:80])
+                        else:
+                            key = (chapter_order, paragraph_index, str(snippet)[:80])
+                        existing = merged.get(key)
+                        if not existing or item.get("similarity", 0) > existing.get("similarity", 0):
+                            merged[key] = item
+                    results = list(merged.values())
+
+                    query = ",".join(keywords[:3])
+                    for item in results:
+                        self.state.add_search_hit(
+                            item,
+                            query=query,
+                            round_idx=round_idx,
+                            chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
+                        )
+
+                    # 命中后置验证：强制读取原文（跳过世界观结果）
+                    ordered_results = results
+                    if results and keywords:
+                        keyword_hits: Dict[str, List[Dict[str, Any]]] = {kw: [] for kw in keywords}
+                        for item in results:
+                            if not isinstance(item, dict):
+                                continue
+                            if item.get("source") == "worldview":
+                                continue
+                            for mk in _extract_matched_keywords(item, keywords):
+                                keyword_hits.setdefault(mk, []).append(item)
+                        position_map: Dict[Tuple[int, int], Dict[str, Any]] = {}
+                        for item in results:
+                            if not isinstance(item, dict):
+                                continue
+                            if item.get("source") == "worldview":
+                                continue
+                            chapter_order = item.get("chapter_order")
+                            paragraph_index = item.get("paragraph_index")
+                            if isinstance(chapter_order, int) and isinstance(paragraph_index, int):
+                                position_map.setdefault((chapter_order, paragraph_index), item)
+                        priority_positions: List[Tuple[int, int]] = []
+                        used_positions: Set[Tuple[int, int]] = set()
+                        for kw, items_for_kw in keyword_hits.items():
+                            added = 0
+                            for item in items_for_kw:
+                                chapter_order = item.get("chapter_order")
+                                paragraph_index = item.get("paragraph_index")
+                                if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                                    continue
+                                key = (chapter_order, paragraph_index)
+                                if key in used_positions:
+                                    continue
+                                priority_positions.append(key)
+                                used_positions.add(key)
+                                added += 1
+                                if added >= KEYWORD_READ_MAX_PER_TERM:
+                                    break
+                        if priority_positions:
+                            priority_items = [
+                                position_map[pos]
+                                for pos in priority_positions
+                                if pos in position_map
+                            ]
+                            priority_set = set(priority_positions)
+                            tail_items = [
+                                item for item in results
+                                if not isinstance(item, dict)
+                                or item.get("source") == "worldview"
+                                or (
+                                    isinstance(item.get("chapter_order"), int)
+                                    and isinstance(item.get("paragraph_index"), int)
+                                    and (item.get("chapter_order"), item.get("paragraph_index")) not in priority_set
+                                )
+                            ]
+                            ordered_results = priority_items + tail_items
+
+                    read_keyword_hits: Set[str] = set()
+                    if ordered_results and (read_budget is None or read_budget > 0):
+                        for item in ordered_results:
+                            if read_budget is not None and read_budget <= 0:
+                                break
+                            if item.get("source") == "worldview":
+                                continue  # 世界观结果不需要读取原文
+                            chapter_order = item.get("chapter_order")
+                            paragraph_index = item.get("paragraph_index")
+                            if isinstance(chapter_order, str) and chapter_order.isdigit():
+                                chapter_order = int(chapter_order)
+                            if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                                paragraph_index = int(paragraph_index)
+                            if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                                continue
+                            if self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                                continue
+                            if not self.state.should_read_paragraph(chapter_order, paragraph_index):
+                                continue
+                            if not self._can_read_chapter(chapter_order):
+                                continue
+                            try:
+                                read_result = await read_paragraph.ainvoke({
+                                    "work_id": self.work_id,
+                                    "chapter_order": chapter_order,
+                                    "paragraph_index": paragraph_index,
+                                    "context_before": 2,
+                                    "context_after": 2,
+                                    "index_base": "zero"
+                                })
+                                read_data = json.loads(read_result) if isinstance(read_result, str) else read_result
+                                if isinstance(read_data, dict) and read_data.get("success"):
+                                    self.state.record_paragraph_read(chapter_order, paragraph_index)
+                                    target_text, context_before, context_after = _extract_read_paragraph(read_data)
+                                    chapter_info = await self._get_chapter_info_by_order(chapter_order)
+                                    chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
+                                    chapter_title = read_data.get("chapter_title") or chapter_info.get("title") or ""
+                                    if target_text and keywords:
+                                        text_lower = target_text.lower()
+                                        for kw in keywords:
+                                            if kw and kw.lower() in text_lower:
+                                                read_keyword_hits.add(kw)
+                                    paragraph_data = {
+                                        "chapter_order": chapter_order,
+                                        "chapter_title": chapter_title,
+                                        "paragraph_index": paragraph_index,
+                                        "text": target_text,
+                                        "context_before": context_before,
+                                        "context_after": context_after,
+                                        "node_id": read_data.get("node_id") or ""
+                                    }
+                                    self.state.add_paragraph(paragraph_data, round_idx)
+                                    self.state.add_evidence(
+                                        {
+                                            "snippet": target_text,
+                                            "content": target_text,
+                                            "chapter_order": chapter_order,
+                                            "paragraph_index": paragraph_index,
+                                            "source": "read_paragraph",
+                                            "similarity": 1.0,
+                                            "chapter_id": chapter_id,
+                                            "chapter_title": chapter_title
+                                        },
+                                        query=query,
+                                        round_idx=round_idx,
+                                        require_paragraph_index=self.require_paragraph_index,
+                                        chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
+                                    )
+                                    reads_used += 1
+                                    if read_budget is not None:
+                                        read_budget -= 1
+                            except Exception:
+                                continue
+
+                    # 统计章节原文和世界观命中数
+                    chapter_hits = [r for r in results if r.get("source") != "worldview"]
+                    worldview_hits_count = len(worldview_matches) if worldview_matches else 0
+
+                    # 统计缺失关键词（以“实际读取到的原文”为准）
+                    missing_keywords = []
+                    if keywords:
+                        missing_keywords = [kw for kw in keywords if kw not in read_keyword_hits]
+
+                    result_data = {
+                        "success": True,
+                        "keywords": keywords,
+                        "hits": len(results),
+                        "chapter_hits": len(chapter_hits),
+                        "worldview_hits": worldview_hits_count,
+                        "results": _preview_results(results),
+                        "missing_keywords": missing_keywords
+                    }
+
+                    # 记录搜索历史（类似 OpenCode 的 ToolPart）
+                    chapters_in_results = list(set(
+                        r.get("chapter_order") for r in results
+                        if isinstance(r.get("chapter_order"), int)
+                    ))
+                    hits_summary = self._generate_hits_summary(results, keywords)
+                    self.state.add_search_record(SearchRecord(
+                        query=",".join(keywords[:3]),
+                        tool="exact_search_paragraphs",
+                        hits_count=len(chapter_hits),  # 只计章节原文命中
+                        hits_summary=hits_summary,
+                        chapters_covered=chapters_in_results,
+                        round_idx=round_idx,
+                        chapter_scope=current_scope,  # 记录搜索范围
+                        worldview_checked=True,  # 已检查世界观
+                        worldview_hits=worldview_hits_count
+                    ))
+
+                    logger.info(
+                        "[ExploreTool] done=%s success=%s hits=%s (chapter=%s, worldview=%s) keywords=%s",
+                        tool_name,
+                        True,
+                        len(results),
+                        len(chapter_hits),
+                        worldview_hits_count,
+                        ",".join(keywords[:6])
+                    )
+
+        elif tool_name == "read_paragraph":
+            if read_budget is not None and read_budget <= 0:
+                result_data = {"success": False, "error": "读取预算已用尽"}
+            else:
+                chapter_order = params.get("chapter_order") or params.get("chapter")
+                paragraph_index = params.get("paragraph_index") or params.get("paragraph")
+                chapter_id = params.get("chapter_id") or ""
+                if isinstance(chapter_order, str) and chapter_order.isdigit():
+                    chapter_order = int(chapter_order)
+                if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                    paragraph_index = int(paragraph_index)
+                if not isinstance(chapter_order, int) and chapter_id:
+                    chapters = await self._get_chapter_list()
+                    for ch in chapters:
+                        if ch.get("id") == chapter_id or ch.get("chapter_id") == chapter_id:
+                            chapter_order = ch.get("order")
+                            break
+                if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                    result_data = {"success": False, "error": "缺少 chapter_order/paragraph_index"}
+                elif self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                    result_data = {"success": False, "error": f"章节超出范围: {chapter_order}"}
+                elif not self.state.should_read_paragraph(chapter_order, paragraph_index):
+                    result_data = {"success": True, "skipped": True, "message": "段落已读取"}
+                elif not self._can_read_chapter(chapter_order):
+                    result_data = {"success": False, "error": "本章读取上限已达"}
+                else:
+                    params["work_id"] = self.work_id
+                    params["chapter_order"] = chapter_order
+                    params["paragraph_index"] = paragraph_index
+                    params["index_base"] = "zero"
+                    if chapter_id:
+                        params["chapter_id"] = chapter_id
+                    result = await read_paragraph.ainvoke(params)
+                    result_data = json.loads(result) if isinstance(result, str) else result
+                logger.info(
+                    "[ExploreTool] done=%s success=%s chapter=%s paragraph=%s index_base=%s",
+                    tool_name,
+                    bool(result_data.get("success")) if isinstance(result_data, dict) else False,
+                    chapter_order,
+                    paragraph_index,
+                    params.get("index_base")
+                )
+
+                if isinstance(result_data, dict) and result_data.get("success") and not result_data.get("skipped"):
+                    self.state.record_paragraph_read(chapter_order, paragraph_index)
+                    target_text, context_before, context_after = _extract_read_paragraph(result_data)
+                    if not target_text:
+                        target_text = result_data.get("content") or result_data.get("target_paragraph", "")
+                    chapter_info = await self._get_chapter_info_by_order(chapter_order)
+                    chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
+                    chapter_title = result_data.get("chapter_title") or chapter_info.get("title") or ""
+                    paragraph_data = {
+                        "chapter_order": chapter_order,
+                        "chapter_title": chapter_title,
+                        "paragraph_index": paragraph_index,
+                        "text": target_text,
+                        "context_before": context_before,
+                        "context_after": context_after,
+                        "node_id": result_data.get("node_id") or ""
+                    }
+                    self.state.add_paragraph(paragraph_data, round_idx)
+                    if target_text:
+                        self.state.add_evidence(
+                            {
+                                "snippet": target_text,
+                                "content": target_text,
+                                "chapter_order": chapter_order,
+                                "paragraph_index": paragraph_index,
+                                "source": "read_paragraph",
+                                "similarity": 1.0,
+                                "chapter_id": chapter_id,
+                                "chapter_title": chapter_title
+                            },
+                            query=str(params.get("query") or ""),
+                            round_idx=round_idx,
+                            require_paragraph_index=self.require_paragraph_index,
+                            chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
+                        )
+                    reads_used = 1
+
+                    paragraphs = result_data.get("paragraphs", [])
+                    target_index = result_data.get("target_index")
+                    if isinstance(paragraphs, list):
+                        indices = [
+                            para.get("index")
+                            for para in paragraphs
+                            if isinstance(para, dict) and isinstance(para.get("index"), int)
+                        ]
+                        if isinstance(target_index, int) and indices:
+                            self.state.record_context_coverage(
+                                chapter_order=chapter_order,
+                                target_index=target_index,
+                                start_index=min(indices),
+                                end_index=max(indices)
+                            )
+                        for para in paragraphs:
+                            if not isinstance(para, dict):
+                                continue
+                            if para.get("is_target"):
+                                continue
+                            context_index = para.get("index")
+                            if not isinstance(context_index, int):
+                                continue
+                            if not self.state.should_read_paragraph(chapter_order, context_index):
+                                continue
+                            context_text = para.get("text") or ""
+                            if not context_text:
+                                continue
+                            self.state.record_paragraph_read(chapter_order, context_index)
+                            self.state.add_paragraph(
+                                {
+                                    "chapter_order": chapter_order,
+                                    "chapter_title": chapter_title,
+                                    "paragraph_index": context_index,
+                                    "text": context_text,
+                                    "context_before": [],
+                                    "context_after": [],
+                                    "node_id": "",
+                                    "is_target": False
+                                },
+                                round_idx
+                            )
+
+        elif tool_name == "read_paragraphs":
+            items = params.get("items")
+            if items is None:
+                items = []
+            if not isinstance(items, list):
+                items = []
+            use_range = (
+                not items
+                and (
+                    "chapter_order" in params
+                    or "chapter_id" in params
+                    or "offset" in params
+                    or "limit" in params
+                )
+            )
+            if read_budget is not None and read_budget <= 0:
+                result_data = {"success": False, "error": "读取预算已用尽"}
+            else:
+                chapter_id_map: Optional[Dict[str, int]] = None
+                if use_range:
+                    chapter_order = params.get("chapter_order")
+                    chapter_id = params.get("chapter_id") or ""
+                    if isinstance(chapter_order, str) and chapter_order.isdigit():
+                        chapter_order = int(chapter_order)
+                        params["chapter_order"] = chapter_order
+                    if not isinstance(chapter_order, int) and chapter_id:
+                        chapters = await self._get_chapter_list()
+                        chapter_id_map = {}
+                        for ch in chapters:
+                            order_val = ch.get("order")
+                            if not isinstance(order_val, int):
+                                continue
+                            for key in (ch.get("id"), ch.get("chapter_id")):
+                                if key:
+                                    chapter_id_map[str(key)] = order_val
+                        chapter_order = chapter_id_map.get(str(chapter_id))
+                        if isinstance(chapter_order, int):
+                            params["chapter_order"] = chapter_order
+                    if not isinstance(chapter_order, int):
+                        result_data = {"success": False, "error": "缺少章节参数"}
+                    elif self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                        result_data = {"success": False, "error": "章节超出范围"}
+                    else:
+                        offset = params.get("offset", 0)
+                        limit = params.get("limit", 50)
+                        if isinstance(offset, str) and offset.isdigit():
+                            offset = int(offset)
+                        if isinstance(limit, str) and limit.isdigit():
+                            limit = int(limit)
+                        if not isinstance(offset, int):
+                            offset = 0
+                        if not isinstance(limit, int):
+                            limit = 1
+                        if offset < 0:
+                            offset = 0
+                        if limit <= 0:
+                            limit = 1
+                        remaining = self._get_chapter_remaining_reads(chapter_order)
+                        if remaining is not None and remaining <= 0:
+                            result_data = {"success": False, "error": "该章节读取预算已用尽"}
+                        else:
+                            if remaining is not None:
+                                limit = min(limit, remaining)
+                            if read_budget is not None:
+                                limit = min(limit, read_budget)
+                            if limit <= 0:
+                                result_data = {"success": False, "error": "没有可读取的段落（可能超出范围）"}
+                            else:
+                                params["work_id"] = self.work_id
+                                params["chapter_order"] = chapter_order
+                                params["offset"] = offset
+                                params["limit"] = limit
+                                result = await read_paragraphs.ainvoke(params)
+                                result_data = json.loads(result) if isinstance(result, str) else result
+                else:
+                    # 确保 list_paragraphs 覆盖候选段落区间（用于 node_id/范围校验）
+                    try:
+                        missing_ranges: Dict[int, Set[int]] = {}
+                        for item in items:
+                            if not isinstance(item, dict):
+                                continue
+                            chapter_order = item.get("chapter_order") or item.get("chapter")
+                            paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
+                            if isinstance(chapter_order, str) and chapter_order.isdigit():
+                                chapter_order = int(chapter_order)
+                            if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                                paragraph_index = int(paragraph_index)
+                            if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                                continue
+                            if self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                                continue
+                            if self._is_paragraph_index_listed(chapter_order, paragraph_index):
+                                continue
+                            offset = (paragraph_index // LIST_PARAGRAPHS_PAGE_SIZE) * LIST_PARAGRAPHS_PAGE_SIZE
+                            missing_ranges.setdefault(chapter_order, set()).add(offset)
+                        for chapter_order, offsets in missing_ranges.items():
+                            for offset in sorted(offsets):
+                                list_params = {
+                                    "work_id": self.work_id,
+                                    "chapter_order": chapter_order,
+                                    "offset": offset,
+                                    "limit": LIST_PARAGRAPHS_PAGE_SIZE,
+                                    "preview_len": 0
+                                }
+                                list_result = await list_paragraphs.ainvoke(list_params)
+                                list_data = json.loads(list_result) if isinstance(list_result, str) else list_result
+                                if isinstance(list_data, dict) and list_data.get("success"):
+                                    self.flow_listed_paragraphs.add(chapter_order)
+                                    self._cache_paragraph_index_map(chapter_order, list_data)
+                                    self._record_listed_paragraph_range(
+                                        chapter_order=chapter_order,
+                                        offset=offset,
+                                        limit=LIST_PARAGRAPHS_PAGE_SIZE,
+                                        total=list_data.get("total_paragraphs"),
+                                        approximate=bool(list_data.get("approximate"))
+                                    )
+                    except Exception:
+                        pass
+                    filtered_items = []
+                    remaining_by_chapter: Dict[int, Optional[int]] = {}
+                    for item in items:
+                        if not isinstance(item, dict):
+                            continue
+                        chapter_order = item.get("chapter_order") or item.get("chapter")
+                        chapter_id = item.get("chapter_id") or params.get("chapter_id") or ""
+                        if isinstance(chapter_order, str) and chapter_order.isdigit():
+                            chapter_order = int(chapter_order)
+                            item["chapter_order"] = chapter_order
+                        if not isinstance(chapter_order, int) and chapter_id:
+                            if chapter_id_map is None:
+                                chapters = await self._get_chapter_list()
+                                chapter_id_map = {}
+                                for ch in chapters:
+                                    order_val = ch.get("order")
+                                    if not isinstance(order_val, int):
+                                        continue
+                                    for key in (ch.get("id"), ch.get("chapter_id")):
+                                        if key:
+                                            chapter_id_map[str(key)] = order_val
+                            chapter_order = chapter_id_map.get(str(chapter_id))
+                            if isinstance(chapter_order, int):
+                                item["chapter_order"] = chapter_order
+
+                        paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
+                        if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                            paragraph_index = int(paragraph_index)
+                        if not isinstance(paragraph_index, int):
+                            node_id = item.get("node_id") or ""
+                            if node_id and isinstance(chapter_order, int):
+                                mapped_index = self.paragraph_node_id_cache.get(chapter_order, {}).get(node_id)
+                                if isinstance(mapped_index, int):
+                                    paragraph_index = mapped_index
+                        if isinstance(paragraph_index, int):
+                            item["paragraph_index"] = paragraph_index
+
+                        if (
+                            isinstance(chapter_order, int)
+                            and isinstance(paragraph_index, int)
+                            and (not self.chapter_scopes or self._is_chapter_in_scope(chapter_order))
+                            and self.state.should_read_paragraph(chapter_order, paragraph_index)  # 去重检查
+                        ):
+                            remaining = remaining_by_chapter.get(chapter_order)
+                            if remaining is None:
+                                remaining = self._get_chapter_remaining_reads(chapter_order)
+                                remaining_by_chapter[chapter_order] = remaining
+                            if remaining is not None and remaining <= 0:
+                                continue
+                            filtered_items.append(item)
+                            if remaining is not None:
+                                remaining_by_chapter[chapter_order] = remaining - 1
+                    items = filtered_items
+                    if read_budget is not None and read_budget < len(items):
+                        items = items[:read_budget]
+                    if not items:
+                        result_data = {"success": False, "error": "没有可读取的段落（可能超出范围）"}
+                    else:
+                        params["work_id"] = self.work_id
+                        params["items"] = items
+                        params["index_base"] = "zero"
+                        result = await read_paragraphs.ainvoke(params)
+                        result_data = json.loads(result) if isinstance(result, str) else result
+                count_hint = params.get("limit") if use_range else (len(items) if isinstance(items, list) else 0)
+                logger.info(
+                    "[ExploreTool] done=%s success=%s count=%s index_base=%s",
+                    tool_name,
+                    bool(result_data.get("success")) if isinstance(result_data, dict) else False,
+                    count_hint,
+                    params.get("index_base")
+                )
+                actual_count = result_data.get("count") if isinstance(result_data, dict) else None
+                if isinstance(result_data, dict) and (not result_data.get("success") or actual_count == 0):
+                    logger.info(
+                        "[ExploreTool] read_paragraphs failed details: empty_reason=%s error=%s invalid_items=%s index_base=%s",
+                        result_data.get("empty_reason"),
+                        result_data.get("error"),
+                        result_data.get("invalid_items"),
+                        result_data.get("index_base")
+                    )
+                results_list = result_data.get("results", []) if isinstance(result_data, dict) else []
+                for entry in results_list:
+                    if not isinstance(entry, dict) or not entry.get("success"):
+                        continue
+                    chapter_order = entry.get("chapter_order")
+                    paragraph_index = entry.get("paragraph_index")
+                    if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                        continue
+                    if self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                        continue
+                    if not self.state.should_read_paragraph(chapter_order, paragraph_index):
+                        continue
+                    self.state.record_paragraph_read(chapter_order, paragraph_index)
+                    target_text, context_before, context_after = _extract_read_paragraph(entry)
+                    chapter_info = await self._get_chapter_info_by_order(chapter_order)
+                    chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
+                    chapter_title = entry.get("chapter_title") or chapter_info.get("title") or ""
+                    paragraph_data = {
+                        "chapter_order": chapter_order,
+                        "chapter_title": chapter_title,
+                        "paragraph_index": paragraph_index,
+                        "text": target_text,
+                        "context_before": context_before,
+                        "context_after": context_after,
+                        "node_id": entry.get("node_id") or "",
+                        "is_target": not use_range
+                    }
+                    self.state.add_paragraph(paragraph_data, round_idx)
+                    self.state.add_evidence(
+                        {
+                            "snippet": target_text,
+                            "content": target_text,
+                            "chapter_order": chapter_order,
+                            "paragraph_index": paragraph_index,
+                            "source": "read_paragraph",
+                            "similarity": 1.0,
+                            "chapter_id": chapter_id,
+                            "chapter_title": chapter_title
+                        },
+                        query="",
+                        round_idx=round_idx,
+                        require_paragraph_index=self.require_paragraph_index,
+                        chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
+                    )
+                    reads_used += 1
+
+        else:
+            result_data = {"success": False, "error": f"不支持的工具: {tool_name}"}
+
+        duration_ms = int((get_utc_now() - start).total_seconds() * 1000)
+        result_preview = json.dumps(result_data, ensure_ascii=False) if isinstance(result_data, dict) else str(result_data)
+        result_preview = _truncate_text(result_preview, TOOL_LOOP_RESULT_PREVIEW_LIMIT)
+        tool_call = ToolCall(
+            tool_name=tool_name,
+            params=params,
+            result=result_data,
+            duration_ms=duration_ms
         )
+        return tool_call, result_preview, reads_used
 
     def _build_collected_summary(self) -> str:
-        """构建已收集信息的摘要（V3.3：增加关键词覆盖统计）"""
+        """构建已收集信息的摘要（仅提供样本，不做统计驱动）"""
         lines = []
 
         if self.chapter_scopes:
             lines.append(f"- 任务章节范围：{_format_scope_ranges(self.chapter_scopes)}")
 
-        # 🆕 V3.3: 关键词覆盖统计（让 AI 明确知道每个关键词的命中情况）
-        if self.search_keywords and self.state.evidences:
-            lines.append("- 【关键词覆盖统计】")
-            for kw in self.search_keywords[:10]:  # 最多展示 10 个关键词
-                # 同时检查 e.text 和 e.query（query 包含精确搜索匹配的关键词）
-                # 这样即使文本被截断，也能通过 query 检测到匹配
-                count = sum(1 for e in self.state.evidences if kw in e.text or kw in e.query)
-                status = "✓" if count > 0 else "✗"
-                lines.append(f"    · \"{kw}\": {count} 条 {status}")
-            lines.append("")  # 空行分隔
-
-        # 证据统计（按章节分组，显示段落号）
+        # 证据样本（不展示数量统计）
         if self.state.evidences:
-            evidence_chapters = set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0)
-            lines.append(f"- 证据片段：{len(self.state.evidences)} 条，来自章节：{sorted(evidence_chapters)}")
-
-            # 按章节分组展示证据
-            by_chapter: Dict[int, List[Evidence]] = {}
-            for e in self.state.evidences:
-                if e.chapter_order > 0:
-                    if e.chapter_order not in by_chapter:
-                        by_chapter[e.chapter_order] = []
-                    by_chapter[e.chapter_order].append(e)
-
-            for chapter_order in sorted(by_chapter.keys()):
-                evidences = by_chapter[chapter_order]
-                lines.append(f"  第{chapter_order}章 ({len(evidences)}条):")
-                for e in evidences[:3]:  # 每章最多显示3条
-                    para_label = f"第{e.paragraph_index}段" if isinstance(e.paragraph_index, int) else "段落未知"
-                    lines.append(f"    · [{para_label}] {e.text[:60]}...")
+            lines.append("- 证据片段样本：")
+            for e in self.state.evidences[:8]:
+                para_label = f"第{e.paragraph_index}段" if isinstance(e.paragraph_index, int) else "段落未知"
+                lines.append(f"  · 第{e.chapter_order}章{para_label}: {e.text[:60]}...")
         else:
-            lines.append("- 证据片段：0 条")
+            lines.append("- 证据片段：无")
 
-        # 段落读取详情
+        # 段落读取样本
         if self.state.paragraphs:
-            lines.append(f"- 已读段落：{len(self.state.paragraphs)} 段")
+            lines.append("- 已读段落样本：")
             for p in self.state.paragraphs[:5]:
                 lines.append(f"  · 第{p.chapter_order}章第{p.paragraph_index}段: {p.text[:50]}...")
 
@@ -2818,6 +4377,13 @@ class ContentExplorer:
                     if self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
                         continue
 
+                    self.state.add_search_hit(
+                        item,
+                        query,
+                        round_idx,
+                        chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
+                    )
+
                     if paragraph_index is None and auto_locate_used < locate_limit and chapter_id:
                         min_snippet_len = 20
                         if self.require_paragraph_index:
@@ -2842,10 +4408,9 @@ class ContentExplorer:
                             locate_start = get_utc_now()
                             locate_params = {
                                 "chapter_id": chapter_id,
-                                "query": locate_query
+                                "query": locate_query,
+                                "allow_global_fallback": False
                             }
-                            if self.chapter_scopes or self.require_paragraph_index:
-                                locate_params["allow_global_fallback"] = False
                             locate_result = await locate_content.ainvoke(locate_params)
                             locate_data = json.loads(locate_result) if isinstance(locate_result, str) else locate_result
                             locate_duration = int((get_utc_now() - locate_start).total_seconds() * 1000)
@@ -2886,7 +4451,8 @@ class ContentExplorer:
                                 "chapter_order": chapter_order,
                                 "paragraph_index": paragraph_index,
                                 "context_before": 2,
-                                "context_after": 2
+                                "context_after": 2,
+                                "index_base": "zero"
                             })
                             read_data = json.loads(read_result) if isinstance(read_result, str) else read_result
 
@@ -2901,22 +4467,23 @@ class ContentExplorer:
                                     "paragraph_index": paragraph_index,
                                     "text": target_text,
                                     "context_before": context_before,
-                                    "context_after": context_after
+                                    "context_after": context_after,
+                                    "node_id": read_data.get("node_id", "")
                                 }, round_idx)
-                                if self.require_paragraph_index and target_text:
+                                if target_text:
                                     paragraph_evidence = {
                                         "content": target_text,
                                         "chapter_order": chapter_order,
                                         "paragraph_index": paragraph_index,
                                         "similarity": 1.0,
-                                        "source": "paragraph",
+                                        "source": "read_paragraph",
                                         "chapter_title": read_data.get("chapter_title", "")
                                     }
                                     if self.state.add_evidence(
                                         paragraph_evidence,
                                         query,
                                         round_idx,
-                                        require_paragraph_index=True,
+                                        require_paragraph_index=self.require_paragraph_index,
                                         chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
                                     ):
                                         new_evidences += 1
@@ -2932,15 +4499,6 @@ class ContentExplorer:
                             ))
                         except Exception as e:
                             logger.warning(f"[ContentExplorer] 自动读取段落失败: {e}")
-
-                    if self.state.add_evidence(
-                        item,
-                        query,
-                        round_idx,
-                        require_paragraph_index=self.require_paragraph_index,
-                        chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
-                    ):
-                        new_evidences += 1
 
             except Exception as e:
                 logger.warning(f"[ContentExplorer] 搜索失败: {e}")
@@ -3011,7 +4569,8 @@ class ContentExplorer:
                     "chapter_order": chapter_order,
                     "paragraph_index": paragraph_index,
                     "context_before": 2,
-                    "context_after": 2
+                    "context_after": 2,
+                    "index_base": "zero"
                 })
                 result_data = json.loads(result) if isinstance(result, str) else result
 
@@ -3027,22 +4586,23 @@ class ContentExplorer:
                         "paragraph_index": paragraph_index,
                         "text": target_text,
                         "context_before": context_before,
-                        "context_after": context_after
+                        "context_after": context_after,
+                        "node_id": result_data.get("node_id", "")
                     }, round_idx)
-                    if self.require_paragraph_index and target_text:
+                    if target_text:
                         paragraph_evidence = {
                             "content": target_text,
                             "chapter_order": chapter_order,
                             "paragraph_index": paragraph_index,
                             "similarity": 1.0,
-                            "source": "paragraph",
+                            "source": "read_paragraph",
                             "chapter_title": result_data.get("chapter_title", "")
                         }
                         if self.state.add_evidence(
                             paragraph_evidence,
                             "",
                             round_idx,
-                            require_paragraph_index=True,
+                            require_paragraph_index=self.require_paragraph_index,
                             chapter_scope_filter=self._is_chapter_in_scope if self.chapter_scopes else None
                         ):
                             new_evidences += 1
@@ -3103,62 +4663,100 @@ class ContentExplorer:
             sufficient=False   # 由 AI 评估后更新
         )
 
-    # ==================== 旧规则方法（保留用于兜底）====================
+    # ==================== 辅助方法 ====================
 
-    def _generate_search_queries(self, round_idx: int) -> List[str]:
-        """生成搜索查询（旧规则方法，用于兜底）
+    def _search_worldview_for_keywords(self, keywords: List[str]) -> List[Dict]:
+        """在已加载的世界观中搜索关键词匹配
 
-        改进的查询生成策略：
-        1. 首轮：基于目标任务生成查询
-        2. 后续轮次：基于目标任务中尚未覆盖的关键词生成查询
+        Args:
+            keywords: 搜索关键词列表
+
+        Returns:
+            匹配的世界观条目列表，每个条目包含 name, description, category
         """
-        queries = []
+        if not self.state.worldview:
+            return []
 
-        if round_idx == 1:
-            # 首轮：基于目标任务生成查询
-            # 提取目标任务中的关键词
-            keywords = self._extract_target_keywords()
-            if keywords:
-                # 组合前 3 个关键词作为第一个查询
-                queries.append(" ".join(keywords[:3]))
-                # 每个关键词单独作为查询
-                for kw in keywords[:2]:
-                    if kw not in queries[0] or len(kw) >= 4:
-                        queries.append(kw)
-            # 添加目标任务的前 30 字符作为兜底查询
-            queries.append(self.target_task[:30])
-        else:
-            # 后续轮次：基于未覆盖的关键词生成查询
-            target_keywords = self._extract_target_keywords()
-            covered_keywords = self._check_keyword_coverage(target_keywords)
-            uncovered = [kw for kw in target_keywords if kw not in covered_keywords]
+        matches = []
+        seen_names = set()
 
-            if uncovered:
-                # 优先搜索未覆盖的关键词
-                for kw in uncovered[:3]:
-                    queries.append(kw)
+        for category, items in self.state.worldview.items():
+            for item in items:
+                name = item.name if hasattr(item, 'name') else item.get('name', '')
+                description = item.description if hasattr(item, 'description') else item.get('description', '')
+
+                # 检查关键词是否匹配名称或描述
+                for kw in keywords:
+                    kw_lower = kw.lower()
+                    name_lower = name.lower() if name else ""
+                    desc_lower = description.lower() if description else ""
+
+                    if kw_lower in name_lower or kw_lower in desc_lower:
+                        if name not in seen_names:
+                            seen_names.add(name)
+                            matches.append({
+                                "name": name,
+                                "description": description,
+                                "category": category
+                            })
+                        break  # 一个 item 只添加一次
+
+        return matches
+
+    def _generate_hits_summary(self, results: List[Dict], keywords: List[str]) -> str:
+        """生成搜索结果摘要（类似 OpenCode 的 output truncation）
+
+        策略：
+        - 提取关键信息（章节、段落、内容片段）
+        - 支持世界观结果
+        - 限制在 100 字符以内
+        - 突出与目标任务相关的信息
+        """
+        if not results:
+            return "无命中"
+
+        # 统计章节分布和世界观命中
+        chapters = set()
+        worldview_names = []
+        snippets = []
+        first_location = None
+        for r in results[:5]:  # 只看前5条
+            if r.get("source") == "worldview":
+                wv_name = r.get("worldview_name", "")
+                if wv_name:
+                    worldview_names.append(wv_name)
             else:
-                # 如果所有关键词都已覆盖，尝试更细粒度的搜索
-                # 使用目标任务中的不同片段
-                task_parts = self.target_task.split('。')
-                for part in task_parts[:2]:
-                    if len(part) >= 5:
-                        queries.append(part[:20])
+                ch = r.get("chapter_order")
+                if isinstance(ch, int):
+                    chapters.add(ch)
+                pi = r.get("paragraph_index")
+                if isinstance(pi, str) and pi.isdigit():
+                    pi = int(pi)
+                if first_location is None and isinstance(ch, int) and isinstance(pi, int):
+                    first_location = (ch, pi)
+            snippet = r.get("snippet") or r.get("content") or r.get("text") or ""
+            if snippet:
+                snippets.append(snippet[:40])
 
-            # 兜底：使用目标任务的不同片段
-            if not queries:
-                queries.append(self.target_task[20:50] if len(self.target_task) > 50 else self.target_task)
+        # 生成摘要
+        parts = []
+        parts.append(f"{len(results)}条命中")
+        if worldview_names:
+            parts.append(f"世界观:{','.join(worldview_names[:2])}")
+        if first_location:
+            ch, pi = first_location
+            parts.append(f"首条第{ch}章第{pi}段")
+        elif chapters:
+            if len(chapters) == 1:
+                parts.append(f"第{list(chapters)[0]}章")
+            else:
+                parts.append(f"覆盖第{min(chapters)}-{max(chapters)}章")
+        if snippets and not worldview_names:  # 有世界观时优先显示世界观名称
+            preview = snippets[0][:30] + "..." if len(snippets[0]) > 30 else snippets[0]
+            parts.append(f"如「{preview}」")
 
-        # 去重并限制数量
-        seen = set()
-        unique_queries = []
-        for q in queries:
-            q_clean = q.strip()
-            if q_clean and q_clean not in seen and len(q_clean) >= 2:
-                seen.add(q_clean)
-                unique_queries.append(q_clean)
-
-        return unique_queries[:3]  # 最多3个查询
+        summary = ", ".join(parts)
+        return summary[:100]  # 限制长度
 
     def _determine_chapters_to_read(self) -> List[int]:
         """确定需要读取的章节"""
@@ -3175,85 +4773,6 @@ class ContentExplorer:
 
         return self._rank_chapters_by_evidence(to_read)
 
-    def _evaluate_sufficiency(self, round_idx: int) -> Tuple[bool, List[str]]:
-        """评估信息是否充足
-
-        改进的评估逻辑：
-        1. 首轮不能判断为充足（强制多轮探索）
-        2. 需要考虑目标任务中的关键词覆盖度
-        3. 证据需要来自多个不同章节
-        """
-        missing = []
-
-        # 规则 1：首轮强制不充足，确保多轮探索
-        if round_idx == 1:
-            missing.append("首轮探索，需要继续深入")
-            return False, missing
-
-        # 规则 2：至少有 5 条证据
-        if len(self.state.evidences) < 5:
-            missing.append("需要更多证据")
-
-        # 规则 3：章节/段落读取要求
-        if self.require_full_chapter:
-            if len(self.state.chapters) < 1:
-                missing.append("需要读取章节原文")
-        else:
-            if len(self.state.chapters) < 1 and len(self.state.paragraphs) < 1:
-                missing.append("需要读取段落原文")
-
-        # 规则 4：证据需要来自多个章节（多样性检查）
-        evidence_chapters = set(e.chapter_order for e in self.state.evidences if e.chapter_order > 0)
-        if len(evidence_chapters) < 2 and len(self.state.evidences) >= 5:
-            missing.append("证据来源单一，需要从更多章节获取信息")
-
-        # 规则 5：检查目标任务中的关键词覆盖度
-        target_keywords = self._extract_target_keywords()
-        covered_keywords = self._check_keyword_coverage(target_keywords)
-        uncovered = [kw for kw in target_keywords if kw not in covered_keywords]
-        if uncovered and len(uncovered) > len(target_keywords) * 0.5:
-            missing.append(f"未覆盖关键信息：{', '.join(uncovered[:3])}")
-
-        # 规则 6：3轮后强制认为充足
-        if round_idx >= 3:
-            logger.info(f"[ContentExplorer] 达到 {round_idx} 轮，强制判断为充足")
-            return True, []
-
-        return len(missing) == 0, missing
-
-    def _extract_target_keywords(self) -> List[str]:
-        """从目标任务中提取关键词"""
-        import re
-        # 提取中文词汇和英文词汇
-        # 过滤常见停用词
-        stopwords = {'的', '了', '是', '在', '和', '与', '以及', '需要', '包括', '所有', '这些', '物品', '信息', '情况'}
-
-        # 提取所有词汇（中文按字符，英文按空格）
-        words = re.findall(r'[\u4e00-\u9fa5]+|[a-zA-Z]+', self.target_task)
-
-        # 过滤停用词和短词
-        keywords = [w for w in words if len(w) >= 2 and w not in stopwords]
-
-        return keywords[:10]  # 最多 10 个关键词
-
-    def _check_keyword_coverage(self, keywords: List[str]) -> Set[str]:
-        """检查关键词在证据中的覆盖情况"""
-        covered = set()
-
-        # 收集所有证据文本
-        all_text = ""
-        for e in self.state.evidences:
-            all_text += e.text + " "
-        for ch in self.state.chapters.values():
-            all_text += ch.content[:1000] + " "  # 只取前 1000 字符
-
-        # 检查每个关键词
-        for kw in keywords:
-            if kw in all_text:
-                covered.add(kw)
-
-        return covered
-
     async def _generate_analysis(self) -> str:
         """生成分析总结（优先使用 AI 生成的）"""
         # 优先使用最后一轮 AI 生成的 summary
@@ -3261,6 +4780,10 @@ class ContentExplorer:
             last_round = self.state.rounds[-1]
             if last_round.summary:
                 return last_round.summary
+
+        summary, _ = await self._generate_summary_and_next_action()
+        if summary:
+            return summary
 
         # 兜底：生成硬编码统计信息
         stats = self.state.get_stats()
@@ -3280,6 +4803,53 @@ class ContentExplorer:
             analysis += f"已读取章节：{', '.join(chapter_titles)}\n"
 
         return analysis
+
+    async def _generate_summary_and_next_action(self) -> Tuple[str, str]:
+        """使用 LLM 生成探索总结与下一步行动"""
+        from app.services.agent.model_selector import TaskType
+
+        ai_service = _get_ai_service()
+        stats = self.state.get_stats()
+        summary_context = self._build_collected_summary()
+        prompt = f"""你是只读探索器，请基于以下信息生成「探索总结」与「下一步行动」。
+
+目标任务：{self.target_task}
+统计信息：轮次{stats.get('rounds_count', 0)}，证据{stats.get('total_evidences', 0)}，段落{stats.get('total_paragraphs', 0)}，章节{stats.get('total_chapters', 0)}。
+
+已收集信息摘要：
+{summary_context}
+
+输出要求：
+1) 输出两行：
+探索总结：<一句话总结>
+下一步行动：<一句话行动>
+2) 只输出上述两行，不要其他内容。
+"""
+        try:
+            response = await ai_service.call_ai(
+                system_prompt="你是只读探索器。只输出两行总结与行动。",
+                user_prompt=prompt,
+                max_tokens=200,
+                temperature=0.2,
+                task_type=TaskType.SIMPLE_QA
+            )
+        except Exception as e:
+            logger.warning(f"[ContentExplorer] 总结生成失败: {e}")
+            return "", ""
+
+        text = (response or "").strip()
+        summary = ""
+        next_action = ""
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("探索总结："):
+                summary = line.replace("探索总结：", "").strip()
+            elif line.startswith("下一步行动："):
+                next_action = line.replace("下一步行动：", "").strip()
+
+        if not summary and text:
+            summary = text[:200]
+        return summary, next_action
 
     async def _emit_round_event(self, round_data: ExploreRound):
         """发射轮次事件"""
@@ -3310,27 +4880,24 @@ class ContentExplorer:
         from app.services.agent.stream.flow_events import FlowEventBuilder
 
         last_round = result.rounds[-1] if result.rounds else None
-        coverage_label = "未知"
-        if last_round and last_round.coverage:
-            coverage_label = "充足" if last_round.sufficient else "覆盖不足"
         stats = {
             "worldview": sum(len(items) for items in result.worldview.values()),
             "chapters": _format_chapters_range(result.chapters),
-            "evidences": len(result.evidences),
-            "coverage": coverage_label
+            "evidences": len(result.evidences)
         }
 
-        # 使用 AI 生成的总结和下一步行动（如果有的话）
+        # 使用 AI 生成的总结（如果有的话）
         summary = result.analysis  # 默认使用硬编码的分析
-        next_action = "基于这些背景信息，我将执行后续任务。"  # 默认值
+        next_action = ""  # 不展示下一步行动
 
         if last_round:
             # 优先使用 AI 生成的总结
             if last_round.summary:
                 summary = last_round.summary
-            # 优先使用 AI 生成的下一步行动
-            if last_round.next_action:
-                next_action = last_round.next_action
+        else:
+            auto_summary, auto_next = await self._generate_summary_and_next_action()
+            if auto_summary:
+                summary = auto_summary
 
         event = FlowEventBuilder.explore_summary(
             step_id=self.step_id,
@@ -3339,8 +4906,8 @@ class ContentExplorer:
             next_action=next_action,  # AI 生成的下一步行动
             next_tool="",
             stats=stats,
-            sufficient=last_round.sufficient if last_round and last_round.coverage else None,
-            coverage=last_round.coverage if last_round and last_round.coverage else None
+            sufficient=None,
+            coverage=None
         )
         await self.emit_callback(event)
 
@@ -3353,9 +4920,17 @@ async def explore_content(
     work_id: str,
     target_task: str,
     search_keywords: Optional[List[str]] = None,
-    max_rounds: int = 10,
+    max_rounds: int = 200,
+    explore_mode: str = "tool_loop",
+    max_tool_calls: Optional[int] = None,
+    max_read_paragraphs: Optional[int] = None,
+    output_mode: str = "full",
+    require_paragraph_index: Optional[bool] = None,
+    force_global_search: Optional[bool] = None,
     user_id: Optional[str] = None,
-    conversation_id: Optional[str] = None
+    conversation_id: Optional[str] = None,
+    use_cache: bool = True,
+    force_refresh: bool = False
 ) -> str:
     """深度探索内容，收集完成任务所需的所有信息
 
@@ -3364,8 +4939,16 @@ async def explore_content(
         target_task: 目标任务描述（如"续写第6章，需要了解主角性格和当前剧情"）
         search_keywords: 搜索关键词列表（由规划阶段直接提供，优先使用）
         max_rounds: 最大探索轮次（默认10轮）
+        explore_mode: 探索模式（仅 tool_loop 生效，pipeline 已弃用）
+        max_tool_calls: 工具调用上限（仅 tool_loop 生效）
+        max_read_paragraphs: 读取段落上限（可选，不传则不设全局上限）
+        output_mode: 输出模式（evidence_only/full，默认 full；full 返回前端展示字段）
+        require_paragraph_index: 是否强制要求段落索引（编辑类请求应为 True）
+        force_global_search: 是否忽略章节范围（用于引用句子但未指定章节时）
         user_id: 用户ID（可选）
         conversation_id: 会话ID（可选，用于共享缓存）
+        use_cache: 是否启用 Redis 结果缓存（默认 True）
+        force_refresh: 是否跳过缓存强制刷新（默认 False）
 
     Returns:
         JSON格式的探索结果
@@ -3373,25 +4956,46 @@ async def explore_content(
     logger.info(f"[explore_content] 开始: work_id={work_id}, target={target_task[:50]}...")
     if search_keywords:
         logger.info(f"[explore_content] 规划传入关键词: {search_keywords[:10]}")
+    output_mode_norm = (output_mode or "evidence_only").strip().lower()
+    evidence_only_output = output_mode_norm in ("evidence", "evidence_only", "minimal")
+    use_cache = bool(use_cache)
+    force_refresh = bool(force_refresh)
+    force_global_search = bool(force_global_search)
 
+    target_task_for_explorer = target_task or ""
+    if force_global_search:
+        target_task_for_explorer = _strip_chapter_hint_for_global_search(target_task_for_explorer)
+        if "全文" not in target_task_for_explorer and "全书" not in target_task_for_explorer:
+            target_task_for_explorer = f"{target_task_for_explorer}（全文范围搜索）"
+        logger.info("[explore_content] force_global_search 已启用：忽略章节范围")
+
+    # 工具内事件：若有 stream handler，则由工具实时发射
     stream_handler = get_stream_event_handler()
-    step_id = get_explore_step_id()
-    step_id_value = None
-    if step_id is not None:
-        try:
-            step_id_value = int(step_id)
-        except (TypeError, ValueError):
-            step_id_value = None
+    emit_callback = stream_handler.emit_flow_event if stream_handler else None
+    step_id_value = get_explore_step_id()
+    events_emitted = emit_callback is not None
 
-    events_emitted = False
-    emit_callback = None
-    if stream_handler and stream_handler.has_flow_event_callback():
-        async def emit_callback(event: dict) -> None:
-            nonlocal events_emitted
-            if await stream_handler.emit_flow_event(event):
-                events_emitted = True
+    chapter_scopes = _parse_chapter_scopes(target_task_for_explorer)
+    if force_global_search:
+        chapter_scopes = []
+    cache_key = ""
+    if use_cache:
+        cache_key = _build_explore_result_cache_key(
+            work_id=work_id,
+            user_id=user_id,
+            chapter_scopes=chapter_scopes,
+            target_task=target_task_for_explorer,
+            search_keywords=search_keywords,
+            output_mode=output_mode_norm,
+            require_paragraph_index=require_paragraph_index,
+            force_global_search=force_global_search
+        )
+        if cache_key and not force_refresh:
+            cached_payload = await _get_cached_explore_result(cache_key)
+            if cached_payload:
+                cached_payload = _decorate_cached_payload(cached_payload, cache_key)
+                return json.dumps(cached_payload, ensure_ascii=False, indent=2)
 
-    chapter_scopes = _parse_chapter_scopes(target_task)
     shared_cache_key = _build_explore_shared_key(
         work_id,
         user_id,
@@ -3404,14 +5008,19 @@ async def explore_content(
         if isinstance(cached_state, ExploreState):
             shared_state = cached_state
 
-    explorer = ContentExplorer(
-        work_id=work_id,
-        target_task=target_task,
-        max_rounds=max_rounds,
-        emit_callback=emit_callback,
-        step_id=step_id_value,
-        search_keywords=search_keywords
-    )
+        explorer = ContentExplorer(
+            work_id=work_id,
+            target_task=target_task_for_explorer,
+            max_rounds=max_rounds,
+            emit_callback=emit_callback,
+            step_id=step_id_value,
+            search_keywords=search_keywords,
+            explore_mode=explore_mode,
+            max_tool_calls=max_tool_calls,
+            max_read_paragraphs=max_read_paragraphs,
+            require_paragraph_index=require_paragraph_index,
+            force_global_search=force_global_search
+        )
     if shared_state:
         explorer.state = _clone_explore_state(shared_state)
         logger.info(
@@ -3422,7 +5031,10 @@ async def explore_content(
         )
 
     try:
-        result = await explorer.explore()
+        # pipeline 已弃用：统一走 tool_loop（LLM 自由调只读工具）
+        result = await explorer.explore_tool_loop()
+        # 仅对“已读取原文”的候选做唯一性选择；低置信时保留多候选供确认
+        _select_unique_target_paragraphs(result, target_task_for_explorer, search_keywords)
 
         if shared_cache_key:
             cached_state = _EXPLORE_SHARED_CACHE.get(shared_cache_key)
@@ -3432,10 +5044,81 @@ async def explore_content(
             else:
                 _EXPLORE_SHARED_CACHE.set(shared_cache_key, _clone_explore_state(explorer.state))
 
-        # 构建 explore_summary - 供后续工具（如 analyze_content）使用的文本摘要
-        explore_summary = _build_explore_summary(result)
+        node_id_map = _build_node_id_map(result)
 
-        # 2026-01-18: 构建兼容 get_writing_context 的 chapters 数组
+        # 最小章节映射（用于 locate_targets 的 chapter_id）
+        chapters_by_order: Dict[int, Dict[str, Any]] = {}
+
+        def _add_min_chapter(chapter_order: int, chapter_id: str = "", chapter_title: str = "") -> None:
+            if not chapter_order:
+                return
+            entry = chapters_by_order.get(chapter_order)
+            if not entry:
+                entry = {
+                    "id": "",
+                    "chapter_id": "",
+                    "title": "",
+                    "order": chapter_order
+                }
+            if chapter_id and not entry.get("id"):
+                entry["id"] = chapter_id
+            if chapter_title and not entry.get("title"):
+                entry["title"] = chapter_title
+            if entry.get("id") and not entry.get("chapter_id"):
+                entry["chapter_id"] = entry["id"]
+            chapters_by_order[chapter_order] = entry
+
+        for e in result.evidences:
+            _add_min_chapter(e.chapter_order, e.chapter_id, e.chapter_title)
+
+        for p in result.paragraphs:
+            _add_min_chapter(p.chapter_order, "", p.chapter_title)
+
+        if work_id and chapters_by_order:
+            try:
+                from app.services.agent.langgraph_tools import resolve_chapter_id
+                for chapter_order, entry in chapters_by_order.items():
+                    if entry.get("id"):
+                        continue
+                    resolved_id, _ = await resolve_chapter_id(work_id, str(chapter_order))
+                    if resolved_id:
+                        entry["id"] = resolved_id
+                        entry["chapter_id"] = resolved_id
+            except Exception:
+                pass
+
+        locate_targets = _build_locate_targets(
+            result,
+            chapters_by_order,
+            node_id_map=node_id_map,
+            candidates=getattr(result, "search_hits", None)
+        )
+        evidences_output = _build_evidences_output(result, node_id_map=node_id_map)
+
+        if explorer.require_paragraph_index and not locate_targets:
+            message = "探索未产出可定位段落（缺少 paragraph_index/node_id），请先用 list_paragraphs/read_paragraphs 精确读取目标段落。"
+            result_payload = {
+                "success": False,
+                "error": "missing_locate_targets",
+                "message": message,
+                "evidences": evidences_output,
+                "locate_targets": locate_targets
+            }
+            if use_cache and cache_key:
+                await _set_cached_explore_result(cache_key, result_payload)
+            return json.dumps(result_payload, ensure_ascii=False, indent=2)
+
+        if evidence_only_output:
+            result_payload = {
+                "success": True,
+                "evidences": evidences_output,
+                "locate_targets": locate_targets
+            }
+            if use_cache and cache_key:
+                await _set_cached_explore_result(cache_key, result_payload)
+            return json.dumps(result_payload, ensure_ascii=False, indent=2)
+
+        # full 输出（兼容旧字段）
         chapters_list = [
             {
                 "id": str(ch.id) if ch.id else "",
@@ -3446,46 +5129,73 @@ async def explore_content(
             }
             for order, ch in sorted(result.chapters.items())
         ]
-        if not chapters_list and result.evidences:
-            fallback_chapters: Dict[int, Dict[str, Any]] = {}
-            for e in result.evidences:
-                chapter_order = e.chapter_order
-                if not chapter_order:
-                    continue
-                entry = fallback_chapters.get(chapter_order)
-                if not entry:
-                    entry = {
-                        "id": "",
-                        "title": "",
-                        "order": chapter_order,
-                        "content": "",
-                        "word_count": 0
-                    }
-                if not entry["id"] and e.chapter_id:
-                    entry["id"] = e.chapter_id
-                if not entry["title"] and e.chapter_title:
-                    entry["title"] = e.chapter_title
-                fallback_chapters[chapter_order] = entry
+        chapters_by_order = {
+            entry.get("order"): entry
+            for entry in chapters_list
+            if entry.get("order")
+        }
+        fallback_chapters: Dict[int, Dict[str, Any]] = {}
 
-            if fallback_chapters and work_id:
-                try:
-                    from app.services.agent.langgraph_tools import resolve_chapter_id
-                    for chapter_order, entry in fallback_chapters.items():
-                        if entry["id"]:
-                            continue
-                        resolved_id, _ = await resolve_chapter_id(work_id, str(chapter_order))
-                        if resolved_id:
-                            entry["id"] = resolved_id
-                except Exception:
-                    pass
+        def _add_fallback_chapter(chapter_order: int, chapter_id: str = "", chapter_title: str = "") -> None:
+            if not chapter_order:
+                return
+            entry = fallback_chapters.get(chapter_order)
+            if not entry:
+                entry = {
+                    "id": "",
+                    "title": "",
+                    "order": chapter_order,
+                    "content": "",
+                    "word_count": 0
+                }
+            if not entry["id"] and chapter_id:
+                entry["id"] = chapter_id
+            if not entry["title"] and chapter_title:
+                entry["title"] = chapter_title
+            fallback_chapters[chapter_order] = entry
 
-            for entry in fallback_chapters.values():
-                if not entry["title"]:
-                    entry["title"] = f"第{entry['order']}章"
+        for e in result.evidences:
+            _add_fallback_chapter(e.chapter_order, e.chapter_id, e.chapter_title)
 
+        for p in result.paragraphs:
+            entry = chapters_by_order.get(p.chapter_order, {})
+            chapter_id = entry.get("id") or entry.get("chapter_id") or ""
+            chapter_title = p.chapter_title or entry.get("title") or ""
+            _add_fallback_chapter(p.chapter_order, chapter_id, chapter_title)
+
+        if fallback_chapters and work_id:
+            try:
+                from app.services.agent.langgraph_tools import resolve_chapter_id
+                for chapter_order, entry in fallback_chapters.items():
+                    if entry["id"]:
+                        continue
+                    resolved_id, _ = await resolve_chapter_id(work_id, str(chapter_order))
+                    if resolved_id:
+                        entry["id"] = resolved_id
+            except Exception:
+                pass
+
+        for entry in fallback_chapters.values():
+            if not entry["title"]:
+                entry["title"] = f"第{entry['order']}章"
+
+        if fallback_chapters:
+            for chapter_order, entry in fallback_chapters.items():
+                existing = chapters_by_order.get(chapter_order)
+                if existing:
+                    if not existing.get("id") and entry.get("id"):
+                        existing["id"] = entry["id"]
+                    if not existing.get("title") and entry.get("title"):
+                        existing["title"] = entry["title"]
+                    if not existing.get("content") and entry.get("content"):
+                        existing["content"] = entry["content"]
+                    if not existing.get("word_count") and entry.get("word_count"):
+                        existing["word_count"] = entry["word_count"]
+                else:
+                    chapters_by_order[chapter_order] = entry
             chapters_list = [
-                fallback_chapters[chapter_order]
-                for chapter_order in sorted(fallback_chapters)
+                chapters_by_order[chapter_order]
+                for chapter_order in sorted(chapters_by_order)
             ]
 
         if chapters_list and work_id:
@@ -3508,13 +5218,16 @@ async def explore_content(
                 pass
 
         for entry in chapters_list:
+            if "chapter_id" not in entry:
+                entry["chapter_id"] = entry.get("id") or ""
+
+        for entry in chapters_list:
             entry["paragraphs"] = _build_chapter_paragraphs(
                 result,
                 entry.get("order", 0),
                 entry.get("content", "")
             )
 
-        # 2026-01-18: 构建兼容 get_writing_context 的 worldview 对象
         worldview_dict = {}
         for category, items in result.worldview.items():
             worldview_dict[category] = [
@@ -3522,25 +5235,13 @@ async def explore_content(
                 for item in items
             ]
 
+        explore_summary = _build_explore_summary(result)
         frontend_display = to_frontend_display(result)
-        search_results = _build_search_results(result)
-        if search_results and work_id:
-            try:
-                from app.services.agent.langgraph_tools import resolve_chapter_id
-                for item in search_results:
-                    chapter_order = item.get("chapter_order")
-                    if not item.get("chapter_id") and chapter_order:
-                        resolved_id, _ = await resolve_chapter_id(work_id, str(chapter_order))
-                        if resolved_id:
-                            item["chapter_id"] = resolved_id
-                    if not item.get("chapter_title") and chapter_order:
-                        item["chapter_title"] = f"第{chapter_order}章"
-            except Exception:
-                pass
+        search_results = _build_search_results(result, node_id_map=node_id_map)
         frontend_display["search_results"] = search_results
+        frontend_display["locate_targets"] = locate_targets
 
-        # 转换为JSON
-        return json.dumps({
+        result_payload = {
             "success": True,
             "work_id": work_id,
             "target_task": target_task,
@@ -3550,13 +5251,17 @@ async def explore_content(
             "total_duration_ms": result.total_duration_ms,
             "frontend_display": frontend_display,
             "context_for_task": build_context_for_task(result),
-            "events_emitted": events_emitted,
-            # 添加 explore_summary 字段，便于 ParameterResolver 解析
             "explore_summary": explore_summary,
-            # 2026-01-18: 添加兼容字段，支持 $ref 引用
+            "evidences": evidences_output,
+            "locate_targets": locate_targets,
             "chapters": chapters_list,
-            "worldview": worldview_dict
-        }, ensure_ascii=False, indent=2)
+            "results": chapters_list,
+            "worldview": worldview_dict,
+            "events_emitted": events_emitted
+        }
+        if use_cache and cache_key:
+            await _set_cached_explore_result(cache_key, result_payload)
+        return json.dumps(result_payload, ensure_ascii=False, indent=2)
 
     except Exception as e:
         logger.error(f"[explore_content] 失败: {e}")

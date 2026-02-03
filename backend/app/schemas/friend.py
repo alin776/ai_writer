@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Literal
 from uuid import UUID
 from datetime import datetime
@@ -13,10 +13,7 @@ class UserBrief(BaseModel):
     full_name: Optional[str] = None
     avatar: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ========== 好友请求 Schemas ==========
 
 class FriendRequestCreate(BaseModel):
@@ -39,10 +36,7 @@ class FriendRequestResponse(BaseModel):
     status: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class FriendRequestListResponse(BaseModel):
     """好友请求列表响应"""
     total: int
@@ -59,10 +53,7 @@ class FriendshipResponse(BaseModel):
     last_message_at: Optional[datetime] = None  # 私聊频道最后消息时间
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class FriendListResponse(BaseModel):
     """好友列表响应"""
     total: int
@@ -113,10 +104,7 @@ class UserSearchResult(BaseModel):
     avatar: Optional[str] = None
     relation_status: Literal["none", "friend", "request_sent", "request_received"]
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class UserSearchResponse(BaseModel):
     """用户搜索响应"""
     total: int

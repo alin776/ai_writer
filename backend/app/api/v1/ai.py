@@ -669,7 +669,7 @@ async def preload_metadata(
     db: AsyncSession = Depends(get_db)
 ):
     """预加载元数据到缓存（降低首次自动补全延迟）"""
-    logger.info(
+    logger.debug(
         f"[预加载元数据] 用户: {current_user.username}({current_user.id}), "
         f"work_id: {request.work_id}, chapter_id: {request.chapter_id}"
     )
@@ -724,10 +724,10 @@ async def preload_metadata(
                     )
 
                     cached["guidelines"] = True
-                    logger.info(f"[预加载] AI Guidelines 已缓存: {request.work_id}")
+                    logger.debug(f"[预加载] AI Guidelines 已缓存: {request.work_id}")
             else:
                 cached["guidelines"] = True
-                logger.info(f"[预加载] AI Guidelines 缓存已存在: {request.work_id}")
+                logger.debug(f"[预加载] AI Guidelines 缓存已存在: {request.work_id}")
 
         except Exception as e:
             logger.warning(f"[预加载] Guidelines 缓存失败: {e}")
@@ -741,7 +741,7 @@ async def preload_metadata(
 
                 if current_chapter:
                     cached["current_chapter"] = True
-                    logger.info(f"[预加载] 当前章节已加载: {request.chapter_id}")
+                    logger.debug(f"[预加载] 当前章节已加载: {request.chapter_id}")
 
                     # 尝试加载上一章
                     if current_chapter.order > 1:
@@ -754,12 +754,12 @@ async def preload_metadata(
 
                         if prev_chapter:
                             cached["previous_chapter"] = True
-                            logger.info(f"[预加载] 前一章节已加载: {prev_chapter.id}")
+                            logger.debug(f"[预加载] 前一章节已加载: {prev_chapter.id}")
 
             except Exception as e:
                 logger.warning(f"[预加载] 章节概要加载失败: {e}")
 
-        logger.info(f"[预加载] 完成: {cached}")
+        logger.debug(f"[预加载] 完成: {cached}")
 
         return {
             "status": "success",

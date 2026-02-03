@@ -9,11 +9,13 @@
 - 降级兜底
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 import json
 import logging
+import re
 
 from app.services.agent.tools import registry
+from app.services.agent.langgraph_tools import resolve_chapter_id, is_chapter_order, read_paragraph
 from app.services.agent.utils.chapter_cache import ChapterCache
 from app.services.agent.utils.tool_cache import ToolCache
 from app.services.agent.utils.tool_context import (
@@ -129,6 +131,115 @@ class ToolExecutor:
         try:
             # 准备参数
             params = self.prepare_params(normalized_name, tool_args, state)
+            if normalized_name == "smart_insert":
+                params = await self._augment_insert_context(params, state)
+            elif normalized_name == "smart_rewrite":
+                params = await self._augment_rewrite_context(params, state)
+
+            # 🛡️ 章节一致性校验：写回阶段必须与目标章节一致
+            expected_chapter_id, expected_source = self._get_target_chapter_id(state)
+            if normalized_name in {"operate_apply", "apply_chapter_edit"} and expected_chapter_id:
+                operation = params.get("operation")
+                if operation in {"append", "replace", "insert", "content", "replace_all"}:
+                    actual_chapter_id = params.get("chapter_id")
+                    if actual_chapter_id and str(actual_chapter_id) != str(expected_chapter_id):
+                        # 允许章节序号与UUID的等价匹配
+                        work_id = params.get("work_id") or state.get("work_id")
+                        actual_norm = str(actual_chapter_id)
+                        expected_norm = str(expected_chapter_id)
+                        if work_id:
+                            if is_chapter_order(actual_norm):
+                                resolved_actual, _ = await resolve_chapter_id(work_id, actual_norm)
+                                if resolved_actual:
+                                    actual_norm = str(resolved_actual)
+                            if is_chapter_order(expected_norm):
+                                resolved_expected, _ = await resolve_chapter_id(work_id, expected_norm)
+                                if resolved_expected:
+                                    expected_norm = str(resolved_expected)
+                        if actual_norm == expected_norm:
+                            logger.info(
+                                "[ToolExecutor] chapter_id 等价匹配通过: actual=%s expected=%s",
+                                actual_chapter_id,
+                                expected_chapter_id
+                            )
+                        else:
+                            logger.error(
+                                "[ToolExecutor] chapter_id 不一致，已阻止写回: actual=%s expected=%s source=%s",
+                                actual_chapter_id,
+                                expected_chapter_id,
+                                expected_source
+                            )
+                            return json.dumps({
+                                "error": "chapter_id_mismatch",
+                                "message": "写回章节与目标章节不一致，已阻止操作。",
+                                "expected_chapter_id": expected_chapter_id,
+                                "actual_chapter_id": actual_chapter_id,
+                                "expected_source": expected_source
+                            }, ensure_ascii=False)
+
+            # 🔧 2026-01-26: fail-fast，避免 chapter_id 为空导致隐式失败
+            if normalized_name in {"smart_rewrite", "smart_insert", "smart_continue"}:
+                if not params.get("chapter_id"):
+                    return json.dumps({
+                        "error": "missing_chapter_id",
+                        "message": "chapter_id 为空，请检查是否引用 locate_content 的 chapter_id（引用路径错误）"
+                    }, ensure_ascii=False)
+            if normalized_name in {"operate_apply", "apply_chapter_edit"}:
+                operation = params.get("operation")
+                if operation in {"replace", "insert", "append", "content"} and not params.get("chapter_id"):
+                    return json.dumps({
+                        "error": "missing_chapter_id",
+                        "message": "chapter_id 为空，请检查是否引用 locate_content 的 chapter_id（引用路径错误）"
+                    }, ensure_ascii=False)
+                require_locator = bool(params.pop("__require_source_locator", False))
+                auto_locator = bool(params.pop("__auto_locator", False))
+                explicit_locator = bool(
+                    params.get("locate_target_index") is not None
+                    or params.get("locator_id")
+                    or params.get("locate_target_id")
+                    or params.get("locate_target_hint")
+                )
+                if operation in {"replace", "insert"} and require_locator and (auto_locator or explicit_locator):
+                    locator_error = self._ensure_source_locator(
+                        params,
+                        state,
+                        text_hint=params.get("original_text") or params.get("target_description", ""),
+                        force=True
+                    )
+                    if locator_error:
+                        return json.dumps(locator_error, ensure_ascii=False)
+                if operation in {"replace", "insert"} and require_locator:
+                    locator_error = self._validate_source_locator(params, auto_locator=auto_locator)
+                    if locator_error:
+                        return json.dumps(locator_error, ensure_ascii=False)
+                if operation in {"replace", "insert", "append", "content", "replace_all"}:
+                    content = params.get("content")
+                    if content is None or (isinstance(content, str) and not content.strip()):
+                        return json.dumps({
+                            "error": "missing_content",
+                            "message": "写回内容为空，可能是内容引用路径错误（请检查 data.content/data.versions[0].content）"
+                        }, ensure_ascii=False)
+                    if not isinstance(content, str):
+                        return json.dumps({
+                            "error": "invalid_content",
+                            "message": "写回内容类型非法（期望字符串），请检查内容引用路径"
+                        }, ensure_ascii=False)
+                if operation in {"replace", "insert"} and not params.get("node_id") and params.get("paragraph_index") is None:
+                    return json.dumps({
+                        "error": "missing_locator",
+                        "message": "replace/insert 必须提供 node_id 或 paragraph_index（请先定位段落）"
+                    }, ensure_ascii=False)
+                if normalized_name == "apply_chapter_edit":
+                    params.pop("source_locator", None)
+
+            if isinstance(params, dict) and params.get("__locator_error"):
+                error_payload = params.get("__locator_error") or {}
+                if isinstance(error_payload, dict):
+                    return json.dumps(error_payload, ensure_ascii=False)
+                return json.dumps({
+                    "error": "locator_error",
+                    "message": str(error_payload)
+                }, ensure_ascii=False)
 
             cached_result = self._read_cover_cache(normalized_name, params, state)
             if cached_result is not None:
@@ -251,6 +362,7 @@ class ToolExecutor:
         """准备工具参数（处理特殊情况）"""
         params = dict(tool_args)
         last_user_message = state.get("last_user_message", "")
+        evidence_context = self._build_evidence_context(state)
 
         # 工具特定的参数处理
         if tool_name == "continue_writing":
@@ -271,11 +383,30 @@ class ToolExecutor:
             selected_text = context_data.get("selected_text", "")
             locate_original_text = context_data.get("locate_original_text", "")
 
-            params.setdefault("chapter_id", current_chapter_id)
+            # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
+            # 如果 chapter_id 是 None（不是空字符串或未设置），说明 $ref 解析越界
+            # 此时应该报错而不是静默使用当前章节
+            param_chapter_id = params.get("chapter_id")
+            if param_chapter_id is None:
+                if "chapter_id" in params:
+                    # 参数中明确有 chapter_id 但值为 None，说明引用解析失败
+                    logger.error(
+                        "[ToolExecutor] smart_rewrite chapter_id 引用解析失败（越界或路径错误），"
+                        f"原始参数: {params}, state.chapter_id: {current_chapter_id}"
+                    )
+                    logger.warning(
+                        "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致修改位置错误"
+                    )
+                # 强制设置 chapter_id（setdefault 不会覆盖 None 值）
+                params["chapter_id"] = current_chapter_id
+            else:
+                params.setdefault("chapter_id", current_chapter_id)
 
             # text_to_rewrite: 优先使用参数值，其次使用选中文本
             if not params.get("text_to_rewrite"):
                 params["text_to_rewrite"] = selected_text or locate_original_text or ""
+            if not params.get("text_to_rewrite"):
+                params["text_to_rewrite"] = self._pick_evidence_text(state) or ""
 
             # 🔧 2026-01-12: 确保 chapter_content 是字符串类型
             chapter_content = params.get("chapter_content")
@@ -295,21 +426,82 @@ class ToolExecutor:
             # user_requirement: 从用户消息中提取改写要求
             if not params.get("user_requirement"):
                 params["user_requirement"] = state.get("last_user_message", "")
+            if evidence_context and not params.get("evidence_context"):
+                params["evidence_context"] = evidence_context
+            if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
+                logger.warning("[ToolExecutor] smart_rewrite evidence_context 非字符串，已强制转换")
+                params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
 
-            # base_version: 默认空字符串（不是 None）
-            params.setdefault("base_version", "")
-            base_version = params.get("base_version")
-            if base_version is None:
-                params["base_version"] = ""
-            elif not isinstance(base_version, str):
-                if isinstance(base_version, (int, float)) and base_version == 0:
-                    params["base_version"] = ""
-                else:
-                    params["base_version"] = str(base_version)
+            auto_locator = bool(params.get("__auto_locator"))
+            explicit_locator = bool(
+                params.get("locate_target_index") is not None
+                or params.get("locator_id")
+                or params.get("locate_target_id")
+                or params.get("locate_target_hint")
+            )
+            locator_error = self._ensure_source_locator(
+                params,
+                state,
+                text_hint=params.get("text_to_rewrite", ""),
+                force=auto_locator or explicit_locator
+            )
+            if locator_error:
+                params["__locator_error"] = locator_error
+            else:
+                source_locator = params.get("source_locator") if isinstance(params.get("source_locator"), dict) else {}
+                locator_text = source_locator.get("text") if isinstance(source_locator, dict) else None
+                if locator_text and (explicit_locator or not params.get("text_to_rewrite")):
+                    params["text_to_rewrite"] = locator_text
+
+            # 清理不再使用的多版本参数（smart_rewrite 仅生成单个结果）
+            params.pop("base_version", None)
             params.setdefault("user_id", state.get("user_id"))
 
         elif tool_name == "smart_continue":
-            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
+            current_chapter_id = state.get("chapter_id", "")
+            expected_chapter_id, expected_source = self._get_target_chapter_id(state)
+            param_chapter_id = params.get("chapter_id")
+            chapter_source = "explicit"
+            if param_chapter_id is None or (isinstance(param_chapter_id, str) and not param_chapter_id.strip()):
+                if "chapter_id" in params:
+                    logger.error(
+                        "[ToolExecutor] smart_continue chapter_id 引用解析失败（越界或路径错误），"
+                        f"原始参数: {params}, state.chapter_id: {current_chapter_id}"
+                    )
+                    logger.warning(
+                        "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致续写位置错误"
+                    )
+                if expected_chapter_id:
+                    params["chapter_id"] = expected_chapter_id
+                    chapter_source = expected_source
+                    logger.info(
+                        "[ToolExecutor] smart_continue chapter_id 使用目标章节: %s (source=%s)",
+                        expected_chapter_id,
+                        expected_source
+                    )
+                else:
+                    params["chapter_id"] = current_chapter_id
+                    chapter_source = "state_fallback"
+            else:
+                params.setdefault("chapter_id", current_chapter_id)
+                if not param_chapter_id:
+                    chapter_source = "state_fallback"
+                    params["chapter_id"] = current_chapter_id
+                else:
+                    chapter_source = "explicit"
+                if expected_chapter_id and str(param_chapter_id) != str(expected_chapter_id):
+                    logger.warning(
+                        "[ToolExecutor] smart_continue chapter_id 与目标章节不一致: actual=%s expected=%s source=%s",
+                        param_chapter_id,
+                        expected_chapter_id,
+                        expected_source
+                    )
+            logger.info(
+                "[ToolExecutor] smart_continue chapter_id 来源=%s value=%s",
+                chapter_source,
+                params.get("chapter_id")
+            )
             # 🔧 2026-01-12: 确保 chapter_content 是字符串类型
             chapter_content = params.get("chapter_content")
             if chapter_content is not None and not isinstance(chapter_content, str):
@@ -322,9 +514,29 @@ class ToolExecutor:
                 else:
                     params["chapter_content"] = str(chapter_content) if chapter_content else None
             params.setdefault("user_id", state.get("user_id"))
+            if evidence_context and not params.get("evidence_context"):
+                params["evidence_context"] = evidence_context
+            if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
+                logger.warning("[ToolExecutor] smart_continue evidence_context 非字符串，已强制转换")
+                params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
 
         elif tool_name == "smart_insert":
-            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
+            current_chapter_id = state.get("chapter_id", "")
+            param_chapter_id = params.get("chapter_id")
+            if param_chapter_id is None:
+                if "chapter_id" in params:
+                    logger.error(
+                        "[ToolExecutor] smart_insert chapter_id 引用解析失败（越界或路径错误），"
+                        f"原始参数: {params}, state.chapter_id: {current_chapter_id}"
+                    )
+                    logger.warning(
+                        "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致插入位置错误"
+                    )
+                params["chapter_id"] = current_chapter_id
+            else:
+                params.setdefault("chapter_id", current_chapter_id)
+            params.setdefault("work_id", state.get("work_id", ""))
             # 🔧 2026-01-12: 确保 chapter_content 是字符串类型，避免 AI 传入列表导致验证失败
             chapter_content = params.get("chapter_content")
             if chapter_content is not None and not isinstance(chapter_content, str):
@@ -339,6 +551,35 @@ class ToolExecutor:
                     params["chapter_content"] = str(chapter_content) if chapter_content else None
             params.setdefault("context", None)
             params.setdefault("user_id", state.get("user_id"))
+            insert_context = params.get("insert_context")
+            if insert_context is not None and not isinstance(insert_context, str):
+                params["insert_context"] = self._coerce_evidence_context(insert_context)
+            if evidence_context and not params.get("evidence_context"):
+                params["evidence_context"] = evidence_context
+            if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
+                logger.warning("[ToolExecutor] smart_insert evidence_context 非字符串，已强制转换")
+                params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
+
+            auto_locator = bool(params.get("__auto_locator"))
+            explicit_locator = bool(
+                params.get("locate_target_index") is not None
+                or params.get("locator_id")
+                or params.get("locate_target_id")
+                or params.get("locate_target_hint")
+            )
+            locator_error = self._ensure_source_locator(
+                params,
+                state,
+                text_hint=params.get("insert_context") or params.get("user_intent", ""),
+                force=auto_locator or explicit_locator
+            )
+            if locator_error:
+                params["__locator_error"] = locator_error
+            else:
+                source_locator = params.get("source_locator") if isinstance(params.get("source_locator"), dict) else {}
+                insert_context = source_locator.get("text") if isinstance(source_locator, dict) else None
+                if insert_context and (explicit_locator or not params.get("insert_context")):
+                    params["insert_context"] = insert_context
 
         elif tool_name == "locate_content":
             # 🔧 2026-01-12: 移除不支持的 work_id 参数，避免 AI 规划错误导致工具调用失败
@@ -346,12 +587,21 @@ class ToolExecutor:
             ignore_state = self._should_ignore_state_chapter_id(state, params)
             if not ignore_state:
                 params.setdefault("chapter_id", state.get("chapter_id", ""))
-            params.setdefault("node_id", state.get("context", {}).get("locate_node_id"))
+            context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+            state_chapter_id = str(state.get("chapter_id", "") or "").strip()
+            target_chapter_id = str(params.get("chapter_id", "") or "").strip()
+            use_context_locate = bool(
+                target_chapter_id
+                and state_chapter_id
+                and target_chapter_id == state_chapter_id
+            )
+            if use_context_locate:
+                params.setdefault("node_id", context.get("locate_node_id"))
             nodes_info = params.get("nodes_info")
             if nodes_info is not None and not isinstance(nodes_info, str):
                 params["nodes_info"] = json.dumps(nodes_info, ensure_ascii=False)
-            elif not nodes_info:
-                context_nodes = state.get("context", {}).get("nodes_info")
+            elif not nodes_info and use_context_locate:
+                context_nodes = context.get("nodes_info")
                 if context_nodes:
                     params["nodes_info"] = (
                         context_nodes
@@ -455,17 +705,87 @@ class ToolExecutor:
                 "target_task",
                 "search_keywords",
                 "max_rounds",
+                "explore_mode",
+                "max_tool_calls",
+                "max_read_paragraphs",
+                "output_mode",
+                "require_paragraph_index",
                 "user_id",
                 "conversation_id",
+                "use_cache",
+                "force_refresh"
             }
             params = {key: value for key, value in params.items() if key in allowed_keys}
 
         # 🆕 2026-01-23: operate_apply 统一操作工具
         elif tool_name == "operate_apply":
-            params.setdefault("chapter_id", state.get("chapter_id", ""))
+            # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
+            current_chapter_id = state.get("chapter_id", "")
+            expected_chapter_id, expected_source = self._get_target_chapter_id(state)
+            param_chapter_id = params.get("chapter_id")
+            chapter_source = "explicit"
+            if param_chapter_id is None or (isinstance(param_chapter_id, str) and not param_chapter_id.strip()):
+                if "chapter_id" in params:
+                    logger.error(
+                        "[ToolExecutor] operate_apply chapter_id 引用解析失败（越界或路径错误），"
+                        f"原始参数: {params}, state.chapter_id: {current_chapter_id}"
+                    )
+                    logger.warning(
+                        "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致操作位置错误"
+                    )
+                if expected_chapter_id:
+                    params["chapter_id"] = expected_chapter_id
+                    chapter_source = expected_source
+                    logger.info(
+                        "[ToolExecutor] operate_apply chapter_id 使用目标章节: %s (source=%s)",
+                        expected_chapter_id,
+                        expected_source
+                    )
+                else:
+                    params["chapter_id"] = current_chapter_id
+                    chapter_source = "state_fallback"
+            else:
+                params.setdefault("chapter_id", current_chapter_id)
+                if not param_chapter_id:
+                    chapter_source = "state_fallback"
+                    params["chapter_id"] = current_chapter_id
+                else:
+                    chapter_source = "explicit"
+                if expected_chapter_id and str(param_chapter_id) != str(expected_chapter_id):
+                    logger.warning(
+                        "[ToolExecutor] operate_apply chapter_id 与目标章节不一致: actual=%s expected=%s source=%s",
+                        param_chapter_id,
+                        expected_chapter_id,
+                        expected_source
+                    )
+                    operation = params.get("operation")
+                    force_target = operation in {"replace", "insert"} and bool(
+                        params.get("__auto_locator") or params.get("__require_source_locator")
+                    )
+                    if force_target:
+                        params["chapter_id"] = expected_chapter_id
+                        chapter_source = f"override:{expected_source}"
+                        logger.info(
+                            "[ToolExecutor] operate_apply chapter_id 覆盖为目标章节: actual=%s expected=%s source=%s",
+                            param_chapter_id,
+                            expected_chapter_id,
+                            expected_source
+                        )
+            logger.info(
+                "[ToolExecutor] operate_apply chapter_id 来源=%s value=%s",
+                chapter_source,
+                params.get("chapter_id")
+            )
             params.setdefault("work_id", state.get("work_id", ""))
             params.setdefault("user_id", state.get("user_id", ""))
             params.setdefault("conversation_id", state.get("conversation_id", ""))
+            # 🔧 2026-01-30: 确保 paragraph_index 是整数或 None
+            pi = params.get("paragraph_index")
+            if pi is not None and not isinstance(pi, int):
+                try:
+                    params["paragraph_index"] = int(pi)
+                except (ValueError, TypeError):
+                    params["paragraph_index"] = None
 
         # 🆕 2026-01-17: read_paragraph 段落精确读取工具
         elif tool_name == "read_paragraph":
@@ -535,14 +855,681 @@ class ToolExecutor:
 
         return params
 
+    async def _augment_insert_context(self, params: dict, state: dict) -> dict:
+        """为 smart_insert 动态补充前后文（仅在有定位信息时生效）"""
+        if not isinstance(params, dict):
+            return params
+        source_locator = params.get("source_locator")
+        if not isinstance(source_locator, dict):
+            return params
+
+        paragraph_index = source_locator.get("paragraph_index")
+        if paragraph_index is None:
+            paragraph_index = params.get("paragraph_index")
+        try:
+            paragraph_index = int(paragraph_index) if paragraph_index is not None else None
+        except (ValueError, TypeError):
+            paragraph_index = None
+        if paragraph_index is None:
+            return params
+
+        current_context = (params.get("insert_context") or "").strip()
+        source_text = (source_locator.get("text") or "").strip()
+        # 已有明显扩展上下文时不覆盖
+        if current_context and source_text:
+            if current_context != source_text and len(current_context) > len(source_text) + 20:
+                return params
+
+        ctx_before, ctx_after = self._infer_context_window(params, state)
+        if ctx_before <= 0 and ctx_after <= 0:
+            return params
+
+        chapter_id = params.get("chapter_id") or source_locator.get("chapter_id") or state.get("chapter_id", "")
+        work_id = params.get("work_id") or state.get("work_id", "")
+        if not chapter_id:
+            return params
+
+        read_params = {
+            "work_id": work_id,
+            "chapter_order": 0,
+            "chapter_id": chapter_id,
+            "paragraph_index": paragraph_index,
+            "context_before": ctx_before,
+            "context_after": ctx_after,
+            "index_base": "zero"
+        }
+        read_result = await read_paragraph.ainvoke(read_params)
+        if isinstance(read_result, str):
+            try:
+                read_result = json.loads(read_result)
+            except json.JSONDecodeError:
+                read_result = {}
+        if not isinstance(read_result, dict) or not read_result.get("success"):
+            return params
+
+        context_text = self._build_insert_context_from_read(read_result, ctx_before, ctx_after)
+
+        # 失败时扩读一次（受上限约束）
+        max_ctx = 5
+        word_count = self._extract_word_count(params, state)
+        if (
+            word_count
+            and word_count >= 120
+            and ctx_before < max_ctx
+            and ctx_after < max_ctx
+            and (not context_text or len(context_text) < 120)
+        ):
+            ctx_before = min(max_ctx, ctx_before + 1)
+            ctx_after = min(max_ctx, ctx_after + 1)
+            read_params.update({
+                "context_before": ctx_before,
+                "context_after": ctx_after
+            })
+            read_result = await read_paragraph.ainvoke(read_params)
+            if isinstance(read_result, str):
+                try:
+                    read_result = json.loads(read_result)
+                except json.JSONDecodeError:
+                    read_result = {}
+            if isinstance(read_result, dict) and read_result.get("success"):
+                context_text = self._build_insert_context_from_read(read_result, ctx_before, ctx_after) or context_text
+
+        if context_text:
+            params["insert_context"] = context_text
+        return params
+
+    async def _augment_rewrite_context(self, params: dict, state: dict) -> dict:
+        """为 smart_rewrite 动态补充前后文（仅在有定位信息时生效）"""
+        if not isinstance(params, dict):
+            return params
+        source_locator = params.get("source_locator")
+        if not isinstance(source_locator, dict):
+            return params
+
+        paragraph_index = source_locator.get("paragraph_index")
+        if paragraph_index is None:
+            paragraph_index = params.get("paragraph_index")
+        try:
+            paragraph_index = int(paragraph_index) if paragraph_index is not None else None
+        except (ValueError, TypeError):
+            paragraph_index = None
+        if paragraph_index is None:
+            return params
+
+        evidence_context = str(params.get("evidence_context") or "").strip()
+        if evidence_context and "【前文】" in evidence_context and "【后文】" in evidence_context:
+            return params
+
+        ctx_before, ctx_after = self._infer_context_window(params, state)
+        if ctx_before <= 0 and ctx_after <= 0:
+            return params
+
+        chapter_id = params.get("chapter_id") or source_locator.get("chapter_id") or state.get("chapter_id", "")
+        work_id = params.get("work_id") or state.get("work_id", "")
+        if not chapter_id:
+            return params
+
+        read_params = {
+            "work_id": work_id,
+            "chapter_order": 0,
+            "chapter_id": chapter_id,
+            "paragraph_index": paragraph_index,
+            "context_before": ctx_before,
+            "context_after": ctx_after,
+            "index_base": "zero"
+        }
+        read_result = await read_paragraph.ainvoke(read_params)
+        if isinstance(read_result, str):
+            try:
+                read_result = json.loads(read_result)
+            except json.JSONDecodeError:
+                read_result = {}
+        if not isinstance(read_result, dict) or not read_result.get("success"):
+            return params
+
+        context_text = self._build_insert_context_from_read(read_result, ctx_before, ctx_after)
+        if not context_text:
+            return params
+
+        if evidence_context:
+            params["evidence_context"] = f"{evidence_context}\n\n【段落上下文】\n{context_text}"
+        else:
+            params["evidence_context"] = f"【段落上下文】\n{context_text}"
+        return params
+
+    @staticmethod
+    def _extract_word_count(params: dict, state: dict) -> Optional[int]:
+        word_count = params.get("word_count") if isinstance(params, dict) else None
+        if isinstance(word_count, int) and word_count > 0:
+            return word_count
+        user_intent = str(params.get("user_intent") or "")
+        user_message = str(state.get("last_user_message") or "")
+        text = user_intent or user_message
+        if "一句" in text or "一句话" in text:
+            return 20
+        match = re.search(r"(\d{1,4})\s*字", text)
+        if match:
+            try:
+                return int(match.group(1))
+            except (ValueError, TypeError):
+                return None
+        return None
+
+    def _infer_context_window(self, params: dict, state: dict) -> Tuple[int, int]:
+        user_intent = str(params.get("user_intent") or state.get("last_user_message") or "")
+        word_count = self._extract_word_count(params, state)
+        max_ctx = 5
+        if word_count is not None:
+            if word_count <= 30:
+                ctx = 1
+            elif word_count <= 80:
+                ctx = 2
+            elif word_count <= 150:
+                ctx = 3
+            elif word_count <= 300:
+                ctx = 4
+            else:
+                ctx = max_ctx
+        else:
+            ctx = 2
+
+        if any(kw in user_intent for kw in ["一句", "一句话", "简短", "简要", "20字", "30字"]):
+            ctx = 1
+        if any(kw in user_intent for kw in ["更多上下文", "多读", "前后多段", "详细铺垫"]):
+            ctx = max_ctx
+        if any(kw in user_intent for kw in ["承接", "铺垫", "过渡", "氛围", "心理", "场景", "细节", "展开", "描写", "扩写", "延展", "补充"]):
+            ctx = max(ctx, 3)
+
+        ctx = max(1, min(max_ctx, ctx))
+        return ctx, ctx
+
+    @staticmethod
+    def _build_insert_context_from_read(read_result: dict, max_before: int, max_after: int) -> str:
+        paragraphs = read_result.get("paragraphs")
+        if not isinstance(paragraphs, list):
+            return ""
+        target_index = read_result.get("target_index")
+        before_texts = []
+        after_texts = []
+        target_text = ""
+        for para in paragraphs:
+            if not isinstance(para, dict):
+                continue
+            text = (para.get("text") or "").strip()
+            if not text:
+                continue
+            if para.get("is_target"):
+                target_text = text
+                continue
+            if isinstance(target_index, int):
+                idx = para.get("index")
+                if isinstance(idx, int) and idx < target_index:
+                    before_texts.append(text)
+                elif isinstance(idx, int) and idx > target_index:
+                    after_texts.append(text)
+            else:
+                if not target_text:
+                    before_texts.append(text)
+                else:
+                    after_texts.append(text)
+
+        if max_before > 0 and len(before_texts) > max_before:
+            before_texts = before_texts[-max_before:]
+        if max_after > 0 and len(after_texts) > max_after:
+            after_texts = after_texts[:max_after]
+
+        parts = []
+        if before_texts:
+            parts.append("【前文】\n" + "\n".join(before_texts))
+        if target_text:
+            parts.append("【目标段落】\n" + target_text)
+        if after_texts:
+            parts.append("【后文】\n" + "\n".join(after_texts))
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _load_explore_result(state: dict) -> dict:
+        """从共享 state 中读取 explore_content 原始结果"""
+        if not isinstance(state, dict):
+            return {}
+        raw = state.get("last_explore_result")
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, str):
+            try:
+                parsed = json.loads(raw)
+                return parsed if isinstance(parsed, dict) else {}
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def _pick_evidence_text(self, state: dict) -> str:
+        """从 explore 结果中挑一条可用原文（用于兜底）"""
+        data = self._load_explore_result(state)
+        evidences = data.get("evidences") if isinstance(data, dict) else None
+        if isinstance(evidences, list):
+            for item in evidences:
+                if isinstance(item, dict) and item.get("text"):
+                    return str(item.get("text"))
+        return ""
+
+    def _build_evidence_context(self, state: dict, max_evidences: int = 6, max_chars: int = 1800) -> str:
+        """拼接 Explore 证据/定位候选，注入 smart_* 上下文"""
+        data = self._load_explore_result(state)
+        if not data:
+            return ""
+        parts = []
+        summary = data.get("explore_summary") or data.get("context_for_task")
+        if isinstance(summary, str) and summary.strip():
+            summary = summary.strip()
+            if len(summary) > 400:
+                summary = summary[:400] + "..."
+            parts.append("【探索摘要】" + summary)
+
+        evidences = data.get("evidences")
+        if isinstance(evidences, list) and evidences:
+            lines = []
+            for item in evidences:
+                if not isinstance(item, dict):
+                    continue
+                text = (item.get("text") or "").strip()
+                if not text:
+                    continue
+                chapter_order = item.get("chapter_order") or item.get("chapter") or ""
+                paragraph_index = item.get("paragraph_index")
+                node_id = item.get("node_id") or ""
+                prefix = []
+                if chapter_order:
+                    prefix.append(f"第{chapter_order}章")
+                if paragraph_index is not None:
+                    prefix.append(f"段落{paragraph_index}")
+                if node_id:
+                    prefix.append(f"node_id={node_id}")
+                prefix_text = " ".join(prefix)
+                line = f"- {prefix_text}: {text}" if prefix_text else f"- {text}"
+                lines.append(line)
+                if len(lines) >= max_evidences:
+                    break
+            if lines:
+                parts.append("【探索证据】\n" + "\n".join(lines))
+
+        locate_targets = data.get("locate_targets")
+        if isinstance(locate_targets, list) and locate_targets:
+            lines = []
+            for item in locate_targets[:max_evidences]:
+                if not isinstance(item, dict):
+                    continue
+                chapter_id = item.get("chapter_id") or ""
+                paragraph_index = item.get("paragraph_index")
+                node_id = item.get("node_id") or ""
+                reason = item.get("reason") or ""
+                line = f"- chapter_id={chapter_id}, paragraph_index={paragraph_index}, node_id={node_id}"
+                if reason:
+                    line += f", reason={reason}"
+                lines.append(line)
+            if lines:
+                parts.append("【定位候选】\n" + "\n".join(lines))
+
+        if not parts:
+            return ""
+        merged = "\n".join(parts)
+        if len(merged) > max_chars:
+            return merged[:max_chars] + "..."
+        return merged
+
+    @staticmethod
+    def _extract_target_chapter_id(explore_result: dict) -> tuple[str, str]:
+        """从 explore_content 结果中推断目标章节ID与来源。"""
+        if not isinstance(explore_result, dict):
+            return "", ""
+        locate_targets = explore_result.get("locate_targets")
+        if isinstance(locate_targets, list):
+            for item in locate_targets:
+                if isinstance(item, dict) and item.get("chapter_id"):
+                    return str(item.get("chapter_id")), "explore.locate_targets"
+        evidences = explore_result.get("evidences")
+        if isinstance(evidences, list):
+            for item in evidences:
+                if isinstance(item, dict) and item.get("chapter_id"):
+                    return str(item.get("chapter_id")), "explore.evidences"
+        chapters = explore_result.get("chapters")
+        if isinstance(chapters, list) and len(chapters) == 1:
+            entry = chapters[0]
+            if isinstance(entry, dict) and entry.get("id"):
+                return str(entry.get("id")), "explore.chapters"
+        return "", ""
+
+    def _get_target_chapter_id(self, state: dict) -> tuple[str, str]:
+        if not isinstance(state, dict):
+            return "", ""
+        target_id = state.get("target_chapter_id")
+        if isinstance(target_id, str) and target_id:
+            source = state.get("target_chapter_source") or "state"
+            return target_id, str(source)
+        explore_result = self._load_explore_result(state)
+        return self._extract_target_chapter_id(explore_result)
+
+    @staticmethod
+    def _coerce_evidence_context(value: Any) -> str:
+        """将 evidence_context 统一为字符串，避免 Pydantic 校验失败。"""
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list):
+            lines = []
+            for item in value[:6]:
+                if isinstance(item, dict):
+                    text = item.get("text") or item.get("content") or item.get("snippet") or ""
+                    if text:
+                        lines.append(str(text))
+                elif isinstance(item, str):
+                    lines.append(item)
+            if lines:
+                return "\n".join(lines)
+            return json.dumps(value, ensure_ascii=False)
+        if isinstance(value, dict):
+            text = value.get("text") or value.get("content") or value.get("snippet")
+            if isinstance(text, str) and text.strip():
+                return text
+            return json.dumps(value, ensure_ascii=False)
+        return str(value)
+
+    @staticmethod
+    def _normalize_locator_text(text: str) -> str:
+        if not text:
+            return ""
+        return re.sub(r"\s+", "", str(text)).strip()
+
+    def _select_locate_target(
+        self,
+        locate_targets: list,
+        text_hint: str = "",
+        node_id: Optional[str] = None,
+        paragraph_index: Optional[int] = None,
+        target_index: Optional[int] = None,
+        locator_id: Optional[str] = None,
+        target_hint: str = ""
+    ) -> tuple[Optional[dict], Optional[dict]]:
+        if not isinstance(locate_targets, list) or not locate_targets:
+            return None, {
+                "error": "missing_locate_targets",
+                "message": "缺少可定位段落，请先读取目标段落（read_paragraph/read_paragraphs）。"
+            }
+        if locator_id:
+            matches = []
+            for item in locate_targets:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("locator_id")) == str(locator_id):
+                    matches.append(item)
+            if len(matches) == 1:
+                return matches[0], None
+            if len(matches) > 1:
+                return None, {
+                    "error": "ambiguous_locator",
+                    "message": "定位候选不唯一，请指定第几处或提供更明确的定位信息。"
+                }
+            return None, {
+                "error": "locator_not_found",
+                "message": "未找到对应的定位候选，请重新指定目标段落。"
+            }
+        if isinstance(target_index, int):
+            if target_index < 0:
+                target_index = len(locate_targets) + target_index
+            if 0 <= target_index < len(locate_targets):
+                return locate_targets[target_index], None
+            return None, {
+                "error": "locator_index_out_of_range",
+                "message": f"定位候选索引超范围（共{len(locate_targets)}个）"
+            }
+
+        if node_id or paragraph_index is not None:
+            matches = []
+            for item in locate_targets:
+                if not isinstance(item, dict):
+                    continue
+                if node_id and item.get("node_id") == node_id:
+                    matches.append(item)
+                elif paragraph_index is not None and item.get("paragraph_index") == paragraph_index:
+                    matches.append(item)
+            if len(matches) == 1:
+                return matches[0], None
+            if len(matches) > 1:
+                return None, {
+                    "error": "ambiguous_locator",
+                    "message": "定位候选不唯一，请明确指定段落或 node_id。"
+                }
+
+        normalized_target_hint = self._normalize_locator_text(target_hint)
+        if normalized_target_hint:
+            matches = []
+            for item in locate_targets:
+                if not isinstance(item, dict):
+                    continue
+                candidate_values = [
+                    item.get("text"),
+                    item.get("query"),
+                    item.get("insert_context"),
+                    item.get("before_anchor"),
+                    item.get("after_anchor")
+                ]
+                for candidate in candidate_values:
+                    normalized_candidate = self._normalize_locator_text(candidate or "")
+                    if not normalized_candidate:
+                        continue
+                    if (
+                        normalized_target_hint == normalized_candidate
+                        or normalized_target_hint in normalized_candidate
+                        or normalized_candidate in normalized_target_hint
+                    ):
+                        matches.append(item)
+                        break
+            if len(matches) == 1:
+                return matches[0], None
+            if len(matches) > 1:
+                return None, {
+                    "error": "ambiguous_locator",
+                    "message": "多个段落与目标关键词匹配，请指定第几处。"
+                }
+
+        normalized_hint = self._normalize_locator_text(text_hint)
+        if normalized_hint:
+            matches = []
+            for item in locate_targets:
+                if not isinstance(item, dict):
+                    continue
+                candidate_text = item.get("text") or item.get("query") or ""
+                normalized_candidate = self._normalize_locator_text(candidate_text)
+                if not normalized_candidate:
+                    continue
+                if normalized_hint == normalized_candidate or normalized_hint in normalized_candidate or normalized_candidate in normalized_hint:
+                    matches.append(item)
+            if len(matches) == 1:
+                return matches[0], None
+            if len(matches) > 1:
+                return None, {
+                    "error": "ambiguous_locator",
+                    "message": "多个段落与目标文本匹配，请指定第几处。"
+                }
+
+        if len(locate_targets) == 1:
+            return locate_targets[0], None
+
+        return None, {
+            "error": "ambiguous_locator",
+            "message": "存在多个定位候选，请指定第几处或提供更明确的定位信息。"
+        }
+
+    def _ensure_source_locator(
+        self,
+        params: Dict[str, Any],
+        state: dict,
+        text_hint: str = "",
+        force: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        if isinstance(params.get("source_locator"), dict) and not force:
+            return None
+        explore_result = self._load_explore_result(state)
+        locate_targets = explore_result.get("locate_targets") if isinstance(explore_result, dict) else []
+        context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+        locator_id = params.get("locator_id") or params.get("locate_target_id")
+        target_hint = params.get("locate_target_hint") or ""
+        target_index = params.get("locate_target_index")
+        if isinstance(target_index, str):
+            stripped = target_index.strip()
+            if stripped.lstrip("-").isdigit():
+                target_index = int(stripped)
+        has_explicit_selection = bool(locator_id or target_hint or target_index is not None)
+        node_id = None
+        paragraph_index = None
+        if not (force and not has_explicit_selection):
+            node_id = params.get("node_id") or context.get("locate_node_id")
+            paragraph_index = params.get("paragraph_index")
+            if paragraph_index is None:
+                paragraph_index = context.get("locate_paragraph_index")
+
+        selected, error = self._select_locate_target(
+            locate_targets=locate_targets,
+            text_hint=text_hint,
+            node_id=node_id,
+            paragraph_index=paragraph_index,
+            target_index=target_index,
+            locator_id=locator_id,
+            target_hint=target_hint
+        )
+        if error:
+            return error
+        if selected and isinstance(selected, dict):
+            params["source_locator"] = {
+                "chapter_id": selected.get("chapter_id"),
+                "paragraph_index": selected.get("paragraph_index"),
+                "node_id": selected.get("node_id"),
+                "text": selected.get("text") or selected.get("query")
+            }
+            params["node_id"] = selected.get("node_id")
+            params["paragraph_index"] = selected.get("paragraph_index")
+        return None
+
+    @staticmethod
+    def _validate_source_locator(
+        params: Dict[str, Any],
+        auto_locator: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        source_locator = params.get("source_locator")
+        if not isinstance(source_locator, dict):
+            logger.warning("[ToolExecutor] 缺少 source_locator，阻止写回")
+            return {
+                "error": "missing_source_locator",
+                "message": "缺少 source_locator，无法校验定位一致性，请先完成段落定位。"
+            }
+
+        src_node_id = source_locator.get("node_id") or ""
+        src_paragraph_index = source_locator.get("paragraph_index")
+        if src_paragraph_index is not None and not isinstance(src_paragraph_index, int):
+            try:
+                src_paragraph_index = int(src_paragraph_index)
+            except (ValueError, TypeError):
+                src_paragraph_index = None
+
+        if not src_node_id and src_paragraph_index is None:
+            logger.warning("[ToolExecutor] source_locator 不完整，阻止写回: %s", source_locator)
+            return {
+                "error": "invalid_source_locator",
+                "message": "source_locator 缺少 node_id/paragraph_index，无法校验定位一致性，请重新定位目标段落。"
+            }
+
+        node_id = params.get("node_id")
+        paragraph_index = params.get("paragraph_index")
+        if node_id and src_node_id and str(node_id) != str(src_node_id):
+            logger.error(
+                "[ToolExecutor] node_id 与 source_locator 不一致，阻止写回: actual=%s expected=%s",
+                node_id,
+                src_node_id
+            )
+            return {
+                "error": "source_locator_mismatch",
+                "message": "node_id 与 source_locator 不一致，已阻止写回。",
+                "expected_node_id": src_node_id,
+                "actual_node_id": node_id,
+                "auto_locator": auto_locator
+            }
+        if paragraph_index is not None and src_paragraph_index is not None:
+            try:
+                actual_pi = int(paragraph_index)
+            except (ValueError, TypeError):
+                actual_pi = paragraph_index
+            if actual_pi != src_paragraph_index:
+                logger.error(
+                    "[ToolExecutor] paragraph_index 与 source_locator 不一致，阻止写回: actual=%s expected=%s",
+                    paragraph_index,
+                    src_paragraph_index
+                )
+                return {
+                    "error": "source_locator_mismatch",
+                    "message": "paragraph_index 与 source_locator 不一致，已阻止写回。",
+                    "expected_paragraph_index": src_paragraph_index,
+                    "actual_paragraph_index": paragraph_index,
+                    "auto_locator": auto_locator
+                }
+
+        if not node_id and src_node_id:
+            params["node_id"] = src_node_id
+        if paragraph_index is None and src_paragraph_index is not None:
+            params["paragraph_index"] = src_paragraph_index
+
+        return None
+
     async def _autofill_locate_chapter_id(self, tool_args: dict, state: dict) -> dict:
         chapter_id = str(tool_args.get("chapter_id", "") or "").strip()
         state_chapter_id = str(state.get("chapter_id", "") or "").strip()
         ignore_state = self._should_ignore_state_chapter_id(state, tool_args)
-        if chapter_id or (state_chapter_id and not ignore_state):
+        work_id = str(state.get("work_id", "") or "").strip()
+        if chapter_id:
+            resolved_id = await self._resolve_locate_chapter_id(work_id, chapter_id)
+            if resolved_id:
+                tool_args["chapter_id"] = resolved_id
+                logger.info(
+                    "[ToolExecutor] locate_content 章节序号已解析: %s -> %s",
+                    chapter_id,
+                    resolved_id
+                )
+            elif is_chapter_order(chapter_id):
+                if work_id:
+                    logger.warning(
+                        "[ToolExecutor] locate_content 章节序号解析失败: chapter_id=%s",
+                        chapter_id
+                    )
+                else:
+                    logger.warning(
+                        "[ToolExecutor] locate_content 无法解析章节序号，缺少 work_id: chapter_id=%s",
+                        chapter_id
+                    )
+            return tool_args
+        if state_chapter_id and not ignore_state:
+            resolved_state_id = await self._resolve_locate_chapter_id(work_id, state_chapter_id)
+            if resolved_state_id:
+                tool_args["chapter_id"] = resolved_state_id
+                logger.info(
+                    "[ToolExecutor] locate_content 状态章节序号已解析: %s -> %s",
+                    state_chapter_id,
+                    resolved_state_id
+                )
+            else:
+                tool_args["chapter_id"] = state_chapter_id
+                if is_chapter_order(state_chapter_id):
+                    if work_id:
+                        logger.warning(
+                            "[ToolExecutor] locate_content 状态章节序号解析失败: chapter_id=%s",
+                            state_chapter_id
+                        )
+                    else:
+                        logger.warning(
+                            "[ToolExecutor] locate_content 无法解析状态章节序号，缺少 work_id: chapter_id=%s",
+                            state_chapter_id
+                        )
             return tool_args
 
-        work_id = str(state.get("work_id", "") or "").strip()
         if not work_id:
             return tool_args
 
@@ -567,6 +1554,18 @@ class ToolExecutor:
             logger.warning(f"[ToolExecutor] locate_content 自动补全 chapter_id 失败: {e}")
 
         return tool_args
+
+    @staticmethod
+    async def _resolve_locate_chapter_id(work_id: str, chapter_id: str) -> str:
+        work_id = str(work_id or "").strip()
+        chapter_id = str(chapter_id or "").strip()
+        if not work_id or not chapter_id or not is_chapter_order(chapter_id):
+            return ""
+        resolved_id, error = await resolve_chapter_id(work_id, chapter_id)
+        if error:
+            logger.warning("[ToolExecutor] locate_content 章节序号解析失败: %s", error)
+            return ""
+        return str(resolved_id or "").strip()
 
     @staticmethod
     def _should_ignore_state_chapter_id(state: dict, tool_args: dict) -> bool:

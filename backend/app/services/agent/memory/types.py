@@ -96,11 +96,6 @@ class MemoryItem(BaseModel):
         description="向量嵌入，用于语义检索。第一阶段可选，第二阶段集成向量模型"
     )
 
-    class Config:
-        """Pydantic配置"""
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
 
 
 class MemorySnapshot(BaseModel):
@@ -147,11 +142,6 @@ class MemorySnapshot(BaseModel):
         description="快照标签，便于分类管理"
     )
 
-    class Config:
-        """Pydantic配置"""
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
 
 
 # ==================== 辅助类型 ====================

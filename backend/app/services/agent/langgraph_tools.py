@@ -17,7 +17,7 @@ import json
 import logging
 import re
 import threading
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Dict, Any
 
 from langchain_core.tools import tool
 
@@ -771,6 +771,7 @@ async def search_analysis_fragments_tool(
                     "chapter_title": result.get("chapter_title"),
                     "chapter_order": result.get("chapter_order"),
                     "paragraph_index": result.get("paragraph_index"),  # 新增
+                    "node_id": result.get("node_id"),
                     "snippet": snippet,
                     "source": result.get("source", "vector")
                 })
@@ -850,6 +851,7 @@ async def search_content(
                 "chapter_order": item.get("chapter_order"),
                 "chapter_title": item.get("chapter_title"),
                 "paragraph_index": item.get("paragraph_index"),
+                "node_id": item.get("node_id"),
                 "snippet": snippet,
                 "similarity": item.get("similarity", 0),
                 "source": item.get("source", "hybrid")
@@ -1204,8 +1206,10 @@ async def read_paragraph(
     work_id: str,
     chapter_order: int,
     paragraph_index: int,
+    chapter_id: str = "",
     context_before: int = 2,
-    context_after: int = 2
+    context_after: int = 2,
+    index_base: str = "one"
 ) -> str:
     """精确读取段落原文 + 上下文
 
@@ -1215,7 +1219,8 @@ async def read_paragraph(
     Args:
         work_id: 作品ID（UUID格式，必需）
         chapter_order: 章节序号（1-based，必需）
-        paragraph_index: 段落索引（0-based，必需）
+        paragraph_index: 段落索引（默认 1-based，支持 0-based/1-based）
+        chapter_id: 章节ID（可选，优先于 chapter_order）
         context_before: 向前读取段落数（默认2）
         context_after: 向后读取段落数（默认2）
 
@@ -1223,7 +1228,7 @@ async def read_paragraph(
         JSON格式的段落原文列表
 
     使用示例:
-        # 读取第3章第18段及前后2段
+        # 读取第3章第18段及前后2段（默认 1-based）
         read_paragraph(work_id="xxx", chapter_order=3, paragraph_index=18)
 
         # 读取第5章第7段及前后5段上下文
@@ -1239,45 +1244,53 @@ async def read_paragraph(
     if uuid_error:
         return uuid_error
 
-    # 2026-01-17: 检查缓存
-    from app.services.agent.utils.tool_cache import ToolCache
-    cached_result = ToolCache.get_paragraph_cache(
-        work_id=work_id,
-        chapter_order=chapter_order,
-        paragraph_index=paragraph_index,
-        context_before=context_before,
-        context_after=context_after
-    )
-    if cached_result:
-        logger.info(f"[read_paragraph] 缓存命中: 第{chapter_order}章第{paragraph_index}段")
-        return cached_result
-
     # 大章节保护
     MAX_CHAPTER_SIZE = 200_000  # 200K 字符
 
     async with AsyncSessionLocal() as db:
         try:
             from app.services.work_service import WorkService
+            from app.services.chapter_service import ChapterService
             from app.services.agent.tools.locate_tools import _split_paragraphs
 
-            work_service = WorkService(db)
-            work = await work_service.get_work_by_id(work_id, use_cache=True)
+            chapter = None
+            if chapter_id:
+                chapter_svc = ChapterService(db)
+                chapter = await chapter_svc.get_chapter_by_id(chapter_id)
+                if not chapter:
+                    return json.dumps({
+                        "success": False,
+                        "error": f"章节ID不存在: {chapter_id}"
+                    }, ensure_ascii=False, indent=2)
+                if work_id and str(chapter.work_id) != str(work_id):
+                    return json.dumps({
+                        "success": False,
+                        "error": "chapter_id 与 work_id 不匹配"
+                    }, ensure_ascii=False, indent=2)
+                chapter_order = chapter.order
+                if not work_id:
+                    work_id = str(chapter.work_id)
 
-            if not work:
-                return json.dumps({
-                    "success": False,
-                    "error": f"作品 {work_id} 不存在"
-                }, ensure_ascii=False, indent=2)
+            work = None
+            if chapter is None:
+                work_service = WorkService(db)
+                work = await work_service.get_work_by_id(work_id, use_cache=True)
 
-            if not work.chapters:
-                return json.dumps({
-                    "success": False,
-                    "error": "作品没有章节"
-                }, ensure_ascii=False, indent=2)
+                if not work:
+                    return json.dumps({
+                        "success": False,
+                        "error": f"作品 {work_id} 不存在"
+                    }, ensure_ascii=False, indent=2)
 
-            # 按序号查找章节
-            chapter_map = {ch.order: ch for ch in work.chapters}
-            chapter = chapter_map.get(chapter_order)
+                if not work.chapters:
+                    return json.dumps({
+                        "success": False,
+                        "error": "作品没有章节"
+                    }, ensure_ascii=False, indent=2)
+
+                # 按序号查找章节
+                chapter_map = {ch.order: ch for ch in work.chapters}
+                chapter = chapter_map.get(chapter_order)
 
             if not chapter:
                 available_orders = sorted(chapter_map.keys())
@@ -1287,22 +1300,43 @@ async def read_paragraph(
                     "available_orders": available_orders[:10]  # 只显示前10个
                 }, ensure_ascii=False, indent=2)
 
+            # 2026-01-17: 检查缓存（已解析章节）
+            from app.services.agent.utils.tool_cache import ToolCache
+            cached_result = ToolCache.get_paragraph_cache(
+                work_id=work_id,
+                chapter_order=chapter_order,
+                paragraph_index=paragraph_index,
+                context_before=context_before,
+                context_after=context_after
+            )
+            if cached_result:
+                logger.debug(f"[read_paragraph] 缓存命中: 第{chapter_order}章第{paragraph_index}段")
+                return cached_result
+
             from app.services.chapter_content_provider import ChapterContentProvider
             content_provider = ChapterContentProvider()
             content = content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
 
-            # 大章节分块处理
-            if len(content) > MAX_CHAPTER_SIZE:
-                # 估算目标位置，只解析附近 10K 字符
-                avg_para_len = 500
-                start_pos = max(0, paragraph_index * avg_para_len - 5000)
-                end_pos = min(len(content), paragraph_index * avg_para_len + 5000)
-                content = content[start_pos:end_pos]
-                # 调整索引
-                paragraph_index = min(paragraph_index, 10)
-
             # 复用现有段落解析（支持 HTML 和纯文本）
             paragraphs = _split_paragraphs(content)
+            if not paragraphs:
+                rough = []
+                for idx, part in enumerate([p for p in content.split("\n\n") if p.strip()]):
+                    rough.append({
+                        "index": idx,
+                        "text": part.strip(),
+                        "node_id": ""
+                    })
+                if not rough:
+                    chunk_size = 500
+                    parts = [content[i:i + chunk_size] for i in range(0, len(content), chunk_size) if content[i:i + chunk_size].strip()]
+                    for idx, part in enumerate(parts):
+                        rough.append({
+                            "index": idx,
+                            "text": part.strip(),
+                            "node_id": ""
+                        })
+                paragraphs = rough
 
             if not paragraphs:
                 return json.dumps({
@@ -1310,13 +1344,34 @@ async def read_paragraph(
                     "error": "章节内容为空或无法解析段落"
                 }, ensure_ascii=False, indent=2)
 
+            index_corrected = False
+            original_index = paragraph_index
+            assumed_base = "zero"
+            base_raw = str(index_base or "auto").strip().lower()
+            if base_raw in ("one", "1", "1-based", "1based", "one-based"):
+                paragraph_index = max(0, paragraph_index - 1)
+                index_corrected = True
+                assumed_base = "one"
+            elif base_raw in ("zero", "0", "0-based", "0based", "zero-based"):
+                assumed_base = "zero"
+            else:
+                if paragraph_index > 0:
+                    paragraph_index = max(0, paragraph_index - 1)
+                    index_corrected = True
+                    assumed_base = "one"
+
             if paragraph_index >= len(paragraphs):
-                return json.dumps({
-                    "success": False,
-                    "error": f"段落索引 {paragraph_index} 超出范围",
-                    "total_paragraphs": len(paragraphs),
-                    "valid_range": f"0-{len(paragraphs) - 1}"
-                }, ensure_ascii=False, indent=2)
+                paragraph_index = len(paragraphs) - 1
+                index_corrected = True
+
+            logger.debug(
+                "[read_paragraph] index_base=%s assumed=%s original=%s corrected=%s final=%s",
+                index_base,
+                assumed_base,
+                original_index,
+                index_corrected,
+                paragraph_index
+            )
 
             # 计算范围
             start_idx = max(0, paragraph_index - context_before)
@@ -1324,15 +1379,31 @@ async def read_paragraph(
 
             # 构建结果
             result_paragraphs = []
+            target_text = ""
+            target_node_id = None
             for i in range(start_idx, end_idx):
+                para = paragraphs[i]
                 result_paragraphs.append({
                     "index": i,
-                    "text": paragraphs[i]["text"],
+                    "display_index": i + 1,
+                    "text": para["text"],
                     "is_target": i == paragraph_index
                 })
+                if i == paragraph_index:
+                    target_text = para["text"]
+                    target_node_id = para.get("node_id")
 
             result = json.dumps({
                 "success": True,
+                # 🔧 新增字段：方便规划层直接使用
+                "content": target_text,                    # 目标段落文本（别名）
+                "paragraph_index": paragraph_index,        # 段落索引
+                "display_index": paragraph_index + 1,
+                "node_id": target_node_id,                 # 节点ID（如果有）
+                "chapter_id": str(chapter.id) if chapter.id else "",
+                "index_corrected": index_corrected,
+                "index_base_assumed": assumed_base,
+                # 原有字段
                 "work_id": work_id,
                 "chapter_order": chapter_order,
                 "chapter_title": chapter.title,
@@ -1350,7 +1421,7 @@ async def read_paragraph(
                 context_before=context_before,
                 context_after=context_after
             )
-            logger.info(f"[read_paragraph] 缓存写入: 第{chapter_order}章第{paragraph_index}段")
+            logger.debug(f"[read_paragraph] 缓存写入: 第{chapter_order}章第{paragraph_index}段")
 
             return result
 
@@ -1362,6 +1433,433 @@ async def read_paragraph(
                 "message": str(e)
             }, ensure_ascii=False, indent=2)
 
+
+# ==================== 章节清单工具 ====================
+
+@tool
+async def list_chapters(
+    work_id: str
+) -> str:
+    """列出作品章节清单（只读）
+
+    Args:
+        work_id: 作品ID（UUID格式，必需）
+
+    Returns:
+        JSON格式章节清单（含 paragraph_count）
+    """
+    if not work_id and not chapter_id:
+        return json.dumps({
+            "success": False,
+            "error": "缺少必需参数 work_id 或 chapter_id"
+        }, ensure_ascii=False, indent=2)
+
+    if work_id:
+        uuid_error = validate_uuid(work_id, "作品ID")
+        if uuid_error:
+            return uuid_error
+
+    async with AsyncSessionLocal() as db:
+        try:
+            from app.services.chapter_service import ChapterService
+            from app.services.chapter_content_provider import ChapterContentProvider
+            from app.services.agent.tools.locate_tools import _split_paragraphs
+            chapter_svc = ChapterService(db)
+            chapters = await chapter_svc.get_chapters_by_work(work_id)
+            content_provider = ChapterContentProvider()
+            result = []
+            for ch in chapters or []:
+                content = content_provider.read_content(str(ch.work_id), str(ch.id)) or ""
+                paragraph_count = len(_split_paragraphs(content)) if content else 0
+                result.append({
+                    "chapter_id": str(ch.id) if ch.id else "",
+                    "id": str(ch.id) if ch.id else "",
+                    "order": ch.order,
+                    "title": ch.title or "",
+                    "word_count": getattr(ch, "word_count", 0) or 0,
+                    "paragraph_count": paragraph_count
+                })
+            result.sort(key=lambda x: x.get("order") or 0)
+            return json.dumps({
+                "success": True,
+                "work_id": work_id,
+                "count": len(result),
+                "chapters": result
+            }, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"list_chapters 失败: {e}")
+            return json.dumps({
+                "success": False,
+                "error": "读取章节清单失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+
+# ==================== 段落清单工具 ====================
+
+@tool
+async def list_paragraphs(
+    work_id: str,
+    chapter_order: int = 0,
+    chapter_id: str = "",
+    offset: int = 0,
+    limit: int = 50,
+    preview_len: int = 80
+) -> str:
+    """列出章节段落索引（只读，支持 offset/limit）
+
+    Args:
+        work_id: 作品ID（UUID格式，必需）
+        chapter_order: 章节序号（优先）
+        chapter_id: 章节ID（可选）
+        offset: 起始段落索引（默认0）
+        limit: 返回段落数量（默认50）
+        preview_len: 预览长度（默认80）
+
+    Returns:
+        JSON格式段落清单
+    """
+    if not work_id:
+        return json.dumps({
+            "success": False,
+            "error": "缺少必需参数 work_id"
+        }, ensure_ascii=False, indent=2)
+
+    uuid_error = validate_uuid(work_id, "作品ID")
+    if uuid_error:
+        return uuid_error
+    if chapter_id:
+        uuid_error = validate_uuid(chapter_id, "章节ID")
+        if uuid_error:
+            return uuid_error
+
+    if limit <= 0:
+        limit = 1
+    if offset < 0:
+        offset = 0
+
+    MAX_CHAPTER_SIZE = 200_000
+
+    async with AsyncSessionLocal() as db:
+        try:
+            from app.services.work_service import WorkService
+            from app.services.chapter_service import ChapterService
+            from app.services.agent.tools.locate_tools import _split_paragraphs
+            from app.services.chapter_content_provider import ChapterContentProvider
+
+            chapter = None
+            if chapter_id:
+                chapter_svc = ChapterService(db)
+                chapter = await chapter_svc.get_chapter_by_id(chapter_id)
+                if chapter:
+                    chapter_order = chapter.order
+            if chapter is None:
+                work_service = WorkService(db)
+                work = await work_service.get_work_by_id(work_id, use_cache=True)
+                if not work or not work.chapters:
+                    return json.dumps({
+                        "success": False,
+                        "error": "作品没有章节"
+                    }, ensure_ascii=False, indent=2)
+                chapter_map = {ch.order: ch for ch in work.chapters}
+                chapter = chapter_map.get(chapter_order)
+            if not chapter:
+                return json.dumps({
+                    "success": False,
+                    "error": f"章节不存在: order={chapter_order} id={chapter_id}"
+                }, ensure_ascii=False, indent=2)
+
+            content_provider = ChapterContentProvider()
+            content = content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
+            if len(content) > MAX_CHAPTER_SIZE:
+                window_size = 800
+                total = (len(content) + window_size - 1) // window_size
+                end = min(total, offset + limit)
+                sliced = []
+                for i in range(offset, end):
+                    start_pos = i * window_size
+                    end_pos = min(len(content), start_pos + window_size)
+                    preview = content[start_pos:end_pos]
+                    sliced.append({
+                        "index": i,
+                        "display_index": i + 1,
+                        "preview": preview[:preview_len] + ("..." if len(preview) > preview_len else ""),
+                        "node_id": ""
+                    })
+
+                return json.dumps({
+                    "success": True,
+                    "work_id": work_id,
+                    "chapter_id": str(chapter.id) if chapter.id else "",
+                    "chapter_order": chapter.order,
+                    "chapter_title": chapter.title or "",
+                    "total_paragraphs": total,
+                    "offset": offset,
+                    "limit": limit,
+                    "approximate": True,
+                    "paragraphs": sliced
+                }, ensure_ascii=False, indent=2)
+
+            paragraphs = _split_paragraphs(content)
+            total = len(paragraphs)
+            end = min(total, offset + limit)
+            sliced = []
+            for i in range(offset, end):
+                para = paragraphs[i]
+                text = para.get("text", "")
+                index_val = para.get("index", i)
+                if not isinstance(index_val, int):
+                    index_val = i
+                sliced.append({
+                    "index": index_val,
+                    "paragraph_index": index_val,
+                    "display_index": index_val + 1,
+                    "preview": text[:preview_len] + ("..." if len(text) > preview_len else ""),
+                    "node_id": para.get("node_id") or ""
+                })
+
+            return json.dumps({
+                "success": True,
+                "work_id": work_id,
+                "chapter_id": str(chapter.id) if chapter.id else "",
+                "chapter_order": chapter.order,
+                "chapter_title": chapter.title or "",
+                "total_paragraphs": total,
+                "offset": offset,
+                "limit": limit,
+                "paragraphs": sliced
+            }, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"list_paragraphs 失败: {e}")
+            return json.dumps({
+                "success": False,
+                "error": "读取段落清单失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+
+# ==================== 批量段落读取工具 ====================
+
+@tool
+async def read_paragraphs(
+    work_id: str,
+    items: Optional[List[Dict[str, Any]]] = None,
+    context_before: int = 2,
+    context_after: int = 2,
+    index_base: str = "one",
+    chapter_order: int = 0,
+    chapter_id: str = "",
+    offset: int = 0,
+    limit: int = 50
+) -> str:
+    """批量读取段落原文
+
+    Args:
+        work_id: 作品ID（UUID格式，必需）
+        items: 段落列表 [{"chapter_order": 3, "paragraph_index": 18}, ...]（可选）
+        context_before: 默认前文段落数
+        context_after: 默认后文段落数
+        index_base: 段落索引基准（默认 1-based）
+        chapter_order: 章节序号（分页模式使用）
+        chapter_id: 章节ID（分页模式使用）
+        offset: 起始段落索引（分页模式使用）
+        limit: 读取段落数量（分页模式使用）
+
+    Returns:
+        JSON格式段落原文列表
+    """
+    if not work_id:
+        return json.dumps({
+            "success": False,
+            "error": "缺少必需参数 work_id"
+        }, ensure_ascii=False, indent=2)
+
+    uuid_error = validate_uuid(work_id, "作品ID")
+    if uuid_error:
+        return uuid_error
+
+    if items is None:
+        items = []
+    if not isinstance(items, list):
+        items = []
+    range_mode = False
+    range_meta: Dict[str, Any] = {}
+    if not items and (chapter_order or chapter_id):
+        range_mode = True
+        if chapter_id:
+            uuid_error = validate_uuid(chapter_id, "章节ID")
+            if uuid_error:
+                return uuid_error
+        if offset < 0:
+            offset = 0
+        if limit <= 0:
+            limit = 1
+        try:
+            from app.services.chapter_service import ChapterService
+            if chapter_id and (not isinstance(chapter_order, int) or chapter_order <= 0):
+                async with AsyncSessionLocal() as db:
+                    chapter_svc = ChapterService(db)
+                    chapter = await chapter_svc.get_chapter_by_id(chapter_id)
+                    if not chapter:
+                        return json.dumps({
+                            "success": False,
+                            "error": f"章节ID不存在: {chapter_id}"
+                        }, ensure_ascii=False, indent=2)
+                    if work_id and str(chapter.work_id) != str(work_id):
+                        return json.dumps({
+                            "success": False,
+                            "error": "chapter_id 与 work_id 不匹配"
+                        }, ensure_ascii=False, indent=2)
+                    chapter_order = chapter.order
+        except Exception as e:
+            return json.dumps({
+                "success": False,
+                "error": "解析章节失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+        if not isinstance(chapter_order, int):
+            return json.dumps({
+                "success": False,
+                "error": "缺少 chapter_order 或 chapter_id"
+            }, ensure_ascii=False, indent=2)
+
+        try:
+            list_result = await list_paragraphs.ainvoke({
+                "work_id": work_id,
+                "chapter_order": chapter_order,
+                "chapter_id": chapter_id,
+                "offset": offset,
+                "limit": limit,
+                "preview_len": 0
+            })
+            list_data = json.loads(list_result) if isinstance(list_result, str) else list_result
+        except Exception as e:
+            return json.dumps({
+                "success": False,
+                "error": "读取段落清单失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+        if not isinstance(list_data, dict) or not list_data.get("success"):
+            return json.dumps({
+                "success": False,
+                "error": list_data.get("error") if isinstance(list_data, dict) else "读取段落清单失败",
+                "message": list_data.get("message") if isinstance(list_data, dict) else ""
+            }, ensure_ascii=False, indent=2)
+
+        if list_data.get("approximate"):
+            return json.dumps({
+                "success": False,
+                "error": "章节过大，段落索引为 approximate，无法分页读取原文",
+                "approximate": True
+            }, ensure_ascii=False, indent=2)
+
+        paragraphs = list_data.get("paragraphs") or []
+        if isinstance(paragraphs, list):
+            for para in paragraphs:
+                if not isinstance(para, dict):
+                    continue
+                idx = para.get("paragraph_index")
+                if idx is None:
+                    idx = para.get("index")
+                if isinstance(idx, str) and idx.isdigit():
+                    idx = int(idx)
+                if isinstance(idx, int):
+                    items.append({
+                        "chapter_order": chapter_order,
+                        "paragraph_index": idx
+                    })
+        range_meta = {
+            "mode": "range",
+            "chapter_order": chapter_order,
+            "chapter_id": list_data.get("chapter_id") or chapter_id,
+            "offset": offset,
+            "limit": limit,
+            "total_paragraphs": list_data.get("total_paragraphs")
+        }
+        index_base = "zero"
+        range_meta["index_base"] = "zero"
+        if not items:
+            total_paragraphs = range_meta.get("total_paragraphs")
+            if isinstance(total_paragraphs, int) and total_paragraphs > 0 and offset >= total_paragraphs:
+                range_meta["empty_reason"] = "offset 超出段落总数"
+            elif isinstance(total_paragraphs, int) and total_paragraphs == 0:
+                range_meta["empty_reason"] = "章节无段落"
+            else:
+                range_meta["empty_reason"] = "范围内未读取到段落"
+
+    if not isinstance(items, list) or not items:
+        empty_reason = range_meta.get("empty_reason") if range_mode else "items 不能为空"
+        return json.dumps({
+            "success": True if range_mode else False,
+            "error": "" if range_mode else "items 不能为空",
+            "empty_reason": empty_reason,
+            "work_id": work_id,
+            "count": 0,
+            "errors": 0,
+            "invalid_items": 0,
+            "index_base": index_base,
+            "results": [],
+            **range_meta
+        }, ensure_ascii=False, indent=2)
+
+    results = []
+    errors = 0
+    invalid_items = 0
+    logger.info(
+        "[read_paragraphs] start items=%s index_base=%s",
+        len(items),
+        index_base
+    )
+    for item in items:
+        if not isinstance(item, dict):
+            errors += 1
+            invalid_items += 1
+            continue
+        chapter_order = item.get("chapter_order") or item.get("chapter")
+        paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
+        if isinstance(chapter_order, str) and chapter_order.isdigit():
+            chapter_order = int(chapter_order)
+        if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+            paragraph_index = int(paragraph_index)
+        if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+            errors += 1
+            invalid_items += 1
+            continue
+        cb = item.get("context_before", context_before)
+        ca = item.get("context_after", context_after)
+        item_base = item.get("index_base", index_base)
+        try:
+            result = await read_paragraph.ainvoke({
+                "work_id": work_id,
+                "chapter_order": chapter_order,
+                "paragraph_index": paragraph_index,
+                "context_before": cb,
+                "context_after": ca,
+                "index_base": item_base
+            })
+            result_data = json.loads(result) if isinstance(result, str) else result
+            results.append(result_data)
+        except Exception as e:
+            errors += 1
+            results.append({
+                "success": False,
+                "error": str(e),
+                "chapter_order": chapter_order,
+                "paragraph_index": paragraph_index
+            })
+
+    return json.dumps({
+        "success": True,
+        "work_id": work_id,
+        "count": len(results),
+        "errors": errors,
+        "invalid_items": invalid_items,
+        "index_base": index_base,
+        "results": results,
+        **range_meta
+    }, ensure_ascii=False, indent=2)
 
 # ==================== 工具列表 ====================
 

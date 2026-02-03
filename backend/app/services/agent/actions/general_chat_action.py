@@ -131,7 +131,7 @@ class GeneralChatAction(BaseAction):
 3. 当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时，**必须调用 get_worldview_summary 工具**，直接查询并返回结果
 
 【可用的编辑器工具】
-- `smart_rewrite`：改写指定内容（会生成3个版本让用户选择）
+- `smart_rewrite`：改写指定内容（只生成1个改写结果）
 - `smart_continue`：追加内容到章节末尾（不生成内容，需要先有content）
 - `smart_insert`：插入新内容
 - `operate_apply`：应用章节编辑（替换/追加/插入/整章/标题）

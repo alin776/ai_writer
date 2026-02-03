@@ -1,7 +1,7 @@
 """
 章节评论相关的 Pydantic schemas
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict
 from datetime import datetime
 from uuid import UUID
@@ -15,10 +15,7 @@ class UserInfo(BaseModel):
     username: str
     avatar: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ==================== 章节评论 ====================
 
 class ChapterCommentBase(BaseModel):
@@ -63,10 +60,7 @@ class ChapterCommentResponse(ChapterCommentBase):
     is_liked: bool = False  # 当前用户是否点赞
     reply_count: int = 0    # 回复数量
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class ChapterCommentWithReplies(ChapterCommentResponse):
     """带回复列表的章节评论（两层结构：回复不再嵌套）"""
     replies: List[ChapterCommentResponse] = []
@@ -117,5 +111,4 @@ class ChapterCommentReportResponse(BaseModel):
     is_processed: bool = False
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

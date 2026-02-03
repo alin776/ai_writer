@@ -50,10 +50,10 @@ def cached(expire: int = 3600, key_prefix: str = "cache"):
             # 查询缓存
             cached_value = redis_client.get_json(cache_key)
             if cached_value:
-                logger.info(f"✅ 缓存命中: {cache_key}")
+                logger.debug(f"✅ 缓存命中: {cache_key}")
                 return cached_value
 
-            logger.info(f"⚠️ 缓存未命中: {cache_key}")
+            logger.debug(f"⚠️ 缓存未命中: {cache_key}")
 
             # 执行函数
             result = await func(*args, **kwargs)
@@ -61,7 +61,7 @@ def cached(expire: int = 3600, key_prefix: str = "cache"):
             # 缓存结果
             success = redis_client.set_json(cache_key, result, expire)
             if success:
-                logger.info(f"💾 缓存已保存: {cache_key} (expire={expire}s)")
+                logger.debug(f"💾 缓存已保存: {cache_key} (expire={expire}s)")
             else:
                 logger.warning(f"⚠️ 缓存保存失败: {cache_key}")
 

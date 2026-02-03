@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -53,9 +53,7 @@ class KnowledgeItemResponse(KnowledgeItemBase):
     updated_at: datetime
     last_accessed_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('id', 'user_id', 'source_id', 'work_id', 'chapter_id')
     def serialize_uuid(self, value: Optional[UUID], _info) -> Optional[str]:
         """将 UUID 序列化为字符串"""

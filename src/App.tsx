@@ -55,6 +55,10 @@ const App: React.FC = () => {
           '存储空间不足：认证信息无法保存，刷新页面可能需要重新登录。请清理浏览器缓存后重试。',
           8000
         );
+        return;
+      }
+      if (message) {
+        showErrorToast(message, 8000);
       }
     };
 

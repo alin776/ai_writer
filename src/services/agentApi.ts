@@ -353,6 +353,7 @@ class AgentApiService {
                   type: 'summarization_start',
                   task_classification: data.task_classification,
                   context_stats: data.context_stats,
+                  reason: data.reason,
                   status: data.status,
                   timestamp: data.timestamp
                 };
@@ -449,7 +450,7 @@ class AgentApiService {
       throw error;
     }
   }
-  async createSession(payload: { title?: string; work_id?: string; chapter_id?: string }): Promise<{ session_id: string; title?: string; conversation_id?: string; created_at?: string }> {
+  async createSession(payload: { title?: string; work_id?: string; chapter_id?: string; conversation_id?: string }): Promise<{ session_id: string; title?: string; conversation_id?: string; created_at?: string }> {
     const response = await this.client.post('/sessions', payload);
     return response.data;
   }

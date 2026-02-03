@@ -94,10 +94,6 @@ export default function HistoryPanel({
             titleLocked: s.titleLocked ?? local?.titleLocked ?? false,
           } as HistorySessionItem;
         })
-        .filter((s) => {
-          const hasContent = (typeof s.messageCount === 'number' && s.messageCount > 0) || Boolean(s.lastMessagePreview);
-          return hasContent;
-        })
         .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
       setSessions(enriched);

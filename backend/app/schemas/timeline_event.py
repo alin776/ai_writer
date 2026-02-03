@@ -1,7 +1,7 @@
 """
 时间线事件Schema定义
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -47,10 +47,7 @@ class TimelineEventResponse(TimelineEventBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class TimelineEventListResponse(BaseModel):
     """时间线事件列表响应"""
     items: List[TimelineEventResponse]

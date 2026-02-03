@@ -18,18 +18,19 @@ def _get_new_aggregated_tools_section() -> str:
     - work_id: 作品ID（必需）
     - target_task: 目标任务描述（必需，描述需要什么信息）
     - max_rounds: 最大探索轮数（默认10，简单任务1轮即返回）
+    - explore_mode: 探索模式（pipeline/tool_loop，默认tool_loop）
+    - max_tool_calls: 工具调用上限（仅 tool_loop 生效）
+    - max_read_paragraphs: 读取段落上限（仅 tool_loop 生效）
   返回: {
-    explore_summary,      # 收集到的信息摘要（供后续工具使用）
-    context_for_task,     # 可直接作为 chapter_content 的上下文
-    frontend_display,     # 前端展示结构
-    chapters,            # 相关章节原文（列表）
-    worldview            # 世界观设定
+    evidences,        # 证据原文列表（只读结果）
+    locate_targets    # 定位目标（chapter_id + query + node_id 等）
   }
-  ⚠️ 后续工具参数请引用 chapters[...] 或 explore_summary/context_for_task；frontend_display 仅用于展示
+  ⚠️ 默认返回完整字段（含 frontend_display/explore_summary）；如需精简，仅返回 evidences/locate_targets 时设置 output_mode="evidence_only"
+  ⚠️ 后续工具参数只允许引用 evidences / locate_targets；旧字段仅用于兼容
 
   ✅ **所有信息获取场景都用这个工具**:
     - 续写/改写前获取上下文 → explore_content(target_task="续写第5章，需要第4-5章内容和世界观")
-    - 分析人物/情节 → explore_content(target_task="分析主角性格特点，收集相关描写")
+    - 分析人物/情节 → explore_content(target_task="分析主角性格特点，收集相关描写")（取证后直接回答，不用 analyze_content）
     - 搜索/查找内容 → explore_content(target_task="找出所有关于XX的描写")
     - 获取世界观设定 → explore_content(target_task="获取世界观和角色设定")
     - 批量读取章节 → explore_content(target_task="读取第1-5章内容")
@@ -37,7 +38,7 @@ def _get_new_aggregated_tools_section() -> str:
   ⚠️ **工作原理**（你不需要关心，explore_content 自动处理）:
     - 简单查询 → 首轮即返回
     - 复杂查询 → 自动多轮探索
-    - 信息收敛 → 自动停止
+    - LLM 自行决定停止或达到安全上限
 
   ⚠️ **禁止直接使用以下工具**（这些是内部工具）:
     - ❌ search_content（已整合到 explore_content）
@@ -46,7 +47,7 @@ def _get_new_aggregated_tools_section() -> str:
 
 ---
 
-- analyze_content: 🔴 一站式内容分析
+- analyze_content: 🔴 结构化评估/报告专用
   参数:
     - content: 待分析文本（必需）
     - analysis_types: 分析类型列表（可选）
@@ -66,9 +67,13 @@ def _get_new_aggregated_tools_section() -> str:
     - context: 上下文信息（可选）
   返回: {analysis, summary, scores, issues[], suggestions[]}
 
+  ⚠️ **使用边界**：
+    - 仅用于**明确的结构化评估/报告**（一致性/风格/质量/打分）
+    - 其余“概括/分析/推演/大纲/设定补充/伏笔整理”等 → explore_content 取证后**直接输出**
+
   ✅ 使用示例：
-    - 检查问题: analyze_content(content="...", aspects=["grammar", "logic"])
-    - 深度分析: analyze_content(content="...", aspects=["style", "structure"], depth="deep")
+    - 一致性检查: analyze_content(content="...", analysis_types=["consistency"])
+    - 质量评估: analyze_content(content="...", analysis_types=["quality"])
     - 风格分析: analyze_content(content="...", analysis_types=["style"])
 """
 
@@ -98,7 +103,7 @@ def _get_editor_tools_section() -> str:
 
 🆕 **推荐：使用 operate_apply 统一入口**
 - operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作
-- 优先使用 operate_apply，它会自动处理定位和路由
+- operate_apply 只负责写入，不再自动定位（replace/insert 必须传 node_id/paragraph_index）
 
 ⚠️ **什么时候需要调用操作类工具？**
 - 用户说"续写"、"插入"、"改写"、"润色" → 需要！（内容要写入编辑器）
@@ -111,27 +116,31 @@ def _get_editor_tools_section() -> str:
 
 ---
 
-- smart_rewrite: 改写/修改章节内容（生成3个版本供选择）
-  参数: chapter_id, text_to_rewrite, user_requirement, base_version
+- smart_rewrite: 改写/修改章节内容（只生成1个改写结果）
+  参数: chapter_id, text_to_rewrite, user_requirement, evidence_context
   触发词: "修改"、"改写"、"重写"、"润色"、"优化"、"扩写"
   ⚠️ "扩写"= 把现有内容写得更丰富，属于改写场景，不是续写！
   ⚠️ 如果用户想把改写内容写入编辑器 → 后续调用 operate_apply(operation="replace")
   ⚠️ **参数填充规则**（极其重要！）：
     * 如果用户指定了要改写的文本 → text_to_rewrite 填入该文本
-    * 如果用户说"改写第X章" → 先用 get_writing_context 获取章节，再用 {"$ref": {"task_id": N, "path": "chapters[0].content"}} 引用
+    * 如果用户说"改写第X章" → 先用 explore_content 定位证据，再用 {"$ref": {"task_id": N, "path": "evidences[0].text"}} 引用
     * user_requirement 必须从用户消息中提取改写要求！
+  ⚠️ 输出只允许单段内容，不要编号/版本列表
+  ⚠️ 即使用户要求多版本/多候选，也只生成一条
 
 - smart_continue: 智能续写（只生成内容）
-  参数: chapter_id, chapter_content, user_requirement, word_count
+  参数: chapter_id, chapter_content, user_requirement, evidence_context, word_count
   触发词: "续写"、"继续写"、"往后写"
   ⚠️ 如果用户想把续写内容写入编辑器 → 后续调用 operate_apply(operation="append")
 
 - smart_insert: 智能插入（只生成内容）
-  参数: chapter_id, user_intent, chapter_content, insert_context, word_count
+  参数: chapter_id, user_intent, chapter_content, insert_context, evidence_context, word_count
   触发词: "插入"、"在...处添加"、"在...后面加"
   ⚠️ 如果用户想把插入内容写入编辑器 → 后续调用 operate_apply(operation="insert")
-  ⚠️ **定位规则**：插入位置由 operate_apply 内部自动定位（传入 target_description）
+  ⚠️ **定位规则**：先用 locate_content/list_paragraphs/read_paragraphs 获取 node_id/paragraph_index
   ⚠️ insert_context 可用于风格参考，从 explore_content 返回的章节内容中获取
+  ⚠️ 输出只允许单段内容，不要编号/版本列表
+  ⚠️ 即使用户要求多版本/多候选，也只生成一条
 
 ---
 
@@ -148,27 +157,22 @@ def _get_editor_tools_section() -> str:
     - work_id: 作品ID（create 时必需）
     - content: AI生成的内容
     - title: AI生成的标题（create/title 时使用）
-    - original_text: 原文（replace 时用于定位）
-    - target_description: 目标位置描述（insert 时用于语义定位）
+    - original_text: 原文（仅用于描述，不参与定位）
+    - target_description: 目标位置描述（仅用于描述，不参与定位）
     - paragraph_index: 段落索引（优先级最高的定位方式）
     - node_id: 节点ID（优先级最高的定位方式）
+    - allow_append_fallback: 已禁用（不再允许降级追加）
 
   ✅ **推荐使用场景**：
     * smart_continue 后续写 → operate_apply(operation="append", chapter_id=..., content=...)
-    * smart_rewrite 后替换 → operate_apply(operation="replace", chapter_id=..., content=..., original_text=...)
-    * smart_insert 后插入 → operate_apply(operation="insert", chapter_id=..., content=..., target_description=...)
+    * smart_rewrite 后替换 → operate_apply(operation="replace", chapter_id=..., content=..., paragraph_index=..., node_id=...)
+    * smart_insert 后插入 → operate_apply(operation="insert", chapter_id=..., content=..., paragraph_index=..., node_id=...)
     * 重写整章 → operate_apply(operation="content", chapter_id=..., content=...)
     * 创建新章节 → operate_apply(operation="create", work_id=..., title=..., content=...)
     * 修改标题 → operate_apply(operation="title", chapter_id=..., title=...)
 
-  ⚠️ **定位优先级**：
-    1. DIRECT: 提供 paragraph_index 或 node_id（最高优先级）
-    2. TEXT_MATCH: replace + original_text（精确文本匹配）
-    3. SEMANTIC: insert + target_description（语义定位）
-
-  ⚠️ **降级策略**：
-    * insert 定位失败 → 自动降级为 append
-    * replace 定位失败 → 返回错误
+  ⚠️ **定位要求**：
+    * replace/insert 必须提供 node_id 或 paragraph_index
 
 ---
 
@@ -176,15 +180,12 @@ def _get_editor_tools_section() -> str:
   参数: chapter_id, operation, content, paragraph_index(整数), node_id, before_anchor, after_anchor, original_text
   operation: "append"(续写) | "insert"(插入) | "replace"(替换)
   ⚠️ 推荐使用 operate_apply 代替直接调用此工具
-  ⚠️ operate_apply 会自动处理定位并调用此工具
+  ⚠️ operate_apply 不会自动定位，必须传 node_id/paragraph_index
 
-- locate_content: ⚠️ **内部定位工具（由 operate_apply 自动调用，通常不需要直接使用！）**
+- locate_content: ⚠️ **内部定位工具（不会被 operate_apply 自动调用）**
   参数: chapter_id, query, nodes_info(可选)
-  ⚠️ **重要：operate_apply 会自动调用 locate_content，你不需要单独调用！**
-  ⚠️ operate_apply 的定位策略：
-    * replace 操作：传入 original_text → 自动 text_match 定位
-    * insert 操作：传入 target_description → 自动 semantic 定位
-    * 直接提供 paragraph_index/node_id → direct 定位（最高优先级）
+  ⚠️ **重要：需要先调用 locate_content 或 list_paragraphs/read_paragraphs 获取 node_id/paragraph_index**
+  ⚠️ 跨章节降级已禁用（allow_global_fallback=false）
   ⚠️ **唯一例外**：如果用户未指定章节，需要先用 explore_content 找到章节，再传给 operate_apply
 """
 
@@ -243,7 +244,7 @@ def _get_operation_tools_section() -> str:
 - update_chapter_content: 更新章节内容
   参数: chapter_id（支持章节序号如"1"、"2"，或UUID）, new_content, operation(replace/append/insert，默认replace)
   用途: 直接更新章节内容
-  ⚠️ 优先使用 smart_rewrite/smart_continue，它们有版本选择功能
+  ⚠️ 优先使用 smart_rewrite/smart_continue，它们会生成稳定的单版本内容
 
 - delete_chapter: 删除章节
   参数: chapter_id（支持章节序号如"1"、"2"，或UUID）
@@ -255,7 +256,7 @@ def _get_operation_tools_section() -> str:
 def _get_analysis_tools_section() -> str:
     """分析工具描述（一致性检查、风格分析）"""
     return """
-【分析工具】⚠️ 已有聚合工具，请优先使用 analyze_content
+【分析工具】⚠️ 已有聚合工具，请优先使用 analyze_content（仅用于一致性/风格/质量/打分等结构化评估）
 - check_story_consistency_tool: 故事一致性检查（兼容）
   参数: work_id, chapters_json(章节JSON，默认"[]"), characters_json(角色JSON，默认"[]"), worldview_json(世界观JSON，默认"{}")
   用途: 检查故事中的逻辑漏洞、人设矛盾、时间线错误

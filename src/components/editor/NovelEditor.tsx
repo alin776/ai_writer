@@ -23,6 +23,7 @@ import { common, createLowlight } from 'lowlight';
 import { useDebouncedCallback } from 'use-debounce';
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle';
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import EditorToolbar from './EditorToolbar';
 import BubbleMenu from './BubbleMenu';
 import AIMenu from './AIMenu';
@@ -202,6 +203,62 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }
       element.parentNode?.replaceChild(fragment, element);
     };
+    const isRemovableEmptyParagraph = (paragraph: HTMLElement) => {
+      const text = (paragraph.textContent || '')
+        .replace(/\u00A0/g, ' ')
+        .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+        .trim();
+      if (text) return false;
+      if (paragraph.querySelector('img, video, audio, svg, canvas, math')) return false;
+      if (paragraph.querySelector('del[data-ai-deleted], del.ai-deleted, ins[data-ai-inserted], ins.ai-inserted, [data-revision-id]')) {
+        return false;
+      }
+      return true;
+    };
+    const collectAffectedParagraphs = (targetIds?: string[]) => {
+      const paragraphs = new Set<HTMLElement>();
+      const addParagraph = (element: Element) => {
+        const paragraph = element.closest('p');
+        if (paragraph) paragraphs.add(paragraph as HTMLElement);
+      };
+
+      if (targetIds && targetIds.length > 0) {
+        targetIds.forEach((revisionId) => {
+          tempDiv.querySelectorAll(`[data-revision-id="${revisionId}"]`).forEach(addParagraph);
+        });
+      } else {
+        tempDiv.querySelectorAll('[data-revision-id]').forEach(addParagraph);
+      }
+
+      // 兜底：旧数据可能只有 del/ins 标记，没有 revisionId
+      tempDiv
+        .querySelectorAll('del[data-ai-deleted], del.ai-deleted, ins[data-ai-inserted], ins.ai-inserted')
+        .forEach(addParagraph);
+
+      // 吸纳相邻的空段落（修订引入的占位空行）
+      const baseParagraphs = Array.from(paragraphs);
+      baseParagraphs.forEach((paragraph) => {
+        let prev = paragraph.previousElementSibling as HTMLElement | null;
+        while (prev && prev.tagName.toLowerCase() === 'p' && isRemovableEmptyParagraph(prev)) {
+          paragraphs.add(prev);
+          prev = prev.previousElementSibling as HTMLElement | null;
+        }
+        let next = paragraph.nextElementSibling as HTMLElement | null;
+        while (next && next.tagName.toLowerCase() === 'p' && isRemovableEmptyParagraph(next)) {
+          paragraphs.add(next);
+          next = next.nextElementSibling as HTMLElement | null;
+        }
+      });
+
+      return paragraphs;
+    };
+    const cleanupEmptyParagraphs = (paragraphs: Set<HTMLElement>) => {
+      paragraphs.forEach((paragraph) => {
+        if (!paragraph.isConnected) return;
+        if (!isRemovableEmptyParagraph(paragraph)) return;
+        paragraph.remove();
+      });
+    };
     const normalizeTargets = (revisionId: string) => {
       const revisionElements = Array.from(
         tempDiv.querySelectorAll(`[data-revision-id="${revisionId}"]`)
@@ -226,6 +283,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       return { deletedTargets, insertedTargets };
     };
 
+    const affectedParagraphs = collectAffectedParagraphs(ids.length > 0 ? ids : undefined);
+
     if (ids.length === 0) {
       const deletedElements = tempDiv.querySelectorAll('del[data-ai-deleted], del.ai-deleted');
       const insertedElements = tempDiv.querySelectorAll('ins[data-ai-inserted], ins.ai-inserted');
@@ -239,23 +298,92 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         deletedElements.forEach(el => unwrap(el));
       }
       revisionIdElements.forEach(el => unwrap(el));
-      return tempDiv.innerHTML;
+    } else {
+      ids.forEach((revisionId) => {
+        const { deletedTargets, insertedTargets } = normalizeTargets(revisionId);
+        if (decision === 'accept') {
+          deletedTargets.forEach(el => el.remove());
+          insertedTargets.forEach(el => unwrap(el));
+        } else {
+          insertedTargets.forEach(el => el.remove());
+          deletedTargets.forEach(el => unwrap(el));
+        }
+        const revisionIdElements = tempDiv.querySelectorAll(`[data-revision-id="${revisionId}"]`);
+        revisionIdElements.forEach(el => unwrap(el));
+      });
     }
 
-    ids.forEach((revisionId) => {
-      const { deletedTargets, insertedTargets } = normalizeTargets(revisionId);
-      if (decision === 'accept') {
-        deletedTargets.forEach(el => el.remove());
-        insertedTargets.forEach(el => unwrap(el));
-      } else {
-        insertedTargets.forEach(el => el.remove());
-        deletedTargets.forEach(el => unwrap(el));
-      }
-      const revisionIdElements = tempDiv.querySelectorAll(`[data-revision-id="${revisionId}"]`);
-      revisionIdElements.forEach(el => unwrap(el));
-    });
+    cleanupEmptyParagraphs(affectedParagraphs);
 
     return tempDiv.innerHTML;
+  };
+
+  const isRemovableEmptyParagraphNode = (node: ProseMirrorNode) => {
+    if (node.type.name !== 'paragraph') return false;
+    if (node.childCount === 0) return true;
+    let hasContent = false;
+    let hasNonText = false;
+    node.forEach((child) => {
+      if (child.isText) {
+        const text = (child.text || '')
+          .replace(/\u00A0/g, ' ')
+          .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+          .trim();
+        if (text) {
+          hasContent = true;
+        }
+      } else {
+        hasNonText = true;
+      }
+    });
+    if (hasNonText) return false;
+    return !hasContent;
+  };
+
+  const cleanupEmptyParagraphNodes = (positions?: number[], allowGlobal = false) => {
+    if (!editor) return;
+    if ((!positions || positions.length === 0) && !allowGlobal) return;
+    const { doc } = editor.state;
+    const paragraphs: Array<{ node: ProseMirrorNode; pos: number }> = [];
+    doc.descendants((node, pos) => {
+      if (node.type.name === 'paragraph') {
+        paragraphs.push({ node, pos });
+      }
+    });
+    if (paragraphs.length === 0) return;
+    const targetIndices = new Set<number>();
+    const markIfRemovable = (idx: number) => {
+      const item = paragraphs[idx];
+      if (!item) return;
+      if (isRemovableEmptyParagraphNode(item.node)) {
+        targetIndices.add(idx);
+      }
+    };
+    if (positions && positions.length > 0) {
+      positions.forEach((pos) => {
+        const idx = paragraphs.findIndex((item) => pos >= item.pos && pos <= item.pos + item.node.nodeSize);
+        if (idx < 0) return;
+        for (let i = idx - 1; i <= idx + 1; i += 1) {
+          markIfRemovable(i);
+        }
+      });
+    } else if (allowGlobal) {
+      paragraphs.forEach((_, idx) => markIfRemovable(idx));
+    }
+    if (targetIndices.size === 0) return;
+    if (targetIndices.size >= paragraphs.length) {
+      return;
+    }
+    const tr = editor.state.tr;
+    Array.from(targetIndices)
+      .sort((a, b) => b - a)
+      .forEach((idx) => {
+        const { node, pos } = paragraphs[idx];
+        tr.delete(pos, pos + node.nodeSize);
+      });
+    if (tr.docChanged) {
+      editor.view.dispatch(tr);
+    }
   };
 
   // 按作品/章节隔离本地缓存，避免不同作品间内容串联
@@ -375,7 +503,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }),
       // 🆕 节点唯一ID扩展（用于 Agent 精确定位）
       UniqueID.configure({
-        types: ['paragraph', 'heading', 'blockquote', 'codeBlock'],
+        types: ['paragraph', 'heading', 'blockquote', 'codeBlock', 'listItem', 'taskItem'],
       }),
     ],
     content: content || '<p></p>',
@@ -911,7 +1039,24 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         isPersistent?: boolean;
       }>;
 
-      const { type, original, replacement, position, revisionId, requestId, originalMessage, context, beforeAnchor, afterAnchor, nodeId, paragraphIndex, chapterId: targetChapterId, skipQueue, isPersistent } = customEvent.detail;
+      const { type, original, replacement: rawReplacement, position, revisionId, requestId, originalMessage, context, beforeAnchor, afterAnchor, nodeId, paragraphIndex, chapterId: targetChapterId, skipQueue, isPersistent } = customEvent.detail;
+
+      // 保底：清理 AI 可能输出的 HTML 标签（<p>、<br> 等），将段落标签转为换行符
+      let replacement = rawReplacement;
+      if (replacement && /<\/?(p|div|br|span)\b[^>]*>/i.test(replacement)) {
+        replacement = replacement
+          .replace(/<\/p>\s*<p[^>]*>/gi, '\n')   // </p><p> → 换行
+          .replace(/<br\s*\/?>/gi, '\n')           // <br> → 换行
+          .replace(/<\/?(p|div|span)\b[^>]*>/gi, '') // 去除剩余标签
+          .trim();
+        console.log('[NovelEditor] 清理了 replacement 中的 HTML 标签');
+      } else if (replacement) {
+        const trimmed = replacement.replace(/^(?:[ \t\u00A0]*\r?\n)+/, '');
+        if (trimmed !== replacement) {
+          replacement = trimmed;
+          console.log('[NovelEditor] 清理了 replacement 前导空行');
+        }
+      }
 
       if (!replacement) {
         console.error('[NovelEditor] 修订请求缺少内容');
@@ -971,8 +1116,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       });
 
       try {
-        // 🆕 v8.3: 定位优先级：nodeId > paragraphIndex > position > 锚点 > 默认
-        let resolvedPosition = position;
+        // 🆕 v8.3: 定位优先级：nodeId > paragraphIndex > 锚点 > position(兜底) > 默认
+        const preferStructuredLocate = type === 'insert' || type === 'continue';
+        let resolvedPosition = preferStructuredLocate ? undefined : position;
 
         // 1. 尝试通过 nodeId 定位（最高优先级）
         if (!resolvedPosition && nodeId) {
@@ -1026,6 +1172,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           }
         }
 
+        // 3.5 insert/continue 下 position 仅作兜底
+        if (!resolvedPosition && preferStructuredLocate && position) {
+          resolvedPosition = position;
+          console.log('[NovelEditor] 使用 position 兜底:', resolvedPosition);
+        }
+
         // 如果仍然没有位置，使用默认值
         if (!resolvedPosition) {
           if (type === 'continue') {
@@ -1058,7 +1210,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           type === 'modify'
             ? resolvedPosition.to
             : type === 'insert'
-              ? resolvedPosition.from
+              ? resolvedPosition.to
               : resolvedPosition.to;
 
         const { doc } = editor.state;
@@ -1319,7 +1471,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             return;
           }
 
-          const insertPos = resolvedPosition?.from ?? state.doc.content.size;
+          const insertPos = resolvedPosition?.to ?? state.doc.content.size;
           const insertPosition = resolvedPosition ?? { from: insertPos, to: insertPos };
           const textContent = replacement || '';
 
@@ -1552,6 +1704,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         detail.requestId,
         detail.revisionId
       ].filter(Boolean) as string[];
+      const cleanupPositions = revisionIds
+        .map((revisionId) => findRevisionIdPosition(revisionId))
+        .filter((pos): pos is number => typeof pos === 'number');
 
       if (!isBatch && targetChapterId && chapterId && targetChapterId !== chapterId) {
         if (revisionIds.length > 0) {
@@ -1570,6 +1725,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
         editor.commands.setContent(nextHtml);
         revisionSaveBlockedRef.current = false;
+        cleanupEmptyParagraphNodes(cleanupPositions, isBatch);
 
         const pendingIds = isBatch
           ? pendingCrossChapterRevisions.map((revision) => revision.revisionId)
@@ -1889,6 +2045,12 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     try {
       const currentHtml = editor.getHTML();
       const revisionIds = [requestId, id].filter(Boolean) as string[];
+      const cleanupPositions = revisionIds
+        .map((revisionId) => findRevisionIdPosition(revisionId))
+        .filter((pos): pos is number => typeof pos === 'number');
+      if (cleanupPositions.length === 0 && position?.from !== undefined) {
+        cleanupPositions.push(position.from);
+      }
       const nextHtml = applyRevisionDecisionToHtml(
         currentHtml,
         'accept',
@@ -1897,6 +2059,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
       editor.commands.setContent(nextHtml);
       revisionSaveBlockedRef.current = false;
+      cleanupEmptyParagraphNodes(cleanupPositions, false);
 
       const pendingIds = revisionIds.length > 0 ? revisionIds : getPendingRevisionIdsForChapter(chapterId);
       clearPendingRevisions(pendingIds);

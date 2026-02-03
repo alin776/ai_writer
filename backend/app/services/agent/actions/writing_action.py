@@ -262,7 +262,7 @@ class WritingAction(BaseAction):
 
 可用工具：
 - read_chapter_tool: 读取章节内容
-- smart_rewrite: 生成改写版本（3个版本供用户选择）
+- smart_rewrite: 生成改写内容（只生成1个结果）
 - operate_apply: 直接应用修改到章节
 - smart_continue: 追加内容到章节末尾（不生成内容，需要先有content）
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"时立即调用）
@@ -287,7 +287,7 @@ class WritingAction(BaseAction):
         Args:
             state: AgentState
             task_type: 任务类型 (rewrite/continue)
-            **kwargs: 动态参数（original_text, user_requirement, base_version等）
+            **kwargs: 动态参数（original_text, user_requirement等）
 
         Returns:
             str: 创作层Prompt
@@ -314,7 +314,7 @@ class WritingAction(BaseAction):
                 style_reference=style_reference,
                 current_plot=current_plot,
                 character_context=character_context,
-                **kwargs  # 包含original_text, user_requirement, base_version等
+                **kwargs  # 包含original_text, user_requirement等
             )
 
             self.logger.info(
@@ -422,11 +422,11 @@ class WritingAction(BaseAction):
 ## 📖 读取工具
 - get_context_tool: 获取作品/章节上下文（包含作品信息、章节内容、相关分析）
 - read_chapter_tool: 读取指定章节的完整内容（需要chapter_id）
-- explore_content: 统一信息获取工具（⭐用户说"第X章"时用这个）
+- explore_content: 统一信息获取工具（⭐用户说"第X章"时用这个；返回 evidences + locate_targets）
 - get_worldview_summary: 查询世界观信息（当用户询问"世界观里有什么"、"有哪些角色/地点/设定"时立即调用）
 
 ## ✍️ 编辑器工具（直接修改编辑器内容 - 优先使用）
-- smart_rewrite: 改写/修改章节内容（会生成3个版本供用户选择）
+- smart_rewrite: 改写/修改章节内容（只生成1个改写结果）
   - 参数: chapter_id, text_to_rewrite, user_requirement
   - 用于: 用户说"修改"、"改写"、"重写"、"润色"、"优化"、"扩写"章节时
   - ⚠️ "扩写"= 把现有内容写得更丰富，属于改写场景，不是续写！
@@ -449,20 +449,23 @@ class WritingAction(BaseAction):
 【⚠️ 重要】修改/续写章节的正确流程：
 
 1️⃣ 用户说"修改第X章"/"改写第X章"时：
-   第一步：调用 explore_content 获取第X章的内容和chapter_id
-   第二步：**必须**调用 smart_rewrite(chapter_id=xxx, instructions="根据用户要求修改")
+   第一步：调用 explore_content 获取 evidences + locate_targets（chapter_id 用 locate_targets[0].chapter_id）
+   第二步：**必须**调用 smart_rewrite(chapter_id=..., text_to_rewrite=..., user_requirement=...)
+           - text_to_rewrite 可用 evidences[0].text（必要时拼接多条证据）
    ❌ 错误：直接返回修改建议文本
    ✅ 正确：调用smart_rewrite工具
 
 2️⃣ 用户说"续写第X章"时：
-   第一步：调用 explore_content 获取第X章的内容和chapter_id
-   第二步：调用 smart_continue(chapter_id=xxx)
+   第一步：调用 explore_content 获取 evidences + locate_targets
+   第二步：调用 smart_continue(chapter_id=locate_targets[0].chapter_id, content=evidences[0].text)
    ✅ 正确：使用 smart_continue
    ❌ 错误：直接返回续写文本
 
 3️⃣ 用户说"插入XX到第X章"时：
-   第一步：调用 explore_content 获取第X章的内容和chapter_id
-   第二步：**必须**调用 smart_insert(chapter_id=xxx, position="end", content="...")
+   第一步：调用 explore_content 获取 evidences + locate_targets
+   第二步：**必须**调用 smart_insert(chapter_id=locate_targets[0].chapter_id, position="end", content="...")
+
+📌 如果 evidences 无法满足续写/改写所需上下文，应先追问用户或缩小任务范围。
 
 📌 关键规则：
 - 当用户要求"修改"、"改写"、"续写"、"插入"、"润色"、"优化"、"扩写"章节内容时，**必须调用编辑器工具**

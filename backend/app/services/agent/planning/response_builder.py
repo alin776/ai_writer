@@ -112,6 +112,51 @@ class ResponseBuilder:
         """设置流式事件处理器"""
         self._stream_event_handler = handler
 
+    async def _generate_summarization_reason(
+        self,
+        message: str,
+        task_results: List[Dict[str, Any]]
+    ) -> str:
+        """生成 AI 整合分析的简短理由（用于前端展示）"""
+        try:
+            tasks = []
+            for task in task_results[:6]:
+                tool = str(task.get("tool", "")).strip() or "unknown_tool"
+                desc = str(task.get("description", "")).strip()
+                snippet = str(task.get("result", "")).strip().replace("\n", " ")
+                if len(snippet) > 60:
+                    snippet = snippet[:60] + "…"
+                if desc and snippet:
+                    tasks.append(f"{tool}：{desc}｜{snippet}")
+                elif desc:
+                    tasks.append(f"{tool}：{desc}")
+                elif snippet:
+                    tasks.append(f"{tool}｜{snippet}")
+                else:
+                    tasks.append(tool)
+            tasks_text = "；".join(tasks)
+            prompt = (
+                "请基于【任务摘要】输出一段中文“任务结果摘要”（50字以内），"
+                "必须包含任务中出现的具体名词或事件，不要空泛表述。\n"
+                f"用户请求：{message}\n"
+                f"任务数：{len(task_results)}\n"
+                f"任务摘要：{tasks_text}\n"
+                "只输出摘要本身，不要其他内容。"
+            )
+            response = await self.ai_service.call_ai(
+                system_prompt="你是任务整合助手，只输出一句中文理由。",
+                user_prompt=prompt,
+                max_tokens=60,
+                temperature=0.2,
+                task_type=TaskType.SIMPLE_QA
+            )
+            reason = (response or "").strip()
+            logger.info(f"[Summarization] reason生成: len={len(reason)} content={reason}")
+            return reason
+        except Exception as e:
+            logger.warning(f"[Summarization] 生成理由失败: {e}")
+            return ""
+
     async def build_final_response(
         self,
         task_results: List[Dict],
@@ -376,6 +421,7 @@ class ResponseBuilder:
         # 发送 Summarization 开始事件
         if self._stream_event_handler:
             logger.info("[Summarization] 准备发送 summarization_start 事件")
+            reason = await self._generate_summarization_reason(message, task_results)
             task_classification = {
                 "input_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in classified["input_tasks"]],
                 "output_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in classified["output_tasks"]],
@@ -387,7 +433,7 @@ class ResponseBuilder:
                 "mode": "流式生成"
             }
             await self._stream_event_handler.emit_summarization_start(
-                task_classification, context_stats
+                task_classification, context_stats, reason
             )
             logger.info("[Summarization] summarization_start 事件已发送")
         else:
@@ -412,11 +458,14 @@ class ResponseBuilder:
    - 禁止引入其他作品/人物/设定，若未在任务结果中出现，请明确说明“未找到”
 
 2. 【分阶段执行识别】⚠️ 最重要！
-   - 如果任务结果只包含**准备信息**（如世界观、章节内容），没有创作/分析结果
-   - 说明这是**创作请求的第一阶段**，需要询问用户创作细节
+   - 只有当**用户原始请求是创作类**（续写/创作/改写/插入/写作/写大纲）时，才允许进入“分阶段追问”
+   - 如果任务结果只包含**准备信息**（如世界观、章节内容），且用户原始请求是创作类：
+     → 这是**创作请求的第一阶段**，需要询问用户创作细节
+   - 如果用户原始请求是**分析/推演/设定补充/世界观文档**：
+     → **禁止追问创作风格/字数/续写方向**，必须直接输出分析结论或指出分析缺口
    - 必须基于准备信息，生成针对性的询问：
-     * 如果获取了世界观：展示世界观内容（角色、地点、设定），询问字数、风格、重点
-     * 如果获取了章节内容：简要概括章节，询问续写方向、字数、风格
+     * 创作类：展示世界观或章节概括，询问字数、风格、重点
+     * 分析类：只可询问缺失的分析维度或证据，不可引导续写/创作
    - 示例格式：
      "我看到世界观中有以下设定：
      - 主角：【XX】
@@ -445,10 +494,11 @@ class ResponseBuilder:
      内容已在编辑器中显示，你可以直接查看和编辑。需要我继续往下写吗？"
 
 4. 综合所有任务结果，用清晰、友好的语言呈现
-5. 如果是创作内容且**没有** `requires_confirmation`，直接输出创作结果
-6. 如果是分析/规划，给出详细说明
-7. 如果用户询问事实性问题（如标题、内容等），直接引用工具返回的数据
-8. 如果用户引用了知识库文档，优先基于文档内容回答
+5. 编号列表必须使用 Markdown 有序列表语法 `1.`，禁止 `1、` / `（1）` / `一、`
+6. 如果是创作内容且**没有** `requires_confirmation`，直接输出创作结果
+7. 如果是分析/规划，给出详细说明
+8. 如果用户询问事实性问题（如标题、内容等），直接引用工具返回的数据
+9. 如果用户引用了知识库文档，优先基于文档内容回答
 
 {format_guidelines}
 
@@ -488,7 +538,7 @@ class ResponseBuilder:
         result = await self._generate_text_stream(
             prompt=summary_prompt,
             on_chunk=stream_callback,
-            max_tokens=2000,
+            max_tokens=20000,
             temperature=0.7,
             task_type=TaskType.SUMMARIZATION,
             buffer_size=1

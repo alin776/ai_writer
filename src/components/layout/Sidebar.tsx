@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  BookOpen,
+  LibraryBig,
   Settings,
   ChevronLeft,
   LayoutDashboard,
@@ -56,7 +56,7 @@ const mainNavItems: NavItem[] = [
 const libraryNavItems: NavItem[] = [
   { id: 'channels', label: '频道', icon: MessageCircle, path: '/channels' },
   { id: 'novel-square', label: '小说广场', icon: BookMarked, path: '/library/novel-square' },
-  { id: 'my-bookshelf', label: '我的书架', icon: BookOpen, path: '/library/my-bookshelf' },
+  { id: 'my-bookshelf', label: '我的书架', icon: LibraryBig, path: '/library/my-bookshelf' },
   notificationNavItem,
 ];
 

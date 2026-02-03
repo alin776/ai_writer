@@ -5,7 +5,7 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.models.book_analysis import JobStatus
 from app.models.worldview_suggestion import SuggestionType, SuggestionAction, SuggestionStatus
@@ -41,10 +41,7 @@ class BookAnalysisJobResponse(BaseModel):
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class BookAnalysisJobListResponse(BaseModel):
     """图书分析任务列表响应"""
     jobs: List[BookAnalysisJobResponse]
@@ -88,10 +85,7 @@ class WorldviewSuggestionResponse(BaseModel):
     adopted_as_id: Optional[UUID]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class WorldviewSuggestionListResponse(BaseModel):
     """智能建议列表响应"""
     suggestions: List[WorldviewSuggestionResponse]

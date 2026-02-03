@@ -62,6 +62,9 @@ logging.getLogger('chromadb.telemetry').setLevel(logging.ERROR)  # 关闭telemet
 logging.getLogger('sentence_transformers').setLevel(logging.WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('httpcore').setLevel(logging.WARNING)
+logging.getLogger('apscheduler').setLevel(logging.WARNING)
+logging.getLogger('redisvl').setLevel(logging.WARNING)
+logging.getLogger('langgraph').setLevel(logging.WARNING)
 
 # 降低monitoring_middleware的日志级别，减少日志冗余
 logging.getLogger('app.api.middleware.monitoring_middleware').setLevel(logging.DEBUG)

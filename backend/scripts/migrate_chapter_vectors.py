@@ -3,6 +3,9 @@
 
 用法：
     python scripts/migrate_chapter_vectors.py
+
+说明：
+    如需回填 node_id，请在新增字段后重新运行本脚本。
 """
 import asyncio
 import logging

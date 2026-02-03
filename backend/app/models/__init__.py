@@ -57,7 +57,7 @@ from app.models.message_bookmark import MessageBookmark
 from app.models.channel_notification_setting import ChannelNotificationSetting
 from app.models.channel_read_state import ChannelReadState
 from app.models.work_report import WorkReport, WorkReportReason, WorkReportStatus
-from app.models.comment import Comment
+from app.models.comment import Comment, CommentLike, CommentReport, ReportReason
 from app.models.chapter_comment import (
     ChapterComment,
     ChapterCommentLike,
@@ -72,6 +72,7 @@ from app.models.friend_request import FriendRequest
 from app.models.user_report import UserReport, UserReportReason, UserReportStatus
 from app.models.rating import WorkRating
 from app.models.bookshelf import Bookshelf
+from app.models.worldview_progress import WorldviewExtractionProgress
 
 __all__ = [
     "User",
@@ -177,4 +178,8 @@ __all__ = [
     "UserReportStatus",
     "WorkRating",
     "Bookshelf",
+    "CommentLike",
+    "CommentReport",
+    "ReportReason",
+    "WorldviewExtractionProgress",
 ]

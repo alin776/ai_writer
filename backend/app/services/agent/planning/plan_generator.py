@@ -10,6 +10,7 @@
 """
 
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -31,6 +32,9 @@ class PlanGenerator:
 
     # 规划重试配置
     MAX_PLANNING_RETRIES = 2
+    EDIT_CONTENT_TOOLS = {"smart_rewrite", "smart_insert"}
+    EDIT_OPERATION_TOOLS = {"operate_apply", "apply_chapter_edit"}
+    EDIT_OPERATIONS = {"replace", "insert"}
 
     def __init__(self, agent: "WritingAgentGraph"):
         """
@@ -105,13 +109,15 @@ class PlanGenerator:
         plan_data = None
 
         try:
+            response_format = {"type": "json_object"}
             for retry_attempt in range(self.MAX_PLANNING_RETRIES):
                 # 🔧 2025-12-29: 规划任务需要理解对话上下文，使用 STORY_PLANNING 选择更强模型
                 plan_result = await self.agent._generate_text(
                     prompt=plan_prompt_base,
                     temperature=0.3 + (retry_attempt * 0.1),
                     max_tokens=2000,
-                    task_type=TaskType.STORY_PLANNING
+                    task_type=TaskType.STORY_PLANNING,
+                    response_format=response_format
                 )
                 plan_text = plan_result.get("text", "").strip()
 
@@ -137,6 +143,7 @@ class PlanGenerator:
                             break
                     else:
                         logger.warning(f"[Planning] 第{retry_attempt + 1}次尝试: JSON解析失败")
+                        logger.warning(f"[Planning] JSON解析失败原文: {plan_text}")
                 else:
                     logger.warning(f"[Planning] 第{retry_attempt + 1}次尝试: AI返回空响应")
 
@@ -407,20 +414,23 @@ tool_policy: {tool_policy}
         return ""
 
     def _build_chapter_hint(self, work_id: Optional[str], chapter_id: Optional[str]) -> str:
-        """构建章节上下文提示"""
+        """构建章节上下文提示
+
+        🔧 2026-01-28: 移除硬编码的 UUID 值，避免 AI 复制错误的 ID
+        """
         if not chapter_id:
             return ""
 
-        return f"""
+        return """
 
 ⚠️ 【章节上下文提示】：
-- 当前用户在章节聊天面板中（chapter_id={chapter_id}）
+- 当前用户在章节聊天面板中
 - 用户要求修改/润色本章内容时，必须使用以下流程：
-  1. 任务1: 调用 read_chapter_tool(work_id="{work_id}", chapter_id="{chapter_id}") 读取章节完整内容
+  1. 任务1: 调用 explore_content 或 read_chapter_tool 读取章节内容
   2. 任务2: 调用 analyze_content 分析原文中该句话的场景、情绪、角色状态（analysis_types="text"）
-  3. 任务3: 基于分析结果，给出符合场景的多个修改建议（用 analyze_content 输出）
-- ✅ 正确示例：read_chapter_tool → analyze_content(focus="场景情绪分析", analysis_types="text")
-- ⚠️ focus 参数必须简洁（15字以内）
+  3. 任务3: 基于分析结果，给出符合场景的修改建议
+- ⚠️ 重要：chapter_id 和 work_id 应从 explore_content 或 read_chapter_tool 的返回结果中获取，不要硬编码
+- ✅ 使用 $TASK_N.chapter_id$ 引用前置任务返回的章节ID
 """
 
     def _handle_planning_error(self, e: Exception) -> Optional[Dict[str, Any]]:
@@ -519,10 +529,385 @@ tool_policy: {tool_policy}
 
         # 🔧 2025-12-25: 新增规划验证和自动修复
         plan_data = self._validate_and_fix_plan(plan_data, message)
+        plan_data["tasks"] = self._split_multi_edit_tasks(plan_data.get("tasks", []), message)
+        plan_data["tasks"] = self._apply_locator_selection(plan_data.get("tasks", []), message)
+        plan_data["tasks"] = self._ensure_explore_force_global_search(plan_data.get("tasks", []), message)
+        plan_data["tasks"] = self._ensure_explore_strict_locator(plan_data.get("tasks", []))
+        plan_data["tasks"] = self._ensure_chapter_id_from_locate(plan_data.get("tasks", []))
         plan_data["tasks"] = self._ensure_editor_apply_tasks(plan_data.get("tasks", []))
         plan_data["tasks"] = self._ensure_replace_original_text(plan_data.get("tasks", []))
 
         return self._normalize_plan_schema(plan_data)
+
+    def _ensure_explore_strict_locator(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not tasks:
+            return tasks
+        if not self._plan_requires_strict_locator(tasks):
+            return tasks
+        for task in tasks:
+            if task.get("tool") != "explore_content":
+                continue
+            params = task.get("params", {}) or {}
+            if "require_paragraph_index" not in params or params.get("require_paragraph_index") is None:
+                params["require_paragraph_index"] = True
+            target_task = params.get("target_task")
+            if isinstance(target_task, str) and "段落" not in target_task and "paragraph" not in target_task:
+                params["target_task"] = f"{target_task}（需精确段落定位）"
+            task["params"] = params
+        return tasks
+
+    @staticmethod
+    def _message_explicitly_specifies_chapter(message: str) -> bool:
+        if not message:
+            return False
+        text = message
+        if re.search(r"(本章|当前章|当前章节|这一章|该章|此章)", text):
+            return True
+        if re.search(r"第\s*[一二两三四五六七八九十百千万\d]+\s*章", text):
+            return True
+        if re.search(r"前\s*[一二两三四五六七八九十\d]+\s*章", text):
+            return True
+        if re.search(r"章节\s*\d+\s*[到至\-~—～–]\s*\d+", text):
+            return True
+        if re.search(r"章节\s*\d+\s*章", text):
+            return True
+        return False
+
+    def _should_force_global_search(self, message: str) -> bool:
+        if not message:
+            return False
+        if self._message_explicitly_specifies_chapter(message):
+            return False
+        quoted = self._extract_quoted_segments(message)
+        return bool(quoted)
+
+    def _ensure_explore_force_global_search(self, tasks: List[Dict[str, Any]], message: str) -> List[Dict[str, Any]]:
+        if not tasks:
+            return tasks
+        if not self._plan_requires_strict_locator(tasks):
+            return tasks
+        if not self._should_force_global_search(message):
+            return tasks
+        for task in tasks:
+            if task.get("tool") != "explore_content":
+                continue
+            params = task.get("params", {}) or {}
+            if params.get("force_global_search") is None:
+                params["force_global_search"] = True
+            target_task = params.get("target_task")
+            if isinstance(target_task, str) and "全文" not in target_task and "全书" not in target_task:
+                params["target_task"] = f"{target_task}（全文范围搜索）"
+            task["params"] = params
+        return tasks
+
+    @staticmethod
+    def _extract_quoted_segments_with_spans(message: str) -> List[Tuple[str, int, int]]:
+        if not message:
+            return []
+        segments: List[Tuple[str, int, int]] = []
+        seen = set()
+        for match in re.finditer(r'["“”‘’「」『』](.+?)["“”‘’「」『』]', message):
+            seg = (match.group(1) or "").strip()
+            if not seg or len(seg) < 4:
+                continue
+            if seg in seen:
+                continue
+            segments.append((seg, match.start(), match.end()))
+            seen.add(seg)
+        return segments
+
+    @classmethod
+    def _extract_quoted_segments(cls, message: str) -> List[str]:
+        return [seg for seg, _, _ in cls._extract_quoted_segments_with_spans(message)]
+
+    @staticmethod
+    def _normalize_quote_context(text: str) -> str:
+        return re.sub(r"\s+", "", text or "")
+
+    @classmethod
+    def _classify_quote_role(cls, before_text: str, after_text: str) -> str:
+        before = cls._normalize_quote_context(before_text)
+        after = cls._normalize_quote_context(after_text)
+        # 替换后的文本（改为/替换为/改成）通常出现在引号之前
+        if re.search(r"(改为|改成|替换为|替换成|换成|变更为|改做)[:：]?$", before):
+            return "replacement"
+        # 原句通常出现在“将/把…改为/替换为”之前
+        if re.match(r"^(改为|改成|替换为|替换成|换成|变更为|改做)", after):
+            return "target"
+        # 上下文/定位提示
+        if re.match(r"^(上下文|语境|背景|附近|前后文|前文|后文|之前|之后|之间|处|位置|段落|句子)", after):
+            return "context"
+        if re.search(r"(上下文|语境|背景|附近|前后文|前文|后文|之前|之后|之间|处|位置|段落|句子)$", before):
+            return "context"
+        return "unknown"
+
+    @classmethod
+    def _classify_quoted_segments(cls, message: str) -> List[Tuple[str, str]]:
+        classified: List[Tuple[str, str]] = []
+        for seg, start, end in cls._extract_quoted_segments_with_spans(message):
+            before = message[max(0, start - 20):start]
+            after = message[end:min(len(message), end + 20)]
+            role = cls._classify_quote_role(before, after)
+            classified.append((seg, role))
+        return classified
+
+    @staticmethod
+    def _message_forces_single_edit(message: str) -> bool:
+        if not message:
+            return False
+        return bool(re.search(r"(只|仅|仅仅|仅需|只替换|仅替换|只改|仅改|只修改|仅修改|首次|第一处|第1处)", message))
+
+    @staticmethod
+    def _message_allows_multi_edit(message: str) -> bool:
+        if not message:
+            return False
+        return bool(re.search(r"(分别|各自|逐一|每处|每一处|多处|全部|所有|都替换|全部替换|逐条|每段|每句|每个|两处|三处|四处|两段|三段|四段|两句|三句|四句)", message))
+
+    @staticmethod
+    def _chinese_numeral_to_int(value: str) -> Optional[int]:
+        if not value:
+            return None
+        if value.isdigit():
+            try:
+                return int(value)
+            except ValueError:
+                return None
+        mapping = {
+            "零": 0,
+            "一": 1,
+            "二": 2,
+            "两": 2,
+            "三": 3,
+            "四": 4,
+            "五": 5,
+            "六": 6,
+            "七": 7,
+            "八": 8,
+            "九": 9,
+            "十": 10,
+        }
+        if value == "十":
+            return 10
+        if "十" in value:
+            parts = value.split("十")
+            tens = mapping.get(parts[0], 1) if parts[0] else 1
+            ones = mapping.get(parts[1], 0) if len(parts) > 1 and parts[1] else 0
+            return tens * 10 + ones
+        if value in mapping:
+            return mapping[value]
+        return None
+
+    def _extract_locator_index(self, message: str) -> Optional[int]:
+        if not message:
+            return None
+        m = re.search(r"第\s*([一二三四五六七八九十两0-9]{1,3})\s*(处|段|句|个|条)", message)
+        if m:
+            raw = m.group(1)
+            number = self._chinese_numeral_to_int(raw)
+            if number and number > 0:
+                return number - 1
+        if re.search(r"(前者|前一|前段|上一处|上一个|首处|首段|第一处|第一段|第一句)", message):
+            return 0
+        if re.search(r"(后者|后一|后段|下一处|下一个|末处|末段|最后一处|最后一段|最后)", message):
+            return -1
+        return None
+
+    def _extract_locator_hint(self, message: str) -> Optional[str]:
+        classified = self._classify_quoted_segments(message)
+        if not classified:
+            segments = []
+        else:
+            context_segments = [seg for seg, role in classified if role == "context"]
+            if context_segments:
+                return context_segments[0]
+            segments = [seg for seg, role in classified if role != "replacement"]
+        if len(segments) == 1:
+            return segments[0]
+        if len(segments) >= 2:
+            between_match = re.search(r"(之间|之間|介于|介於|在.*和.*之间|在.*與.*之間)", message)
+            if between_match:
+                return segments[0]
+        m = re.search(r"(?:包含|含有|带有|提到|提及|关于|出现|描写|说到)([^，。；;,.]{2,20})", message)
+        if m:
+            hint = (m.group(1) or "").strip()
+            hint = re.sub(r"(的|那句|这一句|那段|这一段|那处|这一处|部分|内容)$", "", hint).strip()
+            if 2 <= len(hint) <= 30 and re.search(r"[一-鿿A-Za-z0-9]", hint):
+                return hint
+        return None
+
+    @staticmethod
+    def _coerce_locate_target_index(value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.lstrip("-").isdigit():
+                try:
+                    return int(stripped)
+                except ValueError:
+                    return None
+        return None
+
+    @staticmethod
+    def _locate_target_path_from_index(index: Optional[int], field: str) -> str:
+        if index is None or index < 0:
+            return f"locate_targets[0].{field}"
+        return f"locate_targets[{index}].{field}"
+
+    def _locate_target_path(self, params: Dict[str, Any], field: str) -> str:
+        index = self._coerce_locate_target_index(params.get("locate_target_index"))
+        return self._locate_target_path_from_index(index, field)
+
+    def _replace_locate_target_refs(self, value: Any, index: Optional[int]) -> Any:
+        if index is None or index < 0:
+            return value
+        if isinstance(value, dict):
+            ref_obj = value.get("$ref") or value.get("ref")
+            if isinstance(ref_obj, dict):
+                path = ref_obj.get("path")
+                if isinstance(path, str) and "locate_targets[0]" in path:
+                    ref_obj["path"] = path.replace("locate_targets[0]", f"locate_targets[{index}]")
+                return value
+            return {k: self._replace_locate_target_refs(v, index) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._replace_locate_target_refs(item, index) for item in value]
+        return value
+
+    def _apply_locator_selection(self, tasks: List[Dict[str, Any]], message: str) -> List[Dict[str, Any]]:
+        if not tasks or not message:
+            return tasks
+        target_index = self._extract_locator_index(message)
+        target_hint = self._extract_locator_hint(message)
+        if target_index is None and not target_hint:
+            return tasks
+        edit_tasks = [t for t in tasks if t.get("tool") in self.EDIT_CONTENT_TOOLS]
+        if len(edit_tasks) != 1:
+            return tasks
+
+        for task in tasks:
+            if not self._is_edit_task(task.get("tool"), task.get("params")):
+                continue
+            params = task.get("params", {}) or {}
+            if target_index is not None:
+                params.setdefault("locate_target_index", target_index)
+                params = self._replace_locate_target_refs(params, target_index)
+            if target_hint:
+                params.setdefault("locate_target_hint", target_hint)
+            task["params"] = params
+        return tasks
+
+    @staticmethod
+    def _replace_task_id_refs(value: Any, old_id: int, new_id: int) -> Any:
+        if isinstance(value, dict):
+            if "$ref" in value or "ref" in value:
+                ref_obj = value.get("$ref") or value.get("ref")
+                if isinstance(ref_obj, dict):
+                    ref_task_id = ref_obj.get("task_id")
+                    if str(ref_task_id) == str(old_id):
+                        ref_obj["task_id"] = new_id
+                return value
+            return {k: PlanGenerator._replace_task_id_refs(v, old_id, new_id) for k, v in value.items()}
+        if isinstance(value, list):
+            return [PlanGenerator._replace_task_id_refs(item, old_id, new_id) for item in value]
+        if isinstance(value, str):
+            return value.replace(f"$TASK_{old_id}", f"$TASK_{new_id}")
+        return value
+
+    def _split_multi_edit_tasks(self, tasks: List[Dict[str, Any]], message: str) -> List[Dict[str, Any]]:
+        if not tasks or not message:
+            return tasks
+        if not self._plan_requires_strict_locator(tasks):
+            return tasks
+
+        if self._message_forces_single_edit(message):
+            return tasks
+        if not self._message_allows_multi_edit(message):
+            return tasks
+
+        classified = self._classify_quoted_segments(message)
+        segments = [seg for seg, role in classified if role in {"target", "unknown"}]
+        if len(segments) < 2:
+            return tasks
+
+        rewrite_indices = [idx for idx, t in enumerate(tasks) if t.get("tool") == "smart_rewrite"]
+        if len(rewrite_indices) != 1:
+            return tasks
+
+        rewrite_idx = rewrite_indices[0]
+        rewrite_task = tasks[rewrite_idx]
+        rewrite_params = rewrite_task.get("params", {}) or {}
+        text_to_rewrite = rewrite_params.get("text_to_rewrite")
+        if text_to_rewrite and not isinstance(text_to_rewrite, dict):
+            return tasks
+
+        from app.services.agent.parameter_resolver import ParameterResolver
+
+        rewrite_task_id = rewrite_task.get("task_id")
+        if not rewrite_task_id:
+            return tasks
+
+        apply_indices = []
+        for idx, task in enumerate(tasks):
+            if task.get("tool") not in {"operate_apply", "apply_chapter_edit"}:
+                continue
+            deps = ParameterResolver.extract_dependencies(task.get("params", {}))
+            if rewrite_task_id in deps:
+                apply_indices.append(idx)
+        if len(apply_indices) != 1:
+            return tasks
+
+        apply_idx = apply_indices[0]
+        apply_task = tasks[apply_idx]
+
+        max_task_id = 0
+        for task in tasks:
+            try:
+                task_id = int(task.get("task_id", 0))
+                max_task_id = max(max_task_id, task_id)
+            except (TypeError, ValueError):
+                continue
+        next_task_id = max_task_id + 1
+
+        new_tasks: List[Dict[str, Any]] = []
+        for idx, task in enumerate(tasks):
+            if idx == rewrite_idx:
+                rewrite_params = dict(rewrite_task.get("params", {}) or {})
+                rewrite_params["text_to_rewrite"] = segments[0]
+                rewrite_task["params"] = rewrite_params
+                new_tasks.append(rewrite_task)
+                continue
+            new_tasks.append(task)
+            if idx != apply_idx:
+                continue
+            for seg_idx, segment in enumerate(segments[1:], start=2):
+                new_rewrite = copy.deepcopy(rewrite_task)
+                new_rewrite["task_id"] = next_task_id
+                next_task_id += 1
+                new_rewrite_params = dict(new_rewrite.get("params", {}) or {})
+                new_rewrite_params["text_to_rewrite"] = segment
+                new_rewrite["params"] = new_rewrite_params
+                if new_rewrite.get("description"):
+                    new_rewrite["description"] = f"{new_rewrite['description']}（第{seg_idx}处）"
+
+                new_apply = copy.deepcopy(apply_task)
+                new_apply["task_id"] = next_task_id
+                next_task_id += 1
+                new_apply["params"] = self._replace_task_id_refs(
+                    new_apply.get("params", {}),
+                    old_id=int(rewrite_task_id),
+                    new_id=int(new_rewrite["task_id"])
+                )
+                depends_on = self._normalize_dep_list(new_apply.get("depends_on"))
+                depends_on = [new_rewrite["task_id"] if d == rewrite_task_id else d for d in depends_on]
+                new_apply["depends_on"] = depends_on
+                if new_apply.get("description"):
+                    new_apply["description"] = f"{new_apply['description']}（第{seg_idx}处）"
+
+                new_tasks.extend([new_rewrite, new_apply])
+
+        return new_tasks
 
     def _extract_enumerated_items(self, message: str) -> List[str]:
         if not message:
@@ -580,6 +965,26 @@ tool_policy: {tool_policy}
             return ""
 
         return item
+
+    @classmethod
+    def _is_edit_task(cls, tool: Optional[str], params: Optional[Dict[str, Any]] = None) -> bool:
+        if not tool:
+            return False
+        if tool in cls.EDIT_CONTENT_TOOLS:
+            return True
+        if tool in cls.EDIT_OPERATION_TOOLS:
+            operation = (params or {}).get("operation")
+            return operation in cls.EDIT_OPERATIONS
+        return False
+
+    @classmethod
+    def _plan_requires_strict_locator(cls, tasks: List[Dict[str, Any]]) -> bool:
+        if not tasks:
+            return False
+        for task in tasks:
+            if cls._is_edit_task(task.get("tool"), task.get("params", {})):
+                return True
+        return False
 
     @staticmethod
     def _should_enforce_enumerated_items(tasks: List[Dict[str, Any]]) -> bool:
@@ -802,6 +1207,9 @@ tool_policy: {tool_policy}
         if constraints:
             tasks = self._apply_constraints_to_tasks(tasks, constraints)
 
+        # 验证4: 旧链路兼容（自动补齐 explore_content output_mode）
+        tasks = self._auto_set_explore_output_mode(tasks)
+
         plan_data["tasks"] = tasks
         return plan_data
 
@@ -827,10 +1235,10 @@ tool_policy: {tool_policy}
             return ""
         matches: List[str] = []
         patterns = [
-            r"第\s*\d+\s*[到至\-~—～]\s*\d+\s*章",
-            r"第\s*[一二两三四五六七八九十]+\s*[到至\-~—～]\s*[一二两三四五六七八九十]+\s*章",
-            r"章节\s*\(?\s*\d+\s*[到至\-~—～]\s*\d+\s*\)?",
-            r"\d+\s*[到至\-~—～]\s*\d+\s*章",
+            r"第\s*\d+\s*(?:章)?\s*[到至\-~—～–]\s*第?\s*\d+\s*章",
+            r"第\s*[一二两三四五六七八九十]+\s*章?\s*[到至\-~—～–]\s*第?\s*[一二两三四五六七八九十]+\s*章",
+            r"章节\s*\(?\s*\d+\s*[到至\-~—～–]\s*\d+\s*\)?",
+            r"\d+\s*[到至\-~—～–]\s*\d+\s*章",
             r"第\s*\d+\s*章",
             r"第\s*[一二两三四五六七八九十]+\s*章",
             r"章节\s*\d+\s*章",
@@ -883,6 +1291,86 @@ tool_policy: {tool_policy}
             task["params"] = params
 
         return tasks
+
+    @staticmethod
+    def _auto_set_explore_output_mode(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """旧链路兼容：当下游参数引用旧字段时，自动为 explore_content 补 output_mode=full。"""
+        if not tasks:
+            return tasks
+
+        task_by_id: Dict[int, Dict[str, Any]] = {}
+        for task in tasks:
+            try:
+                task_id = int(task.get("task_id", 0))
+            except (TypeError, ValueError):
+                continue
+            task_by_id[task_id] = task
+
+        legacy_ref_task_ids: set[int] = set()
+        for task in tasks:
+            params = task.get("params") or {}
+            legacy_ref_task_ids.update(PlanGenerator._find_legacy_ref_task_ids(params))
+
+        if not legacy_ref_task_ids:
+            return tasks
+
+        for task_id in legacy_ref_task_ids:
+            target_task = task_by_id.get(task_id)
+            if not target_task or target_task.get("tool") != "explore_content":
+                continue
+            params = target_task.get("params") or {}
+            if params.get("output_mode"):
+                continue
+            params["output_mode"] = "full"
+            target_task["params"] = params
+
+        return tasks
+
+    @staticmethod
+    def _find_legacy_ref_task_ids(value: Any) -> set[int]:
+        """在参数中查找旧字段引用并返回 task_id 集合。"""
+        legacy_keywords = (
+            "chapters",
+            "context_for_task",
+            "explore_summary",
+            "frontend_display",
+            "front_end",
+        )
+
+        def _contains_legacy(text: str) -> bool:
+            return any(keyword in text for keyword in legacy_keywords)
+
+        task_ids: set[int] = set()
+
+        if isinstance(value, dict):
+            ref_obj = value.get("$ref") or value.get("ref")
+            if isinstance(ref_obj, dict):
+                ref_path = ref_obj.get("path") or ""
+                ref_task_id = ref_obj.get("task_id")
+                if isinstance(ref_path, str) and _contains_legacy(ref_path):
+                    try:
+                        task_ids.add(int(ref_task_id))
+                    except (TypeError, ValueError):
+                        pass
+            for nested_value in value.values():
+                task_ids.update(PlanGenerator._find_legacy_ref_task_ids(nested_value))
+            return task_ids
+
+        if isinstance(value, list):
+            for item in value:
+                task_ids.update(PlanGenerator._find_legacy_ref_task_ids(item))
+            return task_ids
+
+        if isinstance(value, str):
+            if "$TASK_" in value and _contains_legacy(value):
+                for match in re.finditer(r"\$TASK_(\d+)", value):
+                    try:
+                        task_ids.add(int(match.group(1)))
+                    except (TypeError, ValueError):
+                        continue
+            return task_ids
+
+        return task_ids
 
     def _validate_search_before_read(self, tasks: List[Dict], message: str) -> List[Dict]:
         """
@@ -1035,6 +1523,7 @@ tool_policy: {tool_policy}
 
         next_task_id = max_task_id + 1
         last_locate_task_id: Optional[int] = None
+        last_explore_task_id: Optional[int] = None
         idx = 0
 
         while idx < len(tasks):
@@ -1045,6 +1534,8 @@ tool_policy: {tool_policy}
 
             if tool == "locate_content":
                 last_locate_task_id = task_id
+            elif tool == "explore_content":
+                last_explore_task_id = task_id
 
             if tool in {"smart_rewrite", "smart_continue", "smart_insert"} and task_id:
                 if not params.get("chapter_id"):
@@ -1058,6 +1549,7 @@ tool_policy: {tool_policy}
                     source_tool=tool,
                     source_task_id=task_id,
                     locate_task_id=last_locate_task_id,
+                    explore_task_id=last_explore_task_id,
                     new_task_id=next_task_id,
                     source_params=params
                 )
@@ -1107,9 +1599,200 @@ tool_policy: {tool_policy}
                 params["original_text"] = {
                     "$ref": {
                         "task_id": source_task_id,
-                        "path": "original_text"
+                        "path": "data.original_text"
                     }
                 }
+                # 方案1：强制修正 smart_rewrite 的写回 content 路径
+                content_ref = params.get("content")
+                if isinstance(content_ref, dict):
+                    ref_obj = content_ref.get("$ref") or content_ref.get("ref") or {}
+                    if ref_obj.get("task_id") == source_task_id:
+                        ref_path = ref_obj.get("path") or ""
+                        if ref_path in {"content", "versions[0].content", "data.content"}:
+                            params["content"] = {
+                                "$ref": {
+                                    "task_id": source_task_id,
+                                    "path": "data.versions[0].content"
+                                }
+                            }
+                task["params"] = params
+
+        return tasks
+
+    @staticmethod
+    def _should_override_chapter_id(chapter_id: Any, locate_task_id: Optional[int]) -> bool:
+        if not locate_task_id:
+            return False
+        if not chapter_id:
+            return True
+        if isinstance(chapter_id, dict):
+            ref_obj = chapter_id.get("$ref") or chapter_id.get("ref") or {}
+            if not ref_obj:
+                return False
+            ref_task_id = ref_obj.get("task_id")
+            ref_path = ref_obj.get("path") or ""
+            if str(ref_task_id) == str(locate_task_id) and ref_path == "chapter_id":
+                return False
+            return True
+        if isinstance(chapter_id, str):
+            if "$TASK_" in chapter_id or "chapters[" in chapter_id or "chapters" in chapter_id:
+                return True
+        return False
+
+    def _ensure_chapter_id_from_locate(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """优先使用 locate_content 的 chapter_id，避免 chapters[1] 越界导致 None。"""
+        if not tasks:
+            return tasks
+
+        from app.services.agent.parameter_resolver import ParameterResolver
+
+        task_by_id: Dict[int, Dict[str, Any]] = {}
+        for task in tasks:
+            try:
+                task_id = int(task.get("task_id", 0))
+            except (TypeError, ValueError):
+                continue
+            task_by_id[task_id] = task
+
+        last_locate_task_id: Optional[int] = None
+        last_explore_task_id: Optional[int] = None
+        for task in tasks:
+            tool = task.get("tool")
+            task_id = task.get("task_id")
+            params = task.get("params", {}) or {}
+
+            if tool == "locate_content":
+                try:
+                    last_locate_task_id = int(task_id)
+                except (TypeError, ValueError):
+                    last_locate_task_id = task_id
+                continue
+            if tool == "explore_content":
+                try:
+                    last_explore_task_id = int(task_id)
+                except (TypeError, ValueError):
+                    last_explore_task_id = task_id
+                continue
+
+            if tool in {"smart_rewrite", "smart_insert", "smart_continue", "operate_apply", "apply_chapter_edit"}:
+                force_override = tool in {"smart_rewrite", "smart_insert", "operate_apply", "apply_chapter_edit"} and (
+                    last_locate_task_id or last_explore_task_id
+                )
+                if last_locate_task_id and (force_override or self._should_override_chapter_id(params.get("chapter_id"), last_locate_task_id)):
+                    params["chapter_id"] = {
+                        "$ref": {
+                            "task_id": last_locate_task_id,
+                            "path": "chapter_id"
+                        }
+                    }
+                elif last_explore_task_id and (force_override or self._should_override_chapter_id(params.get("chapter_id"), last_explore_task_id)):
+                    params["chapter_id"] = {
+                        "$ref": {
+                            "task_id": last_explore_task_id,
+                            "path": self._locate_target_path(params, "chapter_id"),
+                            "default": params.get("chapter_id")
+                        }
+                    }
+                if tool in {"smart_rewrite", "smart_insert"}:
+                    if last_locate_task_id:
+                        if tool == "smart_rewrite" and not params.get("text_to_rewrite"):
+                            params["text_to_rewrite"] = {
+                                "$ref": {"task_id": last_locate_task_id, "path": "text"}
+                            }
+                        if tool == "smart_insert" and not params.get("insert_context"):
+                            params["insert_context"] = {
+                                "$ref": {"task_id": last_locate_task_id, "path": "text"}
+                            }
+                        params.setdefault(
+                            "source_locator",
+                            {
+                                "chapter_id": {"$ref": {"task_id": last_locate_task_id, "path": "chapter_id"}},
+                                "paragraph_index": {"$ref": {"task_id": last_locate_task_id, "path": "paragraph_index"}},
+                                "node_id": {"$ref": {"task_id": last_locate_task_id, "path": "node_id"}},
+                                "text": {"$ref": {"task_id": last_locate_task_id, "path": "text"}}
+                            }
+                        )
+                    elif last_explore_task_id:
+                        if tool == "smart_rewrite" and not params.get("text_to_rewrite"):
+                            params["text_to_rewrite"] = {
+                                "$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "text")}
+                            }
+                        if tool == "smart_insert" and not params.get("insert_context"):
+                            params["insert_context"] = {
+                                "$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "insert_context")}
+                            }
+                        params.setdefault(
+                            "source_locator",
+                            {
+                                "chapter_id": {"$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "chapter_id")}},
+                                "paragraph_index": {"$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "paragraph_index")}},
+                                "node_id": {"$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "node_id")}},
+                                "text": {"$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "text")}}
+                            }
+                        )
+                        params.setdefault("__auto_locator", True)
+                # 绑定写回目标章节（供执行阶段一致性校验）
+                # 优先使用 locate/explore 结果，避免显式 chapter_id 固化为错误章
+                if "__target_chapter_id" not in params:
+                    if last_locate_task_id:
+                        params["__target_chapter_id"] = {
+                            "$ref": {
+                                "task_id": last_locate_task_id,
+                                "path": "chapter_id"
+                            }
+                        }
+                    elif last_explore_task_id:
+                        params["__target_chapter_id"] = {
+                            "$ref": {
+                                "task_id": last_explore_task_id,
+                                "path": self._locate_target_path(params, "chapter_id")
+                            }
+                        }
+                    elif params.get("chapter_id"):
+                        params["__target_chapter_id"] = params.get("chapter_id")
+
+                if tool in {"operate_apply", "apply_chapter_edit"}:
+                    source_task_id: Optional[int] = None
+                    deps = ParameterResolver.extract_dependencies(params)
+                    for dep_id in deps:
+                        dep_task = task_by_id.get(dep_id)
+                        if dep_task and dep_task.get("tool") in {"smart_rewrite", "smart_insert", "smart_continue"}:
+                            source_task_id = dep_id
+                            break
+                    if params.get("operation") in {"replace", "insert"}:
+                        params.setdefault("__require_source_locator", True)
+                        if last_locate_task_id:
+                            params["node_id"] = {"$ref": {"task_id": last_locate_task_id, "path": "node_id"}}
+                            params["paragraph_index"] = {"$ref": {"task_id": last_locate_task_id, "path": "paragraph_index"}}
+                            params["source_locator"] = {
+                                "chapter_id": {"$ref": {"task_id": last_locate_task_id, "path": "chapter_id"}},
+                                "paragraph_index": {"$ref": {"task_id": last_locate_task_id, "path": "paragraph_index"}},
+                                "node_id": {"$ref": {"task_id": last_locate_task_id, "path": "node_id"}},
+                                "text": {"$ref": {"task_id": last_locate_task_id, "path": "text"}}
+                            }
+                        elif last_explore_task_id:
+                            params["node_id"] = {"$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "node_id")}}
+                            params["paragraph_index"] = {"$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "paragraph_index")}}
+                            params["source_locator"] = {
+                                "chapter_id": {"$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "chapter_id")}},
+                                "paragraph_index": {"$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "paragraph_index")}},
+                                "node_id": {"$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "node_id")}},
+                                "text": {"$ref": {"task_id": last_explore_task_id, "path": self._locate_target_path(params, "text")}}
+                            }
+                            params.setdefault("__auto_locator", True)
+                        elif source_task_id and not params.get("source_locator"):
+                            params["source_locator"] = {
+                                "$ref": {"task_id": source_task_id, "path": "data.source_locator"}
+                            }
+                            params.setdefault("node_id", {"$ref": {"task_id": source_task_id, "path": "data.source_locator.node_id"}})
+                            params.setdefault(
+                                "paragraph_index",
+                                {"$ref": {"task_id": source_task_id, "path": "data.source_locator.paragraph_index"}}
+                            )
+                            source_task = task_by_id.get(source_task_id, {})
+                            if source_task.get("params", {}).get("__auto_locator"):
+                                params.setdefault("__auto_locator", True)
+
                 task["params"] = params
 
         return tasks
@@ -1137,6 +1820,7 @@ tool_policy: {tool_policy}
         source_tool: str,
         source_task_id: int,
         locate_task_id: Optional[int],
+        explore_task_id: Optional[int],
         new_task_id: int,
         source_params: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
@@ -1153,29 +1837,80 @@ tool_policy: {tool_policy}
             params = {
                 "chapter_id": chapter_id_ref,
                 "operation": "replace",
-                "content": {"$ref": {"task_id": source_task_id, "path": "versions[0].content"}},
-                "original_text": {"$ref": {"task_id": source_task_id, "path": "original_text"}}
+                "content": {"$ref": {"task_id": source_task_id, "path": "data.versions[0].content"}},
+                "original_text": {"$ref": {"task_id": source_task_id, "path": "data.original_text"}}
             }
         elif source_tool == "smart_continue":
             params = {
                 "chapter_id": chapter_id_ref,
                 "operation": "append",
-                "content": {"$ref": {"task_id": source_task_id, "path": "content"}}
+                "content": {"$ref": {"task_id": source_task_id, "path": "data.content"}}
             }
         elif source_tool == "smart_insert":
             params = {
                 "chapter_id": chapter_id_ref,
                 "operation": "insert",
-                "content": {"$ref": {"task_id": source_task_id, "path": "content"}}
+                "content": {"$ref": {"task_id": source_task_id, "path": "data.content"}}
             }
             if source_params and source_params.get("user_intent"):
                 params["target_description"] = source_params.get("user_intent")
+            locate_text_ref = None
+            if locate_task_id:
+                locate_text_ref = {"$ref": {"task_id": locate_task_id, "path": "text"}}
+            elif explore_task_id:
+                locate_text_ref = {
+                    "$ref": {
+                        "task_id": explore_task_id,
+                        "path": self._locate_target_path(source_params or {}, "text")
+                    }
+                }
+            if locate_text_ref:
+                params.setdefault("locate_target_hint", locate_text_ref)
+                params.setdefault("target_description", locate_text_ref)
         else:
             return None
+
+        target_index = None
+        target_hint = None
+        if source_params:
+            target_index = self._coerce_locate_target_index(source_params.get("locate_target_index"))
+            target_hint = source_params.get("locate_target_hint")
+
+        if target_index is not None:
+            params.setdefault("locate_target_index", target_index)
+        if target_hint:
+            params.setdefault("locate_target_hint", target_hint)
 
         if locate_task_id:
             params.setdefault("node_id", {"$ref": {"task_id": locate_task_id, "path": "node_id"}})
             params.setdefault("paragraph_index", {"$ref": {"task_id": locate_task_id, "path": "paragraph_index"}})
+        elif explore_task_id:
+            params.setdefault(
+                "node_id",
+                {"$ref": {"task_id": explore_task_id, "path": self._locate_target_path_from_index(target_index, "node_id")}}
+            )
+            params.setdefault(
+                "paragraph_index",
+                {"$ref": {"task_id": explore_task_id, "path": self._locate_target_path_from_index(target_index, "paragraph_index")}}
+            )
+            params.setdefault("__auto_locator", True)
+
+        if source_tool in {"smart_rewrite", "smart_insert"}:
+            params.setdefault("__require_source_locator", True)
+            params.setdefault(
+                "source_locator",
+                {"$ref": {"task_id": source_task_id, "path": "data.source_locator"}}
+            )
+            params.setdefault(
+                "node_id",
+                {"$ref": {"task_id": source_task_id, "path": "data.source_locator.node_id"}}
+            )
+            params.setdefault(
+                "paragraph_index",
+                {"$ref": {"task_id": source_task_id, "path": "data.source_locator.paragraph_index"}}
+            )
+            if locate_task_id or explore_task_id:
+                params.setdefault("__auto_locator", True)
 
         return {
             "task_id": new_task_id,

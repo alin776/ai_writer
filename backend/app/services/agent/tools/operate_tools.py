@@ -10,7 +10,7 @@ ContentOperator - Create 工具输出的统一接收者
 
 职责：
 1. 意图路由：根据 operation 选择底层工具和目标操作
-2. 智能定位：仅 replace/insert 需要，支持 direct/text_match/semantic 三种方式
+2. 精确定位：replace/insert 必须提供 node_id 或 paragraph_index
 3. 执行操作：调用底层工具
 4. 返回结果：包含 HITL 确认信息
 """
@@ -25,7 +25,6 @@ from langchain_core.tools import tool
 
 from .tool_registry import register_as_tool
 from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
-from .locate_tools import locate_content
 from .editor_tools import apply_chapter_edit
 from .chapter_tools import create_chapter, update_chapter_title
 
@@ -88,7 +87,7 @@ class ContentOperator:
 
     三阶段流程：
     1. 意图路由：根据 operation 选择底层工具和目标操作
-    2. 智能定位：仅 replace/insert 需要，支持 direct 直通
+    2. 精确定位：replace/insert 必须提供 node_id/paragraph_index
     3. 执行操作：调用底层工具
     """
 
@@ -114,6 +113,8 @@ class ContentOperator:
         paragraph_index: Optional[int] = None,
         node_id: Optional[str] = None,
         nodes_info: Optional[str] = None,
+        source_locator: Optional[Dict[str, Any]] = None,
+        allow_append_fallback: bool = False,
         user_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
         **kwargs
@@ -127,8 +128,8 @@ class ContentOperator:
             work_id: 作品ID（create 时必填）
             content: AI生成的内容
             title: AI生成的标题（create/title 时使用）
-            original_text: 原文（replace 时用于 text_match 定位）
-            target_description: 目标位置描述（insert 时用于 semantic 定位）
+            original_text: 原文（仅用于描述，不参与定位）
+            target_description: 目标位置描述（仅用于描述，不参与定位）
             paragraph_index: 段落索引（direct 定位，优先级最高）
             node_id: 节点ID（direct 定位，优先级最高）
             user_id: 用户ID
@@ -178,7 +179,7 @@ class ContentOperator:
         logger.info(f"[Operate] 路由: tool={tool_name}, target_op={target_operation}, needs_locate={needs_locate}")
 
         # ═══════════════════════════════════════
-        # 阶段2：智能定位（仅 replace/insert）
+        # 阶段2：精确定位（仅 replace/insert）
         # ═══════════════════════════════════════
         located_paragraph_index = paragraph_index
         located_node_id = node_id
@@ -203,20 +204,16 @@ class ContentOperator:
             locate_after_anchor = locate_result.get("after_anchor")
 
             if not locate_result.get("success"):
-                if operation == "insert" and locate_result.get("fallback"):
-                    logger.warning(f"[Operate] insert 定位失败，降级为 append")
-                    target_operation = "append"
-                    locate_method = "fallback"
-                else:
-                    return OperateResult(
-                        success=False,
-                        message=locate_result.get("message", "定位失败"),
-                        operation=operation,
-                        target_operation=target_operation,  # 记录原计划的目标操作
-                        chapter_id=chapter_id,
-                        tool_used=tool_name,
-                        locate_method="failed"
-                    )
+                message = locate_result.get("message", "定位失败")
+                return OperateResult(
+                    success=False,
+                    message=message,
+                    operation=operation,
+                    target_operation=target_operation,  # 记录原计划的目标操作
+                    chapter_id=chapter_id,
+                    tool_used=tool_name,
+                    locate_method="failed"
+                )
 
             logger.info(f"[Operate] 定位完成: method={locate_method}, para={located_paragraph_index}")
 
@@ -302,8 +299,9 @@ class ContentOperator:
         node_id: Optional[str] = None,
         nodes_info: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """阶段2：智能定位"""
-        # 优先级1：DIRECT 定位
+        """阶段2：精确定位（仅允许 direct）"""
+        if isinstance(node_id, str) and not node_id.strip():
+            node_id = None
         if paragraph_index is not None or node_id is not None:
             logger.info(f"[Operate] 使用 DIRECT 定位: para={paragraph_index}, node={node_id}")
             return {
@@ -313,89 +311,16 @@ class ContentOperator:
                 "method": "direct"
             }
 
-        # 需要调用 locate_content 时，chapter_id 必须存在
         if not chapter_id:
             return {
                 "success": False,
-                "fallback": operation == "insert",
-                "message": f"定位需要 chapter_id，但未提供"
+                "message": "定位需要 chapter_id，但未提供"
             }
 
-        # 优先级2/3：TEXT_MATCH / SEMANTIC
-        query = None
-        method = None
-
-        if operation == "replace" and original_text:
-            query = original_text[:200]
-            method = "text_match"
-        elif operation == "insert" and target_description:
-            query = target_description
-            method = "semantic"
-
-        if not query:
-            if operation == "insert":
-                return {
-                    "success": False,
-                    "fallback": True,
-                    "message": "insert 操作未提供定位信息，将降级为 append"
-                }
-            else:
-                return {
-                    "success": False,
-                    "fallback": False,
-                    "message": f"{operation} 操作需要提供定位信息（original_text）"
-                }
-
-        # 调用 locate_content
-        try:
-            locate_params = {
-                "chapter_id": chapter_id,
-                "query": query
-            }
-            if nodes_info is not None:
-                if not isinstance(nodes_info, str):
-                    nodes_info = json.dumps(nodes_info, ensure_ascii=False)
-                locate_params["nodes_info"] = nodes_info
-            result_str = await locate_content.ainvoke(locate_params)
-            result = json.loads(result_str) if isinstance(result_str, str) else result_str
-
-            if result.get("success"):
-                return {
-                    "success": True,
-                    "paragraph_index": result.get("paragraph_index"),
-                    "node_id": result.get("node_id"),
-                    "before_anchor": result.get("before_anchor"),
-                    "after_anchor": result.get("after_anchor"),
-                    "method": method
-                }
-            else:
-                if operation == "insert":
-                    return {
-                        "success": False,
-                        "fallback": True,
-                        "message": f"无法定位: {result.get('message', '未找到匹配内容')}，将降级为 append"
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "fallback": False,
-                        "message": f"无法定位: {result.get('message', '未找到匹配内容')}"
-                    }
-
-        except Exception as e:
-            logger.warning(f"[Operate] 定位调用失败: {e}")
-            if operation == "insert":
-                return {
-                    "success": False,
-                    "fallback": True,
-                    "message": f"定位失败: {str(e)}，将降级为 append"
-                }
-            else:
-                return {
-                    "success": False,
-                    "fallback": False,
-                    "message": f"定位失败: {str(e)}"
-                }
+        return {
+            "success": False,
+            "message": f"{operation} 操作必须提供 node_id 或 paragraph_index（请先用 list_paragraphs/read_paragraphs/locate_content 定位）"
+        }
 
     async def _execute_operation(
         self,
@@ -484,6 +409,9 @@ def get_operator() -> ContentOperator:
     【使用方式】
     1. 先用 smart_continue/smart_rewrite/smart_insert 生成内容
     2. 再用 operate_apply 将内容写入章节
+
+    ⚠️ replace/insert 必须提供 node_id 或 paragraph_index（不会自动定位）
+    ⚠️ 不再支持跨章节降级或 append 降级
     """
 )
 async def operate_apply(
@@ -497,6 +425,8 @@ async def operate_apply(
     paragraph_index: Optional[int] = None,
     node_id: Optional[str] = None,
     nodes_info: Optional[str] = None,
+    source_locator: Optional[Dict[str, Any]] = None,
+    allow_append_fallback: bool = False,
     user_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
 ) -> str:
@@ -509,10 +439,12 @@ async def operate_apply(
         work_id: 作品ID（create 时必填）
         content: AI生成的内容
         title: AI生成的标题（create/title 时使用）
-        original_text: 原文（replace 时用于定位）
-        target_description: 目标位置描述（insert 时用于语义定位）
+        original_text: 原文（仅用于描述，不参与定位）
+        target_description: 目标位置描述（仅用于描述，不参与定位）
         paragraph_index: 段落索引（优先级最高的定位方式）
         node_id: 节点ID（优先级最高的定位方式）
+        source_locator: 定位来源（只读）
+        allow_append_fallback: 已禁用（不允许降级追加）
         user_id: 用户ID
         conversation_id: 会话ID
 
@@ -531,6 +463,8 @@ async def operate_apply(
         paragraph_index=paragraph_index,
         node_id=node_id,
         nodes_info=nodes_info,
+        source_locator=source_locator,
+        allow_append_fallback=allow_append_fallback,
         user_id=user_id,
         conversation_id=conversation_id,
     )
@@ -551,6 +485,8 @@ class OperateApplyInput(ToolInput):
     paragraph_index: Optional[int] = Field(default=None, description="段落索引（优先级最高的定位方式）")
     node_id: Optional[str] = Field(default=None, description="节点ID（优先级最高的定位方式）")
     nodes_info: Optional[str] = Field(default=None, description="节点列表（可选，JSON字符串）")
+    source_locator: Optional[Dict[str, Any]] = Field(default=None, description="定位来源（只读）")
+    allow_append_fallback: bool = Field(default=False, description="已禁用：不再允许 insert 降级 append")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     conversation_id: Optional[str] = Field(default=None, description="会话ID")
 
@@ -574,6 +510,8 @@ async def operate_apply_executor(input_data: OperateApplyInput) -> OperateApplyO
             "paragraph_index": input_data.paragraph_index,
             "node_id": input_data.node_id,
             "nodes_info": input_data.nodes_info,
+            "source_locator": input_data.source_locator,
+            "allow_append_fallback": input_data.allow_append_fallback,
             "user_id": input_data.user_id,
             "conversation_id": input_data.conversation_id,
         })

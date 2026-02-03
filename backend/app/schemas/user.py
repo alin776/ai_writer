@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator, ConfigDict
 from typing import Optional, Literal, List
 from datetime import datetime
 from uuid import UUID
@@ -133,9 +133,7 @@ class UserResponse(UserBase):
     updated_at: datetime
     last_login_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
-    
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('id')
     def serialize_id(self, value: UUID, _info) -> str:
         """将 UUID 序列化为字符串"""
@@ -179,9 +177,7 @@ class UserSessionResponse(BaseModel):
     created_at: datetime
     last_active_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('id')
     def serialize_id(self, value: UUID, _info) -> str:
         """将 UUID 序列化为字符串"""
@@ -253,10 +249,7 @@ class UserProfileStats(BaseModel):
     total_favorites: int
     friend_count: int
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class UserRelation(BaseModel):
     """与当前用户的关系"""
     is_self: bool
@@ -264,9 +257,7 @@ class UserRelation(BaseModel):
     private_channel_id: Optional[UUID] = None
     pending_request: Optional[dict] = None  # 包含 id, direction, status
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('private_channel_id')
     def serialize_channel_id(self, value: Optional[UUID], _info) -> Optional[str]:
         """将 UUID 序列化为字符串"""
@@ -283,9 +274,7 @@ class WorkBrief(BaseModel):
     genre: str
     status: str
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
     @field_serializer('id')
     def serialize_id(self, value: UUID, _info) -> str:
         """将 UUID 序列化为字符串"""

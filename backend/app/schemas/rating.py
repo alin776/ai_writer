@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
@@ -23,10 +23,7 @@ class RatingResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class WorkRatingStats(BaseModel):
     """作品评分统计"""
     average_rating: float = Field(..., description="平均评分")

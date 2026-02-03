@@ -236,8 +236,9 @@ const TOOL_ICONS: Record<string, ComponentType<any>> = {
   Locate: Crosshair,
   ReadRaw: FileText,
   ReadParagraph: FileText,  // 段落读取（与整章阅读使用相同图标）
+  ListChapters: BookOpen,   // 章节列表
+  ListParagraphs: Layers,   // 段落列表
   Worldview: Globe,         // 世界观读取
-  Review: CheckCircle,
 };
 
 // 解析 review 状态
@@ -288,9 +289,7 @@ export function ExploreRoundCard({
 }: ExploreRoundFlowData) {
   const [expanded, setExpanded] = useState(false);
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
-  const review = parseReviewStatus(reviewStatus);
   const isRunning = status === 'running';
-  const hasReviewTag = (toolCalls || []).some((tc) => tc.type === 'Review');
 
   return (
     <div className="flex flex-col gap-2 py-2">
@@ -339,19 +338,10 @@ export function ExploreRoundCard({
                 {toolCalls?.map((tc, idx) => (
                   <ExploreTag key={idx} toolCall={tc} />
                 ))}
-                {reviewStatus && !hasReviewTag && (
-                  <span className="inline-flex items-center gap-1 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-[16px] px-[10px] py-1 text-[12px] text-gray-600 dark:text-slate-400">
-                    <review.icon size={12} className={review.tone} />
-                    Review: <span className="text-gray-700 dark:text-slate-400">{review.label}</span>
-                  </span>
-                )}
               </div>
 
               {/* 状态信息 - 适配浅色/深色主题 */}
               <div className="flex flex-wrap gap-[10px] mt-[6px] text-[11px] text-gray-500 dark:text-slate-500 w-fit max-w-full">
-                {hitCount > 0 && (
-                  <span className="text-[#10b981]">命中 {hitCount} 条</span>
-                )}
                 {missingItems && missingItems.length > 0 ? (
                   <span className="text-[#f59e0b]">缺少：{missingItems.join('、')}</span>
                 ) : statusText ? (
@@ -451,12 +441,6 @@ export function ExploreSummaryCard({
             {/* 探索总结 */}
             {summary && (
               <div className="mb-[10px]">
-                <div className="flex items-center gap-[6px] mb-1">
-                  <span className="text-gray-500 dark:text-slate-400 flex items-center">
-                    <FileSearch size={12} />
-                  </span>
-                  <span className="text-[12px] text-gray-600 dark:text-slate-400 font-medium">探索总结</span>
-                </div>
                 <div className="text-[12px] text-gray-600 dark:text-slate-300 leading-[1.7] pl-[18px]">
                   {summary}
                 </div>
@@ -474,24 +458,6 @@ export function ExploreSummaryCard({
                 </div>
                 <div className="text-[12px] text-gray-600 dark:text-slate-300 leading-[1.7] pl-[18px]">
                   {coverage}
-                </div>
-              </div>
-            )}
-
-            {/* 下一步行动 */}
-            {nextAction && (
-              <div className="mb-[10px]">
-                <div className="flex items-center gap-[6px] mb-1">
-                  <span className="text-gray-500 dark:text-slate-400 flex items-center">
-                    <ArrowRightCircle size={12} />
-                  </span>
-                  <span className="text-[12px] text-gray-600 dark:text-slate-400 font-medium">下一步行动</span>
-                </div>
-                <div className="text-[12px] text-gray-600 dark:text-slate-300 leading-[1.7] pl-[18px]">
-                  {nextAction}
-                  {nextTool && (
-                    <span className="ml-1 text-[#5c9eff] dark:text-[#7db3ff] font-mono text-[11px]">{nextTool}</span>
-                  )}
                 </div>
               </div>
             )}
