@@ -35,6 +35,10 @@ class PlanGenerator:
     EDIT_CONTENT_TOOLS = {"smart_rewrite", "smart_insert"}
     EDIT_OPERATION_TOOLS = {"operate_apply", "apply_chapter_edit"}
     EDIT_OPERATIONS = {"replace", "insert"}
+    FRESHNESS_KEYWORDS = (
+        "重新", "最新", "更新", "再查", "再次", "再搜", "再探索", "重新探索",
+        "重新搜索", "重做", "不要复用", "忽略历史", "不使用历史", "不要用历史"
+    )
 
     def __init__(self, agent: "WritingAgentGraph"):
         """
@@ -200,7 +204,12 @@ class PlanGenerator:
             logger.info(f"[Planning] 直接回答模式，答案长度: {len(raw_direct_answer)}")
         else:
             # 规划后处理（只对有任务的规划进行）
-            plan_data = self._post_process_plan(plan_data, message)
+            plan_data = self._post_process_plan(
+                plan_data,
+                message,
+                context=context,
+                work_id=work_id
+            )
 
         increment_counter("planning_phase_completed")
         logger.info(f"[Planning] 规划生成成功，共{len(plan_data['tasks'])}个任务")
@@ -502,7 +511,13 @@ tool_policy: {tool_policy}
             ]
         }
 
-    def _post_process_plan(self, plan_data: Dict[str, Any], message: str) -> Dict[str, Any]:
+    def _post_process_plan(
+        self,
+        plan_data: Dict[str, Any],
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        work_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         规划后处理：补充验收标准与 checkpoint，并进行验证和自动修复
 
@@ -518,6 +533,7 @@ tool_policy: {tool_policy}
         )
 
         tasks = plan_data.get("tasks") or []
+        tasks = self._auto_reuse_explore_artifacts(tasks, message, context, work_id)
         for idx, t in enumerate(tasks):
             if acceptance_hint and not t.get("acceptance"):
                 t["acceptance"] = acceptance_hint
@@ -538,6 +554,245 @@ tool_policy: {tool_policy}
         plan_data["tasks"] = self._ensure_replace_original_text(plan_data.get("tasks", []))
 
         return self._normalize_plan_schema(plan_data)
+
+    def _auto_reuse_explore_artifacts(
+        self,
+        tasks: List[Dict[str, Any]],
+        message: str,
+        context: Optional[Dict[str, Any]],
+        work_id: Optional[str]
+    ) -> List[Dict[str, Any]]:
+        """自动复用 Explore Artifact，按条目补缺失项（轻量规则）"""
+        if not tasks or not message or not isinstance(context, dict):
+            return tasks
+        if self._message_requires_fresh(message):
+            return tasks
+
+        session_artifacts = context.get("session_artifacts")
+        if not isinstance(session_artifacts, list) or not session_artifacts:
+            return tasks
+
+        requested_items = self._extract_requested_items(message)
+        if not requested_items:
+            return tasks
+
+        artifact = self._select_session_artifact(session_artifacts, work_id)
+        if not artifact:
+            return tasks
+
+        summary_text = str(artifact.get("preview") or "").strip()
+        if not summary_text:
+            return tasks
+
+        covered: List[str] = []
+        missing: List[str] = []
+        for item in requested_items:
+            if self._is_item_covered(item, summary_text):
+                covered.append(item)
+            else:
+                missing.append(item)
+
+        if not covered:
+            return tasks
+
+        # 避免编辑链路误判：存在写回/改写任务时不自动裁剪
+        if self._has_edit_tasks(tasks):
+            return tasks
+
+        tasks = self._ensure_load_explore_task(tasks, artifact, work_id)
+
+        if not missing:
+            # 全部覆盖：可尝试移除无依赖的 explore_content，避免重复探索
+            tasks = self._drop_explore_tasks_if_safe(tasks)
+            return tasks
+
+        tasks = self._adjust_explore_tasks_for_missing(tasks, missing, covered)
+        return tasks
+
+    def _message_requires_fresh(self, message: str) -> bool:
+        if not message:
+            return False
+        return any(keyword in message for keyword in self.FRESHNESS_KEYWORDS)
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        if not text:
+            return ""
+        cleaned = re.sub(r"[\s，,。.;；:：/\\\-—_]", "", str(text))
+        return cleaned.strip().lower()
+
+    @classmethod
+    def _is_item_covered(cls, item: str, summary: str) -> bool:
+        item_norm = cls._normalize_text(item)
+        summary_norm = cls._normalize_text(summary)
+        if not item_norm or not summary_norm:
+            return False
+        if len(item_norm) >= 2 and item_norm in summary_norm:
+            return True
+        for part in re.split(r"[、,，;/\s]+", item):
+            part_norm = cls._normalize_text(part)
+            if len(part_norm) >= 2 and part_norm in summary_norm:
+                return True
+        return False
+
+    @staticmethod
+    def _extract_requested_items(message: str) -> List[str]:
+        if not message:
+            return []
+
+        items: List[str] = []
+
+        def _add_item(text: str) -> None:
+            cleaned = (text or "").strip()
+            if len(cleaned) < 2:
+                return
+            if len(cleaned) > 80:
+                cleaned = cleaned[:80]
+            items.append(cleaned)
+
+        for line in message.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            match = re.match(r"^(?:[-•*]|\d+[.)、]|[一二三四五六七八九十]+[、.])\s*(.+)$", line)
+            if match:
+                _add_item(match.group(1))
+
+            if "：" in line or ":" in line:
+                parts = re.split(r"[：:]", line, maxsplit=1)
+                if len(parts) == 2:
+                    tail = parts[1]
+                    if any(sep in tail for sep in ["、", ",", "，"]):
+                        for seg in re.split(r"[、,，]", tail):
+                            _add_item(seg)
+
+        inline_items = re.findall(r"(?:^|\s)(?:\d+[.)、])\s*([^\d]{2,60})", message)
+        for seg in inline_items:
+            _add_item(seg)
+
+        unique: List[str] = []
+        seen = set()
+        for item in items:
+            key = PlanGenerator._normalize_text(item)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            unique.append(item)
+
+        return unique[:10]
+
+    @staticmethod
+    def _select_session_artifact(artifacts: List[Dict[str, Any]], work_id: Optional[str]) -> Optional[Dict[str, Any]]:
+        if not artifacts:
+            return None
+        if work_id:
+            for item in artifacts:
+                if str(item.get("work_id")) == str(work_id):
+                    return item
+        return artifacts[0]
+
+    def _ensure_load_explore_task(
+        self,
+        tasks: List[Dict[str, Any]],
+        artifact: Dict[str, Any],
+        work_id: Optional[str]
+    ) -> List[Dict[str, Any]]:
+        artifact_id = str(artifact.get("artifact_id") or "").strip()
+        if not artifact_id:
+            return tasks
+        for task in tasks:
+            if task.get("tool") == "load_explore_artifact":
+                params = task.get("params", {}) or {}
+                if str(params.get("artifact_id") or "") == artifact_id:
+                    return tasks
+
+        new_task_id = self._next_task_id(tasks)
+        new_task = {
+            "task_id": new_task_id,
+            "tool": "load_explore_artifact",
+            "description": "读取最近探索摘要（复用已有信息）",
+            "params": {
+                "artifact_id": artifact_id,
+                "mode": "summary"
+            }
+        }
+        if work_id:
+            new_task["params"]["work_id"] = work_id
+
+        insert_idx = next((i for i, t in enumerate(tasks) if t.get("tool") == "explore_content"), len(tasks))
+        new_tasks = list(tasks)
+        new_tasks.insert(insert_idx, new_task)
+        return new_tasks
+
+    def _adjust_explore_tasks_for_missing(
+        self,
+        tasks: List[Dict[str, Any]],
+        missing: List[str],
+        covered: List[str]
+    ) -> List[Dict[str, Any]]:
+        if not missing:
+            return tasks
+        missing_text = "、".join(missing[:8])
+        covered_text = "、".join(covered[:6])
+        note = f"仅补充缺失项：{missing_text}"
+        if covered_text:
+            note += f"（已覆盖：{covered_text}）"
+
+        for task in tasks:
+            if task.get("tool") != "explore_content":
+                continue
+            params = task.get("params", {}) or {}
+            target_task = str(params.get("target_task") or "").strip()
+            if target_task:
+                params["target_task"] = f"{target_task}\n{note}"
+            else:
+                params["target_task"] = note
+            params["search_keywords"] = missing[:8]
+            task["params"] = params
+        return tasks
+
+    def _drop_explore_tasks_if_safe(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        from app.services.agent.parameter_resolver import ParameterResolver
+
+        explore_ids = {
+            int(t.get("task_id"))
+            for t in tasks
+            if t.get("tool") == "explore_content" and isinstance(t.get("task_id"), int)
+        }
+        if not explore_ids:
+            return tasks
+
+        for task in tasks:
+            if task.get("tool") == "explore_content":
+                continue
+            deps = ParameterResolver.extract_dependencies(task.get("params", {}))
+            if explore_ids & deps:
+                return tasks
+
+        return [t for t in tasks if t.get("tool") != "explore_content"]
+
+    def _has_edit_tasks(self, tasks: List[Dict[str, Any]]) -> bool:
+        if not tasks:
+            return False
+        edit_tools = {
+            "smart_rewrite",
+            "smart_insert",
+            "smart_continue",
+            "operate_apply",
+            "apply_chapter_edit"
+        }
+        return any(task.get("tool") in edit_tools for task in tasks)
+
+    @staticmethod
+    def _next_task_id(tasks: List[Dict[str, Any]]) -> int:
+        max_task_id = 0
+        for task in tasks:
+            try:
+                task_id = int(task.get("task_id", 0))
+            except (TypeError, ValueError):
+                task_id = 0
+            max_task_id = max(max_task_id, task_id)
+        return max_task_id + 1
 
     def _ensure_explore_strict_locator(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not tasks:

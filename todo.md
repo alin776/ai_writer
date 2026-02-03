@@ -2539,6 +2539,55 @@
 
 - `INFO.md` 最后 100 行里只有 2 条 exact_search 相关日志，且 hits=5 / hits=12，没有出现 hit=0；其余是 explore 完成、summarization、上下文保存等流程日志。证据：`INFO.md` 末尾 100 行（15:50:45 之后）。
 
+#### Backend.md 17:23 read_paragraphs 失败原因排查（待确认）
+
+- [x] 定位 2026-02-03 17:23:08 前后 read_paragraphs 调用与参数
+- [x] 结合 explore_tools 过滤/预算/范围逻辑确定触发路径
+- [x] 在 todo.md 追加 review：直白结论 + 证据行号 + “超出范围”具体指向
+
+#### review
+
+- 17:23:08 这次失败并非“真正超出范围”，而是 **ExploreTool 过滤后 items 为空**触发的兜底错误。日志显示 call=read_paragraphs 传入了 6 个 item，但 done=read_paragraphs success=False count=0 且 empty_reason/index_base 均为 None，符合 ExploreTool 本地过滤后直接构造错误的路径。证据：`Backend.md:183-185`、`backend/app/services/agent/tools/explore_tools.py:4066-4085`、`backend/app/services/agent/tools/explore_tools.py:4101-4107`。
+- 触发“过滤为空”的具体机制：items 必须满足 **章节范围允许 + 未读去重 + 未超章节阅读预算**，否则会被剔除；全部被剔除就返回“没有可读取的段落（可能超出范围）”。证据：`backend/app/services/agent/tools/explore_tools.py:4066-4085`。
+- 这段任务前日志显示已复用共享状态 `read_paragraphs=50`，结合“按章阅读上限”逻辑，最可能是 **章节预算已耗尽或已读去重**导致 items 全部被过滤。证据：`Backend.md:156`、`backend/app/services/agent/tools/explore_tools.py:2299-2309`。
+
+#### 移除按章阅读上限机制（待确认）
+
+- [x] 确认按章阅读上限的关键入口（_init_chapter_read_caps/_get_chapter_remaining_reads）
+- [x] 最小改动禁用按章 cap（不影响全局读取上限）
+- [x] 自检 read_paragraphs/read_paragraph 仍可正常执行
+- [x] 在 todo.md 追加 review：改动点与行为变化说明
+
+#### review
+
+- 已禁用按章阅读上限：`_get_chapter_remaining_reads` 直接返回 `None`，所有“每章剩余可读数”判断将不再生效，仅保留全局读取上限与已读去重。`backend/app/services/agent/tools/explore_tools.py`
+
+#### 空读硬停 + 共享状态隔离 + 空读原因统计（待确认）
+
+- [x] 共享状态隔离：调整 explore 共享 key（加入任务指纹或清空 read_paragraph_positions）
+- [x] 空读硬停：连续空读 N 次停止或切换策略（read_paragraphs/read_paragraph）
+- [x] 空读原因统计：记录过滤原因计数并输出更准确的错误文案
+- [x] 自检：空读时不再死循环，日志可读性提升
+- [x] 在 todo.md 追加 review：改动点与行为变化说明
+
+#### review
+
+- 共享状态隔离：`_build_explore_shared_key` 新增 `target_task` 指纹，避免不同任务复用已读段落状态导致“全被过滤”。`backend/app/services/agent/tools/explore_tools.py`
+- 空读硬停：新增空读计数，连续空读达到 `TOOL_LOOP_EMPTY_READ_STREAK_LIMIT=3` 将停止工具循环，防止反复重试。`backend/app/services/agent/tools/explore_tools.py`
+- 空读原因统计：read_paragraphs(items) 过滤后为空时记录过滤统计并生成更准确的错误文案与 `empty_reason`，日志可直接看出是“已读/超范围/无效/预算”。`backend/app/services/agent/tools/explore_tools.py`
+
+#### Backend.md 缺陷复核（待确认）
+
+- [x] 通读 Backend.md（优先关注最新日志区段）
+- [x] 提取可疑/异常行为并关联到具体模块或逻辑路径
+- [x] 在 todo.md 追加 review：缺陷清单 + 证据行号 + 直白结论
+
+#### review
+
+- **read_paragraphs 反复失败但仍连续重试**：17:23:46～17:25:17 期间多次调用 `read_paragraphs`，全部 `count=0` 且 `empty_reason=None`，但工具循环继续重试（只调整 context_before/after 或 items 组合），造成明显的无效调用风暴。证据：`Backend.md:257-273`（多次 call/done/failed）以及 `Backend.md:276-282`。
+- **章节阅读预算耗尽导致 range 读取直接失败**：分页模式 `read_paragraphs` 在 17:25:24 与 17:28:28 返回“该章节读取预算已用尽”，随后探索完成理由也明确写“相关章节的阅读预算已用尽”。这会阻断后续原文读取，使探索只能停在“搜索命中”层。证据：`Backend.md:291`、`Backend.md:395`、`Backend.md:292`。
+- **共享状态复用造成“已读/预算”持续卡死**：每次新探索开始都会复用共享状态（read_paragraphs 计数持续增加），随后读段全部失败，说明“已读/预算状态”跨任务继承过重，导致新任务也无法读取原文。证据：`Backend.md:240`（read_paragraphs=53）结合连续 read_paragraphs 失败（`Backend.md:257-282`）。
+
 #### read_paragraphs 报“超出范围”原因排查（待确认）
 
 - [x] 定位 ExploreTool read_paragraphs 失败日志来源与触发条件（items 过滤/分页范围）
@@ -2596,3 +2645,25 @@
 
 - `load_explore_artifact` 工具返回的是顶层 `success/summary` 结构，没有 `data` 字段，但 `ToolExecutor.extract_result` 默认只取 `data` 并返回 `{}`，导致 summary 被丢弃，最终 Summarization 看不到摘要。证据：`backend/app/services/agent/execution/tool_executor.py:1626-1705`，以及 artifact 文件内确有 `payload.explore_summary`。`backend/uploads/73db1555-41d1-427a-bac1-2e2164c2a427/50fe756714434d5dbabee3b6eafcbd57.json`
 - 修复：为 `load_explore_artifact` 增加专用分支，直接返回完整 JSON（和 locate_content/explore_content 一致），确保 summary 不会被提取逻辑丢弃。`backend/app/services/agent/execution/tool_executor.py`
+
+#### 自动复用 Explore Artifact Hook（待确认）
+
+- [x] 将会话 artifact 列表注入 planning context（不只写入对话历史）
+- [x] 规划后处理加入“自动复用”逻辑：在满足条件时用 load_explore_artifact(summary) 替换 explore_content
+- [x] 增加“重新/最新/更新”等新鲜度判断，避免错误复用
+- [x] 只在 explore_content 无下游依赖时替换，避免破坏 $ref 依赖
+- [x] 在 todo.md 追加 review（规则 + 改动点）
+
+#### Explore 按条目补缺（部分复用）（待确认）
+
+- [x] 在规划阶段先自动取回最近 artifact_summary（同 work_id）
+- [x] 从用户请求中提取“需获取的条目”（支持编号/列表/显式条目）
+- [x] 用“条目文本是否出现在 summary”做轻量覆盖判断
+- [x] 仅对未覆盖条目触发 explore_content，并在 target_task 中声明“只补缺失项”
+- [x] 汇总时合并“已覆盖 + 新探索”结果
+
+#### review
+
+- Planning 阶段除了把“可用探索结果”注入对话历史，也写入 `context.session_artifacts`，使规划后处理能直接读取会话级 artifact 指针。`backend/app/services/agent/langgraph_agent.py`
+- 规划后处理新增自动复用逻辑：在用户未要求“重新/最新/更新”的情况下，若同 work_id 的 artifact 预览覆盖了部分条目，则先插入 `load_explore_artifact(summary)` 任务，并将 `explore_content` 的 target_task/keywords 改为“只补缺失项”。`backend/app/services/agent/planning/plan_generator.py`
+- 当所有条目都已覆盖且无下游 $ref 依赖时，自动移除 explore_content，避免重复探索；若有依赖则保留 explore。`backend/app/services/agent/planning/plan_generator.py`

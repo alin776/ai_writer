@@ -43,6 +43,7 @@ LOCATE_QUERY_MAX_LEN = 200
 
 TOOL_LOOP_MAX_CALLS_DEFAULT = 200
 TOOL_LOOP_MAX_READS_DEFAULT = 200
+TOOL_LOOP_EMPTY_READ_STREAK_LIMIT = 3
 TOOL_LOOP_RESULT_PREVIEW_LIMIT = 1200
 SEARCH_HIT_TEXT_LIMIT = 2000
 KEYWORD_READ_MAX_PER_TERM = 1
@@ -1217,7 +1218,8 @@ def _build_explore_shared_key(
     work_id: str,
     user_id: Optional[str],
     conversation_id: Optional[str],
-    chapter_scopes: List[Tuple[int, int]]
+    chapter_scopes: List[Tuple[int, int]],
+    target_task: Optional[str] = None
 ) -> str:
     work_id = str(work_id or "").strip()
     if not work_id:
@@ -1225,7 +1227,9 @@ def _build_explore_shared_key(
     user_part = str(user_id or "anonymous").strip() or "anonymous"
     convo_part = str(conversation_id or "default").strip() or "default"
     scope_part = _scopes_cache_key(chapter_scopes)
-    return f"{work_id}:{user_part}:{convo_part}:{scope_part}"
+    task_text = (target_task or "").strip()
+    task_part = hashlib.sha1(task_text.encode("utf-8")).hexdigest()[:8] if task_text else "none"
+    return f"{work_id}:{user_part}:{convo_part}:{scope_part}:{task_part}"
 
 
 def _normalize_search_keywords(keywords: Optional[List[str]]) -> List[str]:
@@ -2134,6 +2138,7 @@ class ContentExplorer:
         self.allowed_chapter_orders: List[int] = []
         self.chapter_paragraph_counts: Dict[int, int] = {}
         self.chapter_read_caps: Dict[int, int] = {}
+        self.empty_read_streak = 0
         self.flow_listed_chapters = False
         self.flow_listed_paragraphs: set[int] = set()
         if self.require_paragraph_index:
@@ -2297,11 +2302,8 @@ class ContentExplorer:
         return sum(1 for ch, _ in self.state.read_paragraph_positions if ch == chapter_order)
 
     def _get_chapter_remaining_reads(self, chapter_order: int) -> Optional[int]:
-        cap = self.chapter_read_caps.get(chapter_order)
-        if not isinstance(cap, int) or cap <= 0:
-            return None
-        used = self._get_chapter_read_count(chapter_order)
-        return max(0, cap - used)
+        # Per-chapter read caps disabled: return None to indicate no limit.
+        return None
 
     def _can_read_chapter(self, chapter_order: int, planned_reads: int = 1) -> bool:
         remaining = self._get_chapter_remaining_reads(chapter_order)
@@ -2802,6 +2804,26 @@ class ContentExplorer:
 
             if self.emit_callback:
                 await self._emit_round_event(round_data)
+
+            if decision.tool in ("read_paragraph", "read_paragraphs"):
+                if reads_used <= 0:
+                    self.empty_read_streak += 1
+                    empty_reason = ""
+                    if isinstance(tool_call.result, dict):
+                        empty_reason = str(tool_call.result.get("empty_reason") or tool_call.result.get("error") or "")
+                    logger.info(
+                        "[ContentExplorer] 空读计数: %s/%s reason=%s",
+                        self.empty_read_streak,
+                        TOOL_LOOP_EMPTY_READ_STREAK_LIMIT,
+                        empty_reason
+                    )
+                    if self.empty_read_streak >= TOOL_LOOP_EMPTY_READ_STREAK_LIMIT:
+                        stop_reason = f"连续空读达到上限({TOOL_LOOP_EMPTY_READ_STREAK_LIMIT})"
+                        break
+                else:
+                    self.empty_read_streak = 0
+            else:
+                self.empty_read_streak = 0
 
             last_tool_name = tool_call.tool_name
             last_tool_result = result_preview
@@ -4028,8 +4050,16 @@ class ContentExplorer:
                         pass
                     filtered_items = []
                     remaining_by_chapter: Dict[int, Optional[int]] = {}
+                    filter_stats = {
+                        "total": len(items),
+                        "invalid_items": 0,
+                        "out_of_scope": 0,
+                        "already_read": 0,
+                        "chapter_budget_exhausted": 0
+                    }
                     for item in items:
                         if not isinstance(item, dict):
+                            filter_stats["invalid_items"] += 1
                             continue
                         chapter_order = item.get("chapter_order") or item.get("chapter")
                         chapter_id = item.get("chapter_id") or params.get("chapter_id") or ""
@@ -4060,29 +4090,63 @@ class ContentExplorer:
                                 mapped_index = self.paragraph_node_id_cache.get(chapter_order, {}).get(node_id)
                                 if isinstance(mapped_index, int):
                                     paragraph_index = mapped_index
-                        if isinstance(paragraph_index, int):
-                            item["paragraph_index"] = paragraph_index
-
-                        if (
-                            isinstance(chapter_order, int)
-                            and isinstance(paragraph_index, int)
-                            and (not self.chapter_scopes or self._is_chapter_in_scope(chapter_order))
-                            and self.state.should_read_paragraph(chapter_order, paragraph_index)  # 去重检查
-                        ):
-                            remaining = remaining_by_chapter.get(chapter_order)
-                            if remaining is None:
-                                remaining = self._get_chapter_remaining_reads(chapter_order)
-                                remaining_by_chapter[chapter_order] = remaining
-                            if remaining is not None and remaining <= 0:
-                                continue
-                            filtered_items.append(item)
-                            if remaining is not None:
-                                remaining_by_chapter[chapter_order] = remaining - 1
+                        if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                            filter_stats["invalid_items"] += 1
+                            continue
+                        item["paragraph_index"] = paragraph_index
+                        if self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                            filter_stats["out_of_scope"] += 1
+                            continue
+                        if not self.state.should_read_paragraph(chapter_order, paragraph_index):
+                            filter_stats["already_read"] += 1
+                            continue
+                        remaining = remaining_by_chapter.get(chapter_order)
+                        if remaining is None:
+                            remaining = self._get_chapter_remaining_reads(chapter_order)
+                            remaining_by_chapter[chapter_order] = remaining
+                        if remaining is not None and remaining <= 0:
+                            filter_stats["chapter_budget_exhausted"] += 1
+                            continue
+                        filtered_items.append(item)
+                        if remaining is not None:
+                            remaining_by_chapter[chapter_order] = remaining - 1
                     items = filtered_items
                     if read_budget is not None and read_budget < len(items):
+                        filter_stats["read_budget_trimmed"] = len(items) - read_budget
                         items = items[:read_budget]
                     if not items:
-                        result_data = {"success": False, "error": "没有可读取的段落（可能超出范围）"}
+                        parts = []
+                        if filter_stats["invalid_items"]:
+                            parts.append(f"无效{filter_stats['invalid_items']}")
+                        if filter_stats["out_of_scope"]:
+                            parts.append(f"超范围{filter_stats['out_of_scope']}")
+                        if filter_stats["already_read"]:
+                            parts.append(f"已读{filter_stats['already_read']}")
+                        if filter_stats["chapter_budget_exhausted"]:
+                            parts.append(f"预算{filter_stats['chapter_budget_exhausted']}")
+                        if filter_stats.get("read_budget_trimmed"):
+                            parts.append(f"预算裁剪{filter_stats['read_budget_trimmed']}")
+                        empty_reason = "没有可读取的段落"
+                        if parts:
+                            empty_reason = f"没有可读取的段落（{'，'.join(parts)}）"
+                        result_data = {
+                            "success": False,
+                            "error": empty_reason,
+                            "empty_reason": empty_reason,
+                            "count": 0,
+                            "errors": 0,
+                            "invalid_items": filter_stats["invalid_items"],
+                            "filtered_counts": filter_stats,
+                            "index_base": "zero"
+                        }
+                        logger.info(
+                            "[ExploreTool] read_paragraphs filtered counts: total=%s invalid=%s out_of_scope=%s already_read=%s budget=%s",
+                            filter_stats["total"],
+                            filter_stats["invalid_items"],
+                            filter_stats["out_of_scope"],
+                            filter_stats["already_read"],
+                            filter_stats["chapter_budget_exhausted"]
+                        )
                     else:
                         params["work_id"] = self.work_id
                         params["items"] = items
@@ -5062,7 +5126,8 @@ async def explore_content(
         work_id,
         user_id,
         conversation_id,
-        chapter_scopes
+        chapter_scopes,
+        target_task_for_explorer
     )
     shared_state = None
     if shared_cache_key:

@@ -1459,6 +1459,9 @@ class WritingAgentGraph:
                                         for item in artifacts
                                     ]
                                     history_parts.append("【可用探索结果】\n" + "\n".join(artifact_lines))
+                                    if not isinstance(context, dict):
+                                        context = {}
+                                    context["session_artifacts"] = artifacts
                             except Exception as exc:
                                 logger.debug(f"[Planning] 读取会话 artifact 失败: {exc}")
 
