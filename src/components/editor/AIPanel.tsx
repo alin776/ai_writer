@@ -1,17 +1,16 @@
 ﻿import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Tag, X, Copy, Check } from 'lucide-react';
+import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus } from 'lucide-react';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
 import type { AgentChatRequest, TaskSnapshot, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
 import type { AgentMode } from '../agent/ModeSelector';
-import ModeSelector from '../agent/ModeSelector';
-import ActivityStream from '../agent/ActivityStream';  // �?导入ActivityStream
-import { ExecutionFlow } from '../agent/ExecutionFlow';  // �?v5.0: 执行轨迹可视�?
-import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // �?编辑确认对话�?
+import ActivityStream from '../agent/ActivityStream';  // 导入 ActivityStream
+import { ExecutionFlow } from '../agent/ExecutionFlow';  // v5.0: 执行轨迹可视化
+import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // 编辑确认对话框
 import {
   Dialog,
   DialogContent,
@@ -33,7 +32,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import rehypeRaw from 'rehype-raw';
-import remarkGfm from 'remark-gfm';  // �?支持 GFM 语法
+import remarkGfm from 'remark-gfm';  // 支持 GFM 语法
 import { knowledgeApi } from '@/services/knowledgeApi';
 
 interface AIPanelProps {
@@ -41,7 +40,7 @@ interface AIPanelProps {
   chapterId?: string;
   sessionId?: string;
   onTitleChange?: (title: string) => void;
-  /** 是否为当前活体（只有活跃窗口才监�?InlineAI 事件�?*/
+  /** 是否为当前活跃（只有活跃窗口才监听 InlineAI 事件）*/
   isActive?: boolean;
   /** 展开模式：编辑器收起时为 true，滚动由外层容器处理 */
   expandedMode?: boolean;
@@ -151,7 +150,7 @@ const MarkdownContent: React.FC<{ content: string }> = React.memo(({ content }) 
         remarkPlugins={remarkPluginsCache}
         rehypePlugins={rehypePluginsCache}
         components={{
-          // 代码�?
+          // 代码块
           code({ node, inline, className, children, ...props }: any) {
             const match = /language-(\w+)/.exec(className || '');
             return !inline && match ? (
@@ -236,7 +235,7 @@ const MarkdownContent: React.FC<{ content: string }> = React.memo(({ content }) 
           blockquote({ children }) {
             return <blockquote className="border-l-2 border-zinc-300 pl-2 my-1.5 text-zinc-600 text-[14px]">{children}</blockquote>;
           },
-          // 分隔�?
+          // 分隔线
           hr() {
             return <hr className="my-2 border-zinc-200" />;
           },
@@ -276,7 +275,7 @@ const TaskList = ({ tasks }: { tasks: TaskSnapshot[] }) => {
   const completedCount = tasks.filter(t => t.status === 'completed').length;
   const totalCount = tasks.length;
 
-  // 获取当前执行的任务（running状态），如果没有则取最后一个任�?
+  // 获取当前执行的任务（running 状态），如果没有则取最后一个任务
   const currentTask = tasks.find(t => t.status === 'running') || tasks[tasks.length - 1];
 
   return (
@@ -375,20 +374,23 @@ type RootCommandOption = {
 const ROOT_OPTIONS: RootCommandOption[] = [
   {
     key: 'knowledge',
-    label: '@Knowledge',
-    description: '引用知识库中的文档',
+    label: '从知识库中添加',
+    description: '从知识库中添加',
     icon: <BookOpen className="w-4 h-4" />,
     hasChildren: true,
   },
   {
     key: 'optimization',
-    label: '@optimization',
-    description: '调用 AI 去痕迹优化',
+    label: '文本自然化',
+    description: '文本自然化',
     icon: <Sparkles className="w-4 h-4" />,
   },
 ];
 
 const AT_CHARS = ['@', '\uFF20'];
+
+const MENU_COLUMN_WIDTH = 240;
+const MENU_GAP = 8;
 
 
 const extractKnowledgeTags = (value: string): string[] => {
@@ -403,7 +405,7 @@ const extractKnowledgeTags = (value: string): string[] => {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// 全局去重集合，确保消息只处理一�?inline-ai 消息
+// 全局去重集合，确保消息只处理一次 inline-ai 消息
 const getInlineAIProcessedSet = (): Set<string> => {
   if (typeof window === 'undefined') return new Set<string>();
   if (!(window as any).__inlineAIProcessed__) {
@@ -433,25 +435,21 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     hasOperations,
     acceptAllOperations,
     rollbackAllOperations,
-  } = useAgentChat({ workId, chapterId, sessionId });  // �?传入workId和chapterId进行会话隔离
+  } = useAgentChat({ workId, chapterId, sessionId });  // 传入 workId 和 chapterId 进行会话隔离
 
-  // 获取当前章节内容，用�?@optimization 直接调用去痕迹接�?
+  // 获取当前章节内容，用 @optimization 直接调用去痕迹接口
   const { currentChapter } = useEditorStore();
 
-  // 获取草稿 store 的方法，用于会话切换时保�?恢复输入状�?
+  // 获取草稿 store 的方法，用于会话切换时保存/恢复输入状态
   const { saveDraft, getDraft, clearDraft } = useChatDraftStore();
 
   const [inputValue, setInputValue] = useState('');
-  const [mode, setMode] = useState<AgentMode>('plan'); // �?Agent执行模式：plan(固定规划) | agent(DeepAgent反�?
+  const [mode] = useState<AgentMode>('plan'); // Agent 执行模式：plan(固定规划) | agent(DeepAgent 反思)
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesContentRef = useRef<HTMLDivElement>(null);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true); // 跟踪是否应该自动滚动
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const hasOperationsRef = useRef(false);
-  const scrollPositionRef = useRef<number>(0); // 保存滚动位置比例
-  const prevExpandedModeRef = useRef(expandedMode); // 追踪上一次的 expandedMode
   const anchorLatestUserRef = useRef(false);
   const skipAutoScrollRef = useRef(false);
   const freezeAutoScrollRef = useRef(false);
@@ -459,6 +457,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const userScrollIntentRef = useRef(false);
   const anchoredOnceRef = useRef(false);
   const isInputFocusedRef = useRef(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const hasOperationsRef = useRef(false);
+  const scrollPositionRef = useRef<number>(0); // 保存滚动位置比例
+  const prevExpandedModeRef = useRef(expandedMode); // 追踪上一次的 expandedMode
   const [scrollBufferHeight, setScrollBufferHeight] = useState(0);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const atBottomStateRef = useRef(true);
@@ -469,6 +471,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   }, []);
 
   const [atMenuOpen, setAtMenuOpen] = useState(false);
+  const [manualMenuOpen, setManualMenuOpen] = useState(false);
+  const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
   const [atStage, setAtStage] = useState<AtCommandStage>('root');
   const [atQuery, setAtQuery] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -482,9 +486,9 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const [menuHeight, setMenuHeight] = useState<number>(220);
 
-  // 🔧 expandedMode 切换时保�?恢复滚动位置，避免跳�?
+  // 🔧 expandedMode 切换时保存/恢复滚动位置，避免跳动
   useLayoutEffect(() => {
-    // 模式没变化，不处�?
+    // 模式没变化，不处理
     if (prevExpandedModeRef.current === expandedMode) return;
 
     const getScrollContainer = () => messagesContainerRef.current;
@@ -500,7 +504,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     // 更新 ref
     prevExpandedModeRef.current = expandedMode;
 
-    // 延迟恢复滚动位置（等�?DOM 更新�?
+    // 延迟恢复滚动位置（等待 DOM 更新）
     requestAnimationFrame(() => {
       const newContainer = getScrollContainer();
       if (newContainer) {
@@ -531,10 +535,10 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     selection_position?: { from: number; to: number };
   } | null>(null);
 
-  // 复制成功状态，显示 �?
+  // 复制成功状态，显示提示
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
-  // 添加到知识库对话框状�?
+  // 添加到知识库对话框状态
   const [showAddKnowledgeDialog, setShowAddKnowledgeDialog] = useState(false);
   const [knowledgeFormTitle, setKnowledgeFormTitle] = useState('');
   const [knowledgeFormContent, setKnowledgeFormContent] = useState('');
@@ -545,7 +549,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   // Toast 提示
   const { messages: toastMessages, success: showSuccess, error: showError, close: closeToast } = useToast();
 
-  // 组件挂载时恢复草�?
+  // 组件挂载时恢复草稿
   useEffect(() => {
     if (sessionId) {
       const draft = getDraft(sessionId);
@@ -557,7 +561,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 只在挂载时执行一�?
+  }, []); // 只在挂载时执行一次
 
   // 实时保存草稿：每当内容变化时自动保存
   useEffect(() => {
@@ -573,12 +577,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         selectionContext,
       });
     } else {
-      // 如果没有内容，清除草�?
+      // 如果没有内容，清除草稿
       clearDraft(sessionId);
     }
   }, [sessionId, inputValue, selectedDocs, optimizationSelected, selectionContext, saveDraft, clearDraft]);
 
-  // �?流式输出：真正的字符流，前端直接显示，不在前端处理换行效�?
+  // 流式输出：真正的字符流，前端直接显示，不在前端处理换行效果
 
   const copyMessage = useCallback(async (content: string, messageId: string) => {
     try {
@@ -591,7 +595,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     }
   }, []);
 
-  // 打开添加知识对话�?
+  // 打开添加知识对话框
   const handleOpenAddKnowledge = useCallback((title: string, content: string) => {
     setKnowledgeFormTitle(title);
     setKnowledgeFormContent(content);
@@ -629,7 +633,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   }, [knowledgeFormTitle, knowledgeFormContent, knowledgeFormCategory, knowledgeFormTags, showSuccess, showError]);
 
   const containsAt = useMemo(() => AT_CHARS.some((c) => inputValue.includes(c)), [inputValue]);
-  // 去痕长度变量，用于显�?
+  // 去痕长度变量，用于显示
   const MAX_HUMANIZE_CHARS = 5000;
   const rawChapterContent = currentChapter?.content?.trim() || '';
   const truncatedCount =
@@ -681,8 +685,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     onTitleChange(title);
   }, [messages, onTitleChange, sessionId]);
 
-  // �?定义 handleSendWithContext 用于处理带上下文的消息（InlineAI�?
-  // �?使用 useRef 存储回调函数，让 useEffect 不因回调变化而重新渲�?
+  // 定义 handleSendWithContext 用于处理带上下文的消息（InlineAI 消息）
+  // 使用 useRef 存储回调函数，让 useEffect 不因回调变化而重新渲染
   const handleSendWithContextRef = useRef<(message: string, context?: any) => Promise<void>>(undefined);
 
   handleSendWithContextRef.current = async (message: string, context?: any) => {
@@ -690,7 +694,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
     const backendMode: AgentChatRequest['mode'] = mode === 'agent' ? 'react' : 'planning';
 
-    // �?固定 payload 结构，将选中信息放入独立�?selection 字段
+    // 固定 payload 结构，将选中信息放入独立 selection 字段
     // 避免将选中文本放入 prompt/chapter_context 导致被覆盖或结构混乱
     const selectionData = context?.selected_text ? {
       text: context.selected_text,
@@ -713,7 +717,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       enable_reflection: mode === 'agent',
       context: {
         ...context,
-        // �?新增独立 selection 字段，推荐结构化
+        // 新增独立 selection 字段，推荐结构化
         selection: selectionData,
         // 保留 selected_text 字段以兼容旧逻辑
         selected_text: context?.selected_text,
@@ -722,7 +726,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
         ...locateHint,
         // chapter_context 只放章节标识，不放选中文本
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
-        // �?如果有选中文本，添加结构化的指令上下文
+        // 如果有选中文本，添加结构化的指令上下文
         instruction_context: context?.selected_text
           ? `用户选中了以下文本进行操作:
 ---
@@ -740,7 +744,7 @@ ${context.selected_text}
     anchoredOnceRef.current = false;
     anchorLatestUserRef.current = true;
     skipAutoScrollRef.current = true;
-    ignoreScrollEventRef.current = false;  // 重置滚动事件忽略标志
+    ignoreScrollEventRef.current = false; // 重置滚动事件忽略标志
 
     try {
       await sendMessageStream(request);
@@ -749,12 +753,12 @@ ${context.selected_text}
     }
   };
 
-  // �?稳定的回调封装，避免因依赖变化而重新创�?
+  // 稳定的回调封装，避免因依赖变化而重新创建
   const handleSendWithContext = useCallback((message: string, context?: any) => {
     return handleSendWithContextRef.current?.(message, context);
   }, []);
 
-  // �?监听来自编辑�?InlineAI 的消息，只有活跃窗口才监�?
+  // 监听来自编辑器 InlineAI 的消息，只有活跃窗口才监听
   useEffect(() => {
     // 非活跃不设置监听
     if (!isActive) {
@@ -769,7 +773,7 @@ ${context.selected_text}
       const rid = item?.requestId || JSON.stringify(item);
       if (!consumed.has(rid)) {
         consumed.add(rid);
-        // �?直接传递原�?context，handleSendWithContext 会正确构�?selection 字段
+        // 直接传递原始 context，handleSendWithContext 会正确构建 selection 字段
         handleSendWithContext(item.message || '', item.context || {});
       }
     });
@@ -780,7 +784,7 @@ ${context.selected_text}
       const rid = requestId || `inline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       if (consumed.has(rid)) return;
       consumed.add(rid);
-      // �?直接传递原�?context，handleSendWithContext 会正确构�?selection 字段
+      // 直接传递原始 context，handleSendWithContext 会正确构建 selection 字段
       handleSendWithContext(msg, ctx);
     };
 
@@ -797,14 +801,14 @@ ${context.selected_text}
     }>) => {
       const { message, context, requestId } = event.detail;
 
-      // 去重检�?
+      // 去重检查
       const rid = requestId || `inline-${Date.now()}`;
       if (consumed.has(rid)) {
         return;
       }
       consumed.add(rid);
 
-      // �?直接传递原�?context，handleSendWithContext 会正确构�?selection 字段
+      // 直接传递原始 context，handleSendWithContext 会正确构建 selection 字段
       handleSendWithContext(message, context);
     };
 
@@ -816,7 +820,7 @@ ${context.selected_text}
     };
   }, [handleSendWithContext, isActive]);
 
-  // �?监听 InlineAI intent（用于设置上下文，不发送消息）：全局 + 事件队列
+  // 监听 InlineAI intent（用于设置上下文，不发送消息）：全局 + 事件队列
   useEffect(() => {
     if (!isActive) return;
     const intentQueue: any[] = (window as any).__inlineAIIntentQueue__ || [];
@@ -864,13 +868,13 @@ ${context.selected_text}
     const container = messagesContainerRef.current;
     if (!container) return false;
 
-    // 检查滚动位置是否接近底部（允许50px误差）
+    // 检查滚动位置是否接近底部（允许50px误差）
     const threshold = 50;
-    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
-    return atBottom;
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+    return isAtBottom;
   }, []);
 
-  // 滚动到底�?
+  // 滚动到底部
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const end = messagesEndRef.current;
     if (!end) return;
@@ -887,7 +891,6 @@ ${context.selected_text}
       container.scrollTop -= offset;
     }
   }, []);
-
 
   const markUserScrollIntent = useCallback(() => {
     userScrollIntentRef.current = true;
@@ -969,9 +972,7 @@ ${context.selected_text}
     });
   }, [checkIfAtBottom, messages.length, scrollBufferHeight, scrollUserMessageToTop, syncAtBottomState]);
 
-  // 发送后仅顶格一次：后续输出不自动跟随
-
-  // 流式输出时内容高度变化，保持自动滚动
+  // 流式输出时内容高度变化，保持自动滚动/顶格
   useLayoutEffect(() => {
     const container = messagesContainerRef.current;
     const content = messagesContentRef.current;
@@ -1014,7 +1015,7 @@ ${context.selected_text}
     };
   }, [checkIfAtBottom, messages.length, scrollToBottom, syncAtBottomState]);
 
-  // �?流式输出：真正的字符流，前端直接使用 message.content
+  // 流式输出：真正的字符流，前端直接使用 message.content
 
   const repositionMenu = useCallback(() => {
     const inputEl = inputRef.current;
@@ -1042,6 +1043,7 @@ ${context.selected_text}
 
       const lastIndex = Math.max(...AT_CHARS.map((c) => value.lastIndexOf(c, caret - 1)));
       if (lastIndex === -1) {
+        if (manualMenuOpen) return;
         setAtMenuOpen(false);
         return;
       }
@@ -1056,9 +1058,10 @@ ${context.selected_text}
       setAtTriggerIndex(lastIndex);
       setAtQuery(tokenText);
       setHighlightIndex(0);
+      setManualMenuOpen(false);
       repositionMenu();
     },
-    [repositionMenu]
+    [manualMenuOpen, repositionMenu]
   );
 
   const syncAtStateFromRef = useCallback(() => {
@@ -1083,16 +1086,19 @@ ${context.selected_text}
   }, []);
 
   useEffect(() => {
-    if (!containsAt) {
+    if (!containsAt && !manualMenuOpen) {
       setAtMenuOpen(false);
       setAtStage('root');
+      setKnowledgePanelOpen(false);
       return;
     }
-    syncAtStateFromRef();
-  }, [containsAt, inputValue, syncAtStateFromRef]);
+    if (containsAt) {
+      syncAtStateFromRef();
+    }
+  }, [containsAt, inputValue, manualMenuOpen, syncAtStateFromRef]);
 
   useEffect(() => {
-    if (!atMenuOpen) return;
+    if (!atMenuOpen || atStage === 'knowledge') return;
     repositionMenu();
     if (menuRef.current) {
       const h = menuRef.current.getBoundingClientRect().height;
@@ -1107,7 +1113,7 @@ ${context.selected_text}
       window.removeEventListener('resize', handleWindow);
       window.removeEventListener('scroll', handleWindow, true);
     };
-  }, [atMenuOpen, repositionMenu]);
+  }, [atMenuOpen, atStage, repositionMenu]);
 
   useEffect(() => {
     const loadDocs = async () => {
@@ -1115,7 +1121,7 @@ ${context.selected_text}
       try {
         setKnowledgeLoading(true);
         setKnowledgeError(null);
-        // 使用新的 getDocTitles API，返�?{id, title}[]
+        // 使用新的 getDocTitles API，返回 {id, title}[]
         const docs = await knowledgeApi.getDocTitles();
         setKnowledgeDocs(docs.map((d) => ({ id: d.id, title: d.title || '未命名文档' })));
         setKnowledgeHasMore(false);
@@ -1141,14 +1147,41 @@ ${context.selected_text}
 
   const closeAtMenu = useCallback(() => {
     setAtMenuOpen(false);
+    setManualMenuOpen(false);
+    setKnowledgePanelOpen(false);
     setAtStage('root');
     setAtQuery('');
     setHighlightIndex(0);
     setAtTriggerIndex(null);
-    setKnowledgeLoadedOnce(false);
-    setKnowledgePage(1);
-    setKnowledgeHasMore(false);
   }, []);
+
+  useEffect(() => {
+    if (!atMenuOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (menuRef.current?.contains(target)) return;
+      if (inputRef.current?.contains(target)) return;
+      if (target.closest('[data-command-trigger="true"]')) return;
+      closeAtMenu();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [atMenuOpen, closeAtMenu]);
+
+  const openCommandMenu = useCallback(() => {
+    setManualMenuOpen(true);
+    setAtMenuOpen(true);
+    setKnowledgePanelOpen(false);
+    setAtStage('root');
+    setAtQuery('');
+    setHighlightIndex(0);
+    setAtTriggerIndex(null);
+    repositionMenu();
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [repositionMenu]);
 
   const stripCurrentToken = useCallback(() => {
     const el = inputRef.current;
@@ -1173,14 +1206,44 @@ ${context.selected_text}
         requestAnimationFrame(() => inputRef.current?.focus());
         return;
       }
+      setKnowledgePanelOpen(true);
       setAtStage('knowledge');
       setAtQuery('');
       setHighlightIndex(0);
       setAtMenuOpen(true);
-      repositionMenu();
     },
-    [closeAtMenu, repositionMenu, stripCurrentToken]
+    [closeAtMenu, stripCurrentToken]
   );
+
+  const handleRootHover = useCallback(
+    (option: RootCommandOption, index: number) => {
+      setHighlightIndex(index);
+      if (option.key === 'knowledge') {
+        if (!knowledgePanelOpen || atStage !== 'knowledge') {
+          setKnowledgePanelOpen(true);
+          setAtStage('knowledge');
+        }
+        return;
+      }
+      if (knowledgePanelOpen || atStage === 'knowledge') {
+        setKnowledgePanelOpen(false);
+        setAtStage('root');
+      }
+    },
+    [knowledgePanelOpen, atStage]
+  );
+
+  const stopMenuScrollChain = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const delta = event.deltaY;
+    const atTop = scrollTop <= 0;
+    const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
+    if ((delta < 0 && atTop) || (delta > 0 && atBottom)) {
+      event.preventDefault();
+    }
+    event.stopPropagation();
+  }, []);
 
   const handleKnowledgeSelect = useCallback(
     (doc: { id: string; title: string }) => {
@@ -1196,14 +1259,14 @@ ${context.selected_text}
     const el = inputRef.current;
     if (!el) return;
 
-    // 如果没有内容，直接设置为最小高�?
+    // 如果没有内容，直接设置为最小高度
     if (!el.value || el.value.trim() === '') {
       el.style.height = '32px';
       el.style.overflowY = 'hidden';
       return;
     }
 
-    // 先重置高度，�?scrollHeight 能正确反映实际内容高�?
+    // 先重置高度，确保 scrollHeight 能正确反映实际内容高度
     el.style.height = '32px';
     const maxH = 200;
     // 根据实际内容计算高度
@@ -1258,8 +1321,8 @@ ${context.selected_text}
         }
       : {};
 
-    // Agent 模式 = Planning + DeepAgent 反思，可动态调整计�?
-    // Plan 模式 = �?Planning，无反思，任务列表固定
+    // Agent 模式 = Planning + DeepAgent 反思，可动态调整计划
+    // Plan 模式 = 仅 Planning，无反思，任务列表固定
     const enableDeepAgent = mode === 'agent';
 
     const locateHint = (() => {
@@ -1271,7 +1334,7 @@ ${context.selected_text}
     const request: AgentChatRequest = {
       message,
       mode: 'planning',  // 始终使用 planning 模式
-      enable_reflection: enableDeepAgent,  // Agent 模式启用 DeepAgent 反�?
+      enable_reflection: enableDeepAgent,  // Agent 模式启用 DeepAgent 反思
       work_id: workId,
       chapter_id: chapterId,
       context: {
@@ -1316,7 +1379,7 @@ ${selectionContext.selected_text}
     anchoredOnceRef.current = false;
     anchorLatestUserRef.current = true;
     skipAutoScrollRef.current = true;
-    ignoreScrollEventRef.current = false;  // 重置滚动事件忽略标志
+    ignoreScrollEventRef.current = false; // 重置滚动事件忽略标志
 
     try {
       await sendMessageStream(request);
@@ -1362,7 +1425,7 @@ ${selectionContext.selected_text}
         closeAtMenu();
       }
 
-      // 当输入框内容为空时，Backspace 删除最后一个标签（先知识文档，�?optimization�?
+      // 当输入框内容为空时，Backspace 删除最后一个标签（先知识文档，再 optimization）
       if (e.key === 'Backspace' && !inputValue.trim()) {
         if (selectedDocs.length > 0) {
           e.preventDefault();
@@ -1423,11 +1486,7 @@ ${selectionContext.selected_text}
   }, [expandedMode, messages.length]);
 
   return (
-    <div
-      className={`flex flex-col h-full min-h-0 dark:bg-slate-900 overflow-hidden ${
-        messages.length > 0 ? 'px-3 pb-3 pt-0' : 'p-3'
-      }`}
-    >
+    <div className="p-3 flex flex-col h-full min-h-0 dark:bg-slate-900 overflow-hidden">
       <ToastContainer messages={toastMessages} onClose={closeToast} />
 
       {/* 新会话欢迎界面 - 输入框居中偏上 */}
@@ -1467,7 +1526,7 @@ ${selectionContext.selected_text}
                 {optimizationSelected && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                     <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                    optimization
+                    文本自然化
                     <button
                       type="button"
                       className="hover:text-zinc-900 transition-colors"
@@ -1476,7 +1535,7 @@ ${selectionContext.selected_text}
                         e.preventDefault();
                         removeOptimization();
                       }}
-                      aria-label="移除 AI 去痕迹"
+                      aria-label="移除文本自然化"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -1534,13 +1593,19 @@ ${selectionContext.selected_text}
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <ModeSelector
-                mode={mode}
-                onModeChange={setMode}
+              <button
+                type="button"
+                onClick={openCommandMenu}
                 disabled={isLoading}
-                compact
-                className="bg-white dark:bg-slate-800"
-              />
+                data-command-trigger="true"
+                className={`w-10 h-10 rounded-full bg-white text-gray-700 shadow-sm transition-colors flex items-center justify-center ring-1 ring-gray-200/60 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/60 ${
+                  isLoading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                aria-label="打开指令列表"
+                title="指令"
+              >
+                <Plus className="w-4 h-4" strokeWidth={2.5} />
+              </button>
 
               <div className="flex items-center gap-1.5">
                 {isLoading ? (
@@ -1578,8 +1643,8 @@ ${selectionContext.selected_text}
             onTouchStart={markUserScrollIntent}
           >
             <div className={`flex w-full ${expandedMode ? 'justify-center' : ''}`}>
-              <div className={`${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
-                <div ref={messagesContentRef} className="flex flex-col gap-2.5">
+            <div className={`${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
+              <div ref={messagesContentRef} className="flex flex-col gap-2.5">
           {messages.map((message, index) => {
             // Skip null/undefined messages
             if (!message) {
@@ -1622,21 +1687,25 @@ ${selectionContext.selected_text}
           }
 
           const messageFlowItems = (message as any).flowItems || [];
-          // DEBUG: 检�?flowItems 是否正确加载
+          // DEBUG: 检查 flowItems 是否正确加载
           if (process.env.NODE_ENV === 'development' && !isUser) {
             console.log(`[AIPanel] Message ${index} flowItems:`, messageFlowItems.length, messageFlowItems.map((i: any) => i?.type));
           }
-          // v6.2: completion 应该�?output 一起显示在内容区域，而不是在执行轨迹区域
-          // v6.6: 保留 agent_header 在执行轨迹区域，确保流式输出过程中也能显�?logo 和名�?
+          // v6.2: completion 应该和 output 一起显示在内容区域，而不是在执行轨迹区域
+          // v6.6: 保留 agent_header 在执行轨迹区域，确保流式输出过程中也能显示 logo 和名称
           const flowItemsWithoutOutput = messageFlowItems.filter((item: any) =>
             item?.type !== 'output' && item?.type !== 'completion'
+          );
+          // 仅在“有实质执行信息”时才关闭 Thinking（忽略装饰性事件）
+          const meaningfulFlowItems = flowItemsWithoutOutput.filter((item: any) =>
+            item?.type !== 'agent_header' && item?.type !== 'text'
           );
           const outputItems = messageFlowItems.filter((item: any) => item?.type === 'output');
           const completionItem = messageFlowItems.find((item: any) => item?.type === 'completion');
           const lastOutputItem = outputItems.length > 0 ? outputItems[outputItems.length - 1] : null;
           const isStreamingMessage = isLastMessage && isLoading;
           const showActivityStream = isStreamingMessage && mode === 'agent' && activities.length > 0;
-          const showThinking = isStreamingMessage && !showActivityStream && flowItemsWithoutOutput.length === 0;
+          const showThinking = isStreamingMessage && !showActivityStream && meaningfulFlowItems.length === 0;
           const showFlowBlock = flowItemsWithoutOutput.length > 0 || showActivityStream || showThinking;
           const findRevisionByItemId = (targetId: string): RevisionFlowData | null => {
             if (!targetId) return null;
@@ -1656,10 +1725,7 @@ ${selectionContext.selected_text}
           };
 
           return (
-            <div
-              key={index}
-              className="space-y-2"
-            >
+            <div key={index} className="space-y-2">
               {showFlowBlock && (
                 <div className="flex items-start">
                   <div className="flex-1 !border-none !bg-transparent">
@@ -1672,7 +1738,7 @@ ${selectionContext.selected_text}
                           const resolvedRequestId = requestId || revisionData?.requestId;
                           const targetChapterId = revisionData?.chapterId;
 
-                          // v7.2: �?pendingApproval 中提取快照数据用于撤销/重做
+                          // v7.2: 从 pendingApproval 中提取快照数据用于撤销/重做
                           let snapshot: {
                             originalContent?: string;
                             newContent?: string;
@@ -1686,7 +1752,7 @@ ${selectionContext.selected_text}
                             let newContent = pendingApproval.new_content;
                             const editorPosition = pendingApproval.editor_action?.position;
 
-                            // 如果�?rewrite 类型，使用选择的版本内�?
+                            // 如果是 rewrite 类型，使用选择的版本内容
                             if (pendingApproval.action_type === 'rewrite' &&
                                 selectedVersion !== undefined &&
                                 pendingApproval.versions?.[selectedVersion]?.content) {
@@ -1708,23 +1774,29 @@ ${selectionContext.selected_text}
                             });
                           }
 
-                          // 更新 revision 状态为已采纳，并保存快�?
+                          // 更新 revision 状态为已采纳，并保存快照
                           updateRevisionStatus(itemId, 'accepted', snapshot);
 
-                          // 如果�?pendingApproval，且 requestId 匹配，则调用 submitApproval
+                          // 如果是 pendingApproval，且 requestId 匹配，则调用 submitApproval
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(true, selectedVersion);
                           } else if (resolvedRequestId) {
-                            // v7.5: 非阻塞式修订 - 直接调用后端 API 写入数据�?
-                            console.log('[AIPanel] 非阻塞式修订，直接调用后�?API');
+                            // v7.5: 非阻塞式修订 - 直接调用后端 API 写入数据
+                            console.log('[AIPanel] 非阻塞式修订，直接调用后端 API');
                             agentApi.submitApprovalResponse({
                               request_id: resolvedRequestId,
                               approved: true,
                               selected_version: selectedVersion
                             }).then(() => {
-                              console.log('[AIPanel] �?修订已写入数据库');
+                              console.log('[AIPanel] ✅ 修订已写入数据库');
+                              if (workId) {
+                                window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
+                                  detail: { work_id: workId }
+                                }));
+                                console.log('[AIPanel] ✅ 派发章节确认事件，刷新列表');
+                              }
                             }).catch((err) => {
-                              console.error('[AIPanel] �?写入数据库失�?', err);
+                              console.error('[AIPanel] 写入数据库失败:', err);
                             });
                             // 派发采纳事件到编辑器
                             window.dispatchEvent(
@@ -1756,7 +1828,7 @@ ${selectionContext.selected_text}
                           const resolvedRequestId = requestId || revisionData?.requestId;
                           const targetChapterId = revisionData?.chapterId;
 
-                          // v7.2: �?pendingApproval 中提取快照数据用于重�?
+                          // v7.2: 从 pendingApproval 中提取快照数据用于重做
                           let snapshot: {
                             originalContent?: string;
                             newContent?: string;
@@ -1776,19 +1848,19 @@ ${selectionContext.selected_text}
                             };
                           }
 
-                          // 更新 revision 状态为已弃用，并保存快�?
+                          // 更新 revision 状态为已弃用，并保存快照
                           updateRevisionStatus(itemId, 'discarded', snapshot);
 
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(false);
                           } else if (resolvedRequestId) {
                             // v7.5: 非阻塞式修订 - 直接调用后端 API
-                            console.log('[AIPanel] 非阻塞式修订，直接调用后�?API (弃用)');
+                            console.log('[AIPanel] 非阻塞式修订，直接调用后端 API (弃用)');
                             agentApi.submitApprovalResponse({
                               request_id: resolvedRequestId,
                               approved: false
                             }).catch((err) => {
-                              console.error('[AIPanel] �?弃用请求失败:', err);
+                              console.error('[AIPanel] 弃用请求失败:', err);
                             });
                             // v7.6: 派发弃用事件到编辑器（直接操作修订标记）
                             window.dispatchEvent(
@@ -1868,7 +1940,7 @@ ${selectionContext.selected_text}
                 </div>
               )}
 
-              {/* v6.6: 只有当有实际内容时才显示内容区域（AgentHeader 已在执行轨迹区域显示�?*/}
+              {/* v6.6: 只有当有实际内容时才显示内容区域（AgentHeader 已在执行轨迹区域显示）*/}
               {(message.content || lastOutputItem) && (
                 <div className="flex items-start">
                   <div className="flex flex-col gap-1 w-full group">
@@ -1997,7 +2069,7 @@ ${selectionContext.selected_text}
           <div className="rounded-3xl bg-white border border-gray-200 px-4 py-3 space-y-3 flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
             <div className="relative">
               <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
-                {/* 选中文本前置（放在后，保持同一行逻辑�?*/}
+                {/* 选中文本前置（放在后，保持同一行逻辑）*/}
                 {selectionContext?.selected_text && (
                   <span
                     className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
@@ -2023,7 +2095,7 @@ ${selectionContext.selected_text}
                 {optimizationSelected && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                     <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                    optimization
+                    文本自然化
                     <button
                       type="button"
                       className="hover:text-zinc-900 transition-colors"
@@ -2032,7 +2104,7 @@ ${selectionContext.selected_text}
                         e.preventDefault();
                         removeOptimization();
                       }}
-                    aria-label="\u79fb\u9664 AI \u53bb\u75d5\u8ff9"
+                      aria-label="移除文本自然化"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -2091,18 +2163,24 @@ ${selectionContext.selected_text}
 
             {truncatedCount > 0 && (
               <div className="text-[11px] text-amber-600 px-1 dark:text-amber-400">
-                章节内容超过 5000 字，已截断超过的 {truncatedCount} 字符进行去痕迹�?
+                章节内容超过 5000 字，已截断超过的 {truncatedCount} 字符进行去痕迹处理
               </div>
             )}
 
             <div className="flex items-center justify-between gap-2">
-              <ModeSelector
-                mode={mode}
-                onModeChange={setMode}
+              <button
+                type="button"
+                onClick={openCommandMenu}
                 disabled={isLoading}
-                compact
-                className="bg-white dark:bg-slate-800"
-              />
+                data-command-trigger="true"
+                className={`w-10 h-10 rounded-full bg-white text-gray-700 shadow-sm transition-colors flex items-center justify-center ring-1 ring-gray-200/60 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/60 ${
+                  isLoading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                aria-label="打开指令列表"
+                title="指令"
+              >
+                <Plus className="w-4 h-4" strokeWidth={2.5} />
+              </button>
 
               <div className="flex items-center gap-1.5">
                 {isLoading ? (
@@ -2135,57 +2213,122 @@ ${selectionContext.selected_text}
         createPortal(
           <div
             className="fixed z-[1200]"
-            style={{ left: menuPosition.left, top: menuPosition.top, width: menuPosition.width }}
+            data-scroll-scope="command-menu"
+            style={{
+              left: menuPosition.left,
+              top: menuPosition.top,
+              width: knowledgePanelOpen && atStage === 'knowledge'
+                ? MENU_COLUMN_WIDTH * 2 + MENU_GAP
+                : MENU_COLUMN_WIDTH
+            }}
           >
-            <div
-              ref={menuRef}
-              className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden max-w-[360px] w-full"
-            >
-              <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800/70 text-[12px]">
-                <div className="flex items-center gap-2">
-                  {atStage === 'knowledge' ? (
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setAtStage('root');
-                        setHighlightIndex(0);
-                        setAtQuery('');
-                      }}
-                      className="inline-flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
-                    >
-                      {'\u8fd4\u56de'}
-
-                    </button>
-                  ) : (
-                    <span className="inline-flex items-center text-slate-300">
-                      @ 指令
-                    </span>
-                  )}
+            {atStage === 'knowledge' && knowledgePanelOpen ? (
+              <div ref={menuRef} className="grid grid-cols-2 gap-2 items-start">
+                <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full self-start dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50">
+                  <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2" onWheel={stopMenuScrollChain}>
+                    {filteredRootOptions.length > 0 ? (
+                      filteredRootOptions.map((option, idx) => {
+                        const isHighlighted = knowledgePanelOpen && atStage === 'knowledge'
+                          ? option.key === 'knowledge'
+                          : idx === highlightIndex;
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleRootOption(option)}
+                            onMouseEnter={() => handleRootHover(option, idx)}
+                            className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
+                              isHighlighted
+                                ? 'bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-600/60'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-700 dark:text-slate-200">{option.icon}</span>
+                              <div className="flex flex-col">
+                                <span className="text-[12px] text-slate-900 dark:text-white">{option.label}</span>
+                              </div>
+                            </div>
+                            {option.hasChildren && <ChevronRight className="w-4 h-4 text-slate-400" />}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-3 py-2 text-[12px] text-slate-400">{'\u6ca1\u6709\u5339\u914d\u7684\u6307\u4ee4'}</div>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full -mt-4 dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50">
+                  <div
+                    ref={knowledgeListRef}
+                    className="max-h-[220px] overflow-y-auto overscroll-contain custom-scrollbar px-2 py-2"
+                    onWheel={stopMenuScrollChain}
+                  >
+                    <div className="space-y-1">
+                      {knowledgeLoading && (
+                        <div className="px-3 py-2 text-[12px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {'\u6b63\u5728\u52a0\u8f7d\u77e5\u8bc6\u5e93\u6587\u6863...'}
+                        </div>
+                      )}
+                      {knowledgeError && !knowledgeLoading && (
+                        <div className="px-3 py-2 text-[12px] text-amber-600 dark:text-amber-200">
+                          {knowledgeError}
+                        </div>
+                      )}
+                      {!knowledgeLoading && !knowledgeError && filteredKnowledgeDocs.length === 0 && (
+                        <div className="px-3 py-2 text-[12px] text-slate-500 dark:text-slate-400">暂无可用文档</div>
+                      )}
+                      {!knowledgeLoading &&
+                        !knowledgeError &&
+                        filteredKnowledgeDocs.map((doc, idx) => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleKnowledgeSelect(doc)}
+                            onMouseEnter={() => setHighlightIndex(idx)}
+                            className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
+                              idx === highlightIndex
+                                ? 'bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-600/60'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Tag className="w-4 h-4 text-slate-600 dark:text-slate-200" />
+                              <span className="text-[12px] text-slate-900 dark:text-white truncate max-w-[150px]">{doc.title}</span>
+                            </div>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div ref={knowledgeListRef} className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2">
-                {atStage === 'root' ? (
-                  filteredRootOptions.length > 0 ? (
+            ) : (
+              <div
+                ref={menuRef}
+                className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50"
+              >
+                <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2" onWheel={stopMenuScrollChain}>
+                  {filteredRootOptions.length > 0 ? (
                     filteredRootOptions.map((option, idx) => (
                       <button
                         key={option.key}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => handleRootOption(option)}
-                        onMouseEnter={() => setHighlightIndex(idx)}
+                        onMouseEnter={() => handleRootHover(option, idx)}
                         className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
                           idx === highlightIndex
-                            ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
-                            : 'hover:bg-slate-800/60'
+                            ? 'bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-600/60'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-slate-200">{option.icon}</span>
+                          <span className="text-slate-700 dark:text-slate-200">{option.icon}</span>
                           <div className="flex flex-col">
-                            <span className="text-[12px] text-white">{option.label}</span>
-                            <span className="text-[11px] text-slate-400">{option.description}</span>
+                            <span className="text-[12px] text-slate-900 dark:text-white">{option.label}</span>
                           </div>
                         </div>
                         {option.hasChildren && <ChevronRight className="w-4 h-4 text-slate-400" />}
@@ -2193,54 +2336,15 @@ ${selectionContext.selected_text}
                     ))
                   ) : (
                     <div className="px-3 py-2 text-[12px] text-slate-400">{'\u6ca1\u6709\u5339\u914d\u7684\u6307\u4ee4'}</div>
-                  )
-                ) : (
-                  <div className="space-y-1">
-                    {knowledgeLoading && (
-                      <div className="px-3 py-2 text-[12px] text-slate-400 flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        {'\u6b63\u5728\u52a0\u8f7d\u77e5\u8bc6\u5e93\u6587\u6863...'}
-                      </div>
-                    )}
-                    {knowledgeError && !knowledgeLoading && (
-                      <div className="px-3 py-2 text-[12px] text-amber-200">
-                        {knowledgeError}
-                      </div>
-                    )}
-                    {!knowledgeLoading && !knowledgeError && filteredKnowledgeDocs.length === 0 && (
-                      <div className="px-3 py-2 text-[12px] text-slate-400">暂无可用文档</div>
-                    )}
-                    {!knowledgeLoading &&
-                      !knowledgeError &&
-                      filteredKnowledgeDocs.map((doc, idx) => (
-                        <button
-                          key={doc.id}
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleKnowledgeSelect(doc)}
-                          onMouseEnter={() => setHighlightIndex(idx)}
-                          className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
-                            idx === highlightIndex
-                              ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
-                              : 'hover:bg-slate-800/60'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Tag className="w-4 h-4 text-slate-200" />
-                            <span className="text-[12px] text-white">{doc.title}</span>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-slate-400 opacity-60" />
-                        </button>
-                      ))}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>,
           document.body
         )}
 
-      {/* 添加到知识库对话�?*/}
+      {/* 添加到知识库对话框*/}
       <Dialog open={showAddKnowledgeDialog} onOpenChange={setShowAddKnowledgeDialog}>
         <DialogContent>
           <DialogHeader>
