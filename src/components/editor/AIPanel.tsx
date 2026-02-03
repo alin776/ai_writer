@@ -352,38 +352,7 @@ const TaskList = ({ tasks }: { tasks: TaskSnapshot[] }) => {
   );
 };
 
-type AtCommandStage = 'root' | 'knowledge' | 'optimization';
-
-// 去痕迹强度选项
-type OptimizationIntensity = 'light' | 'medium' | 'strong';
-
-interface IntensityOption {
-  key: OptimizationIntensity;
-  label: string;
-  description: string;
-  changePercent: string;
-}
-
-const INTENSITY_OPTIONS: IntensityOption[] = [
-  {
-    key: 'light',
-    label: '轻度',
-    description: '仅去除明显AI套话，保持原文风格',
-    changePercent: '~5%',
-  },
-  {
-    key: 'medium',
-    label: '中度',
-    description: '平衡自然度与内容保留，推荐使用',
-    changePercent: '~20%',
-  },
-  {
-    key: 'strong',
-    label: '强度',
-    description: '深度重构句式，最大化自然度',
-    changePercent: '~40%',
-  },
-];
+type AtCommandStage = 'root' | 'knowledge';
 
 type RootCommandOption = {
   key: 'knowledge' | 'optimization';
@@ -406,7 +375,6 @@ const ROOT_OPTIONS: RootCommandOption[] = [
     label: '文本自然化',
     description: '文本自然化',
     icon: <Sparkles className="w-4 h-4" />,
-    hasChildren: true,
   },
 ];
 
@@ -535,7 +503,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
   const [selectedDocs, setSelectedDocs] = useState<Array<{ id: string; title: string }>>([]);
   const [optimizationSelected, setOptimizationSelected] = useState(false);
-  const [selectedIntensity, setSelectedIntensity] = useState<OptimizationIntensity | null>(null);
   const [selectionContext, setSelectionContext] = useState<{
     selected_text?: string;
     selected_text_html?: string;
@@ -1065,34 +1032,17 @@ ${context.selected_text}
   const handleRootOption = useCallback(
     (option: RootCommandOption) => {
       if (option.key === 'optimization') {
-        setKnowledgePanelOpen(false);
-        setAtStage('optimization');
-        setAtQuery('');
-        setHighlightIndex(0);
-        setAtMenuOpen(true);
-        repositionMenu();
+        setOptimizationSelected(true);
+        setInputValue(stripCurrentToken());
+        closeAtMenu();
+        requestAnimationFrame(() => inputRef.current?.focus());
         return;
       }
-      if (option.key === 'knowledge') {
-        setKnowledgePanelOpen(true);
-        setAtStage('knowledge');
-        setAtQuery('');
-        setHighlightIndex(0);
-        setAtMenuOpen(true);
-        repositionMenu();
-        return;
-      }
-    },
-    [repositionMenu]
-  );
-
-  const handleOptimizationSelect = useCallback(
-    (intensity: IntensityOption) => {
-      setOptimizationSelected(true);
-      setSelectedIntensity(intensity.key);
-      setInputValue(stripCurrentToken());
-      closeAtMenu();
-      requestAnimationFrame(() => inputRef.current?.focus());
+      setKnowledgePanelOpen(true);
+      setAtStage('knowledge');
+      setAtQuery('');
+      setHighlightIndex(0);
+      setAtMenuOpen(true);
     },
     [closeAtMenu, stripCurrentToken]
   );
@@ -1174,7 +1124,6 @@ ${context.selected_text}
 
   const removeOptimization = useCallback(() => {
     setOptimizationSelected(false);
-    setSelectedIntensity(null);
   }, []);
 
   const handleSend = async () => {
@@ -1224,7 +1173,6 @@ ${context.selected_text}
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
         knowledge_doc_ids: knowledgeDocIds,
         use_optimization: useOptimization,
-        intensity: selectedIntensity || 'medium',
         ...selectionPayload,
         nodes_info: getNodesInfoPayload(),
         ...locateHint,
@@ -1249,7 +1197,6 @@ ${selectionContext.selected_text}
     adjustInputHeight();
     setSelectedDocs([]);
     setOptimizationSelected(false);
-    setSelectedIntensity(null);
     setSelectionContext(null);
 
     // 发送成功后清除该会话的草稿
@@ -1269,11 +1216,7 @@ ${selectionContext.selected_text}
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      const options = atStage === 'root'
-        ? filteredRootOptions
-        : atStage === 'optimization'
-        ? INTENSITY_OPTIONS
-        : filteredKnowledgeDocs;
+      const options = atStage === 'root' ? filteredRootOptions : filteredKnowledgeDocs;
       const hasOptions = options.length > 0;
 
       if (atMenuOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -1294,8 +1237,6 @@ ${selectionContext.selected_text}
           const option = options[Math.min(highlightIndex, options.length - 1)];
           if (atStage === 'root') {
             handleRootOption(option as RootCommandOption);
-          } else if (atStage === 'optimization') {
-            handleOptimizationSelect(option as IntensityOption);
           } else {
             handleKnowledgeSelect(option as { id: string; title: string });
           }
@@ -1331,7 +1272,6 @@ ${selectionContext.selected_text}
       filteredKnowledgeDocs,
       filteredRootOptions,
       handleKnowledgeSelect,
-      handleOptimizationSelect,
       handleRootOption,
       handleSend,
       highlightIndex,
@@ -1391,12 +1331,7 @@ ${selectionContext.selected_text}
                 {optimizationSelected && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                     <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                    AI去痕迹
-                    {selectedIntensity && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300">
-                        {INTENSITY_OPTIONS.find(i => i.key === selectedIntensity)?.label || '中度'}
-                      </span>
-                    )}
+                    文本自然化
                     <button
                       type="button"
                       className="hover:text-zinc-900 transition-colors"
@@ -1405,7 +1340,7 @@ ${selectionContext.selected_text}
                         e.preventDefault();
                         removeOptimization();
                       }}
-                      aria-label="移除 AI 去痕迹"
+                      aria-label="移除文本自然化"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -1943,12 +1878,7 @@ ${selectionContext.selected_text}
                 {optimizationSelected && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                     <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                    AI去痕迹
-                    {selectedIntensity && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300">
-                        {INTENSITY_OPTIONS.find(i => i.key === selectedIntensity)?.label || '中度'}
-                      </span>
-                    )}
+                    文本自然化
                     <button
                       type="button"
                       className="hover:text-zinc-900 transition-colors"
@@ -1957,7 +1887,7 @@ ${selectionContext.selected_text}
                         e.preventDefault();
                         removeOptimization();
                       }}
-                      aria-label="移除 AI 去痕迹"
+                      aria-label="移除文本自然化"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -2060,144 +1990,6 @@ ${selectionContext.selected_text}
       </div>
       </>
       )}
-
-      {/* 模式选择 + 输入区（上下分区） */}
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3 space-y-3 flex-shrink-0 dark:border-slate-700 dark:bg-slate-800">
-        <div className="relative">
-          <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
-            {/* 胶囊在前，输入在后，保持同一行逻辑 */}
-            {selectionContext?.selected_text && (
-              <span
-                className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
-                style={{ maxWidth: '100%' }}
-                title={selectionContext.selected_text}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                <span className="truncate max-w-[240px]">{selectionContext.selected_text}</span>
-                <button
-                  type="button"
-                  className="hover:text-zinc-900 transition-colors dark:hover:text-slate-100"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setSelectionContext(null);
-                  }}
-                  aria-label="移除引用"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {optimizationSelected && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
-                <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                AI去痕迹
-                {selectedIntensity && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-300">
-                    {INTENSITY_OPTIONS.find(i => i.key === selectedIntensity)?.label || '中度'}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  className="hover:text-zinc-900 transition-colors"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    removeOptimization();
-                  }}
-                  aria-label="移除 AI 去痕迹"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {selectedDocs.map((doc) => (
-              <span
-                key={doc.id}
-                className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
-              >
-                <Tag className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                {doc.title}
-                <button
-                  type="button"
-                  className="hover:text-zinc-900 transition-colors dark:hover:text-slate-100"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    removeKnowledgeTag(doc.id);
-                  }}
-                  aria-label={`移除 ${doc.title}`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              onClick={syncAtStateFromRef}
-              onFocus={syncAtStateFromRef}
-              placeholder="发消息或输入@选择指令..."
-              className="flex-1 min-w-[200px] bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none leading-relaxed dark:text-slate-200 dark:placeholder:text-slate-500"
-              disabled={isLoading}
-              rows={1}
-              wrap="soft"
-              style={{
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                overflowWrap: 'break-word',
-                overflowY: 'hidden',
-                overflowX: 'hidden',
-                padding: '6px 0',
-                flexBasis: '100%',
-                minWidth: '100%',
-                minHeight: '32px',
-                maxHeight: '200px',
-              }}
-            />
-          </div>
-        </div>
-
-        {truncatedCount > 0 && (
-          <div className="text-[11px] text-amber-600 px-1 dark:text-amber-400">
-            章节内容超过 5000 字，已截断超出的 {truncatedCount} 字发送去痕迹。
-          </div>
-        )}
-
-        <div className="flex items-center justify-between gap-2">
-          <ModeSelector
-            mode={mode}
-            onModeChange={setMode}
-            disabled={isLoading}
-            compact
-            className="bg-white dark:bg-slate-800"
-          />
-
-          <div className="flex items-center gap-1.5">
-            {isLoading ? (
-              <button
-                onClick={handleStop}
-                className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 flex items-center justify-center shadow-sm border border-gray-200 transition-colors dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-200 dark:border-slate-500"
-                aria-label="停止生成"
-              >
-                <Square className="w-4 h-4" strokeWidth={2.5} />
-              </button>
-            ) : inputValue.trim() ? (
-              <button
-                onClick={handleSend}
-                disabled={!inputValue.trim()}
-                className="w-10 h-10 rounded-full transition-all flex items-center justify-center bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-sm dark:bg-blue-600 dark:hover:bg-blue-500"
-                aria-label="发送"
-              >
-                <Send className="h-4 w-4" strokeWidth={2.4} />
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </div>
 
       {atMenuOpen && menuPosition &&
         createPortal(
@@ -2302,112 +2094,31 @@ ${selectionContext.selected_text}
                 className="rounded-2xl border border-slate-800/70 bg-slate-900 text-slate-50 shadow-2xl overflow-hidden w-full"
               >
                 <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2" onWheel={stopMenuScrollChain}>
-                  {atStage === 'optimization' ? (
-                    <div className="space-y-1">
-                      {INTENSITY_OPTIONS.map((intensity, idx) => {
-                        const isCurrentSelection = selectedIntensity === intensity.key;
-                        return (
-                          <button
-                            key={intensity.key}
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => handleOptimizationSelect(intensity)}
-                            onMouseEnter={() => setHighlightIndex(idx)}
-                            className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition-colors ${
-                              isCurrentSelection
-                                ? 'bg-purple-900/40 border-l-2 border-purple-400'
-                                : idx === highlightIndex
-                                  ? 'bg-slate-800/80 border-l-2 border-slate-500'
-                                  : 'hover:bg-slate-800/60'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Sparkles className={`w-4 h-4 ${isCurrentSelection ? 'text-purple-400' : 'text-slate-200'}`} />
-                              <div className="flex flex-col">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[12px] text-white">{intensity.label}</span>
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
-                                    {intensity.changePercent}
-                                  </span>
-                                </div>
-                                <span className="text-[11px] text-slate-400">{intensity.description}</span>
-                              </div>
-                            </div>
-                            {isCurrentSelection && (
-                              <span className="text-[10px] text-purple-400 font-medium">当前</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : atStage === 'knowledge' ? (
-                    <div className="space-y-1">
-                      {knowledgeLoading && (
-                        <div className="px-3 py-2 text-[12px] text-slate-400 flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          正在加载知识库文档...
+                  {filteredRootOptions.length > 0 ? (
+                    filteredRootOptions.map((option, idx) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleRootOption(option)}
+                        onMouseEnter={() => handleRootHover(option, idx)}
+                        className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
+                          idx === highlightIndex
+                            ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
+                            : 'hover:bg-slate-800/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-200">{option.icon}</span>
+                          <div className="flex flex-col">
+                            <span className="text-[12px] text-white">{option.label}</span>
+                          </div>
                         </div>
-                      )}
-                      {knowledgeError && !knowledgeLoading && (
-                        <div className="px-3 py-2 text-[12px] text-amber-200">
-                          {knowledgeError}
-                        </div>
-                      )}
-                      {!knowledgeLoading && !knowledgeError && filteredKnowledgeDocs.length === 0 && (
-                        <div className="px-3 py-2 text-[12px] text-slate-400">暂无可用文档</div>
-                      )}
-                      {!knowledgeLoading &&
-                        !knowledgeError &&
-                        filteredKnowledgeDocs.map((doc, idx) => (
-                          <button
-                            key={doc.id}
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => handleKnowledgeSelect(doc)}
-                            onMouseEnter={() => setHighlightIndex(idx)}
-                            className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
-                              idx === highlightIndex
-                                ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
-                                : 'hover:bg-slate-800/60'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Tag className="w-4 h-4 text-slate-200" />
-                              <span className="text-[12px] text-white truncate max-w-[150px]">{doc.title}</span>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-slate-400 opacity-60" />
-                          </button>
-                        ))}
-                    </div>
+                        {option.hasChildren && <ChevronRight className="w-4 h-4 text-slate-400" />}
+                      </button>
+                    ))
                   ) : (
-                    <>
-                      {filteredRootOptions.length > 0 ? (
-                        filteredRootOptions.map((option, idx) => (
-                          <button
-                            key={option.key}
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => handleRootOption(option)}
-                            onMouseEnter={() => handleRootHover(option, idx)}
-                            className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
-                              idx === highlightIndex
-                                ? 'bg-slate-800/80 ring-1 ring-slate-600/60'
-                                : 'hover:bg-slate-800/60'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-slate-200">{option.icon}</span>
-                              <div className="flex flex-col">
-                                <span className="text-[12px] text-white">{option.label}</span>
-                              </div>
-                            </div>
-                            {option.hasChildren && <ChevronRight className="w-4 h-4 text-slate-400" />}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2 text-[12px] text-slate-400">{'\u6ca1\u6709\u5339\u914d\u7684\u6307\u4ee4'}</div>
-                      )}
-                    </>
+                    <div className="px-3 py-2 text-[12px] text-slate-400">{'\u6ca1\u6709\u5339\u914d\u7684\u6307\u4ee4'}</div>
                   )}
                 </div>
               </div>

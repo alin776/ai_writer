@@ -403,14 +403,20 @@ const KnowledgeView: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowUploadDialog(true)}
+              onClick={() => {
+                resetForm();
+                setShowUploadDialog(true);
+              }}
             >
               <Upload className="w-4 h-4 mr-1" />
               上传文件
             </Button>
             <Button
               size="sm"
-              onClick={() => setShowAddDialog(true)}
+              onClick={() => {
+                resetForm();
+                setShowAddDialog(true);
+              }}
             >
               <Plus className="w-4 h-4 mr-1" />
               添加文本

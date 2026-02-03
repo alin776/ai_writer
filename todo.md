@@ -2345,3 +2345,9 @@
 #### review
 - 知识库检索片段仅在本次请求中注入 `context["knowledge_docs"]` 供规划/总结使用，未写入会话消息或长期记忆，默认不持久化；会话只保存用户/助手文本。`backend/app/api/v1/agent.py`、`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/context/manager.py`
 - 前端发送后会清空已选知识文档标签，下一次需要重新选择（否则不会带 `knowledge_doc_ids`）。`src/components/editor/AIPanel.tsx`
+
+#### 保存知识库引用信息（不持久化片段）（待确认）
+
+- [ ] 设计并实现“仅保存引用信息”的数据结构与保存时机
+- [ ] 前端/后端透出引用信息（doc_id/标题/时间/标签）
+- [ ] 更新 todo.md review
