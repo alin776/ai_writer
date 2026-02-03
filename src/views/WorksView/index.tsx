@@ -1233,7 +1233,7 @@ const WorksView: React.FC = () => {
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
         >
-          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide rounded-2xl" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ transform: 'skewX(2deg)' }} className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-3">
