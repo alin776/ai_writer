@@ -219,9 +219,8 @@ export default function NotificationCenter() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900 overflow-hidden">
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="w-[1280px] mx-auto px-8 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="flex-1 max-w-7xl mx-auto px-8 py-8 w-full overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-full">
           <div className="lg:col-span-3 flex flex-col overflow-hidden">
             <div className="flex justify-between items-center gap-8 mb-8 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
               <div className="flex gap-8">
@@ -461,7 +460,6 @@ export default function NotificationCenter() {
                 </div>
               </div>
             </div>
-          </div>
           </div>
         </div>
       </div>

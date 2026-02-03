@@ -39,8 +39,7 @@ const TaskRewardsView: React.FC = () => {
   }
 
   return (
-    <div className="h-full overflow-y-auto overflow-x-hidden bg-background">
-      <div className="w-[1152px] mx-auto p-6">
+    <div className="container mx-auto p-6 max-w-6xl">
       {/* 页面标题和统计 */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">任务中心</h1>
@@ -183,7 +182,6 @@ const TaskRewardsView: React.FC = () => {
           <p>暂无可用任务</p>
         </div>
       )}
-      </div>
     </div>
   );
 };

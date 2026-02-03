@@ -983,9 +983,9 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
   }
 
   return (
-    <div className="h-full overflow-y-auto overflow-x-hidden bg-gray-50 dark:bg-slate-900">
-      <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-10 overflow-hidden">
-        <div className="w-[1152px] mx-auto px-6 py-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center gap-2 text-sm">
             <button
               onClick={onBack}
@@ -999,8 +999,8 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
         </div>
       </header>
 
-      <div className="w-[1152px] mx-auto px-6 py-8">
-        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 p-8 mb-6">
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="bg-transparent p-8 mb-6">
           <div className="flex gap-8">
             <div className="flex-shrink-0">
               <ImageWithFallback

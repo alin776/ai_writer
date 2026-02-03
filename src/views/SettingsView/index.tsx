@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Settings, User, Bell, Shield, Save, Moon, Sun, Monitor, Smartphone, Tablet, Mail, Lock, ChevronRight, Clock } from 'lucide-react';
+import { Settings, User, Bell, Shield, Save, Moon, Sun, Monitor, Smartphone, Tablet, Mail, Lock, ChevronRight, Clock, X, Pencil, Search, ArrowLeft, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Card, Button, Input, ImageCropper } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -10,7 +10,6 @@ import { useAuthStore } from '../../store/authStore';
 import { DataService } from '../../services/DataService';
 import { useToast } from '../../hooks/useToast';
 import { useTheme } from '../../hooks/useTheme';
-import { languages, type LanguageCode } from '../../i18n';
 import type { NotificationSettings, UserPreferences, UserSession } from '@/types';
 
 const notificationDefaults: NotificationSettings = {
@@ -34,7 +33,7 @@ const preferenceDefaults: UserPreferences = {
 /**
  * 设置分类类型
  */
-type SettingTab = 'profile' | 'notifications' | 'security' | 'preferences';
+type SettingTab = 'profile' | 'notifications' | 'security' | 'preferences' | 'changeEmail' | 'changePassword';
 
 /**
  * SettingsView 组件 - 设置页面
@@ -43,7 +42,7 @@ const SettingsView: React.FC = () => {
   const { user, setUser, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const bioTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   // 标记表单是否已从 user 数据初始化，避免后续 user 更新时覆盖用户编辑
@@ -84,15 +83,179 @@ const SettingsView: React.FC = () => {
   const [showLogoutOthersConfirm, setShowLogoutOthersConfirm] = useState(false);
   const [showDeleteAccountDialog, setShowDeleteAccountDialog] = useState(false);
 
+  // 修改邮箱相关状态
+  const [newEmail, setNewEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 修改密码相关状态
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [securityForm, setSecurityForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // 清理倒计时
+  useEffect(() => {
+    return () => {
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+      }
+    };
+  }, []);
+
+  // 邮箱格式验证
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // 发送验证码
+  const handleSendCode = async () => {
+    if (!newEmail.trim()) {
+      showError('请输入新邮箱地址');
+      return;
+    }
+    if (!validateEmail(newEmail)) {
+      showError('请输入有效的邮箱地址');
+      return;
+    }
+    if (newEmail === user?.email) {
+      showError('新邮箱不能与当前邮箱相同');
+      return;
+    }
+
+    setIsSendingCode(true);
+    try {
+      await DataService.sendEmailVerificationCode(newEmail);
+      showSuccess('验证码已发送到新邮箱，请查收');
+      setCodeSent(true);
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+      }
+      setCountdown(60);
+      countdownTimerRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            if (countdownTimerRef.current) {
+              clearInterval(countdownTimerRef.current);
+              countdownTimerRef.current = null;
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (error: any) {
+      showError(error?.detail || error?.message || '发送验证码失败，请稍后重试');
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  // 验证并更新邮箱
+  const handleVerifyAndUpdateEmail = async () => {
+    if (!newEmail.trim()) {
+      showError('请输入新邮箱地址');
+      return;
+    }
+    if (!verificationCode.trim()) {
+      showError('请输入验证码');
+      return;
+    }
+
+    setIsVerifyingEmail(true);
+    try {
+      const updatedUser = await DataService.verifyAndUpdateEmail(newEmail, verificationCode);
+      setUser(updatedUser);
+      showSuccess('邮箱修改成功');
+      // 重置状态并返回安全设置
+      setNewEmail('');
+      setVerificationCode('');
+      setCodeSent(false);
+      setCountdown(0);
+      setTimeout(() => setActiveTab('security'), 1000);
+    } catch (error: any) {
+      showError(error?.detail || error?.message || '验证失败，请检查验证码是否正确');
+    } finally {
+      setIsVerifyingEmail(false);
+    }
+  };
+
+  // 重置邮箱表单
+  const handleResetEmailForm = () => {
+    setNewEmail('');
+    setVerificationCode('');
+    setCodeSent(false);
+    setCountdown(0);
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  };
+
+  // 修改密码
+  const handleChangePassword = async () => {
+    if (!securityForm.currentPassword || !securityForm.newPassword || !securityForm.confirmPassword) {
+      showError('请完整填写密码信息');
+      return;
+    }
+    if (securityForm.newPassword !== securityForm.confirmPassword) {
+      showError('新密码与确认密码不一致');
+      return;
+    }
+    if (securityForm.newPassword.length < 8) {
+      showError('新密码长度至少为 8 位');
+      return;
+    }
+    const hasLetter = /[a-zA-Z]/.test(securityForm.newPassword);
+    const hasNumber = /\d/.test(securityForm.newPassword);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(securityForm.newPassword);
+    if (!hasLetter || !hasNumber || !hasSpecial) {
+      showError('密码必须包含字母、数字、特殊符号三种字符');
+      return;
+    }
+    if (securityForm.newPassword.length > 20) {
+      showError('密码长度不能超过 20 位');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const message = await DataService.changePassword(securityForm.currentPassword, securityForm.newPassword);
+      showSuccess(message || '密码已更新');
+      // 重置表单并返回安全设置
+      setSecurityForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+      setTimeout(() => setActiveTab('security'), 1000);
+    } catch (error: any) {
+      showError(error?.detail || error?.message || '密码修改失败');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // 重置密码表单
+  const handleResetPasswordForm = () => {
+    setSecurityForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+  };
+
   const handleThemeSelect = (nextTheme: UserPreferences['theme']) => {
     setPreferences({ ...preferences, theme: nextTheme });
     applyTheme(nextTheme, { persist: false });
-  };
-
-  const handleLanguageSelect = (nextLanguage: LanguageCode) => {
-    setPreferences({ ...preferences, language: nextLanguage });
-    // 立即应用语言变更
-    i18n.changeLanguage(nextLanguage);
   };
 
   const loadSessions = useCallback(
@@ -380,7 +543,6 @@ const SettingsView: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('settings.profile.title')}</h3>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('settings.profile.username')}</label>
             <Input
               value={profileForm.username}
               onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
@@ -388,7 +550,6 @@ const SettingsView: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('settings.profile.bio')}</label>
             <textarea
               ref={bioTextareaRef}
               value={profileForm.bio}
@@ -396,17 +557,18 @@ const SettingsView: React.FC = () => {
                 setProfileForm({ ...profileForm, bio: e.target.value });
                 // 自动调整高度
                 e.target.style.height = 'auto';
-                e.target.style.height = `${e.target.scrollHeight}px`;
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
               }}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none overflow-hidden transition-all duration-200"
-              rows={2}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none overflow-y-auto transition-all duration-200"
+              rows={3}
+              style={{ maxHeight: '200px' }}
               placeholder={t('settings.profile.bioPlaceholder')}
             />
           </div>
         </div>
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+      <div className="pt-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('settings.profile.avatar')}</h3>
         <div className="flex items-center space-x-4">
           <input
@@ -478,7 +640,7 @@ const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+      <div className="pt-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('settings.notifications.types.title')}</h3>
         <div className="space-y-4">
           <label className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer bg-white dark:bg-gray-900 transition-colors">
@@ -571,7 +733,7 @@ const SettingsView: React.FC = () => {
         <div className="space-y-3">
           {/* 邮箱地址 */}
           <button
-            onClick={() => navigate('/settings/change-email')}
+            onClick={() => setActiveTab('changeEmail')}
             className="w-full flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer text-left"
           >
             <div className="flex items-center gap-4">
@@ -591,7 +753,7 @@ const SettingsView: React.FC = () => {
 
           {/* 登录密码 */}
           <button
-            onClick={() => navigate('/settings/change-password')}
+            onClick={() => setActiveTab('changePassword')}
             className="w-full flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer text-left"
           >
             <div className="flex items-center gap-4">
@@ -640,7 +802,7 @@ const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+      <div className="pt-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('settings.security.sessions.title')}</h3>
@@ -726,7 +888,7 @@ const SettingsView: React.FC = () => {
         )}
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+      <div className="pt-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{t('settings.security.danger.title')}</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{t('settings.security.danger.subtitle')}</p>
         <Button
@@ -748,7 +910,6 @@ const SettingsView: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('settings.preferences.appearance.title')}</h3>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('settings.preferences.appearance.theme')}</label>
             <div className="grid grid-cols-3 gap-3">
               {[
                 { value: 'light', labelKey: 'settings.preferences.appearance.light', icon: Sun },
@@ -780,25 +941,7 @@ const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('settings.preferences.language.title')}</h3>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('settings.preferences.language.label')}</label>
-          <select
-            value={preferences.language}
-            onChange={(e) => handleLanguageSelect(e.target.value as LanguageCode)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-400 focus:border-blue-300 dark:focus:border-blue-400 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 [&>option:checked]:bg-blue-50 [&>option:checked]:text-blue-700 dark:[&>option:checked]:bg-blue-900/40 dark:[&>option:checked]:text-blue-100"
-          >
-            {languages.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.nativeName}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+      <div className="pt-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('settings.preferences.editor.title')}</h3>
         <div className="space-y-4">
           <label className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer bg-white dark:bg-gray-900 transition-colors">
@@ -842,6 +985,189 @@ const SettingsView: React.FC = () => {
       </div>
     </div>
   );
+
+  // 渲染修改邮箱页面
+  const renderChangeEmailSettings = () => {
+    const inputClassName = "block w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all duration-200 bg-white dark:bg-gray-900 border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:focus:border-blue-400 dark:focus:ring-blue-400 hover:border-gray-400 dark:hover:border-gray-500";
+    const disabledInputClassName = "block w-full px-3 py-2 border rounded-lg text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 cursor-not-allowed";
+
+    return (
+      <div className="space-y-6">
+        {/* 返回按钮 */}
+        <button
+          onClick={() => { handleResetEmailForm(); setActiveTab('security'); }}
+          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>返回安全设置</span>
+        </button>
+
+        {/* 注意提示 */}
+        <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <AlertCircle className="w-5 h-5 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-200">注意</p>
+            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+              修改邮箱后，您可以使用新邮箱或用户名登录。
+            </p>
+          </div>
+        </div>
+
+        {/* 表单字段 */}
+        <div className="space-y-5">
+          <div>
+            <input type="email" value={user?.email || ''} disabled className={disabledInputClassName} />
+          </div>
+
+          <div>
+            <input
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="请输入新的邮箱地址"
+              disabled={codeSent}
+              className={codeSent ? disabledInputClassName : inputClassName}
+            />
+          </div>
+
+          <div>
+            <div className="relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="请输入6位验证码"
+                maxLength={6}
+                disabled={!codeSent}
+                className={`${codeSent ? inputClassName : disabledInputClassName} pr-28`}
+              />
+              <button
+                type="button"
+                onClick={handleSendCode}
+                disabled={isSendingCode || (codeSent && countdown > 0) || !newEmail.trim() || !validateEmail(newEmail)}
+                className="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 dark:disabled:bg-gray-600"
+              >
+                {isSendingCode ? '发送中...' : (countdown > 0 ? `${countdown}s` : (codeSent ? '重新发送' : '发送验证码'))}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 操作按钮 */}
+        <div className="flex items-center justify-end gap-3 pt-4">
+          <Button variant="outline" onClick={handleResetEmailForm} disabled={isSendingCode || isVerifyingEmail}>
+            重置
+          </Button>
+          <Button variant="secondary" onClick={handleVerifyAndUpdateEmail} disabled={isVerifyingEmail || !verificationCode.trim() || !codeSent}>
+            <Mail className="w-4 h-4 mr-2" />
+            {isVerifyingEmail ? '验证中...' : '确认修改'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // 渲染修改密码页面
+  const renderChangePasswordSettings = () => {
+    const inputClassName = "block w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all duration-200 bg-white dark:bg-gray-900 border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:focus:border-blue-400 dark:focus:ring-blue-400 hover:border-gray-400 dark:hover:border-gray-500";
+
+    return (
+      <div className="space-y-6">
+        {/* 返回按钮 */}
+        <button
+          onClick={() => { handleResetPasswordForm(); setActiveTab('security'); }}
+          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>返回安全设置</span>
+        </button>
+
+        {/* 密码要求提示 */}
+        <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <AlertCircle className="w-5 h-5 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">密码要求</p>
+            <ul className="text-sm text-amber-700 dark:text-amber-300 mt-1 list-disc list-inside">
+              <li>长度 8-20 位</li>
+              <li>必须包含字母、数字、特殊符号</li>
+            </ul>
+          </div>
+        </div>
+
+        {/* 表单字段 */}
+        <div className="space-y-5">
+          <div>
+            <div className="relative">
+              <input
+                type={showCurrentPassword ? 'text' : 'password'}
+                value={securityForm.currentPassword}
+                onChange={(e) => setSecurityForm({ ...securityForm, currentPassword: e.target.value })}
+                placeholder="请输入当前密码"
+                className={`${inputClassName} pr-10`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div className="relative">
+              <input
+                type={showNewPassword ? 'text' : 'password'}
+                value={securityForm.newPassword}
+                onChange={(e) => setSecurityForm({ ...securityForm, newPassword: e.target.value })}
+                placeholder="请输入新密码"
+                className={`${inputClassName} pr-10`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={securityForm.confirmPassword}
+                onChange={(e) => setSecurityForm({ ...securityForm, confirmPassword: e.target.value })}
+                placeholder="请再次输入新密码"
+                className={`${inputClassName} pr-10`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 操作按钮 */}
+        <div className="flex items-center justify-end gap-3 pt-4">
+          <Button variant="outline" onClick={handleResetPasswordForm} disabled={isChangingPassword}>
+            重置
+          </Button>
+          <Button variant="secondary" onClick={handleChangePassword} disabled={isChangingPassword}>
+            <Lock className="w-4 h-4 mr-2" />
+            {isChangingPassword ? '修改中...' : '确认修改'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   const confirmLogoutSession = async () => {
     if (!logoutTarget) return;
@@ -900,63 +1226,92 @@ const SettingsView: React.FC = () => {
 
   return (
     <>
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
-      {/* 固定页眉 */}
-      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="w-[1152px] mx-auto px-6 py-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t("settings.title")}</h1>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("settings.subtitle")}</p>
+    <div className="h-full flex bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      {/* 左侧导航栏 - Discord 风格 */}
+      <div className="flex-shrink-0 w-60 bg-white dark:bg-gray-900 flex flex-col overflow-hidden border-r border-gray-200 dark:border-gray-700">
+        {/* 用户信息区域 */}
+        <div className="px-3 pt-4 pb-2 flex items-center">
+          <div className="flex items-center gap-3 px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-sm w-full">
+            <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center overflow-hidden flex-shrink-0">
+              {user?.avatar ? (
+                <img src={user.avatar} alt={user?.username} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                  {user?.username ? user.username[0].toUpperCase() : 'U'}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
+                {user?.username || t('common.unknown')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 导航菜单 */}
+        <div className="flex-1 overflow-y-auto px-2 py-3 pb-4">
+          <nav className="space-y-0.5">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-left ${
+                    activeTab === tab.id
+                      ? 'bg-gray-300/60 dark:bg-gray-700/60 text-gray-900 dark:text-gray-100'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-gray-700/40 hover:text-gray-900 dark:hover:text-gray-100'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">{t(tab.labelKey)}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
       </div>
 
-      {/* 内容区 - 左侧固定，右侧滚动 */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-        <div className="w-[1152px] mx-auto flex p-6 gap-6">
-        {/* 左侧标签栏 - 固定 */}
-        <div className="flex-shrink-0 w-64">
-          <Card className="!bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800 sticky top-6">
-            <div className="p-4">
-              <nav className="space-y-1">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                        activeTab === tab.id
-                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100'
-                          : 'text-gray-900 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-50'
-                      }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span className="font-medium">{t(tab.labelKey)}</span>
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-          </Card>
+      {/* 右侧内容区 */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-gray-900">
+        {/* 顶部标题栏 */}
+        <div className="h-12 flex-shrink-0 flex items-center justify-between px-10 border-b border-gray-200 dark:border-gray-700">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            {activeTab === 'changeEmail'
+              ? '邮箱设置'
+              : activeTab === 'changePassword'
+                ? '修改密码'
+                : t(tabs.find(tab => tab.id === activeTab)?.labelKey || 'settings.tabs.profile')}
+          </h1>
+          <button
+            onClick={() => navigate(-1)}
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors"
+            title={t('common.close')}
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* 右侧内容区 - 可滚动 */}
-        <div className="flex-1 min-h-0 min-w-0 overflow-auto">
-          <Card className="!bg-white dark:!bg-gray-900 shadow-none border-gray-100 dark:border-gray-800">
-            <div className="p-6">
+        {/* 内容区域 - 可滚动 */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-3xl mx-auto px-10 py-6">
             {isInitializing ? (
-            <div className="py-16 text-center text-gray-500 dark:text-gray-400">{t('settings.messages.loadingSettings')}</div>
+              <div className="py-16 text-center text-gray-500 dark:text-gray-400">{t('settings.messages.loadingSettings')}</div>
             ) : (
               <>
                 {activeTab === 'profile' && renderProfileSettings()}
                 {activeTab === 'notifications' && renderNotificationSettings()}
                 {activeTab === 'security' && renderSecuritySettings()}
                 {activeTab === 'preferences' && renderPreferencesSettings()}
+                {activeTab === 'changeEmail' && renderChangeEmailSettings()}
+                {activeTab === 'changePassword' && renderChangePasswordSettings()}
               </>
             )}
 
-            {/* 保存按钮区域 - 仅在非安全设置标签页显示 */}
-            {activeTab !== 'security' ? (
-              <div className="border-t border-gray-200 dark:border-gray-800 mt-6 pt-6">
+            {/* 保存按钮区域 - 仅在基础设置标签页显示 */}
+            {['profile', 'notifications', 'preferences'].includes(activeTab) ? (
+              <div className="mt-8 pt-6">
                 <div className="flex items-center justify-end space-x-3">
                   <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
                     {t('common.cancel')}
@@ -968,12 +1323,9 @@ const SettingsView: React.FC = () => {
                 </div>
               </div>
             ) : (
-              // 安全设置页 - 保持相同高度的底部留白
-              <div className="mt-6 pt-6"></div>
+              <div className="mt-8 pt-6"></div>
             )}
-            </div>
-          </Card>
-        </div>
+          </div>
         </div>
       </div>
     </div>

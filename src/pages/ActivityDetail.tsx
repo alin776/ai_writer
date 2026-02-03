@@ -236,8 +236,8 @@ export default function ActivityDetail() {
   }
 
   return (
-    <div className="h-full overflow-y-auto overflow-x-hidden bg-gray-50">
-      <div className="w-[1152px] mx-auto px-6 py-8">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto px-6 py-8">
         {/* Back Button */}
         <button
           onClick={() => navigate(-1)}

@@ -753,8 +753,8 @@ const WorksView: React.FC = () => {
   return (
     <div className="bg-[#fafafa] dark:bg-gray-900 flex flex-col overflow-hidden h-full min-h-full">
       {/* Header */}
-      <header className="bg-[#fafafa] dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden">
-        <div className="w-[1400px] mx-auto px-12 py-6">
+      <header className="bg-[#fafafa] dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div className="w-full max-w-[1400px] mx-auto px-12 py-4">
           {/* 第一行：标题和按钮 */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-6">
@@ -884,7 +884,7 @@ const WorksView: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="w-[1400px] mx-auto px-12 pt-8 overflow-y-auto overflow-x-hidden scrollbar-hide flex-1">
+      <main className="w-full max-w-[1400px] mx-auto px-12 pt-8 overflow-y-auto scrollbar-hide flex-1">
         {filteredWorks.length === 0 ? (
           // 空状态
           <div className="flex flex-col items-center justify-center h-full">
