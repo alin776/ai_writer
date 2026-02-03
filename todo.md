@@ -2335,3 +2335,13 @@
 #### review
 - 最新日志不再出现 `knowledge semantic search failed`，且已记录“语义搜索知识库/知识库RAG检索/返回结果”链路，说明检索已恢复并符合预期。`Backend.md`
 - 仍有一个与本次问题无关的警告：`MarkupResemblesLocatorWarning`（BeautifulSoup 解析文本时提示像文件名），属于内容清理层的告警。`Backend.md`
+
+#### 知识库检索内容是否持久化（待确认）
+
+- [x] 通读知识库引用与上下文构建链路，确认数据注入点
+- [x] 追踪会话/长期记忆保存逻辑，确认是否持久化检索片段
+- [x] 汇总直白结论（保存范围与生命周期）
+
+#### review
+- 知识库检索片段仅在本次请求中注入 `context["knowledge_docs"]` 供规划/总结使用，未写入会话消息或长期记忆，默认不持久化；会话只保存用户/助手文本。`backend/app/api/v1/agent.py`、`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/context/manager.py`
+- 前端发送后会清空已选知识文档标签，下一次需要重新选择（否则不会带 `knowledge_doc_ids`）。`src/components/editor/AIPanel.tsx`
