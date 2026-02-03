@@ -139,13 +139,17 @@ const getQuotedRangeLocateHint = (message: string) => {
 };
 
 
-// Markdown渲染组件
-const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
+// ✅ 优化：缓存 remarkPlugins 和 rehypePlugins，避免每次渲染都创建新数组
+const remarkPluginsCache = [remarkGfm];
+const rehypePluginsCache = [rehypeRaw];
+
+// ✅ 优化：使用 React.memo 包裹 Markdown 渲染组件
+const MarkdownContent: React.FC<{ content: string }> = React.memo(({ content }) => {
   return (
     <div className="text-[14px] leading-relaxed markdown-content">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
+        remarkPlugins={remarkPluginsCache}
+        rehypePlugins={rehypePluginsCache}
         components={{
           // 代码�?
           code({ node, inline, className, children, ...props }: any) {
@@ -255,7 +259,12 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
       </ReactMarkdown>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // 自定义比较：只有内容变化时才重新渲染
+  return prevProps.content === nextProps.content;
+});
+
+MarkdownContent.displayName = 'MarkdownContent';
 
 
 const TaskList = ({ tasks }: { tasks: TaskSnapshot[] }) => {
@@ -731,6 +740,7 @@ ${context.selected_text}
     anchoredOnceRef.current = false;
     anchorLatestUserRef.current = true;
     skipAutoScrollRef.current = true;
+    ignoreScrollEventRef.current = false;  // 重置滚动事件忽略标志
 
     try {
       await sendMessageStream(request);
@@ -949,10 +959,12 @@ ${context.selected_text}
     ignoreScrollEventRef.current = true;
     shouldAutoScrollRef.current = false;
     syncAtBottomState(checkIfAtBottom());
-    anchorLatestUserRef.current = false;
+    // 标记已经开始处理顶格，防止重复触发
+    anchoredOnceRef.current = true;
     requestAnimationFrame(() => {
       scrollUserMessageToTop();
-      anchoredOnceRef.current = true;
+      // 顶格完成后才重置 anchorLatestUserRef，确保 ResizeObserver 在此期间能保持顶格
+      anchorLatestUserRef.current = false;
       ignoreScrollEventRef.current = false;
     });
   }, [checkIfAtBottom, messages.length, scrollBufferHeight, scrollUserMessageToTop, syncAtBottomState]);
@@ -1304,6 +1316,7 @@ ${selectionContext.selected_text}
     anchoredOnceRef.current = false;
     anchorLatestUserRef.current = true;
     skipAutoScrollRef.current = true;
+    ignoreScrollEventRef.current = false;  // 重置滚动事件忽略标志
 
     try {
       await sendMessageStream(request);
