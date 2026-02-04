@@ -14,9 +14,27 @@ from app.schemas.export import (
     ImportContext
 )
 from app.services.import_service import ImportService
+from app.services.worldview_extraction_runner import run_worldview_extraction
+from app.services.vectorize_runner import run_vectorize_chapter
+from app.services.worldview_scan_progress_service import WorldviewScanProgressService
+from app.core.config import settings
+from app.core.celery_app import celery_app
+from app.tasks.tasks import extract_worldview_task, vectorize_chapter_task
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _celery_worker_available() -> bool:
+    if not settings.ENABLE_CELERY_IMPORT_TASKS:
+        return False
+    try:
+        insp = celery_app.control.inspect(timeout=1)
+        resp = insp.ping()
+        return bool(resp)
+    except Exception as exc:
+        logger.warning(f"[导入任务] Celery 不可用，回退 BackgroundTasks: {exc}")
+        return False
 
 
 async def _extract_worldview_from_chapters(
@@ -27,85 +45,13 @@ async def _extract_worldview_from_chapters(
     preface_text: Optional[str] = None
 ):
     """后台任务：从导入的章节中提取世界观"""
-    try:
-        from app.services.worldview_sync_service import WorldviewSyncService
-        from app.services.worldview_scan_progress_service import WorldviewScanProgressService
-        from app.core.database import async_session_maker
-
-        logger.info(f"[世界观提取] 开始为作品 {work_id} 提取世界观")
-
-        async with async_session_maker() as db_session:
-            sync_service = WorldviewSyncService(db_session, user_id=user_id)
-            progress_service = WorldviewScanProgressService(db_session)
-
-            # 解析章节范围
-            if scan_mode == "full":
-                chapters = await sync_service.get_chapters_by_work(work_id)
-            else:
-                chapters = await sync_service.get_chapters_by_ids(work_id, chapter_ids or [])
-
-            chapters_total = len(chapters)
-            await progress_service.start_progress(
-                work_id=work_id,
-                scan_mode=scan_mode,
-                chapters_total=chapters_total,
-                metadata={
-                    "chapter_ids": chapter_ids or [],
-                    "preface_included": bool(preface_text)
-                }
-            )
-
-            if not chapters:
-                await progress_service.mark_completed(work_id)
-                logger.info(f"[世界观提取] 未找到可解析的章节")
-                return
-
-            # 扫描章节（分批）
-            async def progress_callback(chapters_processed: int, chapters_total: int, batches_completed: int, batches_total: int):
-                await progress_service.update_progress(
-                    work_id=work_id,
-                    chapters_processed=chapters_processed,
-                    chapters_total=chapters_total,
-                    batches_completed=batches_completed,
-                    batches_total=batches_total
-                )
-
-            changes, scan_meta = await sync_service.scan_chapters_for_changes_by_ids(
-                work_id=work_id,
-                chapter_ids=[str(ch.id) for ch in chapters],
-                preface_text=preface_text,
-                progress_callback=progress_callback
-            )
-
-            scanned = changes.get("scanned_chapters", 0)
-            new_chars = len(changes.get("new_characters", []))
-            updated_chars = len(changes.get("updated_characters", []))
-            new_locs = len(changes.get("new_locations", []))
-            new_sets = len(changes.get("new_settings", []))
-            rel_changes = len(changes.get("relationship_changes", []))
-
-            logger.info(f"[世界观提取] 扫描完成: {scanned}章, 发现 {new_chars}人物, {new_locs}地点, {new_sets}设定")
-
-            # 如果有发现，自动应用
-            if new_chars > 0 or updated_chars > 0 or new_locs > 0 or new_sets > 0 or rel_changes > 0:
-                stats = await sync_service.apply_changes(work_id, changes)
-                await progress_service.update_results(work_id, stats)
-                logger.info(f"[世界观提取] 应用完成: {stats}")
-            else:
-                logger.info(f"[世界观提取] 未发现新的世界观元素")
-                await progress_service.update_results(work_id, {})
-
-            await progress_service.mark_completed(work_id, extra={"scanned_chapters": scanned, **(scan_meta or {})})
-
-    except Exception as e:
-        logger.error(f"[世界观提取] 提取失败: work_id={work_id}, error={e}", exc_info=True)
-        try:
-            from app.services.worldview_scan_progress_service import WorldviewScanProgressService
-            from app.core.database import async_session_maker
-            async with async_session_maker() as db_session:
-                await WorldviewScanProgressService(db_session).mark_failed(work_id, str(e))
-        except Exception:
-            logger.error(f"[世界观提取] 记录失败状态失败: work_id={work_id}", exc_info=True)
+    await run_worldview_extraction(
+        work_id=work_id,
+        user_id=user_id,
+        scan_mode=scan_mode,
+        chapter_ids=chapter_ids,
+        preface_text=preface_text
+    )
 
 
 @router.post("/works/import/preview", response_model=ImportPreviewResponse)
@@ -241,24 +187,80 @@ async def import_work(
             options=options
         )
 
-        if vectorize_jobs and background_tasks is not None:
-            for job in vectorize_jobs:
-                background_tasks.add_task(_vectorize_import_chapter_content, **job)
-            # 在响应中提示已排队
-            result.message = "导入成功，向量化已排队"
+        celery_available = _celery_worker_available()
 
-        # 如果是文本导入且启用了自动提取世界观
-        if auto_extract_worldview and format in ["markdown", "txt"] and background_tasks is not None:
-            background_tasks.add_task(
-                _extract_worldview_from_chapters,
-                work_id=str(result.work_id),
-                user_id=str(current_user.id),
-                scan_mode=worldview_scan_mode or "incremental",
-                chapter_ids=import_context.get("chapter_ids") if import_context else None,
-                preface_text=import_context.get("preface_text") if import_context else None
-            )
-            result.message = (result.message or "导入成功") + "，世界观提取已排队"
+        queued_worldview = False
+        queued_vectorize = False
+
+        # 如果是文本导入且启用了自动提取世界观（先写入排队中进度）
+        if auto_extract_worldview and format in ["markdown", "txt"]:
+            try:
+                progress_service = WorldviewScanProgressService(db)
+                await progress_service.start_progress(
+                    work_id=str(result.work_id),
+                    scan_mode=worldview_scan_mode or "incremental",
+                    chapters_total=len(import_context.get("chapter_ids", [])) if import_context else 0,
+                    batches_total=0,
+                    status="pending",
+                    metadata={
+                        "chapter_ids": import_context.get("chapter_ids", []) if import_context else [],
+                        "preface_included": bool(import_context.get("preface_text")) if import_context else False
+                    }
+                )
+            except Exception as exc:
+                logger.warning(f"[世界观提取] 初始化进度失败: {exc}")
+
+            if celery_available:
+                extract_worldview_task.apply_async(
+                    args=[
+                        str(result.work_id),
+                        str(current_user.id),
+                        worldview_scan_mode or "incremental",
+                        import_context.get("chapter_ids") if import_context else None,
+                        import_context.get("preface_text") if import_context else None
+                    ],
+                    queue="worldview",
+                    priority=9
+                )
+            elif background_tasks is not None:
+                background_tasks.add_task(
+                    _extract_worldview_from_chapters,
+                    work_id=str(result.work_id),
+                    user_id=str(current_user.id),
+                    scan_mode=worldview_scan_mode or "incremental",
+                    chapter_ids=import_context.get("chapter_ids") if import_context else None,
+                    preface_text=import_context.get("preface_text") if import_context else None
+                )
+            queued_worldview = True
             logger.info(f"[世界观提取] 已为作品 {result.work_id} 排队世界观提取任务")
+
+        if vectorize_jobs:
+            if celery_available:
+                for job in vectorize_jobs:
+                    vectorize_chapter_task.apply_async(
+                        args=[
+                            job["work_id"],
+                            job["chapter_id"],
+                            job["chapter_order"],
+                            job["chapter_title"],
+                            job["content"]
+                        ],
+                        queue="vectorize",
+                        priority=1
+                    )
+            elif background_tasks is not None:
+                for job in vectorize_jobs:
+                    background_tasks.add_task(_vectorize_import_chapter_content, **job)
+            queued_vectorize = True
+
+        # 在响应中提示排队状态
+        if queued_worldview or queued_vectorize:
+            message_parts = ["导入成功"]
+            if queued_worldview:
+                message_parts.append("世界观提取已排队")
+            if queued_vectorize:
+                message_parts.append("向量化已排队")
+            result.message = "，".join(message_parts)
 
         # 回填导入上下文给前端（不包含前言全文）
         if import_context:
@@ -299,18 +301,10 @@ async def _vectorize_import_chapter_content(
     content: str
 ):
     """后台任务：异步向量化导入章节"""
-    try:
-        from app.services.chapter_vector_service import ChapterVectorService
-        from app.core.database import async_session_maker
-
-        async with async_session_maker() as db_session:
-            service = ChapterVectorService(db_session)
-            await service.store_chapter_vector(
-                work_id=work_id,
-                chapter_id=chapter_id,
-                chapter_order=chapter_order,
-                chapter_title=chapter_title,
-                content=content
-            )
-    except Exception as e:
-        logger.error(f"导入章节向量化失败（后台任务）: work_id={work_id}, chapter_id={chapter_id}, error={e}", exc_info=True)
+    await run_vectorize_chapter(
+        work_id=work_id,
+        chapter_id=chapter_id,
+        chapter_order=chapter_order,
+        chapter_title=chapter_title,
+        content=content
+    )

@@ -7,6 +7,7 @@
 import logging
 import json
 import re
+import asyncio
 from typing import List, Dict, Any, Optional, Callable, Awaitable, Tuple
 from uuid import UUID
 from datetime import datetime, timezone
@@ -20,6 +21,7 @@ from app.models.setting import Setting
 from app.models.relationship import EntityRelationship
 from app.services.worldview_service import WorldviewService
 from app.services.ai.http_ai_service import HTTPAIService
+from app.services.agent.model_selector import TaskType
 from app.core.redis_client import redis_client
 from app.schemas.worldview import CharacterCreate, CharacterUpdate, LocationCreate, SettingCreate
 from app.services.chapter_content_provider import ChapterContentProvider
@@ -91,7 +93,8 @@ class WorldviewSyncService:
         work_id: str,
         start_chapter: int = 1,
         end_chapter: int = None,
-        limit: int = 10
+        limit: int = 10,
+        status_callback: Optional[Callable[[str], Awaitable[None]]] = None
     ) -> Dict[str, Any]:
         """
         方案C：批量扫描章节，生成世界观变化报告
@@ -123,7 +126,8 @@ class WorldviewSyncService:
             work_id=work_id,
             chapters=chapters,
             preface_text=None,
-            progress_callback=None
+            progress_callback=None,
+            status_callback=status_callback
         )
         return changes
 
@@ -132,7 +136,8 @@ class WorldviewSyncService:
         work_id: str,
         chapter_ids: List[str],
         preface_text: Optional[str] = None,
-        progress_callback: Optional[Callable[[int, int, int, int], Awaitable[None]]] = None
+        progress_callback: Optional[Callable[[int, int, int, int], Awaitable[None]]] = None,
+        status_callback: Optional[Callable[[str], Awaitable[None]]] = None
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """按章节ID批量扫描（用于导入解析）"""
         chapters = await self.get_chapters_by_ids(work_id, chapter_ids)
@@ -140,7 +145,8 @@ class WorldviewSyncService:
             work_id=work_id,
             chapters=chapters,
             preface_text=preface_text,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
+            status_callback=status_callback
         )
 
     async def get_chapters_by_work(self, work_id: str) -> List[Chapter]:
@@ -182,7 +188,8 @@ class WorldviewSyncService:
         work_id: str,
         chapters: List[Chapter],
         preface_text: Optional[str],
-        progress_callback: Optional[Callable[[int, int, int, int], Awaitable[None]]]
+        progress_callback: Optional[Callable[[int, int, int, int], Awaitable[None]]],
+        status_callback: Optional[Callable[[str], Awaitable[None]]] = None
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if not chapters and not preface_text:
             return self._empty_changes_with_scan(0), {"batches_total": 0}
@@ -196,33 +203,140 @@ class WorldviewSyncService:
             existing_characters, existing_locations, existing_settings
         )
 
-        batches = self._build_scan_batches(
-            chapters=chapters,
-            preface_text=preface_text,
-            max_chapters_per_batch=settings.WORLDVIEW_SCAN_BATCH_CHAPTERS,
-            max_chars_per_batch=settings.WORLDVIEW_SCAN_BATCH_MAX_CHARS
-        )
+        if status_callback:
+            await status_callback("preparing")
 
         total_chapters = len({str(c.id) for c in chapters if c.id})
-        total_batches = len(batches)
         processed_ids: set[str] = set()
 
         merged = self._empty_changes_with_scan(0)
-        for idx, batch in enumerate(batches):
-            changes = await self._ai_batch_extract_changes(
-                combined_content=batch["combined_content"],
-                existing_summary=existing_summary,
-                chapter_count=batch["chapter_count"]
-            )
-            merged = self._merge_changes(merged, changes)
-            processed_ids.update(batch["chapter_ids"])
-            if progress_callback:
-                await progress_callback(
-                    len(processed_ids),
-                    total_chapters,
-                    idx + 1,
-                    total_batches
+        if progress_callback:
+            await progress_callback(len(processed_ids), total_chapters, 0, 0)
+
+        concurrency = max(1, settings.WORLDVIEW_SCAN_CONCURRENCY)
+        fast_model = settings.WORLDVIEW_SCAN_FIRST_BATCH_MODEL
+        default_model = settings.WORLDVIEW_SCAN_MODEL
+        if default_model:
+            fast_model = default_model
+        shared_ai_service: Optional[HTTPAIService] = None
+        shared_fast_ai_service: Optional[HTTPAIService] = None
+        if concurrency == 1:
+            if default_model:
+                shared_ai_service = HTTPAIService(
+                    db=self.db,
+                    user_id=self.user_id,
+                    model=default_model,
+                    enable_model_selector=False
                 )
+            else:
+                shared_ai_service = HTTPAIService(
+                    db=self.db,
+                    user_id=self.user_id,
+                    model=settings.OPENAI_MODEL,
+                    enable_model_selector=True
+                )
+            if fast_model and fast_model != default_model:
+                shared_fast_ai_service = HTTPAIService(
+                    db=self.db,
+                    user_id=self.user_id,
+                    model=fast_model,
+                    enable_model_selector=False
+                )
+
+        total_batches = 0
+        try:
+            if concurrency == 1:
+                batches_completed = 0
+                started_ai = False
+                for idx, batch in enumerate(self._iter_scan_batches(
+                    chapters=chapters,
+                    preface_text=preface_text,
+                    max_chapters_per_batch=settings.WORLDVIEW_SCAN_BATCH_CHAPTERS,
+                    max_chars_per_batch=settings.WORLDVIEW_SCAN_BATCH_MAX_CHARS,
+                    first_batch_chapters=settings.WORLDVIEW_SCAN_FIRST_BATCH_CHAPTERS,
+                    first_batch_max_chars=settings.WORLDVIEW_SCAN_FIRST_BATCH_MAX_CHARS
+                )):
+                    if status_callback and not started_ai:
+                        await status_callback("running")
+                        started_ai = True
+
+                    ai_service = shared_ai_service
+                    if idx == 0 and fast_model:
+                        ai_service = shared_fast_ai_service or shared_ai_service
+
+                    changes = await self._ai_batch_extract_changes(
+                        combined_content=batch["combined_content"],
+                        existing_summary=existing_summary,
+                        chapter_count=batch["chapter_count"],
+                        ai_service=ai_service,
+                        task_type=TaskType.WORLD_BUILDING
+                    )
+                    merged = self._merge_changes(merged, changes)
+                    processed_ids.update(batch["chapter_ids"])
+                    batches_completed += 1
+                    if progress_callback:
+                        await progress_callback(
+                            len(processed_ids),
+                            total_chapters,
+                            batches_completed,
+                            0
+                        )
+                if progress_callback:
+                    await progress_callback(
+                        len(processed_ids),
+                        total_chapters,
+                        batches_completed,
+                        batches_completed
+                    )
+                total_batches = batches_completed
+            else:
+                batches = self._build_scan_batches(
+                    chapters=chapters,
+                    preface_text=preface_text,
+                    max_chapters_per_batch=settings.WORLDVIEW_SCAN_BATCH_CHAPTERS,
+                    max_chars_per_batch=settings.WORLDVIEW_SCAN_BATCH_MAX_CHARS,
+                    first_batch_chapters=settings.WORLDVIEW_SCAN_FIRST_BATCH_CHAPTERS,
+                    first_batch_max_chars=settings.WORLDVIEW_SCAN_FIRST_BATCH_MAX_CHARS
+                )
+                total_batches = len(batches)
+                if status_callback and total_batches > 0:
+                    await status_callback("running")
+
+                # 并发批次：为每个批次创建独立 AI 服务，避免共享 DB 会话并发问题
+                sem = asyncio.Semaphore(concurrency)
+                completed = 0
+
+                async def worker(batch_idx: int, batch: Dict[str, Any]):
+                    async with sem:
+                        changes = await self._ai_batch_extract_changes(
+                            combined_content=batch["combined_content"],
+                            existing_summary=existing_summary,
+                            chapter_count=batch["chapter_count"],
+                            ai_service=None,
+                            task_type=TaskType.WORLD_BUILDING,
+                            enable_cost_tracking=False,
+                            model_override=fast_model if (batch_idx == 0 and fast_model) else default_model
+                        )
+                        return batch_idx, batch, changes
+
+                tasks = [worker(idx, batch) for idx, batch in enumerate(batches)]
+                for coro in asyncio.as_completed(tasks):
+                    batch_idx, batch, changes = await coro
+                    merged = self._merge_changes(merged, changes)
+                    processed_ids.update(batch["chapter_ids"])
+                    completed += 1
+                    if progress_callback:
+                        await progress_callback(
+                            len(processed_ids),
+                            total_chapters,
+                            completed,
+                            total_batches
+                        )
+        finally:
+            if shared_ai_service:
+                await shared_ai_service.close()
+            if shared_fast_ai_service:
+                await shared_fast_ai_service.close()
 
         merged["scanned_chapters"] = len(chapters)
         return merged, {"batches_total": total_batches, "chapters_total": total_chapters}
@@ -434,31 +548,34 @@ class WorldviewSyncService:
         )
         return stats
 
-    def _build_scan_batches(
+    def _iter_scan_batches(
         self,
         chapters: List[Chapter],
         preface_text: Optional[str],
         max_chapters_per_batch: int,
-        max_chars_per_batch: int
-    ) -> List[Dict[str, Any]]:
-        """构建分批扫描内容（不截断，超长章节拆分）"""
-        batches: List[Dict[str, Any]] = []
+        max_chars_per_batch: int,
+        first_batch_chapters: Optional[int] = None,
+        first_batch_max_chars: Optional[int] = None
+    ):
+        """迭代构建分批扫描内容（不截断，超长章节拆分）"""
         current_blocks: List[str] = []
         current_len = 0
         current_ids: List[str] = []
-
-        def flush():
-            nonlocal current_blocks, current_len, current_ids
+        batches_emitted = 0
+        def emit():
+            nonlocal current_blocks, current_len, current_ids, batches_emitted
             if not current_blocks:
-                return
-            batches.append({
+                return None
+            batch = {
                 "combined_content": "\n\n".join(current_blocks),
                 "chapter_count": len({cid for cid in current_ids}),
                 "chapter_ids": list({cid for cid in current_ids})
-            })
+            }
             current_blocks = []
             current_len = 0
             current_ids = []
+            batches_emitted += 1
+            return batch
 
         # 前言/设定段落只放入首个批次
         if preface_text:
@@ -488,19 +605,48 @@ class WorldviewSyncService:
                 suffix = f"（片段{part_idx + 1}/{len(parts)}）" if len(parts) > 1 else ""
                 block = f"【第{chapter.order}章 {chapter.title}{suffix}】\n{part}"
 
+                current_max_chapters = max_chapters_per_batch
+                current_max_chars = max_chars_per_batch
+                if batches_emitted == 0 and first_batch_chapters:
+                    current_max_chapters = first_batch_chapters
+                    if first_batch_max_chars:
+                        current_max_chars = first_batch_max_chars
+
                 if current_blocks and (
-                    (max_chapters_per_batch and len({cid for cid in current_ids}) >= max_chapters_per_batch) or
-                    (max_chars_per_batch and current_len + len(block) > max_chars_per_batch)
+                    (current_max_chapters and len({cid for cid in current_ids}) >= current_max_chapters) or
+                    (current_max_chars and current_len + len(block) > current_max_chars)
                 ):
-                    flush()
+                    batch = emit()
+                    if batch:
+                        yield batch
 
                 current_blocks.append(block)
                 current_len += len(block)
                 if chapter.id:
                     current_ids.append(str(chapter.id))
 
-        flush()
-        return batches
+        batch = emit()
+        if batch:
+            yield batch
+
+    def _build_scan_batches(
+        self,
+        chapters: List[Chapter],
+        preface_text: Optional[str],
+        max_chapters_per_batch: int,
+        max_chars_per_batch: int,
+        first_batch_chapters: Optional[int] = None,
+        first_batch_max_chars: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """构建分批扫描内容（不截断，超长章节拆分）"""
+        return list(self._iter_scan_batches(
+            chapters=chapters,
+            preface_text=preface_text,
+            max_chapters_per_batch=max_chapters_per_batch,
+            max_chars_per_batch=max_chars_per_batch,
+            first_batch_chapters=first_batch_chapters,
+            first_batch_max_chars=first_batch_max_chars
+        ))
 
     def _merge_changes(self, base: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, Any]:
         """合并多批次的世界观变化结果"""
@@ -682,8 +828,13 @@ class WorldviewSyncService:
 4. 返回严格的JSON格式"""
 
         try:
-            # 使用 gemini 模型进行世界观分析（更稳定）
-            ai_service = HTTPAIService(db=self.db, user_id=self.user_id, model="gemini-2.5-pro")
+            # 统一使用快模型进行世界观分析
+            ai_service = HTTPAIService(
+                db=self.db,
+                user_id=self.user_id,
+                model=settings.WORLDVIEW_SINGLE_CHAPTER_MODEL or "gemini-2.5-flash",
+                enable_model_selector=False
+            )
             full_response = ""
 
             async for chunk, usage in ai_service._stream_chat(
@@ -692,7 +843,8 @@ class WorldviewSyncService:
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=2000,
-                temperature=0.3
+                temperature=0.3,
+                task_type=TaskType.WORLD_BUILDING
             ):
                 if chunk:  # 忽略空chunk（最后一个是空的，只包含usage）
                     full_response += chunk
@@ -708,7 +860,11 @@ class WorldviewSyncService:
         self,
         combined_content: str,
         existing_summary: str,
-        chapter_count: int
+        chapter_count: int,
+        ai_service: Optional[HTTPAIService] = None,
+        task_type: Optional[TaskType] = None,
+        enable_cost_tracking: bool = True,
+        model_override: Optional[str] = None
     ) -> Dict[str, Any]:
         """调用 AI 批量提取变化"""
         prompt = f"""你是一个专业的小说世界观分析师。请分析以下{chapter_count}个章节的内容，找出与现有世界观相比的**所有新增和变化**。
@@ -751,14 +907,33 @@ class WorldviewSyncService:
 3. 人物名要准确，过滤掉"路人甲"等无意义名称
 4. 返回严格的JSON格式"""
 
+        created_service = False
         try:
             logger.debug(f"[世界观同步] 开始AI分析，章节数: {chapter_count}, 内容长度: {len(combined_content)}")
             logger.debug(f"[世界观同步] 现有世界观: {existing_summary[:200]}...")
             logger.debug(f"[世界观同步] db={self.db}, user_id={self.user_id}")
 
             # 使用 gemini 模型进行世界观分析（更稳定）
-            ai_service = HTTPAIService(db=self.db, user_id=self.user_id, model="gemini-2.5-pro")
-            logger.info(f"[世界观同步] AI服务初始化完成: api_key={'***' + ai_service.api_key[-4:] if ai_service.api_key else 'None'}, base_url={ai_service.base_url}, model={ai_service.model}")
+            if ai_service is None:
+                if model_override:
+                    ai_service = HTTPAIService(
+                        db=self.db if enable_cost_tracking else None,
+                        user_id=self.user_id if enable_cost_tracking else None,
+                        model=model_override,
+                        enable_model_selector=False,
+                        enable_cost_tracking=enable_cost_tracking
+                    )
+                else:
+                    ai_service = HTTPAIService(
+                        db=self.db if enable_cost_tracking else None,
+                        user_id=self.user_id if enable_cost_tracking else None,
+                        model=settings.OPENAI_MODEL,
+                        enable_model_selector=True,
+                        enable_cost_tracking=enable_cost_tracking
+                    )
+                created_service = True
+            if created_service:
+                logger.info(f"[世界观同步] AI服务初始化完成: api_key={'***' + ai_service.api_key[-4:] if ai_service.api_key else 'None'}, base_url={ai_service.base_url}, model={ai_service.model}")
             full_response = ""
 
             async for chunk, usage in ai_service._stream_chat(
@@ -767,7 +942,8 @@ class WorldviewSyncService:
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=3000,
-                temperature=0.3
+                temperature=0.3,
+                task_type=task_type
             ):
                 if chunk:  # 忽略空chunk（最后一个是空的，只包含usage）
                     full_response += chunk
@@ -783,6 +959,9 @@ class WorldviewSyncService:
         except Exception as e:
             logger.error(f"AI批量提取世界观变化失败: {e}", exc_info=True)
             return self._empty_changes()
+        finally:
+            if created_service and ai_service:
+                await ai_service.close()
 
     def _parse_changes_json(self, response: str) -> Dict[str, Any]:
         """解析 AI 返回的 JSON"""

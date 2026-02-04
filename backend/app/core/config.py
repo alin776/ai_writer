@@ -239,8 +239,17 @@ class Settings(BaseSettings):
     WORLDVIEW_SETTING_BATCH_SIZE: int = 10  # 设定批次大小
 
     # 世界观扫描（导入解析）配置
-    WORLDVIEW_SCAN_BATCH_CHAPTERS: int = 10  # 每批次最大章节数
-    WORLDVIEW_SCAN_BATCH_MAX_CHARS: int = 40000  # 每批次最大字符数
+    WORLDVIEW_SCAN_BATCH_CHAPTERS: int = 2  # 每批次最大章节数
+    WORLDVIEW_SCAN_BATCH_MAX_CHARS: int = 8000  # 每批次最大字符数
+    WORLDVIEW_SCAN_FIRST_BATCH_CHAPTERS: int = 1  # 首批章节数（用于快速反馈）
+    WORLDVIEW_SCAN_FIRST_BATCH_MAX_CHARS: int = 4000  # 首批最大字符数
+    WORLDVIEW_SCAN_CONCURRENCY: int = 1  # 批次并发数（>1会禁用成本追踪）
+    WORLDVIEW_SCAN_FIRST_BATCH_MODEL: Optional[str] = "gemini-2.5-flash"  # 首批快模型（None表示不特殊处理）
+    WORLDVIEW_SCAN_MODEL: Optional[str] = "gemini-2.5-flash"  # 全量/后续批次模型
+    WORLDVIEW_SINGLE_CHAPTER_MODEL: Optional[str] = "gemini-2.5-flash"  # 单章解析模型
+
+    # 导入异步任务配置
+    ENABLE_CELERY_IMPORT_TASKS: bool = False  # 使用 Celery 执行导入相关重任务
 
     # 重试机制配置
     WORLDVIEW_BATCH_MAX_RETRIES: int = 3  # 单批次失败最大重试次数

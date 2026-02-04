@@ -8,6 +8,7 @@ Celery异步任务配置
 """
 
 from celery import Celery
+from kombu import Queue
 from app.core.config import settings
 
 # 从 REDIS_URL 构建 Celery broker URL
@@ -32,6 +33,14 @@ celery_app.conf.update(
     result_expires=86400,  # 结果保留24小时
     worker_prefetch_multiplier=1,  # 每次只取一个任务
     worker_max_tasks_per_child=50,  # 每个worker执行50个任务后重启
+    task_queues=(
+        Queue('worldview', routing_key='worldview'),
+        Queue('vectorize', routing_key='vectorize'),
+    ),
+    task_routes={
+        'import.extract_worldview': {'queue': 'worldview', 'routing_key': 'worldview'},
+        'import.vectorize_chapter': {'queue': 'vectorize', 'routing_key': 'vectorize'},
+    }
 )
 
 # 自动发现任务

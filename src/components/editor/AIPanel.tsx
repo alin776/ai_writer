@@ -1503,7 +1503,7 @@ ${selectionContext.selected_text}
                 {/* 选中文本前置 */}
                 {selectionContext?.selected_text && (
                   <span
-                    className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                    className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
                     style={{ maxWidth: '100%' }}
                     title={selectionContext.selected_text}
                   >
@@ -2072,7 +2072,7 @@ ${selectionContext.selected_text}
                 {/* 选中文本前置（放在后，保持同一行逻辑）*/}
                 {selectionContext?.selected_text && (
                   <span
-                    className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                    className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
                     style={{ maxWidth: '100%' }}
                     title={selectionContext.selected_text}
                   >

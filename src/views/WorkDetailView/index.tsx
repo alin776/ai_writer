@@ -162,8 +162,7 @@ const WorkDetailView: React.FC = () => {
     let notified = false;
     let idleAttempts = 0;
     const maxIdleAttempts = 5;
-    const interval = 3000;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const poll = async () => {
       if (cancelled || !workId) return;
@@ -174,42 +173,48 @@ const WorkDetailView: React.FC = () => {
           idleAttempts += 1;
           const hasNewCards = await refreshWorldData();
           if (hasNewCards || idleAttempts >= maxIdleAttempts) {
-            if (timer) clearInterval(timer);
+            return 'stop';
           }
-          return;
+          return 'idle';
         }
 
-        if (progress.status === 'running' || progress.status === 'pending') {
+        if (progress.status === 'running' || progress.status === 'pending' || progress.status === 'preparing' || progress.status === 'applying') {
           if (!notified) {
             showToast('info', '世界观解析进行中...');
             notified = true;
           }
-          return;
+          return 'running';
         }
 
         if (progress.status === 'completed') {
           await refreshWorldData();
           showToast('success', '世界观解析完成，已更新世界观');
-          if (timer) clearInterval(timer);
-          return;
+          return 'stop';
         }
 
         if (progress.status === 'failed') {
           showToast('error', progress.lastError || '世界观解析失败');
-          if (timer) clearInterval(timer);
+          return 'stop';
         }
       } catch (error) {
         console.warn('[WorkDetailView] 获取世界观解析进度失败:', error);
+        return 'idle';
       }
     };
 
-    timer = setInterval(poll, interval);
-    poll();
+    const scheduleNext = async () => {
+      const status = await poll();
+      if (cancelled || status === 'stop') return;
+      const delay = status === 'running' ? 5000 : 8000;
+      timer = setTimeout(scheduleNext, delay);
+    };
+
+    scheduleNext();
 
     return () => {
       cancelled = true;
       if (timer) {
-        clearInterval(timer);
+        clearTimeout(timer);
       }
     };
   }, [workId, autoExtractFromImport, hasWorldviewCards, refreshWorldData, showToast]);

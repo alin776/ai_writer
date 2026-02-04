@@ -32,6 +32,7 @@ class WorldviewScanProgressService:
         scan_mode: str,
         chapters_total: int,
         batches_total: int = 0,
+        status: str = "running",
         metadata: Optional[Dict[str, Any]] = None
     ) -> WorldviewScanProgress:
         progress = await self.get_progress(work_id)
@@ -39,7 +40,7 @@ class WorldviewScanProgressService:
             progress = WorldviewScanProgress(
                 id=work_id,
                 work_id=work_id,
-                status="running",
+                status=status,
                 scan_mode=scan_mode,
                 chapters_total=chapters_total,
                 chapters_processed=0,
@@ -49,7 +50,7 @@ class WorldviewScanProgressService:
             )
             self.db.add(progress)
         else:
-            progress.status = "running"
+            progress.status = status
             progress.scan_mode = scan_mode
             progress.chapters_total = chapters_total
             progress.chapters_processed = 0
@@ -94,6 +95,35 @@ class WorldviewScanProgressService:
             return True
         except Exception as e:
             logger.error(f"更新扫描进度失败: work_id={work_id}, error={e}")
+            await self.db.rollback()
+            return False
+
+    async def update_status(
+        self,
+        work_id: str,
+        status: str,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        try:
+            progress = await self.get_progress(work_id)
+            if not progress:
+                return False
+
+            progress.status = status
+            progress.updated_at = get_utc_now()
+
+            if metadata:
+                try:
+                    existing = json.loads(progress.metadata_json) if progress.metadata_json else {}
+                except json.JSONDecodeError:
+                    existing = {}
+                existing.update(metadata)
+                progress.metadata_json = json.dumps(existing)
+
+            await self.db.commit()
+            return True
+        except Exception as e:
+            logger.error(f"更新扫描状态失败: work_id={work_id}, error={e}")
             await self.db.rollback()
             return False
 

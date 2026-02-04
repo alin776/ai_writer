@@ -114,6 +114,8 @@ const WorksView: React.FC = () => {
   const [scanProgress, setScanProgress] = useState<WorldviewScanProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
+  const autoNavigateEnabledRef = useRef(true);
+  const hasAutoNavigatedRef = useRef(false);
 
   // 导出弹窗状态
   const [exportingWork, setExportingWork] = useState<Work | null>(null);
@@ -534,6 +536,8 @@ const WorksView: React.FC = () => {
     setImportedChaptersCount(null);
     setImportAutoExtracted(false);
     setScanProgress(null);
+    autoNavigateEnabledRef.current = true;
+    hasAutoNavigatedRef.current = false;
   };
 
   // 关闭导入弹窗
@@ -548,6 +552,8 @@ const WorksView: React.FC = () => {
     setImportedChaptersCount(null);
     setImportAutoExtracted(false);
     setScanProgress(null);
+    autoNavigateEnabledRef.current = false;
+    hasAutoNavigatedRef.current = false;
   };
 
   // 处理文件选择
@@ -700,6 +706,8 @@ const WorksView: React.FC = () => {
       console.log('[导入结果]', result);
       const chaptersCount = result.chaptersCreated ?? 0;
       const workId = result.workId;
+      autoNavigateEnabledRef.current = shouldAutoExtractWorldview;
+      hasAutoNavigatedRef.current = false;
 
       // 导入成功提示改为静默，避免弹窗遮挡进度
       loadWorks(true); // 静默刷新作品列表，避免全屏 loading 覆盖弹窗
@@ -740,11 +748,14 @@ const WorksView: React.FC = () => {
   };
 
   const handleCloseAfterImport = () => {
+    autoNavigateEnabledRef.current = false;
     closeImportModal();
   };
 
   const handleGoToImportedWork = () => {
     if (!importedWorkId) return;
+    autoNavigateEnabledRef.current = false;
+    hasAutoNavigatedRef.current = true;
     closeImportModal();
     navigate(`/works/${importedWorkId}`, {
       state: {
@@ -758,7 +769,7 @@ const WorksView: React.FC = () => {
     if (!showImportModal || !importCompleted || !importAutoExtracted || !importedWorkId) return;
 
     let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const poll = async () => {
       if (cancelled) return;
@@ -766,20 +777,33 @@ const WorksView: React.FC = () => {
         const progress = await DataService.getWorldviewScanProgress(importedWorkId);
         if (cancelled) return;
         setScanProgress(progress);
-        if (progress.status === 'completed' || progress.status === 'failed') {
-          if (timer) clearInterval(timer);
+        if (progress?.status === 'completed' && autoNavigateEnabledRef.current && !hasAutoNavigatedRef.current) {
+          hasAutoNavigatedRef.current = true;
+          handleGoToImportedWork();
         }
+        return progress;
       } catch (error) {
         console.warn('[WorksView] 获取世界观解析进度失败:', error);
+        return null;
       }
     };
 
-    timer = setInterval(poll, 3000);
-    poll();
+    const scheduleNext = async () => {
+      const progress = await poll();
+      if (cancelled) return;
+      const status = progress?.status || 'idle';
+      if (status === 'completed' || status === 'failed') {
+        return;
+      }
+      const delay = (status === 'running' || status === 'preparing' || status === 'applying') ? 5000 : 8000;
+      timer = setTimeout(scheduleNext, delay);
+    };
+
+    scheduleNext();
 
     return () => {
       cancelled = true;
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
     };
   }, [showImportModal, importCompleted, importAutoExtracted, importedWorkId]);
 
@@ -796,15 +820,28 @@ const WorksView: React.FC = () => {
       ? '解析完成'
       : scanStatus === 'failed'
         ? '解析失败'
-        : scanStatus === 'running'
-          ? '解析中'
-          : '排队中';
+        : scanStatus === 'applying'
+          ? '应用中'
+          : scanStatus === 'running'
+            ? '解析中'
+            : scanStatus === 'preparing'
+              ? '准备中'
+              : '排队中';
   const scanStatusColor =
     scanStatus === 'completed'
       ? 'bg-green-500'
       : scanStatus === 'failed'
         ? 'bg-red-500'
-        : 'bg-blue-500';
+        : scanStatus === 'applying'
+          ? 'bg-indigo-500'
+          : 'bg-blue-500';
+  const scanChaptersLabel =
+    scanChaptersTotal
+      ? `已处理 ${scanChaptersProcessed}/${scanChaptersTotal} 章`
+      : scanStatus === 'preparing'
+        ? '准备中'
+        : '等待开始';
+  const hasBatchInfo = scanBatchesCompleted > 0 || scanBatchesTotal > 0;
 
   // 筛选和排序
   const filteredWorks = works
@@ -1515,9 +1552,13 @@ const WorksView: React.FC = () => {
                     ></div>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-gray-500 dark:text-gray-400" style={{ fontSize: '11px' }}>
-                    <span>{scanChaptersTotal ? `已处理 ${scanChaptersProcessed}/${scanChaptersTotal} 章` : '等待开始'}</span>
-                    {scanBatchesTotal > 0 && (
-                      <span>{`批次 ${scanBatchesCompleted}/${scanBatchesTotal}`}</span>
+                    <span>{scanChaptersLabel}</span>
+                    {hasBatchInfo && (
+                      <span>
+                        {scanBatchesTotal > 0
+                          ? `批次 ${scanBatchesCompleted}/${scanBatchesTotal}`
+                          : `批次 ${scanBatchesCompleted}`}
+                      </span>
                     )}
                   </div>
                   {scanStatus === 'failed' && scanProgress?.lastError && (

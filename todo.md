@@ -2898,3 +2898,70 @@
 #### review
 
 - 导入响应的 import_context 改为 `ImportContext` 实例赋值，避免 Pydantic 序列化警告。`backend/app/api/v1/import_routes.py`
+
+#### 世界观解析性能&体验综合优化（待确认）
+
+- [ ] 导入时先写入“排队中”进度（避免长时间无变化），并把世界观解析放在向量化之前
+- [ ] 将解析与向量化迁移到 Celery：世界观高优先级队列、向量化低优先级队列，避免互相阻塞
+- [ ] 解析批次优化：首批小批次快速出进度，后续动态批次；支持并发批次（限流）
+- [ ] 复用 AI 服务实例 + 传 task_type（模型选择走更快档），降低每批初始化/耗时
+- [ ] 进度更新更细：批次开始/结束/应用变化都写入进度（UI显示排队/解析/应用）
+- [ ] 前端轮询节流（运行中 5-10s 间隔，完成即停），降低日志噪音
+
+#### 世界观解析性能&体验综合优化（二期·吸收方案优势）（待确认）
+
+- [x] 复核“解析启动慢”的关键耗时点（批次构建/HTML清洗/AI首批），确认对应代码位置
+- [x] 批次构建优化：首批按更小字符数拆分（避免单章过大拖慢首批），并尽早写入 batches_total
+- [x] 进度阶段化：增加 preparing/applying 状态或 phase 字段，前端展示“准备中/应用中”
+- [x] 解析模型可配置：支持首批快模型 + 后续高质量模型（配置开关），兼顾速度与质量
+- [x] 自检：导入后 10s 内可见“准备/解析”状态变化，首批完成后进度条有增长
+
+#### review
+
+- 启动慢的根因定位：扫描前会读取**全部章节文件并做 HTML 清洗**构建批次，进度回调在批次构建后才触发，导致导入后长时间无进度变化。`backend/app/services/worldview_sync_service.py`、`backend/app/services/chapter_content_provider.py`、`backend/app/utils/text_cleaner.py`
+- 批次构建改为**流式迭代**：并发=1 时按批次生成并立刻解析，避免先清洗全书才开始，首批更快出进度。`backend/app/services/worldview_sync_service.py`
+- 进度阶段化落地：新增 `preparing/applying` 状态更新，前端显示“准备中/应用中”，并将无 `batches_total` 时进度百分比退回按章节计算。`backend/app/services/worldview_extraction_runner.py`、`backend/app/services/worldview_scan_progress_service.py`、`backend/app/models/worldview_scan_progress.py`、`src/views/WorksView/index.tsx`、`src/views/WorkDetailView/index.tsx`
+- 首批快模型支持：新增 `WORLDVIEW_SCAN_FIRST_BATCH_MODEL`（默认 `gemini-2.5-flash`）+ `WORLDVIEW_SCAN_MODEL` 可配置，首批快模型、后续高质量模型分离。`backend/app/core/config.py`、`backend/app/services/worldview_sync_service.py`
+
+#### 统一世界观解析模型为 gemini-2.5-flash（待确认）
+
+- [x] 定位世界观解析的所有模型入口（批量扫描/单章提取），确认是否仍有 gemini-2.5-pro 硬编码
+- [x] 将世界观解析模型统一为 gemini-2.5-flash（禁用模型选择器，避免自动切回 pro）
+- [x] 自检日志：不再出现 gemini-2.5-pro、task_type 仍正常输出
+
+#### review
+
+- 单章解析硬编码 pro 已替换为配置驱动的 flash，并禁用模型选择器，避免回切。`backend/app/services/worldview_sync_service.py`、`backend/app/core/config.py`
+- 批量解析默认模型统一为 flash：`WORLDVIEW_SCAN_MODEL` 设为 flash，且强制首批与后续一致。`backend/app/core/config.py`、`backend/app/services/worldview_sync_service.py`
+
+#### 解析完成自动跳转作品详情（待确认）
+
+- [x] 定位导入弹窗的解析进度轮询逻辑与跳转入口（WorksView）
+- [x] 当解析完成且弹窗仍打开时自动跳转作品详情页（避免重复触发）
+- [x] 自检：解析完成自动跳转；用户手动关闭弹窗时不强制跳转
+
+#### review
+
+- 导入后世界观解析完成会自动跳转详情页：在轮询中检测 `completed` 且弹窗仍打开时触发跳转，并用 ref 防止重复触发。`src/views/WorksView/index.tsx`
+- 手动关闭弹窗会禁用自动跳转，避免用户“继续后台解析”时被强制带走。`src/views/WorksView/index.tsx`
+
+#### 缩小世界观解析批次（待确认）
+
+- [x] 评估“批次越小越好”的可接受最小值（章节数/字符数/首批）
+- [x] 调整 WORLDVIEW_SCAN_BATCH_* 配置为更小批次，优先提升“进度有变化”的频率
+- [ ] 自检：进度条更新更频繁，但整体耗时/成本可接受
+
+#### review
+
+- 批次配置缩小为 1~2 章/4k~8k 字符，首批更快出进度，整体更新更频繁。`backend/app/core/config.py`
+
+#### 统计核心代码行数（待确认）
+
+- [x] 确认“核心代码”统计口径与范围（包含/排除的目录与语言，剔除测试脚本与开发文档）
+- [x] 按确认口径运行统计并记录排除规则
+- [x] 汇总行数结果与口径说明，并在 todo.md 追加 review
+
+#### review
+
+- 统计口径：仅主工程 `backend/app` + `backend/alembic` + `src`；排除测试与文档目录（tests/docs 等）、`node_modules/dist/build/public/preview` 等非核心目录，跳过 `*.test.*`/`*.spec.*`/`*_test.py`/`test_*.py`；统计扩展名 `.py/.ts/.tsx/.js/.jsx/.mjs/.cjs/.css/.scss/.less/.d.ts`，按文件物理行数计（含空行）。
+- 统计结果：核心代码总行数 245,985 行（813 个文件）；分目录：`backend/app` 134,598 行、`backend/alembic` 5,468 行、`src` 105,919 行；分扩展名：`.py` 140,066、`.tsx` 71,035、`.ts` 24,608、`.css` 10,202、`.d.ts` 74。

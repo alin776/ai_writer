@@ -50,6 +50,8 @@ class WorldviewScanProgress(Base):
         progress_percentage = 0.0
         if self.batches_total:
             progress_percentage = (self.batches_completed / self.batches_total) * 100
+        elif self.chapters_total:
+            progress_percentage = (self.chapters_processed / self.chapters_total) * 100
 
         return {
             "work_id": self.work_id,
