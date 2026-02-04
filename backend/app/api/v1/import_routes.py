@@ -10,7 +10,8 @@ from app.models.user import User
 from app.schemas.export import (
     ImportOptions,
     ImportPreviewResponse,
-    ImportResponse
+    ImportResponse,
+    ImportContext
 )
 from app.services.import_service import ImportService
 
@@ -60,11 +61,20 @@ async def _extract_worldview_from_chapters(
                 return
 
             # 扫描章节（分批）
+            async def progress_callback(chapters_processed: int, chapters_total: int, batches_completed: int, batches_total: int):
+                await progress_service.update_progress(
+                    work_id=work_id,
+                    chapters_processed=chapters_processed,
+                    chapters_total=chapters_total,
+                    batches_completed=batches_completed,
+                    batches_total=batches_total
+                )
+
             changes, scan_meta = await sync_service.scan_chapters_for_changes_by_ids(
                 work_id=work_id,
                 chapter_ids=[str(ch.id) for ch in chapters],
                 preface_text=preface_text,
-                progress_callback=progress_service.update_progress
+                progress_callback=progress_callback
             )
 
             scanned = changes.get("scanned_chapters", 0)
@@ -252,12 +262,12 @@ async def import_work(
 
         # 回填导入上下文给前端（不包含前言全文）
         if import_context:
-            result.import_context = {
-                "chapter_ids": import_context.get("chapter_ids", []),
-                "chapter_order_start": import_context.get("chapter_order_start"),
-                "chapter_order_end": import_context.get("chapter_order_end"),
-                "scan_mode": worldview_scan_mode or "incremental"
-            }
+            result.import_context = ImportContext(
+                chapter_ids=import_context.get("chapter_ids", []),
+                chapter_order_start=import_context.get("chapter_order_start"),
+                chapter_order_end=import_context.get("chapter_order_end"),
+                scan_mode=worldview_scan_mode or "incremental"
+            )
         
         logger.info(
             f"导入成功: 作品ID={result.work_id}, "

@@ -2841,6 +2841,60 @@
 
 #### 导入弹窗显示世界观解析进度（待确认）
 
-- [ ] 梳理导入完成后的弹窗关闭逻辑与跳转逻辑（WorksView）
-- [ ] 导入后不立即关闭弹窗：在弹窗内展示解析进度（轮询 scan-progress），提供“关闭/继续后台”按钮
-- [ ] 解析完成/失败时更新提示，并允许跳转到作品详情页
+- [x] 梳理导入完成后的弹窗关闭逻辑与跳转逻辑（WorksView）
+- [x] 导入后不立即关闭弹窗：在弹窗内展示解析进度（轮询 scan-progress），提供“关闭/继续后台”按钮
+- [x] 解析完成/失败时更新提示，并允许跳转到作品详情页
+
+#### review
+
+- 导入成功且开启自动解析时，不再立即关闭弹窗；在弹窗内轮询 `scan-progress` 并显示进度条与状态，支持“继续后台解析/查看作品详情”。`src/views/WorksView/index.tsx`
+
+#### 世界观进度接口 404 修复（待确认）
+
+- [x] 确认前端请求路径与后端实际路由前缀不一致的问题
+- [x] 在 works 路由补充 `/works/{work_id}/worldview/scan-progress` 接口（与前端一致）
+- [x] 自检：导入弹窗与详情页轮询不再 404
+
+#### review
+
+- 在 works 路由补齐世界观扫描进度接口，兼容前端请求路径，避免 `/works/{id}/worldview/scan-progress` 404。`backend/app/api/v1/works.py`
+
+#### 导入后页面闪跳/加载覆盖（待确认）
+
+- [x] 确认导入成功后调用 loadWorks 触发全屏 loading，导致弹窗进度被遮挡
+- [x] 为 loadWorks 增加“静默刷新”模式，导入后用静默刷新避免闪跳
+- [x] 自检：导入成功后保持弹窗与进度条可见，不再出现“跳转回来”观感
+
+#### review
+
+- 导入成功后改用静默刷新：`loadWorks(true)` 不再触发全屏 Loading，避免弹窗进度被遮挡造成“跳转回来”错觉。`src/views/WorksView/index.tsx`
+
+#### 世界观解析进度回调参数修复（待确认）
+
+- [x] 确认 progress_callback 传参与 update_progress 签名不一致导致报错
+- [x] 在导入解析后台任务中包一层回调，补齐 work_id 参数
+- [x] 自检：解析进度更新不再抛错，后台任务完成
+
+#### review
+
+- 导入解析进度回调改为本地包装函数，补齐 work_id 参数，避免 update_progress 参数缺失报错。`backend/app/api/v1/import_routes.py`
+
+#### 移除导入成功提示弹窗（待确认）
+
+- [x] 定位导入成功提示的触发位置（WorksView）
+- [x] 移除或改为静默，避免导入完成后右上角弹窗
+- [x] 自检：导入流程不再出现成功 toast
+
+#### review
+
+- 导入成功不再弹出成功 toast，避免遮挡导入弹窗与进度条；“继续后台解析”也不再提示弹窗。`src/views/WorksView/index.tsx`
+
+#### 修复 ImportContext 序列化警告（待确认）
+
+- [x] 确认 import_context 被赋值为 dict 导致 Pydantic 序列化警告
+- [x] 在导入路由中改为赋值 ImportContext 实例
+- [x] 自检：日志不再出现 PydanticSerializationUnexpectedValue
+
+#### review
+
+- 导入响应的 import_context 改为 `ImportContext` 实例赋值，避免 Pydantic 序列化警告。`backend/app/api/v1/import_routes.py`

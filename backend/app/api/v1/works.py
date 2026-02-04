@@ -17,6 +17,7 @@ from app.schemas.work import WorkCreate, WorkUpdate, WorkResponse, WorkListRespo
 from app.services.work_service import WorkService
 from app.services.cos_service import get_cos_service
 from app.services.chapter_word_stat_service import ChapterWordStatService
+from app.schemas.worldview import WorldviewScanProgressResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -125,6 +126,43 @@ async def get_work(
         )
 
     return work
+
+
+@router.get("/{work_id}/worldview/scan-progress", response_model=WorldviewScanProgressResponse)
+async def get_worldview_scan_progress_for_work(
+    work_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取世界观扫描进度（导入解析）"""
+    from app.services.worldview_scan_progress_service import WorldviewScanProgressService
+
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    progress_service = WorldviewScanProgressService(db)
+    progress = await progress_service.get_progress(work_id)
+    if not progress:
+        return WorldviewScanProgressResponse(work_id=work_id, status="idle")
+
+    data = progress.to_dict()
+    return WorldviewScanProgressResponse(
+        work_id=data.get("work_id", work_id),
+        status=data.get("status", "idle"),
+        scan_mode=data.get("scan_mode"),
+        chapters_total=data.get("chapters_total", 0),
+        chapters_processed=data.get("chapters_processed", 0),
+        batches_total=data.get("batches_total", 0),
+        batches_completed=data.get("batches_completed", 0),
+        progress_percentage=data.get("progress_percentage", 0.0),
+        results=data.get("results"),
+        last_error=data.get("last_error"),
+        updated_at=progress.updated_at
+    )
 
 
 @router.post("", response_model=WorkResponse, status_code=status.HTTP_201_CREATED)
