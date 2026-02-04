@@ -2955,6 +2955,15 @@
 
 - 批次配置缩小为 1~2 章/4k~8k 字符，首批更快出进度，整体更新更频繁。`backend/app/core/config.py`
 
+#### 世界树按需加载（待确认）
+
+- [ ] 通读世界观读取链路（get_writing_context / WorldviewService / context_builder / tool_executor），确认可复用点
+- [ ] 设计世界树数据结构与最小接口（root/children/node），明确按需加载粒度与 node_id 规范
+- [ ] 增加后端世界树接口与缓存策略（按 work_id + node_id）
+- [ ] 新增 agent 工具：按需获取世界树节点（get_worldview_tree / get_worldview_node）
+- [ ] 更新 agent 调用策略与上下文构建：仅拉取必要节点（Explore → Worldview(on-demand) → Create）
+- [ ] 自检：agent 能按需拉人物/地点/设定/关系，不再一次性拉全量
+
 #### 统计核心代码行数（待确认）
 
 - [x] 确认“核心代码”统计口径与范围（包含/排除的目录与语言，剔除测试脚本与开发文档）
@@ -2965,3 +2974,156 @@
 
 - 统计口径：仅主工程 `backend/app` + `backend/alembic` + `src`；排除测试与文档目录（tests/docs 等）、`node_modules/dist/build/public/preview` 等非核心目录，跳过 `*.test.*`/`*.spec.*`/`*_test.py`/`test_*.py`；统计扩展名 `.py/.ts/.tsx/.js/.jsx/.mjs/.cjs/.css/.scss/.less/.d.ts`，按文件物理行数计（含空行）。
 - 统计结果：核心代码总行数 245,985 行（813 个文件）；分目录：`backend/app` 134,598 行、`backend/alembic` 5,468 行、`src` 105,919 行；分扩展名：`.py` 140,066、`.tsx` 71,035、`.ts` 24,608、`.css` 10,202、`.d.ts` 74。
+
+#### Agent 获取世界观元数据链路梳理（待确认）
+
+- [x] 汇总世界观元数据来源：chat/stream 自动注入 + 工具获取（get_writing_context/get_worldview_summary）
+- [x] 核对执行轨迹元数据：knowledge_loaded 如何承载世界观数据
+- [x] 形成直白结论并标注证据路径（文件+行号）
+- [x] 在 todo.md 追加 review
+
+#### review
+
+- Agent 的世界观元数据有两条主链路：一是 `/api/v1/agent/chat/stream` 自动注入 `context["worldview_data"]`（人物/地点/设定/规范，且带字段截断），二是工具调用 `get_worldview_summary`（已废弃但仍在提示词中强制调用）实际转调 `get_writing_context(include="worldview")` 返回人物/地点/设定摘要与计数。`backend/app/api/v1/agent.py:1291`、`backend/app/services/agent/langgraph_tools.py:917`、`backend/app/services/agent/langgraph_tools.py:1132`
+- 执行轨迹里的“世界观已加载(n)”来自工具返回解析：`langgraph_agent` 在 tool 执行完成后解析 `get_worldview_summary/get_worldview_tool` 的 JSON，生成 `knowledge_loaded` 事件并打上“人物/地点/设定”标签。`backend/app/services/agent/langgraph_agent.py:1676`
+- 数据的最终来源是世界观服务层按 work_id 读取角色/地点/设定/规范表；工具与自动注入都复用该服务。`backend/app/services/worldview_service.py:30`
+
+#### 世界观元数据给到 Agent 的方案（待确认）
+
+- [ ] 盘点世界观进入 Agent 的全部链路（自动注入 / 工具拉取 / Explore 侧读）
+- [ ] 列出现有字段差异清单：自动注入 vs get_writing_context（人物/地点/设定/规范）字段完整性与裁剪上限
+- [ ] 标注所有长度预算点：worldview_data 字段截断、system message 总字符上限、summarization 截断
+- [ ] 明确安全处理差异：自动注入是否清洗、工具链是否 sanitize、潜在注入风险点
+- [ ] 补全权限策略：work_id + user_id 验证是否一致；无 user_id 时的降级策略
+- [ ] 统一世界观元数据 Schema（WorldviewSchema v1）：全量字段定义 + 最小返回字段定义
+- [ ] 增加 world_rules/constraints/禁忌清单结构化字段（从 guidelines 拆分）
+- [ ] 加入实体关系结构：entity_id、aliases、relations、role/status/voice/constraints
+- [ ] 引入 evidence 字段：章节序号/引用片段/来源类型，支持溯源与置信度
+- [ ] 加入 timeline/glossary：时间线事件与术语表，便于一致性与复用
+- [ ] 定义 WorldviewProfile（统计与摘要）与 WorldviewPack（按需注入包）两级结构
+- [ ] 设计 WorldviewPack 构建规则：根据任务类型/章节定位/关键词召回
+- [ ] 设计硬约束注入层：将世界规则/禁忌/风格约束注入 System 级提示
+- [ ] 设计软约束注入层：人物/地点/设定按需注入，避免全量污染
+- [ ] 改造 get_writing_context：可选 include=worldview_full/worldview_pack/worldview_profile
+- [ ] 新增按需工具：get_worldview_tree / get_worldview_node / get_worldview_pack
+- [ ] 补齐 Explore 对世界观的召回链路：按需拉取 + 结果融合 + 证据化呈现
+- [ ] 建立世界观索引：名称/别名/关键词/标签/关系索引，支持快速检索
+- [ ] 建立世界观缓存策略：work_id 级缓存 + 更新失效机制
+- [ ] 接入一致性校验工具：生成后对规则/关系/时间线做冲突检测
+- [ ] 设计冲突处置：自动修复（可修）/ 生成候选 / 交由用户确认（不可修）
+- [ ] 建立回写闭环：新事实 -> pending -> 用户确认 -> 落库 -> 版本递增
+- [ ] 加入世界观版本字段与变更日志（谁改、改了什么、证据）
+- [ ] 加入观测指标：世界观注入条目数/命中率/冲突率/回写通过率
+- [ ] 补测试用例：字段完整性、清洗安全、按需注入、冲突检测、回写流程
+- [ ] 交付迁移计划：老数据映射到新 schema、规范字段拆分与回填
+- [ ] 输出上线步骤与回滚方案（开关化：仅 profile → pack → full）
+
+#### review
+
+- 已将“世界观元数据方案”扩展为可落地的详细待办清单：覆盖链路盘点、Schema 统一、分层注入、按需检索、校验闭环、缓存/权限/观测与测试迁移。
+
+#### 世界观按需加载方案整体梳理（待确认）
+
+- [ ] 目标：不塞全量世界观给 Agent；每次只拿“此刻必须遵守”的小包
+- [ ] 现状链路：自动注入 / get_writing_context 工具拉取 / Explore 侧读
+- [ ] 现状差异：字段结构不一致（规范缺失/描述裁剪不同/关系字段不足）
+- [ ] 长度预算：worldview_data 字段截断 + system message 总字符上限 + summarization 截断
+- [ ] 安全处理：工具链 sanitize，自动注入未必清洗；存在 prompt 注入风险
+- [ ] 权限策略：部分路径缺 user_id 校验，需要统一 work_id+user_id 验证
+- [ ] Schema 统一：WorldviewSchema v1，统一人物/地点/设定/规范字段
+- [ ] 规则拆分：从 guidelines 中拆 world_rules / constraints / 禁忌清单
+- [ ] 实体结构：entity_id / aliases / relations / role / status / voice / constraints
+- [ ] 证据字段：evidence(章节/片段/来源/置信度)支撑溯源与冲突校验
+- [ ] 时间线/术语表：timeline + glossary 结构化，便于一致性与检索
+- [ ] 两级结构：WorldviewProfile(摘要统计) + WorldviewPack(按需注入包)
+- [ ] Pack 构建：基于任务类型 + 章节定位 + 关键词召回 + Top-K 控制
+- [ ] 硬约束注入：世界规则/禁忌/风格必须进 System 层
+- [ ] 软约束注入：人物/地点/设定只注入必要字段，避免上下文污染
+- [ ] get_writing_context 扩展：include=worldview_full/worldview_pack/worldview_profile
+- [ ] 新增工具：get_worldview_tree / get_worldview_node / get_worldview_pack
+- [ ] Explore 补齐：按需拉取 + 结果融合 + 证据化呈现
+- [ ] 索引体系：名称/别名/标签/关系索引，支持快速召回
+- [ ] 缓存策略：work_id 级缓存 + 变更失效
+- [ ] 一致性校验：生成后检测规则/关系/时间线冲突
+- [ ] 冲突处置：自动修复可修项；不可修项进入用户确认
+- [ ] 回写闭环：新事实 -> pending -> 用户确认 -> 落库 -> 版本递增
+- [ ] 版本与日志：记录谁改了什么、证据与时间
+- [ ] 观测指标：注入条目数/命中率/冲突率/回写通过率
+- [ ] 测试覆盖：字段完整性/清洗安全/按需注入/冲突检测/回写流程
+- [ ] 落地优先级：Schema 统一 → Pack 按需 → 硬约束注入 → 校验闭环 → 观测与缓存
+
+梳理全文（对应 25 条待办）
+
+整体目标
+
+1. 不把世界观“塞给”Agent。
+2. 让 Agent 每次只拿“此刻必须遵守”的那一小撮。
+3. 生成前有硬约束，生成中按需补充，生成后做一致性校验并回写。
+
+一、现状链路盘点（对应 2993-2997）
+
+1. 目前有三条进入链路：自动注入、工具拉取、Explore 侧读。
+2. 字段差异明显：自动注入包含规范但字段较肥；get_writing_context 字段更瘦且不含规范。
+3. 长度预算分散：字段截断、system message 上限、summarization 截断。
+4. 安全处理不一致：自动注入不一定清洗，工具链会 sanitize。
+5. 权限策略不一致：有的路径未强制 user_id 校验。
+
+二、目标架构（对应 2998-3006）
+
+1. 统一世界观 Schema：同一套字段定义，自动注入与工具拉取使用同一结构。
+2. 新增规则类结构：世界规则/禁忌/约束从 guidelines 中拆分成可读的硬规则。
+3. 实体结构补全：人物/地点/设定统一实体模型，支持 aliases、relations、status、voice、constraints。
+4. 证据化：每条元数据带 evidence（来源章节/片段/置信度）。
+5. 新增时间线/术语表：用于一致性与召回。
+6. 两级返回结构：
+   - WorldviewProfile：轻量摘要与统计。
+   - WorldviewPack：按需小包，只有当前任务需要的条目。
+
+三、按需加载运行流程（对应 3003-3011）
+
+1. 识别需求：从用户请求与当前段落抽取关键实体/规则/术语。
+2. 构建 pack：根据任务类型 + 章节定位 + 关键词召回构建 WorldviewPack。
+3. 硬约束先注入：世界规则/禁忌/风格进入 System prompt，小而刚性。
+4. 软约束按需注入：人物/地点/设定只带必要字段，避免上下文污染。
+5. 支持精确补拿：get_worldview_node 精确补一个节点。
+6. Explore 侧读：与章节证据融合，返回证据化的世界观条目。
+7. 缓存策略：work_id 级缓存 + 变更失效，减少重复 IO。
+
+四、工具与接口（对应 3007-3009）
+
+1. 改造 get_writing_context：
+   - include=worldview_full
+   - include=worldview_pack
+   - include=worldview_profile
+2. 新增按需工具：
+   - get_worldview_tree
+   - get_worldview_node
+   - get_worldview_pack
+
+五、一致性校验与闭环（对应 3012-3015）
+
+1. 输出后执行一致性检测：规则/关系/时间线冲突扫描。
+2. 可修复就自修复，不可修复则提示用户确认。
+3. 回写闭环：新事实进入 pending → 用户确认 → 落库 → 版本递增。
+4. 增加版本与变更日志，保证可追溯。
+
+六、观测与测试（对应 3016-3017）
+
+1. 观测指标：注入条目数、命中率、冲突率、回写通过率。
+2. 测试用例：字段完整性、清洗安全、按需注入、冲突检测、回写流程。
+
+七、落地优先级建议
+
+1. 先统一 Schema + Profile/Pack 两级结构。
+2. 接入硬规则 System 注入。
+3. 上线 get_worldview_pack + 关键词召回。
+4. 加一致性校验与回写闭环。
+5. 最后完善索引、缓存、观测指标。
+
+一句话总结
+
+这套计划的核心是：把世界观变成“结构化可检索元数据”，按需拼成小包注入，生成后再做一致性校验与回写闭环。这样世界观再大也能“随用随取”，并且始终稳。
+
+#### review
+
+- 已将“整体梳理版”完整正文补充到本节，覆盖现状/目标/结构/流程/接口/闭环/测试与落地顺序，便于后续按计划开发。
