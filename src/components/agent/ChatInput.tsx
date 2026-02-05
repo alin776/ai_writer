@@ -2,7 +2,6 @@
  * ChatInput - Agent chat input with @ directive menu.
  * - Multiline input, Enter send / Shift+Enter newline
  * - Optional context textarea
- * - Mode selector
  * - @ menu (root: @Knowledge -> tags, @optimization)
  */
 
@@ -18,7 +17,6 @@ import {
   Loader2,
   X,
 } from 'lucide-react';
-import ModeSelector, { type AgentMode } from './ModeSelector';
 import { knowledgeApi } from '@/services/knowledgeApi';
 
 interface ChatInputProps {
@@ -26,8 +24,6 @@ interface ChatInputProps {
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
-  mode: AgentMode;
-  onModeChange: (mode: AgentMode) => void;
   isLoading?: boolean;
   onStop?: () => void;
   selectionContext?: {
@@ -109,8 +105,6 @@ export default function ChatInput({
   disabled = false,
   placeholder = '输入消息...',
   maxLength = 2000,
-  mode,
-  onModeChange,
   isLoading = false,
   onStop,
   selectionContext,
@@ -870,16 +864,7 @@ export default function ChatInput({
         )}
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between gap-3">
-          <ModeSelector
-            mode={mode}
-            onModeChange={onModeChange}
-            disabled={disabled}
-            compact
-            className="shrink-0"
-          />
-
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
             <button
               onClick={() => setShowContext(!showContext)}
               disabled={disabled}

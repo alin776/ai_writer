@@ -55,8 +55,7 @@ class PlanGenerator:
         work_id: Optional[str] = None,
         chapter_id: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-        conversation_history: str = "",
-        enable_reflection: bool = False
+        conversation_history: str = ""
     ) -> Dict[str, Any]:
         """
         生成任务规划
@@ -67,8 +66,6 @@ class PlanGenerator:
             chapter_id: 章节ID
             context: 额外上下文
             conversation_history: 对话历史
-            enable_reflection: 是否启用反思模式
-
         Returns:
             规划数据字典，包含 tasks 列表
         """
@@ -99,8 +96,7 @@ class PlanGenerator:
             work_id=work_id,
             chapter_id=chapter_id,
             context=context,
-            conversation_history=conversation_history,
-            enable_reflection=enable_reflection
+            conversation_history=conversation_history
         )
         # 🔧 2026-01-21: 禁用枚举项检测功能
         # 原因：提取算法误判严重，产生大量噪音（如"干了"、"需要回答"），触发无意义重试
@@ -222,8 +218,7 @@ class PlanGenerator:
         work_id: Optional[str],
         chapter_id: Optional[str],
         context: Optional[Dict[str, Any]],
-        conversation_history: str,
-        enable_reflection: bool
+        conversation_history: str
     ) -> str:
         """
         异步构建规划 Prompt
@@ -234,15 +229,10 @@ class PlanGenerator:
             chapter_id: 章节ID
             context: 额外上下文
             conversation_history: 对话历史
-            enable_reflection: 是否启用反思模式
-
         Returns:
             规划 prompt 字符串
         """
-        from app.services.agent.prompts import (
-            get_planning_static_prompt,
-            get_planning_agent_mode_prompt
-        )
+        from app.services.agent.prompts import get_planning_static_prompt
 
         # 历史部分
         history_section = ""
@@ -254,10 +244,7 @@ class PlanGenerator:
 """
 
         # 获取静态 Prompt
-        if enable_reflection:
-            static_prompt = await get_planning_agent_mode_prompt()
-        else:
-            static_prompt = await get_planning_static_prompt()
+        static_prompt = await get_planning_static_prompt()
 
         # 知识库文档部分
         knowledge_section = self._build_knowledge_section(context)
@@ -2136,19 +2123,21 @@ tool_policy: {tool_policy}
         if target_hint:
             params.setdefault("locate_target_hint", target_hint)
 
-        if locate_task_id:
-            params.setdefault("node_id", {"$ref": {"task_id": locate_task_id, "path": "node_id"}})
-            params.setdefault("paragraph_index", {"$ref": {"task_id": locate_task_id, "path": "paragraph_index"}})
-        elif explore_task_id:
-            params.setdefault(
-                "node_id",
-                {"$ref": {"task_id": explore_task_id, "path": self._locate_target_path_from_index(target_index, "node_id")}}
-            )
-            params.setdefault(
-                "paragraph_index",
-                {"$ref": {"task_id": explore_task_id, "path": self._locate_target_path_from_index(target_index, "paragraph_index")}}
-            )
-            params.setdefault("__auto_locator", True)
+        # 续写 append 不应携带定位字段，否则前端会插入到中段
+        if source_tool != "smart_continue":
+            if locate_task_id:
+                params.setdefault("node_id", {"$ref": {"task_id": locate_task_id, "path": "node_id"}})
+                params.setdefault("paragraph_index", {"$ref": {"task_id": locate_task_id, "path": "paragraph_index"}})
+            elif explore_task_id:
+                params.setdefault(
+                    "node_id",
+                    {"$ref": {"task_id": explore_task_id, "path": self._locate_target_path_from_index(target_index, "node_id")}}
+                )
+                params.setdefault(
+                    "paragraph_index",
+                    {"$ref": {"task_id": explore_task_id, "path": self._locate_target_path_from_index(target_index, "paragraph_index")}}
+                )
+                params.setdefault("__auto_locator", True)
 
         if source_tool in {"smart_rewrite", "smart_insert"}:
             params.setdefault("__require_source_locator", True)

@@ -141,15 +141,43 @@ from .show_dont_tell import show_emotion_tool, enhance_scene_tool
 from .style_learning import learn_style_tool, get_style_guidance_tool, analyze_style_tool
 
 # ==================== 章节工具（StandardTool版本）====================
-from app.services.agent.langgraph_tools import (
-    get_context_tool_st,
-    read_chapter_tool_st,
-    get_chapter_by_order_tool_st,
-    search_content_tool_st,
-    search_analysis_fragments_tool_st,
-    get_worldview_summary_tool_st,
-    get_writing_context_tool_st,  # 2026-01-12: 新增聚合工具
-)
+# 延迟导入以避免循环依赖
+def _get_langgraph_tools():
+    from app.services.agent.langgraph_tools import (
+        get_context_tool_st,
+        read_chapter_tool_st,
+        get_chapter_by_order_tool_st,
+        search_content_tool_st,
+        search_analysis_fragments_tool_st,
+        get_worldview_summary_tool_st,
+        get_worldview_pack_tool_st,
+        get_worldview_node_tool_st,
+        get_worldview_tree_tool_st,
+        get_writing_context_tool_st,
+    )
+    return {
+        'get_context_tool_st': get_context_tool_st,
+        'read_chapter_tool_st': read_chapter_tool_st,
+        'get_chapter_by_order_tool_st': get_chapter_by_order_tool_st,
+        'search_content_tool_st': search_content_tool_st,
+        'search_analysis_fragments_tool_st': search_analysis_fragments_tool_st,
+        'get_worldview_summary_tool_st': get_worldview_summary_tool_st,
+        'get_worldview_pack_tool_st': get_worldview_pack_tool_st,
+        'get_worldview_node_tool_st': get_worldview_node_tool_st,
+        'get_worldview_tree_tool_st': get_worldview_tree_tool_st,
+        'get_writing_context_tool_st': get_writing_context_tool_st,
+    }
+
+# 使用 __getattr__ 实现延迟导入
+def __getattr__(name):
+    if name in ['get_context_tool_st', 'read_chapter_tool_st', 'get_chapter_by_order_tool_st',
+                'search_content_tool_st', 'search_analysis_fragments_tool_st',
+                'get_worldview_summary_tool_st', 'get_worldview_pack_tool_st',
+                'get_worldview_node_tool_st', 'get_worldview_tree_tool_st',
+                'get_writing_context_tool_st']:
+        tools = _get_langgraph_tools()
+        return tools[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [
@@ -269,6 +297,9 @@ __all__ = [
     "search_content_tool_st",
     "search_analysis_fragments_tool_st",
     "get_worldview_summary_tool_st",
+    "get_worldview_pack_tool_st",
+    "get_worldview_node_tool_st",
+    "get_worldview_tree_tool_st",
     "get_writing_context_tool_st",  # 2026-01-12: 新增聚合工具
 ]
 
@@ -296,18 +327,37 @@ def _register_standard_tools():
     registry.register_standard_tool(smart_insert_tool)
     registry.register_standard_tool(apply_chapter_edit_tool)
 
-    # 章节工具（2025-12-14: 新增）
-    registry.register_standard_tool(get_context_tool_st)
-    registry.register_standard_tool(read_chapter_tool_st)
-    registry.register_standard_tool(get_chapter_by_order_tool_st)
-    registry.register_standard_tool(search_content_tool_st)
-    registry.register_standard_tool(search_analysis_fragments_tool_st)
+    # 章节工具（2025-12-14: 新增）- 延迟导入避免循环依赖
+    try:
+        from app.services.agent.langgraph_tools import (
+            get_context_tool_st,
+            read_chapter_tool_st,
+            get_chapter_by_order_tool_st,
+            search_content_tool_st,
+            search_analysis_fragments_tool_st,
+            get_worldview_summary_tool_st,
+            get_worldview_pack_tool_st,
+            get_worldview_node_tool_st,
+            get_worldview_tree_tool_st,
+            get_writing_context_tool_st,
+        )
+        registry.register_standard_tool(get_context_tool_st)
+        registry.register_standard_tool(read_chapter_tool_st)
+        registry.register_standard_tool(get_chapter_by_order_tool_st)
+        registry.register_standard_tool(search_content_tool_st)
+        registry.register_standard_tool(search_analysis_fragments_tool_st)
 
-    # 世界观工具
-    registry.register_standard_tool(get_worldview_summary_tool_st)
+        # 世界观工具
+        registry.register_standard_tool(get_worldview_summary_tool_st)
+        registry.register_standard_tool(get_worldview_pack_tool_st)
+        registry.register_standard_tool(get_worldview_node_tool_st)
+        registry.register_standard_tool(get_worldview_tree_tool_st)
 
-    # 聚合工具（2026-01-12: 新增）
-    registry.register_standard_tool(get_writing_context_tool_st)
+        # 聚合工具（2026-01-12: 新增）
+        registry.register_standard_tool(get_writing_context_tool_st)
+    except ImportError:
+        # 如果导入失败（循环依赖），跳过注册
+        pass
 
     # 辅助工具（2026-01-09: 新增）
     registry.register_standard_tool(check_story_consistency_st)

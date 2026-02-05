@@ -294,6 +294,11 @@ class ToolExecutor:
 
             # 提取返回值
             if isinstance(result, dict) and result.get("success"):
+                if normalized_name in {"smart_rewrite", "smart_continue", "smart_insert"}:
+                    try:
+                        await self._attach_consistency_report(normalized_name, params, state, result)
+                    except Exception as exc:
+                        logger.debug(f"[ToolExecutor] 一致性校验触发失败: {exc}")
                 if normalized_name == "explore_content":
                     try:
                         tool_result = json.dumps(result, ensure_ascii=False)
@@ -363,6 +368,31 @@ class ToolExecutor:
         params = dict(tool_args)
         last_user_message = state.get("last_user_message", "")
         evidence_context = self._build_evidence_context(state)
+        context_data = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+        worldview_context = ""
+        worldview_hard_constraints = ""
+        try:
+            from app.services.agent.utils import _build_worldview_context_text, _build_worldview_hard_constraints
+            worldview_context = _build_worldview_context_text(context_data)
+            worldview_hard_constraints = _build_worldview_hard_constraints(context_data)
+        except Exception:
+            worldview_context = ""
+            worldview_hard_constraints = ""
+        if worldview_context:
+            try:
+                from app.services.agent.utils.monitoring import increment_counter
+                worldview_source = context_data.get("worldview_pack") if isinstance(context_data.get("worldview_pack"), dict) else context_data.get("worldview_data")
+                count = 0
+                if isinstance(worldview_source, dict):
+                    for key in ("characters", "locations", "settings", "glossary"):
+                        items = worldview_source.get(key)
+                        if isinstance(items, list):
+                            count += len(items)
+                increment_counter("worldview_soft_injected_items", value=count)
+            except Exception:
+                pass
+        if worldview_hard_constraints and tool_name in {"smart_rewrite", "smart_continue", "smart_insert"}:
+            params.setdefault("worldview_hard_constraints", worldview_hard_constraints)
 
         # 工具特定的参数处理
         if tool_name == "continue_writing":
@@ -431,6 +461,8 @@ class ToolExecutor:
             if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
                 logger.warning("[ToolExecutor] smart_rewrite evidence_context 非字符串，已强制转换")
                 params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
+            if worldview_context and not params.get("worldview_context"):
+                params["worldview_context"] = worldview_context
 
             auto_locator = bool(params.get("__auto_locator"))
             explicit_locator = bool(
@@ -519,6 +551,8 @@ class ToolExecutor:
             if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
                 logger.warning("[ToolExecutor] smart_continue evidence_context 非字符串，已强制转换")
                 params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
+            if worldview_context and not params.get("worldview_context"):
+                params["worldview_context"] = worldview_context
 
         elif tool_name == "smart_insert":
             # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
@@ -559,6 +593,8 @@ class ToolExecutor:
             if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
                 logger.warning("[ToolExecutor] smart_insert evidence_context 非字符串，已强制转换")
                 params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
+            if worldview_context and not params.get("worldview_context"):
+                params["worldview_context"] = worldview_context
 
             auto_locator = bool(params.get("__auto_locator"))
             explicit_locator = bool(
@@ -681,6 +717,7 @@ class ToolExecutor:
 
         elif tool_name == "get_worldview_summary":
             params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("user_id", state.get("user_id", ""))
 
         # 🆕 2026-01-12: get_writing_context 聚合工具
         elif tool_name == "get_writing_context":
@@ -691,7 +728,33 @@ class ToolExecutor:
             params.setdefault("include", "work,chapter,worldview,style,rag")
             params.setdefault("rag_query", "")
             params.setdefault("rag_top_k", 5)
+            params.setdefault("worldview_keywords", "")
+            params.setdefault("worldview_task_hint", last_user_message)
+            params.setdefault("worldview_top_k", 5)
+            params.setdefault("worldview_include_guidelines", True)
             params.setdefault("use_cache", True)
+
+        elif tool_name == "get_worldview_pack":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("user_id", state.get("user_id", ""))
+            params.setdefault("keywords", "")
+            params.setdefault("top_k", 5)
+            params.setdefault("include_guidelines", True)
+            params.setdefault("task_hint", last_user_message)
+            params.setdefault("chapter_orders", "")
+
+        elif tool_name == "get_worldview_node":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("user_id", state.get("user_id", ""))
+            params.setdefault("node_type", "")
+            params.setdefault("node_id", "")
+            params.setdefault("name", "")
+            params.setdefault("fields", "")
+
+        elif tool_name == "get_worldview_tree":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("user_id", state.get("user_id", ""))
+            params.setdefault("node_id", "")
 
         # 🆕 2026-01-17: explore_content 深度探索工具
         elif tool_name == "explore_content":
@@ -1690,6 +1753,15 @@ class ToolExecutor:
             # 返回 JSON 字符串格式的世界观摘要
             return json.dumps(data, ensure_ascii=False)
 
+        elif tool_name == "get_worldview_pack":
+            return json.dumps(data, ensure_ascii=False)
+
+        elif tool_name == "get_worldview_node":
+            return json.dumps(data, ensure_ascii=False)
+
+        elif tool_name == "get_worldview_tree":
+            return json.dumps(data, ensure_ascii=False)
+
         elif tool_name == "evaluate_quality":
             feedback = data.get("feedback", "")
             overall_score = data.get("overall_score", 0)
@@ -1714,6 +1786,80 @@ class ToolExecutor:
 
         return json.dumps(data, ensure_ascii=False)
 
+    async def _attach_consistency_report(
+        self,
+        tool_name: str,
+        params: dict,
+        state: dict,
+        result: dict
+    ) -> None:
+        """为创作类工具附加一致性检查报告（轻量版）"""
+        if tool_name not in {"smart_rewrite", "smart_continue", "smart_insert"}:
+            return
+        data = result.get("data")
+        if not isinstance(data, dict):
+            return
+        if data.get("consistency_report"):
+            return
+
+        context_data = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
+        worldview = context_data.get("worldview_pack") if isinstance(context_data.get("worldview_pack"), dict) else context_data.get("worldview_data")
+        if not isinstance(worldview, dict) or not worldview:
+            return
+
+        work_id = params.get("work_id") or state.get("work_id") or context_data.get("work_id")
+        chapter_id = params.get("chapter_id") or data.get("chapter_id")
+        if not work_id or not chapter_id:
+            return
+
+        chapter_content = params.get("chapter_content") or ""
+        generated = data.get("content") if isinstance(data.get("content"), str) else ""
+        if chapter_content and generated and generated not in chapter_content:
+            content = f"{chapter_content}\n{generated}"
+        else:
+            content = chapter_content or generated
+        if not content:
+            return
+
+        def _rules_to_dict(items: Any, prefix: str) -> Dict[str, str]:
+            if not items:
+                return {}
+            if isinstance(items, dict):
+                return {str(k): str(v) for k, v in items.items()}
+            if isinstance(items, list):
+                return {f"{prefix}{idx + 1}": str(item) for idx, item in enumerate(items) if str(item).strip()}
+            text = str(items).strip()
+            return {f"{prefix}1": text} if text else {}
+
+        rules_dict: Dict[str, str] = {}
+        rules_dict.update(_rules_to_dict(worldview.get("world_rules"), "世界规则-"))
+        rules_dict.update(_rules_to_dict(worldview.get("constraints"), "约束-"))
+        rules_dict.update(_rules_to_dict(worldview.get("taboo"), "禁忌-"))
+
+        characters = worldview.get("characters") if isinstance(worldview.get("characters"), list) else []
+
+        from app.services.agent.tools.consistency_checker import check_story_consistency
+        report = await check_story_consistency(
+            work_id=str(work_id),
+            chapters=[{"id": str(chapter_id), "content": content}],
+            characters=characters,
+            worldview=rules_dict
+        )
+
+        if hasattr(report, "model_dump"):
+            data["consistency_report"] = report.model_dump()
+        elif hasattr(report, "dict"):
+            data["consistency_report"] = report.dict()
+        else:
+            data["consistency_report"] = report
+
+        try:
+            total = getattr(report, "total_inconsistencies", 0)
+            if isinstance(total, int) and total > 0:
+                data["consistency_requires_review"] = True
+        except Exception:
+            pass
+
     async def fallback_to_legacy(
         self,
         tool_name: str,
@@ -1725,6 +1871,9 @@ class ToolExecutor:
             analyze_text_tool,
             analyze_content,
             get_worldview_summary,
+            get_worldview_pack,
+            get_worldview_node,
+            get_worldview_tree,
             get_writing_context,
             search_content,
             read_paragraph,
@@ -1766,6 +1915,9 @@ class ToolExecutor:
             "smart_insert": smart_insert,
             "apply_chapter_edit": apply_chapter_edit,
             "get_worldview_summary": get_worldview_summary,
+            "get_worldview_pack": get_worldview_pack,
+            "get_worldview_node": get_worldview_node,
+            "get_worldview_tree": get_worldview_tree,
             # 聚合工具（2026-01-12）
             "get_writing_context": get_writing_context,
             "search_content": search_content,
@@ -2062,6 +2214,12 @@ class ToolExecutor:
             keep_keys.add("chapters")
         if "worldview" in include_set:
             keep_keys.add("worldview")
+        if "worldview_full" in include_set:
+            keep_keys.add("worldview")
+        if "worldview_pack" in include_set:
+            keep_keys.add("worldview_pack")
+        if "worldview_profile" in include_set:
+            keep_keys.add("worldview_profile")
         if "style" in include_set:
             keep_keys.add("style_guidance")
         if "rag" in include_set:

@@ -181,7 +181,7 @@ class AgentApiService {
       onTaskProgress?: (progress: any) => void;
       onTaskDone?: (taskDone: any) => void;
       onThinking?: (thinking: any) => void;
-      // React ????
+      // 进度/工具事件回调
       onProgress?: (progress: any) => void;
       onToolCall?: (toolCall: any) => void;
       onActivityComplete?: (activity: any) => void;
@@ -299,7 +299,7 @@ class AgentApiService {
               callbacks.onThinking?.(data.data);
               break;
 
-            // React ????
+            // 进度/工具事件回调
             case 'progress':
               callbacks.onProgress?.(data.data);
               break;

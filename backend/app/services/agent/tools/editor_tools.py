@@ -59,7 +59,9 @@ async def _generate_rewrite_versions(
     original_text: str,
     chapter_content: str,
     user_requirement: Optional[str] = None,
-    evidence_context: Optional[str] = None
+    evidence_context: Optional[str] = None,
+    worldview_context: Optional[str] = None,
+    worldview_hard_constraints: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     使用AI生成单个改写结果
@@ -84,6 +86,7 @@ async def _generate_rewrite_versions(
 
     response_text = ""
     evidence_block = f"\n\n【探索证据】\n{evidence_context}" if evidence_context else ""
+    worldview_block = f"\n\n{worldview_context}" if worldview_context else ""
     if use_dual_prompt:
         # === 阶段2：使用创作层Prompt（重量级，包含Few-Shot） ===
         try:
@@ -107,7 +110,7 @@ async def _generate_rewrite_versions(
                 current_plot="",  # TODO: 如果有剧情状态可以传入
                 character_context=""  # TODO: 如果有角色信息可以传入
             )
-            creative_prompt += evidence_block
+            creative_prompt += worldview_block + evidence_block
 
             # 添加JSON格式要求
             creative_prompt += f"""
@@ -125,8 +128,11 @@ async def _generate_rewrite_versions(
             logger.info(f"[smart_rewrite] 使用创作层Prompt (双Prompt架构)")
 
             # 调用AI生成
+            system_prompt = "你是资深网文作家，专注于高质量内容创作。"
+            if worldview_hard_constraints:
+                system_prompt += f"\n\n{worldview_hard_constraints}"
             response_text = await ai_service.call_ai(
-                system_prompt="你是资深网文作家，专注于高质量内容创作。",
+                system_prompt=system_prompt,
                 user_prompt=creative_prompt,
                 max_tokens=4000,
                 temperature=0.8,
@@ -158,6 +164,7 @@ async def _generate_rewrite_versions(
 {original_text}
 {style_context}
 {user_requirement_context}
+{worldview_block}
 {evidence_block}
 
 【改写要求】
@@ -181,8 +188,11 @@ async def _generate_rewrite_versions(
         logger.info(f"[smart_rewrite] 使用传统单Prompt架构")
 
         # 调用AI生成（使用call_ai非流式方法）
+        system_prompt = "你是专业的小说改写助手。"
+        if worldview_hard_constraints:
+            system_prompt += f"\n\n{worldview_hard_constraints}"
         response_text = await ai_service.call_ai(
-            system_prompt="你是专业的小说改写助手。",
+            system_prompt=system_prompt,
             user_prompt=prompt,
             max_tokens=4000,  # 需要足够的token来生成改写内容
             temperature=0.8,  # 稍高的温度以获得更多样化的结果
@@ -667,6 +677,8 @@ async def smart_continue(
     chapter_content: Optional[str] = None,
     user_requirement: Optional[str] = None,
     evidence_context: Optional[str] = None,
+    worldview_context: Optional[str] = None,
+    worldview_hard_constraints: Optional[str] = None,
     word_count: int = 500,
     user_id: Optional[str] = None,
     source_locator: Optional[dict] = None
@@ -714,12 +726,17 @@ async def smart_continue(
 
         requirement_text = f"\n用户要求：{user_requirement}" if user_requirement else ""
         evidence_text = f"\n\n【探索证据】\n{evidence_context}" if evidence_context else ""
+        worldview_text = f"\n\n{worldview_context}" if worldview_context else ""
+        system_prompt = "你是专业的小说续写助手。"
+        if worldview_hard_constraints:
+            system_prompt += f"\n\n{worldview_hard_constraints}"
 
         prompt = f"""你是专业的小说续写助手。请根据以下内容续写约{word_count}字。
 
 【当前内容（最后部分）】
 {context}
 {requirement_text}
+{worldview_text}
 {evidence_text}
 
 【续写要求】
@@ -730,7 +747,7 @@ async def smart_continue(
 请直接输出续写内容，不要添加任何解释。"""
 
         continued_content = await ai_service.call_ai(
-            system_prompt="你是专业的小说续写助手。",
+            system_prompt=system_prompt,
             user_prompt=prompt,
             max_tokens=word_count * 2,
             temperature=0.8,
@@ -775,6 +792,8 @@ async def smart_rewrite(
     chapter_content: Optional[str] = None,
     user_requirement: Optional[str] = None,
     evidence_context: Optional[str] = None,
+    worldview_context: Optional[str] = None,
+    worldview_hard_constraints: Optional[str] = None,
     user_id: Optional[str] = None,
     source_locator: Optional[dict] = None
 ) -> str:
@@ -855,7 +874,9 @@ async def smart_rewrite(
             original_text=text_to_rewrite,
             chapter_content=chapter_content or text_to_rewrite,
             user_requirement=user_requirement,
-            evidence_context=evidence_context
+            evidence_context=evidence_context,
+            worldview_context=worldview_context,
+            worldview_hard_constraints=worldview_hard_constraints
         )
 
         # CREATIVE 工具：应用输出过滤器，去除脏信息和 HTML 标签
@@ -947,6 +968,8 @@ async def smart_insert(
     chapter_content: Optional[str] = None,
     insert_context: Optional[str] = None,
     evidence_context: Optional[str] = None,
+    worldview_context: Optional[str] = None,
+    worldview_hard_constraints: Optional[str] = None,
     word_count: int = 200,
     user_id: Optional[str] = None,
     work_id: Optional[str] = None,
@@ -1003,6 +1026,10 @@ async def smart_insert(
         clean_insert_context = TextCleaner.html_to_clean_text(insert_context, preserve_structure=False) if insert_context else ""
         context_text = f"\n【插入点上下文】\n{clean_insert_context}" if clean_insert_context else ""
         evidence_text = f"\n【探索证据】\n{evidence_context}" if evidence_context else ""
+        worldview_text = f"\n{worldview_context}" if worldview_context else ""
+        system_prompt = "你是专业的小说创作助手。"
+        if worldview_hard_constraints:
+            system_prompt += f"\n\n{worldview_hard_constraints}"
         multi_version_intent = _has_multi_version_intent(user_intent)
         single_rule = "\n5. 即使用户要求多版本，也只生成一条内容" if multi_version_intent else ""
 
@@ -1017,6 +1044,7 @@ async def smart_insert(
 【用户意图】
 {user_intent}
 {context_text}
+{worldview_text}
 {evidence_text}
 
 【章节内容参考】
@@ -1032,7 +1060,7 @@ async def smart_insert(
 请直接输出生成的内容，不要添加任何解释。"""
 
         generated_content = await ai_service.call_ai(
-            system_prompt="你是专业的小说创作助手。",
+            system_prompt=system_prompt,
             user_prompt=prompt,
             max_tokens=word_count * 2,
             temperature=0.8,
@@ -1119,6 +1147,8 @@ class SmartRewriteInput(ToolInput):
     chapter_content: Optional[str] = Field(default=None, description="章节完整内容")
     user_requirement: Optional[str] = Field(default=None, description="用户的具体要求")
     evidence_context: Optional[str] = Field(default=None, description="探索证据上下文")
+    worldview_context: Optional[str] = Field(default=None, description="世界观软约束（可选）")
+    worldview_hard_constraints: Optional[str] = Field(default=None, description="世界观硬约束（系统提示）")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     source_locator: Optional[dict] = Field(default=None, description="定位来源（只读）")
 
@@ -1138,6 +1168,8 @@ async def smart_rewrite_executor(input_data: SmartRewriteInput) -> SmartRewriteO
             "chapter_content": input_data.chapter_content,
             "user_requirement": input_data.user_requirement,
             "evidence_context": input_data.evidence_context,
+            "worldview_context": input_data.worldview_context,
+            "worldview_hard_constraints": input_data.worldview_hard_constraints,
             "user_id": input_data.user_id,
             "source_locator": input_data.source_locator
         })
@@ -1182,6 +1214,8 @@ class SmartContinueInput(ToolInput):
     chapter_content: Optional[str] = Field(default=None, description="章节当前内容")
     user_requirement: Optional[str] = Field(default=None, description="用户的续写要求")
     evidence_context: Optional[str] = Field(default=None, description="探索证据上下文")
+    worldview_context: Optional[str] = Field(default=None, description="世界观软约束（可选）")
+    worldview_hard_constraints: Optional[str] = Field(default=None, description="世界观硬约束（系统提示）")
     word_count: int = Field(default=500, description="期望续写字数")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     source_locator: Optional[dict] = Field(default=None, description="定位来源（只读）")
@@ -1201,6 +1235,8 @@ async def smart_continue_executor(input_data: SmartContinueInput) -> SmartContin
             "chapter_content": input_data.chapter_content,
             "user_requirement": input_data.user_requirement,
             "evidence_context": input_data.evidence_context,
+            "worldview_context": input_data.worldview_context,
+            "worldview_hard_constraints": input_data.worldview_hard_constraints,
             "word_count": input_data.word_count,
             "user_id": input_data.user_id,
             "source_locator": input_data.source_locator
@@ -1245,6 +1281,8 @@ class SmartInsertInput(ToolInput):
     chapter_content: Optional[str] = Field(default=None, description="章节完整内容")
     insert_context: Optional[str] = Field(default=None, description="插入点附近的上下文")
     evidence_context: Optional[str] = Field(default=None, description="探索证据上下文")
+    worldview_context: Optional[str] = Field(default=None, description="世界观软约束（可选）")
+    worldview_hard_constraints: Optional[str] = Field(default=None, description="世界观硬约束（系统提示）")
     word_count: int = Field(default=200, description="期望生成字数")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     work_id: Optional[str] = Field(default=None, description="作品ID（用于章节序号解析）")
@@ -1266,6 +1304,8 @@ async def smart_insert_executor(input_data: SmartInsertInput) -> SmartInsertOutp
             "chapter_content": input_data.chapter_content,
             "insert_context": input_data.insert_context,
             "evidence_context": input_data.evidence_context,
+            "worldview_context": input_data.worldview_context,
+            "worldview_hard_constraints": input_data.worldview_hard_constraints,
             "word_count": input_data.word_count,
             "user_id": input_data.user_id,
             "work_id": input_data.work_id,

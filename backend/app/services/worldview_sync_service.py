@@ -390,7 +390,13 @@ class WorldviewSyncService:
                     name=char["name"],
                     role=char.get("role", "配角"),
                     description=char.get("description", ""),
-                    tags=char.get("tags", [])
+                    tags=char.get("tags", []),
+                    status=char.get("status"),
+                    voice=char.get("voice"),
+                    aliases=char.get("aliases"),
+                    relationships=char.get("relationships") or char.get("relations"),
+                    constraints=char.get("constraints"),
+                    evidence=char.get("evidence")
                 ))
                 stats["characters_created"] += 1
                 logger.info(f"[世界观同步] 创建人物: {char['name']}")
@@ -443,7 +449,14 @@ class WorldviewSyncService:
                     name=loc["name"],
                     type=loc.get("type", "场景"),
                     description=loc.get("description", ""),
-                    tags=loc.get("tags", [])
+                    tags=loc.get("tags", []),
+                    status=loc.get("status"),
+                    voice=loc.get("voice"),
+                    related_locations=loc.get("related_locations"),
+                    aliases=loc.get("aliases"),
+                    relations=loc.get("relations"),
+                    constraints=loc.get("constraints"),
+                    evidence=loc.get("evidence")
                 ))
                 stats["locations_created"] += 1
                 logger.info(f"[世界观同步] 创建地点: {loc['name']}")
@@ -466,7 +479,14 @@ class WorldviewSyncService:
                     title=setting["title"],
                     category=setting.get("category", "剧情设定"),
                     content=setting.get("content", ""),
-                    tags=setting.get("tags", [])
+                    tags=setting.get("tags", []),
+                    status=setting.get("status"),
+                    voice=setting.get("voice"),
+                    related_items=setting.get("related_items"),
+                    aliases=setting.get("aliases"),
+                    relations=setting.get("relations"),
+                    constraints=setting.get("constraints"),
+                    evidence=setting.get("evidence")
                 ))
                 stats["settings_created"] += 1
                 logger.info(f"[世界观同步] 创建设定: {setting['title']}")

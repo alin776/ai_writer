@@ -8,12 +8,11 @@ import { z } from 'zod';
 
 export interface AgentChatRequest {
   message: string;
-  mode?: 'planning' | 'react';  // Agent执行模式：planning(先规划再执行) 或 react(边思考边执行)
+  mode?: 'planning';  // Agent执行模式：planning(先规划再执行)
   tool_policy?: 'auto' | 'no_tool' | 'cache_only';
   work_id?: string;
   chapter_id?: string;
   conversation_id?: string;
-  enable_reflection?: boolean;  // 启用 DeepAgent 反思模式
   context?: {
     chapter_context?: string;
     text?: string;
@@ -255,8 +254,6 @@ export interface ChatInputProps {
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
-  mode: 'plan' | 'agent';
-  onModeChange: (mode: 'plan' | 'agent') => void;
   isLoading?: boolean;
   onStop?: () => void;
 }
@@ -288,7 +285,7 @@ export interface ApiError {
 // ==================== ActivityStream 活动流 ====================
 
 /**
- * Agent 活动类型（用于 ReAct 模式的实时进度展示）
+ * Agent 活动类型（用于实时进度展示）
  * 注意：与 activity.ts 中的 ActivityType 枚举不同，这是 Agent 专用的活动类型
  */
 export type AgentActivityType = 'intent_analysis' | 'thinking' | 'tool_execution' | 'generating';
@@ -300,7 +297,7 @@ export type ActivityStatus = 'active' | 'completed' | 'failed';
 
 /**
  * 活动项
- * 用于ReAct模式的实时进度展示
+ * 用于实时进度展示
  */
 export interface ActivityItem {
   id: string;

@@ -34,7 +34,7 @@ from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai.humanize_service import HumanizeService
 from app.services.agent.langgraph_agent import WritingAgentGraph
 from app.services.knowledge_service import KnowledgeService
-from app.services.worldview_service import WorldviewService
+from app.services.work_service import WorkService
 from app.core.config import settings
 from app.core.humanize_config import get_config
 # ✅ 2025-12-01: 支持Agent成本追踪（通过请求上下文传递user_id）
@@ -251,12 +251,10 @@ def get_agent_graph() -> WritingAgentGraph:
 class AgentChatRequest(BaseModel):
     """Agent chat request"""
     message: str = Field(..., description="User message", min_length=1)
-    mode: Optional[str] = Field(None, description="Chat mode: planning only (default)")
     work_id: Optional[str] = Field(None, description="Work ID")
     chapter_id: Optional[str] = Field(None, description="Chapter ID")
     conversation_id: Optional[str] = Field(None, description="Conversation ID for continuing session")
     context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Extra context")
-    enable_reflection: bool = Field(False, description="Enable DeepAgent reflection mode")
     tool_policy: Optional[str] = Field(None, description="Tool policy: auto/no_tool/cache_only")
 
 
@@ -983,7 +981,6 @@ async def agent_chat_stream(
     ai_service: HTTPAIService = Depends(get_ai_service),
     hitl: HITLManager = Depends(get_hitl_manager),  # HITL 管理器
     # ✅ 修复：移除db依赖，避免生命周期不匹配
-    mode: Optional[str] = None,  # 新增：支持mode参数（通过查询参数或Body）
     fastapi_request: Request = None,  # 注入原始 Request 以检测断连
 ):
     """
@@ -997,25 +994,13 @@ async def agent_chat_stream(
         memory: 记忆管理器
         ai_service: AI服务
         db: 数据库会话
-        mode: 聊天模式（仅planning，默认planning）
-
     Returns:
         StreamingResponse: SSE流式响应
     """
     import asyncio
 
-    # 仅支持 planning，任何其他输入均回退为 planning
-    requested_mode = mode or request.mode or ChatMode.PLANNING
-    try:
-        actual_mode = ChatMode(requested_mode.lower()) if isinstance(requested_mode, str) else ChatMode(requested_mode)
-    except Exception:
-        logger.warning(f"[Chat Stream] 无效的mode值: {requested_mode}, 使用默认planning")
-        actual_mode = ChatMode.PLANNING
-
-    if actual_mode != ChatMode.PLANNING:
-        logger.info(f"[Chat Stream] 模式 {actual_mode} 已停用，回退到 planning")
-        actual_mode = ChatMode.PLANNING
-
+    # 仅支持 planning
+    actual_mode = ChatMode.PLANNING
     logger.info(f"[Chat Stream] Mode: {actual_mode}")
 
     # 预先确定conversation_id，供SSE头与生成器共用
@@ -1293,68 +1278,40 @@ async def agent_chat_stream(
                 # ════════════════════════════════════════════════════════════════
                 if request.work_id:
                     try:
-                        worldview_service = WorldviewService(db)
-                        worldview_data: Dict[str, Any] = {}
+                        work_service = WorkService(db)
+                        work = await work_service.get_work_by_id(str(request.work_id))
+                        if not work or str(work.author_id) != str(current_user.id):
+                            logger.warning(
+                                f"[agent_chat_stream] 世界观注入权限不足: work_id={request.work_id}"
+                            )
+                            work = None
+                        if not work:
+                            raise ValueError("not_authorized")
 
-                        # 获取人物列表
-                        characters = await worldview_service.get_characters_by_work(str(request.work_id))
-                        if characters:
-                            worldview_data["characters"] = [
-                                {
-                                    "name": c.name,
-                                    "role": c.role or "未指定",
-                                    "description": c.description[:500] if c.description else "",  # 摘要限制500字
-                                    "tags": c.tags or [],
-                                    "relationships": c.relationships or []
-                                }
-                                for c in characters
-                            ]
+                        from app.services.agent.langgraph_tools import _fetch_worldview_data
 
-                        # 获取地点列表
-                        locations = await worldview_service.get_locations_by_work(str(request.work_id))
-                        if locations:
-                            worldview_data["locations"] = [
-                                {
-                                    "name": l.name,
-                                    "type": l.type or "未指定",
-                                    "description": l.description[:300] if l.description else "",  # 摘要限制300字
-                                    "tags": l.tags or []
-                                }
-                                for l in locations
-                            ]
-
-                        # 获取设定列表
-                        settings_list = await worldview_service.get_settings_by_work(str(request.work_id))
-                        if settings_list:
-                            worldview_data["settings"] = [
-                                {
-                                    "title": s.title,
-                                    "category": s.category or "通用设定",
-                                    "content": s.content[:500] if s.content else "",  # 摘要限制500字
-                                    "tags": s.tags or []
-                                }
-                                for s in settings_list
-                            ]
-
-                        # 获取作品规范
-                        guidelines = await worldview_service.get_guidelines_by_work(str(request.work_id))
-                        if guidelines:
-                            worldview_data["guidelines"] = {
-                                "outline": guidelines.outline or "",  # 大纲流程
-                                "style": guidelines.style or "",  # 整体风格
-                                "tone": guidelines.tone or "",  # 语言风格
-                                "words_per_chapter": guidelines.words_per_chapter,  # 每章字数
-                                "power_system": guidelines.power_system or "",  # 力量体系
-                                "world_rules": guidelines.world_rules or "",  # 世界规则
-                                "target_audience": guidelines.target_audience or "",  # 目标读者
-                                "main_theme": guidelines.main_theme or "",  # 主题
-                                "plot_direction": guidelines.plot_direction or "",  # 剧情走向
-                                "notes": guidelines.notes or ""  # 备注
-                            }
+                        worldview_data = await _fetch_worldview_data(
+                            db,
+                            str(request.work_id),
+                            include_guidelines=True
+                        )
 
                         # 注入到上下文
                         if worldview_data:
                             context["worldview_data"] = worldview_data
+                            try:
+                                from app.services.agent.langgraph_tools import _build_worldview_pack
+                                worldview_pack = _build_worldview_pack(
+                                    worldview_data,
+                                    keywords=[],
+                                    top_k=5,
+                                    include_guidelines=False,
+                                    task_hint=request.message or ""
+                                )
+                                if worldview_pack:
+                                    context["worldview_pack"] = worldview_pack
+                            except Exception as pack_err:
+                                logger.debug(f"[agent_chat_stream] 构建 worldviews pack 失败: {pack_err}")
                             char_count = len(worldview_data.get("characters", []))
                             loc_count = len(worldview_data.get("locations", []))
                             setting_count = len(worldview_data.get("settings", []))
@@ -1524,7 +1481,7 @@ async def agent_chat_stream(
                     payload = {'task_id': task.get('task_id'), 'status': status}
                     await event_queue.put(('task_progress', payload))
 
-                    # 兼容 thinking 事件：从反思进度文本中提取（DeepAgent会发送"💭 反思: ..."）
+                    # 兼容 thinking 事件：从进度文本中提取（支持 "💭 反思: ..." 前缀）
                     thinking_payload = None
                     if isinstance(status, dict) and status.get('type') == 'thinking':
                         data = status.get('data') or {}
@@ -1637,7 +1594,6 @@ async def agent_chat_stream(
                             on_content=on_content,
                             on_flow_event=on_flow_event,  # v6.0: 执行轨迹事件
                             db=db,
-                            enable_reflection=request.enable_reflection,  # DeepAgent 反思模式
                         )
                         # Agent 完成后放入结束标记
                         await event_queue.put(('__done__', None))

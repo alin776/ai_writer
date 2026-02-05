@@ -101,7 +101,7 @@ async def wait_for_approval(self, request_id, check_interval=5):
 | **结论** | ⚠️ **暂不需要** |
 
 **理由**：
-- 项目已有 DeepAgentExecutor 的反思机制
+- 项目已有反思执行器机制
 - 大多数写作任务不需要复杂的子任务分解
 - 如需并行执行，可以在现有架构上扩展，无需完整重构
 

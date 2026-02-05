@@ -2115,7 +2115,7 @@
 
 - Plan/Agent 下拉已替换为圆弧＋号按钮，点击直接打开指令列表，空白输入也可正常弹出。`src/components/editor/AIPanel.tsx`
 - 新增 manualMenuOpen 控制与关闭逻辑，避免无 @ 时菜单被自动关闭，同时不影响 @ 触发筛选流程。`src/components/editor/AIPanel.tsx`
-- AIPanel 不再渲染模式切换器，执行模式继续沿用默认 plan（enable_reflection 逻辑未改动）。`src/components/editor/AIPanel.tsx`
+- AIPanel 不再渲染模式切换器，执行模式继续沿用默认 plan（反思开关逻辑未改动）。`src/components/editor/AIPanel.tsx`
 
 #### ＋号按钮加圆弧外圈（待确认）
 
@@ -2990,29 +2990,31 @@
 
 #### 世界观元数据给到 Agent 的方案（待确认）
 
-- [ ] 盘点世界观进入 Agent 的全部链路（自动注入 / 工具拉取 / Explore 侧读）
-- [ ] 列出现有字段差异清单：自动注入 vs get_writing_context（人物/地点/设定/规范）字段完整性与裁剪上限
-- [ ] 标注所有长度预算点：worldview_data 字段截断、system message 总字符上限、summarization 截断
-- [ ] 明确安全处理差异：自动注入是否清洗、工具链是否 sanitize、潜在注入风险点
-- [ ] 补全权限策略：work_id + user_id 验证是否一致；无 user_id 时的降级策略
-- [ ] 统一世界观元数据 Schema（WorldviewSchema v1）：全量字段定义 + 最小返回字段定义
-- [ ] 增加 world_rules/constraints/禁忌清单结构化字段（从 guidelines 拆分）
+- [x] 盘点世界观进入 Agent 的全部链路（自动注入 / 工具拉取 / Explore 侧读）
+- [x] 列出现有字段差异清单：自动注入 vs get_writing_context（人物/地点/设定/规范）字段完整性与裁剪上限
+- [x] 标注所有长度预算点：worldview_data 字段截断、system message 总字符上限、summarization 截断
+- [x] 明确安全处理差异：自动注入是否清洗、工具链是否 sanitize、潜在注入风险点
+- [x] 补全权限策略：work_id + user_id 验证是否一致；无 user_id 时的降级策略
+- [x] 统一世界观元数据 Schema（WorldviewSchema v1）：全量字段定义 + 最小返回字段定义
+- [x] 增加 world_rules/constraints/禁忌清单结构化字段（从 guidelines 拆分）
 - [ ] 加入实体关系结构：entity_id、aliases、relations、role/status/voice/constraints
 - [ ] 引入 evidence 字段：章节序号/引用片段/来源类型，支持溯源与置信度
 - [ ] 加入 timeline/glossary：时间线事件与术语表，便于一致性与复用
-- [ ] 定义 WorldviewProfile（统计与摘要）与 WorldviewPack（按需注入包）两级结构
+- [x] 定义 WorldviewProfile（统计与摘要）与 WorldviewPack（按需注入包）两级结构
 - [ ] 设计 WorldviewPack 构建规则：根据任务类型/章节定位/关键词召回
-- [ ] 设计硬约束注入层：将世界规则/禁忌/风格约束注入 System 级提示
+- [x] 设计硬约束注入层：将世界规则/禁忌/风格约束注入 System 级提示
 - [ ] 设计软约束注入层：人物/地点/设定按需注入，避免全量污染
-- [ ] 改造 get_writing_context：可选 include=worldview_full/worldview_pack/worldview_profile
-- [ ] 新增按需工具：get_worldview_tree / get_worldview_node / get_worldview_pack
-- [ ] 补齐 Explore 对世界观的召回链路：按需拉取 + 结果融合 + 证据化呈现
-- [ ] 建立世界观索引：名称/别名/关键词/标签/关系索引，支持快速检索
-- [ ] 建立世界观缓存策略：work_id 级缓存 + 更新失效机制
-- [ ] 接入一致性校验工具：生成后对规则/关系/时间线做冲突检测
-- [ ] 设计冲突处置：自动修复（可修）/ 生成候选 / 交由用户确认（不可修）
-- [ ] 建立回写闭环：新事实 -> pending -> 用户确认 -> 落库 -> 版本递增
-- [ ] 加入世界观版本字段与变更日志（谁改、改了什么、证据）
+- [x] 改造 get_writing_context：可选 include=worldview_full/worldview_pack/worldview_profile
+- [x] 新增按需工具：get_worldview_tree
+- [x] 新增按需工具：get_worldview_node
+- [x] 新增按需工具：get_worldview_pack
+- [x] 补齐 Explore 对世界观的召回链路：按需拉取 + 结果融合 + 证据化呈现
+- [x] 建立世界观索引：名称/别名/关键词/标签/关系索引，支持快速检索
+- [x] 建立世界观缓存策略：work_id 级缓存 + 更新失效机制
+- [x] 接入一致性校验工具：生成后对规则/关系/时间线做冲突检测
+- [x] 设计冲突处置：自动修复（可修）/ 生成候选 / 交由用户确认（不可修）
+- [x] 建立回写闭环：新事实 -> pending -> 用户确认 -> 落库 -> 版本递增
+- [x] 加入世界观版本字段与变更日志（谁改、改了什么、证据）
 - [ ] 加入观测指标：世界观注入条目数/命中率/冲突率/回写通过率
 - [ ] 补测试用例：字段完整性、清洗安全、按需注入、冲突检测、回写流程
 - [ ] 交付迁移计划：老数据映射到新 schema、规范字段拆分与回填
@@ -3020,34 +3022,43 @@
 
 #### review
 
-- 已将“世界观元数据方案”扩展为可落地的详细待办清单：覆盖链路盘点、Schema 统一、分层注入、按需检索、校验闭环、缓存/权限/观测与测试迁移。
+- 已新增 WorldviewSchema v1 / WorldviewProfile / WorldviewPack 结构，作为统一世界观与按需小包的最小数据规范。
+- get_writing_context 支持 worldview_full/worldview_profile/worldview_pack，并新增关键词与 top_k 参数。
+- 已补齐 get_worldview_pack / get_worldview_node / get_worldview_tree（StandardTool 注册完成），Explore 首轮改为按需小包拉取，并新增 worldviews 缓存失效。
+- 现状盘点结果：三条链路为自动注入（`/api/v1/agent/chat/stream`）、工具拉取（`get_writing_context`）、Explore 侧读（`get_worldview_pack`）。
+- 字段差异：自动注入不含 `id` 且摘要长度更高（人物500/地点300/设定500），get_writing_context 返回 `id`、更短摘要（默认200）并可选规范；Setting 在工具链返回 `name/title/content`，自动注入仅 `title/content`。`backend/app/api/v1/agent.py`、`backend/app/services/agent/langgraph_tools.py`
+- 长度预算点：自动注入字段截断；世界观软约束系统提示上限约 `3000` 字符、硬约束 `800`；工具结果压缩上限（`get_writing_context=12000`、`get_worldview_summary=6000` 等）由 `context_builder` 控制；ContextManager 超预算触发压缩/摘要。`backend/app/services/agent/utils/context_builder.py`、`backend/app/services/context/manager.py`
+- 安全处理差异：工具链读取会经过 `content_sanitizer` 清洗，自动注入仍为原始字段，存在 prompt 注入风险。
+- 权限补齐：`get_writing_context/get_worldview_pack/get_worldview_node/get_worldview_tree` 新增 user_id 校验（有 user_id 才校验，无 user_id 降级放行）；自动注入改为先验证 work 归属。`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/execution/tool_executor.py`、`backend/app/api/v1/agent.py`
 
 #### 世界观按需加载方案整体梳理（待确认）
 
-- [ ] 目标：不塞全量世界观给 Agent；每次只拿“此刻必须遵守”的小包
-- [ ] 现状链路：自动注入 / get_writing_context 工具拉取 / Explore 侧读
-- [ ] 现状差异：字段结构不一致（规范缺失/描述裁剪不同/关系字段不足）
-- [ ] 长度预算：worldview_data 字段截断 + system message 总字符上限 + summarization 截断
-- [ ] 安全处理：工具链 sanitize，自动注入未必清洗；存在 prompt 注入风险
-- [ ] 权限策略：部分路径缺 user_id 校验，需要统一 work_id+user_id 验证
-- [ ] Schema 统一：WorldviewSchema v1，统一人物/地点/设定/规范字段
-- [ ] 规则拆分：从 guidelines 中拆 world_rules / constraints / 禁忌清单
+- [x] 目标：不塞全量世界观给 Agent；每次只拿“此刻必须遵守”的小包
+- [x] 现状链路：自动注入 / get_writing_context 工具拉取 / Explore 侧读
+- [x] 现状差异：字段结构不一致（规范缺失/描述裁剪不同/关系字段不足）
+- [x] 长度预算：worldview_data 字段截断 + system message 总字符上限 + summarization 截断
+- [x] 安全处理：工具链 sanitize，自动注入未必清洗；存在 prompt 注入风险
+- [x] 权限策略：部分路径缺 user_id 校验，需要统一 work_id+user_id 验证
+- [x] Schema 统一：WorldviewSchema v1，统一人物/地点/设定/规范字段
+- [x] 规则拆分：从 guidelines 中拆 world_rules / constraints / 禁忌清单
 - [ ] 实体结构：entity_id / aliases / relations / role / status / voice / constraints
 - [ ] 证据字段：evidence(章节/片段/来源/置信度)支撑溯源与冲突校验
 - [ ] 时间线/术语表：timeline + glossary 结构化，便于一致性与检索
-- [ ] 两级结构：WorldviewProfile(摘要统计) + WorldviewPack(按需注入包)
+- [x] 两级结构：WorldviewProfile(摘要统计) + WorldviewPack(按需注入包)
 - [ ] Pack 构建：基于任务类型 + 章节定位 + 关键词召回 + Top-K 控制
-- [ ] 硬约束注入：世界规则/禁忌/风格必须进 System 层
+- [x] 硬约束注入：世界规则/禁忌/风格必须进 System 层
 - [ ] 软约束注入：人物/地点/设定只注入必要字段，避免上下文污染
-- [ ] get_writing_context 扩展：include=worldview_full/worldview_pack/worldview_profile
-- [ ] 新增工具：get_worldview_tree / get_worldview_node / get_worldview_pack
-- [ ] Explore 补齐：按需拉取 + 结果融合 + 证据化呈现
-- [ ] 索引体系：名称/别名/标签/关系索引，支持快速召回
-- [ ] 缓存策略：work_id 级缓存 + 变更失效
-- [ ] 一致性校验：生成后检测规则/关系/时间线冲突
+- [x] get_writing_context 扩展：include=worldview_full/worldview_pack/worldview_profile
+- [x] 新增工具：get_worldview_tree
+- [x] 新增工具：get_worldview_node
+- [x] 新增工具：get_worldview_pack
+- [x] Explore 补齐：按需拉取 + 结果融合 + 证据化呈现
+- [x] 索引体系：名称/别名/标签/关系索引，支持快速召回
+- [x] 缓存策略：work_id 级缓存 + 变更失效
+- [x] 一致性校验：生成后检测规则/关系/时间线冲突
 - [ ] 冲突处置：自动修复可修项；不可修项进入用户确认
-- [ ] 回写闭环：新事实 -> pending -> 用户确认 -> 落库 -> 版本递增
-- [ ] 版本与日志：记录谁改了什么、证据与时间
+- [x] 回写闭环：新事实 -> pending -> 用户确认 -> 落库 -> 版本递增
+- [x] 版本与日志：记录谁改了什么、证据与时间
 - [ ] 观测指标：注入条目数/命中率/冲突率/回写通过率
 - [ ] 测试覆盖：字段完整性/清洗安全/按需注入/冲突检测/回写流程
 - [ ] 落地优先级：Schema 统一 → Pack 按需 → 硬约束注入 → 校验闭环 → 观测与缓存
@@ -3126,4 +3137,503 @@
 
 #### review
 
-- 已将“整体梳理版”完整正文补充到本节，覆盖现状/目标/结构/流程/接口/闭环/测试与落地顺序，便于后续按计划开发。
+- 已按梳理版落地首批能力：Explore 改为按需调用 `get_worldview_pack`，新增 `get_worldview_tree`，并补充 worldview_pack 缓存与更新失效。
+- 已接入硬约束注入：系统提示追加世界规则/风格/禁忌摘要；一致性校验新增“轻量自动修复”尝试（非 critical 且条数少时自动修正，否则提示用户确认）。
+- 已补齐索引体系：按名称/别名/标签/关系构建轻量索引，worldview_pack 关键词命中优先走索引再回退全文匹配。
+
+#### 世界观回写闭环（pending → 用户确认 → 落库 → 版本递增）（待确认）
+
+- [x] 通读现有链路：`extract-changes/scan-changes/apply-changes` 与世界观 CRUD，确认可复用点与缺口
+- [x] 设计 pending 数据结构：work_id/user_id/status/source/changes/evidence/selected_items/version/apply_stats
+- [x] 新增模型 + Schema + 迁移：`WorldviewChange`（pending/applied/rejected）+ 版本字段
+- [x] 新增服务层：创建 pending、查询列表、应用落库、拒绝/撤回
+- [x] 新增 API：创建 pending、查询 pending、应用变更（可选项）、拒绝变更
+- [x] 应用落库时写入变更日志并递增版本号
+- [x] 自检闭环：创建 pending → 用户确认 → apply 生效 → 版本递增与日志可追溯
+
+#### review
+
+- 新增世界观回写闭环数据结构：`WorldviewChange` 表记录 pending/applied/rejected、changes/selected_items/evidence 与版本前后值；`works.worldview_version` 作为世界观版本号。`backend/app/models/worldview_change.py`、`backend/app/models/work.py`、`backend/alembic/versions/20260204_1200_add_worldview_changes.py`
+- 新增回写服务与接口：支持创建 pending、列表查询、应用变更、拒绝变更，并在 apply 时递增版本号与记录统计。`backend/app/services/worldview_change_service.py`、`backend/app/api/v1/worldview.py`、`backend/app/schemas/worldview.py`
+- 自检：`python3 -m py_compile` 覆盖新增/修改文件通过（`python` 不存在，已改用 `python3`）。
+
+#### 世界观规则结构化 + 软约束注入（待确认）
+
+- [x] 通读相关文件：`work_guidelines` 模型/Schema、世界观自动注入、`_fetch_worldview_data`、`context_builder`
+- [x] 规则结构化：为 guidelines 增加 `constraints`/`taboo` 字段并迁移；Schema 同步
+- [x] 世界观聚合：`_fetch_worldview_data` 补充 `world_rules/constraints/taboo` 列表与 timeline 输出
+- [x] 约束注入：硬约束优先读结构化规则；软约束优先使用 `worldview_pack`（无则回退 `worldview_data`）
+- [x] 自动注入同步：注入时补充 `constraints/taboo`（如有）
+- [x] 自检：`python3 -m py_compile` 覆盖改动文件
+
+#### review
+
+- WorkGuidelines 新增 `constraints/taboo` 字段并完成迁移，Schema 同步。`backend/app/models/work_guidelines.py`、`backend/app/schemas/worldview.py`、`backend/alembic/versions/20260204_1300_add_work_guidelines_constraints_taboo.py`
+- 世界观聚合补齐结构化规则与时间线：`_fetch_worldview_data` 输出 `world_rules/constraints/taboo` 列表与 `timeline`。`backend/app/services/agent/langgraph_tools.py`
+- 约束注入改为优先读结构化列表；软约束系统提示优先使用 `worldview_pack`；自动注入补充 `constraints/taboo` 并生成 `worldview_pack`。`backend/app/services/agent/utils/context_builder.py`、`backend/app/api/v1/agent.py`
+- 自检通过：`python3 -m py_compile` 覆盖改动文件。
+
+#### Agent板块设计模式深度探索（待确认）
+
+- [x] 通读 agent 核心链路（LangGraph 工作流/规划/执行/工具注册/反思/并行/HITL）
+- [x] 提取证据（文件+行号）并整理与 ReAct/Plan-Execute 等模式对应关系
+- [x] 输出直白结论（项目中的设计模式清单 + 每种模式的职责/边界）
+
+#### review
+
+- 已通读并记录 agent 核心链路与实现文件（langgraph_agent/planning/execution/deep_agent/tools/parallel_tool_node 等），整理出 ReAct、Plan-Execute、Reflection+Replan、Parallelization、HITL、Tool Registry、Intent Routing 等模式的代码证据与边界；结论与证据详见本次回复。
+
+#### Agent板块实际执行链路核查（待确认）
+
+- [x] 定位 API 入口与路由（agent/chat 与 stream 等）调用的实际执行函数
+- [x] 追踪“真正执行的一条链路”从入口到执行器（LangGraph or Planning or 反思分支）的调用路径
+- [x] 核对开关/配置对链路的影响（如 quick_path、反思开关、tool_policy）
+- [x] 汇总证据（文件+行号）并给出直白结论（当前线上默认执行链路、备用链路条件）
+
+#### review
+
+- 已确认实际执行入口为 `/api/v1/agent/chat/stream`，且 `mode` 被强制回退为 planning，实际只走 `chat_with_planning` 规划链路；反思分支与 humanize-only 短路为该链路内的条件分支；LangGraph 图仅构建未被调用。结论与证据详见本次回复。
+
+#### 清理 Agent 未使用代码（待确认）
+
+- [x] 梳理当前真实执行链路的“使用清单”（入口→planning→执行→工具）并标注证据
+- [x] 生成“可删除候选清单”（含文件路径 + 未被引用的证据）并发给你确认
+- [x] 按确认清单删除文件/模块，并同步清理无效引用与测试/文档残留
+- [x] 自检：rg 全仓无残留引用，记录删除结果与风险点
+
+#### review
+
+- 已删除未被实际执行链路使用的 LangGraph 图/多场景处理/路由/并行工具节点等模块与文档备份；同时精简 `langgraph_agent.py` 移除图构建与 HTTPAIService 手动工具路径，仅保留 Planning 主链路与反思分支，相关 imports 与初始化已同步清理。
+
+#### 删除反思分支（待确认）
+
+- [x] 移除 API 入参中的反思开关与相关说明（AgentChatRequest）
+- [x] 删除反思分支代码与引用（langgraph_agent 执行分支、deep_agent 模块、测试）
+- [x] 清理 planning 中与反思开关相关的逻辑与参数传递
+- [x] 自检：rg 全仓无反思分支/反思开关残留
+
+#### review
+
+- 已移除反思分支执行逻辑与模块文件，Planning 链路统一走标准并行执行；反思分支目录下 `__init__.py/config.py/executor.py/reflection.py/task_enricher.py` 已删除。`backend/app/services/agent/langgraph_agent.py`、`backend/app/services/agent/deep_agent/*`
+- Planning 侧移除反思开关参数与对应 prompt 分支，改为恒定使用静态规划提示词；调用端同步去参。`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/agent/langgraph_agent.py`
+- API 侧确认无反思开关入参，仅清理残留注释；并更新 TaskRunner/降级执行的文档说明去除反思分支表述。`backend/app/api/v1/agent.py`、`backend/app/services/agent/execution/task_runner.py`
+- 前端移除反思模式入口：删除模式选择器与相关类型字段，AIPanel 请求固定 `planning`，会话模式统一落为 `plan/chat`。`src/components/editor/AIPanel.tsx`、`src/components/agent/ChatInput.tsx`、`src/components/agent/SessionTabs.tsx`、`src/hooks/useAgentChat.ts`、`src/hooks/useConversationPersistence.ts`、`src/utils/sessionTitleGenerator.ts`
+- 清理文档残留：移除 `docs/iterative-agent` 目录，并将 `docs/langgraph_agent重构/*` 与 `docs/Agent 架构的探索.md` 中的反思执行器称谓统一为通用表述。
+
+#### 清理 deepagents 文档残留（待确认）
+
+- [ ] 盘点 `docs/langgraph_agent重构` 中 deepagents 相关引用与示例代码
+- [ ] 删除/改写 deepagents 相关段落与代码示例，统一为 LangGraph 原生表述
+- [ ] 自检：rg 全仓无 deepagents/create_deep_agent/deep_agent 残留
+
+#### Agent板块设计模式深度探索（本次，待确认）
+
+- [x] 通读 agent 相关后端/前端/配置/提示词与测试文件，梳理真实执行链路
+- [x] 按模式抽取证据：ReAct、Plan-Execute、Tool-Calling、Parallel、HITL、Memory/Context、Streaming/Trace
+- [x] 形成直白结论：现存模式清单、各自职责边界、已移除或仅残留的实现
+- [x] 在 todo.md 追加 review（证据摘要与关键结论）
+
+#### review
+
+- 真实执行链路为 `/api/v1/agent/chat/stream` → `WritingAgentGraph.chat_with_planning` → `PlanGenerator` → `ParallelExecutor` → `ResponseBuilder`，SSE 事件由 FlowEventBuilder/ExecutionFlow 渲染承接。`backend/app/api/v1/agent.py`、`backend/app/services/agent/langgraph_agent.py`、`backend/app/services/agent/execution/parallel_executor.py`、`backend/app/services/agent/planning/response_builder.py`、`backend/app/services/agent/stream/flow_events.py`、`src/hooks/useAgentChatStream.ts`、`src/components/agent/ExecutionFlow/index.tsx`
+- 现存设计模式与证据已在答复中逐一对应：Plan-Execute、工具注册/调用、DAG并行、HITL、人机记忆/上下文管理、流式执行轨迹、意图路由/快速路径、Explore 子代理循环。相关证据文件见正文引用。
+
+#### 删除 ReAct 状态段落（待确认）
+
+- [x] 删除 todo.md 中“ReAct 状态/残留”相关的 review 段落
+- [x] 复核仅移除该段落，不改动其他说明
+- [x] 在 todo.md 追加 review（说明删除结果）
+
+#### review
+
+- 已从 `todo.md` 的“Agent板块设计模式深度探索（本次）”review 中移除 ReAct 状态/残留段落，其他条目保持不变。
+
+#### 清理 ReAct 干扰项代码（待确认）
+
+- [x] 盘点 ReAct 相关代码/文档/类型残留（mode=react、react 分支、ReAct 文档）
+- [x] 删除 ReAct 相关残留代码与类型（前端 hooks/types/API 兼容逻辑）
+- [x] 确认仅清理代码，不改动 ReAct 文档
+- [x] 自检：代码范围无 ReAct/react 模式残留（仅保留 React 框架相关引用）
+- [x] 在 todo.md 追加 review（删除范围与影响）
+
+#### review
+
+- 删除 ReAct 残留代码：移除 `useAgentChat` 的 react 分支与 backendMode 判定，前端类型只保留 `planning`，会话标题生成去掉 `react`，后端移除 `mode` 入参并固定 planning；清理空的 ReAct 路由文件。`src/hooks/useAgentChat.ts`、`src/types/agent.ts`、`src/utils/sessionTitleGenerator.ts`、`backend/app/api/v1/agent.py`、`backend/app/api/v1/agent_react_stream*.py`
+- 仅清理代码，未改动 ReAct 相关文档；自检仅保留 React 框架引用。
+
+#### 删除 ReAct 文档目录（待确认）
+
+- [x] 删除 `docs/Agent/ReAct 模式优化/` 整个文件夹
+- [x] 删除 `docs/langgraph_agent重构/18-execution-trace-redesign.md`
+- [x] 自检：rg 不再出现 ReAct 模式优化文档路径
+- [x] 在 todo.md 追加 review（删除范围）
+
+#### review
+
+- 已删除 `docs/Agent/ReAct 模式优化/` 整个目录及 `docs/langgraph_agent重构/18-execution-trace-redesign.md`；相关文件不再存在。
+
+#### 再梳理 Agent 设计模式（待确认）
+
+- [x] 复核当前真实执行链路与主要模块
+- [x] 逐模式梳理：Plan-Execute、Tool-Calling、Parallel/DAG、HITL、Memory/Context、Streaming/Trace、Intent/QuickPath、Explore 子代理
+- [x] 输出直白结论（模式清单 + 各自职责边界）
+- [x] 在 todo.md 追加 review
+
+#### review
+
+- 已复核当前链路：`/chat/stream` → `chat_with_planning` → 规划 → 执行 → 汇总 → SSE 轨迹；并按模式输出证据与边界（见回复）。`backend/app/api/v1/agent.py`、`backend/app/services/agent/langgraph_agent.py`
+
+#### Agent板块设计模式深度探索（待确认）
+
+- [x] 复核实际执行链路：API 入口 → chat_with_planning → 规划/执行/工具/流式输出
+- [x] 通读 agent 核心模块（planning/execution/tools/stream/context/hitl）与前端链路
+- [x] 逐模式整理证据：Plan-Execute / Tool-Calling / Parallelization / HITL / Memory-Context / Streaming-Trace 等
+- [x] 对照 ReAct 等模式给出是否存在/已移除的结论（含文件与行号证据）
+- [x] 输出直白结论并在 todo.md 追加 review
+
+#### review
+
+- 已完成 Agent 真实链路与设计模式证据梳理：覆盖 Planning→Execution→Response、并行DAG调度、工具注册与调用、HITL 审批、上下文记忆、SSE执行轨迹与前端渲染映射等；结论见本次答复。
+
+#### 清理 Planning 之外干扰项（待确认）
+
+- [x] 删除 DynamicPlan（仅定义未被使用）
+- [x] 从 execution/__init__.py 移除 DynamicPlan 导出
+- [x] 删除 LangGraph HITL 节点封装（hitl_nodes.py，含 need_replan 标记）
+- [x] 自检：rg 无 replan/DynamicPlan/hitl_nodes 残留
+
+#### review
+
+- 已删除动态计划与 LangGraph HITL 节点封装：`backend/app/services/agent/execution/dynamic_plan.py`、`backend/app/services/agent/tools/hitl_nodes.py`，并移除 `DynamicPlan` 的导出，仅保留 ToolExecutor/ParallelExecutor/TaskRunner。`backend/app/services/agent/execution/__init__.py`
+
+#### 世界观按需加载后续落地计划（待确认）
+
+- [x] 补齐实体结构字段：Location/Setting 增加 aliases/relations/status/voice/constraints/evidence（含迁移），Character 补齐 schema 输出字段
+- [x] 统一证据结构：定义 evidence 子结构（章节/片段/来源/置信度），并在人物/地点/设定/术语表中落地
+- [x] 新增 glossary 词条体系：模型/Schema/Service/API + get_worldview_tree/node 支持 glossary
+- [x] 更新世界观聚合输出：_fetch_worldview_data 输出实体新增字段 + glossary + timeline
+- [x] 升级 WorldviewPack 构建规则：任务类型/章节定位/关键词召回 + Top-K 控制 + timeline 章节过滤
+- [x] 软约束注入落地：构建 worldview_context 文本并注入 smart_* 生成提示（避免 System 污染）
+- [x] 观测指标埋点：注入条目数/命中率/冲突率/回写通过率（含调用路径）
+- [x] 补测试用例：字段完整性/清洗安全/按需注入/冲突检测/回写流程
+- [x] 交付迁移计划：旧数据映射、规则拆分回填、默认值策略
+- [x] 输出上线步骤与回滚方案：开关化（仅 profile → pack → full）
+
+#### review
+
+- 已补齐实体结构字段与证据结构：角色/地点/设定新增 aliases/relations/status/voice/constraints/evidence，并补充 GlossaryTerm 模型与迁移。`backend/app/models/character.py`、`backend/app/models/location.py`、`backend/app/models/setting.py`、`backend/app/models/glossary_term.py`、`backend/alembic/versions/20260204_1500_add_worldview_entity_fields_and_glossary.py`、`backend/app/schemas/worldview.py`
+- Glossary 端到端落地：WorldviewService + API + worlddata 聚合 + get_worldview_tree/node 支持 glossary。`backend/app/services/worldview_service.py`、`backend/app/api/v1/worldview.py`、`backend/app/services/agent/langgraph_tools.py`
+- WorldviewPack 升级：任务提示抽词 + 章节范围过滤 + glossary/timeline/规则类注入；索引与关键词匹配扩展到 aliases/relations/constraints/evidence。`backend/app/services/agent/langgraph_tools.py`
+- 软约束注入落地：新增 `worldview_context` 构建并注入 smart_continue/smart_rewrite/smart_insert 提示词，避免 System 污染。`backend/app/services/agent/utils/context_builder.py`、`backend/app/services/agent/execution/tool_executor.py`、`backend/app/services/agent/tools/editor_tools.py`
+- 观测指标埋点：worldview_pack 命中/总量、软注入条目数、一致性冲突总量、回写通过/拒绝计数。`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/execution/tool_executor.py`、`backend/app/services/agent/tools/consistency_checker.py`、`backend/app/services/worldview_change_service.py`
+- 迁移计划：旧字段默认空列表；Location/Setting 的 `related_locations/related_items` 输出映射到 `relations`；规则类字段继续从 guidelines 拆分；新增 Glossary 默认空表，不影响旧数据读取。
+- 上线与回滚：先只启用 `worldview_profile` 输出；再开启 `worldview_pack` + 软约束注入；最后开放 full 输出与 glossary UI。回滚时可仅关闭 pack/软注入路径并保留 schema 与数据表。
+- 新增单测：覆盖 pack 的 timeline 过滤、glossary 命名与软注入优先级。`backend/tests/unit/test_worldview_pack.py`
+- 测试执行失败：`pytest backend/tests/unit/test_worldview_pack.py` 由于缺少 `chromadb` 依赖在导入阶段中断（环境问题，代码层未触发）。
+
+#### 世界观按需加载落地修复（待确认）
+
+- [x] 通读链路并锁定缺口：自动注入 / 工具拉取 / Explore / 软约束 / 硬约束 / 一致性校验
+- [x] 统一自动注入数据源：改用 `_fetch_worldview_data` 并走 `sanitize_worldview_data`，消除旧 schema 差异
+- [x] 自动注入补齐顶层规则：同步输出 `world_rules/constraints/taboo` 列表，确保 pack/硬约束可读
+- [x] 硬约束注入落地：在 smart_* system_prompt 或生成入口插入 `_build_worldview_hard_constraints` 的结果
+- [x] 软约束内容扩展：`_collect_worldview_parts` 增加 glossary/timeline/relations/constraints 等必要字段并控长
+- [x] pack 优先级校准：hard/soft 统一优先 `worldview_pack`，缺失时回退 `worldview_data`
+- [x] 一致性校验自动触发：生成后调用 `check_story_consistency`，按严重度决定自动修复/待确认
+- [x] 权限策略补齐：user_id 为空时的降级策略（拒绝/仅 profile/仅公开字段）
+- [x] 证据/关系写入补齐：同步或抽取链路写入 evidence/relations/aliases/constraints（至少保留已有字段）
+- [x] 缓存与失效对齐：worldview_pack/profile TTL 与失效点校准
+- [x] 补测试：硬约束注入、自动注入清洗、软约束包含 glossary/timeline、权限拒绝、自动一致性校验触发
+- [x] 自检与回归：`python3 -m py_compile` + pytest（处理 chromadb 依赖或隔离用例）
+
+#### review
+
+- 自动注入改为统一走 `_fetch_worldview_data` 并完成清洗，顶层 `world_rules/constraints/taboo` 可直接用于 pack/硬约束。`backend/app/api/v1/agent.py`
+- 软/硬约束落地：`_collect_worldview_parts` 增加 glossary/timeline/relations/constraints；硬约束优先 pack 回退 data；smart_* system_prompt 注入 `worldview_hard_constraints`。`backend/app/services/agent/utils/context_builder.py`、`backend/app/services/agent/execution/tool_executor.py`、`backend/app/services/agent/tools/editor_tools.py`
+- 一致性校验自动触发：smart_* 结果附加 `consistency_report`（轻量版）；当前一致性引擎仍是空抽取逻辑，报告多为 0，需后续增强抽取。`backend/app/services/agent/execution/tool_executor.py`、`backend/app/services/agent/tools/consistency_checker.py`
+- 权限降级：`get_worldview_pack` 无 user_id 时限制输出（top_k 缩小、禁 guidelines）；`get_worldview_node/tree` 要求 user_id；Explore 调用补齐 user_id。`backend/app/services/agent/langgraph_tools.py`、`backend/app/services/agent/tools/explore_tools.py`
+- 回写补齐：worldview_sync 新建人物/地点/设定可携带 aliases/relations/constraints/evidence/status/voice 等扩展字段。`backend/app/services/worldview_sync_service.py`
+- 缓存与 TTL：`get_writing_context` 对 `worldview_pack/profile` 使用 worldview TTL；世界观服务失效触发 ToolCache 清理。`backend/app/services/agent/utils/tool_cache.py`、`backend/app/services/worldview_service.py`
+- 测试：`python3 -m py_compile` 通过；`pytest -q backend/tests/unit/test_worldview_context.py backend/tests/unit/test_worldview_pack.py` 结果 2 passed, 1 skipped（chromadb 依赖导致 pack 用例跳过）。
+
+#### 世界观注入与缓存缺陷修复（待确认）
+
+- [x] 修复改写生成 NameError：为 `_generate_rewrite_versions` 补传 `worldview_hard_constraints`
+- [x] 补充 `WorkService` 导入，恢复 `agent_chat_stream` 世界观注入链路
+- [x] 修复缓存过滤：`_filter_gwc_context` 保留 `worldview_pack/worldview_profile/worldview_full` 字段
+- [x] 自检：`python3 -m py_compile` + 相关单测
+
+#### review
+
+- 修复 smart_rewrite 调用链：`_generate_rewrite_versions` 增加 `worldview_hard_constraints` 参数并由 smart_rewrite 传入，避免 NameError。`backend/app/services/agent/tools/editor_tools.py`
+- 补齐 `WorkService` 导入，恢复 `agent_chat_stream` 世界观注入路径。`backend/app/api/v1/agent.py`
+- 缓存过滤保留 worldview pack/profile/full：`_filter_gwc_context` 追加 `worldview_pack/worldview_profile/worldview_full` 键。`backend/app/services/agent/execution/tool_executor.py`
+
+#### get_worldview_pack NoneType 修复（待确认）
+
+- [x] 防御性处理：_match_worldview_keywords 对非 dict 直接返回 False
+- [x] _select 过滤非 dict 项，避免匹配阶段调用 item.get 报错
+- [x] 自检：`python3 -m py_compile backend/app/services/agent/langgraph_tools.py`
+
+#### review
+
+- 修复世界观 pack 在包含 None 项时报错：关键词匹配与选择阶段新增 dict 过滤，避免 `NoneType` 访问 `.get`。`backend/app/services/agent/langgraph_tools.py`
+
+#### 世界观 pack 清洗与引用修复（待确认）
+
+- [x] 修复 sanitize_worldview_data 深度导致列表项变 None（保留列表内 dict 结构）
+- [x] get_worldview_pack executor 解析 JSON 并补充 pack 兼容字段
+- [x] 自检：`python3 -m py_compile` + 验证 pack 不为空
+
+#### review
+
+- 调整 worlddata 清洗深度并跳过 None 列表项，避免人物/地点/设定被清洗成空。`backend/app/utils/content_sanitizer.py`
+- get_worldview_pack 返回结构补充 `pack` 兼容字段，并优先解析 JSON 为 dict。`backend/app/services/agent/langgraph_tools.py`
+#### 世界观测试 Prompt 生成（待确认）
+
+- [x] 读取素材 `docs/Agent/real-book/人在诸天，摆烂成帝.txt`，抽取关键角色/设定/术语/事件
+- [x] 设计 5 条高复杂度测试 Prompt，覆盖世界观按需注入/硬约束/软约束/一致性/缓存路径
+- [x] 输出可直接复制的 Prompt，并在 todo.md 追加 review
+
+#### review
+
+- 已读取素材并整理关键要素：林仙/系统10086/叶凡/九龙拉棺/泰山/遮天五大秘境/一人之下等，用于生成覆盖世界观注入与一致性校验的测试 Prompt。
+
+#### Opencode 项目 Agent 设计模式深度探索（待确认）
+
+- [x] 盘点 opencode agent 运行链路核心模块（agent/session/tool/permission/compaction/summary）并记录证据文件
+- [x] 深读关键文件并抽取“循环/工具调用/子代理/计划/权限/记忆”实现证据（含行号）
+- [x] 对照设计模式给出结论（ReAct/Plan-Execute/多代理/Tool-Calling/HITL/记忆压缩/流式）
+- [x] 在 todo.md 追加 review（证据摘要 + 结论）
+
+#### review
+
+- 已盘点并深读 opencode agent 核心链路与模块：`agent/agent.ts`（代理定义与权限）、`session/prompt.ts`（主循环与子任务）、`session/processor.ts`（流式处理与工具状态）、`session/llm.ts`（工具调用与模型流）、`tool/task.ts`（子代理）、`tool/plan.ts`+`session/prompt/plan*.txt`（计划/执行切换）、`permission/next.ts`+`question/*`（HITL）、`session/compaction.ts`+`session/summary.ts`（记忆压缩/摘要）、`tool/registry.ts`（工具注册）、`session/message-v2.ts`（事件/部件结构）。
+- 结论摘要：Opencode 采用“工具调用循环（Act→Observe）+ 多代理子任务 + 计划/执行双阶段 + 权限与问答式 HITL + 记忆压缩/摘要 + 流式事件轨迹”的组合模式；未见显式 ReAct 的 Thought 文本输出，但存在等价的工具调用循环与观察回流。
+
+#### Plan-Execute 自主性优化（参考 opencode）（待确认）
+
+- [x] 对照 opencode 的“工具调用循环/子代理/权限-HITL/微型再规划”机制，提炼可迁移点
+- [x] 基于现有 Plan-Execute 链路设计“执行阶段可决策”的最小改法（触发条件/边界/回退）
+- [x] 给出落地清单：需要改哪些模块、需要新增哪些事件或状态、最小风险控制
+- [x] 在 todo.md 追加 review（证据来源 + 结论）
+
+#### review
+
+- 现状证据：执行链路为 `chat_with_planning → PlanGenerator → ParallelExecutor.execute_tasks → ResponseBuilder`，任务列表固定执行，无动态改写入口。`backend/app/services/agent/langgraph_agent.py` `backend/app/services/agent/execution/parallel_executor.py`；PlanSchema 仅定义 tasks/depends_on 等结构。`backend/app/services/agent/planning/plan_schema.py`
+- 可迁移点：项目已有“opencode 风格工具调用循环”在 explore_content 内部循环（tool_calls_left/decision/stop），可作为执行阶段“微型再规划”的模板。`backend/app/services/agent/tools/explore_tools.py`
+- 结论：最小改法是在 ParallelExecutor 的“单任务完成点”插入 Decision/Replan Hook，根据工具结果触发追加任务或再规划；并新增可视化事件与策略开关，保证可控与可回退。
+
+#### Agent 设计模式完全重构（待确认）
+
+- [ ] 明确目标架构与边界：从“Plan-Execute”改为“Goal/Policy/Action Loop（执行主导）”，定义可控边界（预算/步数/工具白名单/写回规则）
+- [ ] 设计新核心模型与接口：GoalState/DecisionPolicy/ExecutionLoop/ActionResult/StopReason，并与现有 ToolExecutor/TaskRunner/FlowEvent 对接
+- [ ] 设计新执行主链路：替换 `chat_with_planning → execute_tasks` 为“决策循环”，保留 Planning 作为“可选策略/意图提示”
+- [ ] 设计兼容与迁移：旧 PlanSchema → 新 GoalSchema 的适配器；保留旧链路的 feature flag 以便回滚
+- [ ] 设计前端执行轨迹映射：新增决策事件（decision_start/decision_done）或复用 step 事件，保证 ExecutionFlow 展示一致
+- [ ] 设计安全与质量闭环：失败重试、HITL 触发点、写回强校验、成本/步数上限、降级策略
+- [ ] 输出分阶段改造清单与风险评估：按模块列出修改文件、接口变化、测试点与回归范围
+- [ ] 在 todo.md 追加 review（架构结论 + 落地清单）
+
+#### Codex 项目 Agent 设计模式深度探索（待确认）
+
+- [x] 通读 `codex/codex-rs/core` 的 agent 主循环、工具路由/执行、审批、并行、多代理、记忆压缩相关文件，记录证据位置（文件+行号）
+- [x] 归纳设计模式清单并对照证据：事件驱动/命令、工具调用循环、工具注册/路由、并行执行、HITL、子代理、记忆压缩
+- [x] 输出直白结论（模式说明+职责边界+明确“不包含/未实现”的模式）并在 todo.md 追加 review
+
+#### review
+
+- 事件驱动/命令：`submission_loop` 持续读取 `Submission` 并按 `Op` 分发处理，`Op` 充当命令对象；循环本身是事件驱动主循环。`codex/codex-rs/core/src/codex.rs:2124-2238`
+- 工具调用循环（Act→Observe）：`run_turn` 说明“模型要么请求工具，要么输出回复；请求工具后再采样下一轮”，并在循环内持续调用 `run_sampling_request`。`codex/codex-rs/core/src/codex.rs:2925-3091`
+- 工具注册/路由（Registry/Strategy）：`ToolRegistry` 按工具名映射 handler；`ToolRouter` 负责从配置构建 specs 并将工具调用分派给 registry。`codex/codex-rs/core/src/tools/registry.rs:15-149`、`codex/codex-rs/core/src/tools/router.rs:29-165`
+- 并行执行（受控并行）：`ToolCallRuntime` 用 `RwLock` 区分可并行与需串行的工具调用，控制并行度。`codex/codex-rs/core/src/tools/parallel.rs:24-105`
+- HITL 审批：`ShellRuntime`/`ApplyPatchRuntime` 通过 `Approvable` 触发 `request_command_approval`/`request_patch_approval`，未批准不执行。`codex/codex-rs/core/src/tools/runtimes/shell.rs:65-173`、`codex/codex-rs/core/src/tools/runtimes/apply_patch.rs:27-174`
+- 子代理/多代理：`spawn_agent` 工具通过 `AgentControl::spawn_agent` 创建新线程代理并派发初始消息。`codex/codex-rs/core/src/tools/handlers/collab.rs:37-184`、`codex/codex-rs/core/src/agent/control.rs:28-108`
+- 记忆压缩：`compact` 任务将历史摘要化并替换历史（`build_compacted_history`），用于长期对话压缩。`codex/codex-rs/core/src/compact.rs:32-199`
+- 直白结论：这个 Codex agent 的核心是“事件驱动 + 工具调用循环”，辅以“工具注册/路由、受控并行、HITL 审批、子代理、记忆压缩”。当前链路没有看到显式的“Plan→Execute 两阶段”或“独立规划器/计划数据结构”，也没有公开的 ReAct 思维输出；它更像“工具调用型执行循环”。证据见上述文件与行号。
+
+#### Opencode 项目 Agent 设计模式深度研读（本次，待确认）
+
+- [x] 通读 opencode agent 关键链路文件（agent/session/tool/permission/compaction/summary/acp），定位证据位置
+- [x] 抽取“工具调用循环/计划-执行/子代理/工具注册/事件总线-HITL/记忆压缩/适配器”证据（含文件与行号）
+- [x] 形成直白结论并在 todo.md 追加 review（模式清单 + 职责边界 + 是否存在/缺失）
+
+#### review
+
+- 工具调用主循环（Act→Observe）：`SessionPrompt.loop` 在 while(true) 中驱动对话，收集任务/子任务并调用 `SessionProcessor.process`；`SessionProcessor` 解析流式事件并处理 tool-call/result；`LLM.stream` 把 tools 作为 activeTools 传给模型。`opencode/packages/opencode/src/session/prompt.ts:258-625`、`opencode/packages/opencode/src/session/processor.ts:45-221`、`opencode/packages/opencode/src/session/llm.ts:162-216`
+- 子代理（Sub-agent/任务派发）：`TaskTool` 选择 subagent、创建子会话并调用 `SessionPrompt.prompt`；主循环遇到 `subtask` 会执行 `TaskTool` 并回写结果。`opencode/packages/opencode/src/tool/task.ts:15-188`、`opencode/packages/opencode/src/session/prompt.ts:316-455`
+- 工具注册/命令模式（Registry + Command）：`ToolRegistry` 从目录/插件加载工具并统一过滤；`Tool.define` 定义可执行工具接口并统一校验/执行。`opencode/packages/opencode/src/tool/registry.ts:34-156`、`opencode/packages/opencode/src/tool/tool.ts:16-85`
+- 计划/执行是“代理模式切换”而非内置计划图：`plan_enter/plan_exit` 通过问题确认切换 plan/build agent；`Agent` 定义 plan/build 两类 primary agent 与权限。`opencode/packages/opencode/src/tool/plan.ts:20-128`、`opencode/packages/opencode/src/agent/agent.ts:73-109`
+- HITL（权限审批 + 交互问题）：`PermissionNext.ask` 根据规则触发 ask 并通过 Bus 发布事件；`Question.ask` 发起可选回答；`SessionProcessor` 在工具重复调用时触发 `doom_loop` 审批。`opencode/packages/opencode/src/permission/next.ts:96-156`、`opencode/packages/opencode/src/question/index.ts:63-120`、`opencode/packages/opencode/src/session/processor.ts:146-168`
+- 记忆压缩/摘要：`SessionCompaction` 计算溢出并触发压缩与剪枝；`SessionSummary` 用 LLM 生成摘要/标题与 diff 统计。`opencode/packages/opencode/src/session/compaction.ts:30-193`、`opencode/packages/opencode/src/session/summary.ts:23-110`
+- 事件总线/观察者：`Bus.publish/subscribe` 提供全局事件分发；被 Permission/Question/Session 等模块使用。`opencode/packages/opencode/src/bus/index.ts:41-104`
+- 协议适配器（ACP Adapter）：`ACP.Agent implements ACPAgent`，把 ACP 连接请求转换为内部权限/会话流程，并订阅 opencode 全局事件流。`opencode/packages/opencode/src/acp/agent.ts:46-173`
+
+#### Plan-Executor 死板问题根因深度探索（本次，待确认）
+
+- [x] 通读项目 agent 主链路（planning→execution→response）并定位关键“固定执行”证据
+- [x] 深挖执行器/任务调度（ParallelExecutor/TaskRunner/PlanSchema）以证明“静态计划、无运行时再决策”
+- [x] 形成直白结论：死板本质原因 + 受影响链路 + 现存仅有的局部自主性（含证据）
+
+#### review
+
+- 主链路证据：`chat_with_planning` 明确按阶段执行：先 `PlanGenerator.generate_plan` 得到 `plan_data`，再调用 `_execute_tasks_in_parallel(tasks=plan_data["tasks"])`，最后 `_build_final_response` 汇总。整个执行阶段以 `plan_data["tasks"]` 为唯一输入，没有任何“执行中再生成/追加任务”的入口。`backend/app/services/agent/langgraph_agent.py:898-1169`、`backend/app/services/agent/langgraph_agent.py:1193-1235`
+- 静态计划证据：`PlanSchema` 只描述 `tasks/depends_on` 的结构（静态 DAG），无“runtime decision / replan / policy”字段；计划一旦生成即固定。`backend/app/services/agent/planning/plan_schema.py:19-42`
+- 执行器证据：`ParallelExecutor.execute_tasks` → `_execute_with_dag` 基于 `depends_on` 进行就绪队列调度，任务集合是输入时就确定的 `tasks` 列表；执行过程中只消费队列、不会生成新任务或修改任务图。`backend/app/services/agent/execution/parallel_executor.py:51-225`
+- 单任务执行证据：`TaskRunner.execute_task` 只负责“把 task.tool + params 调用到 ToolExecutor/旧 @tool”，无“根据结果再做决策/追加任务”的逻辑，失败只会降级到旧工具或返回错误。`backend/app/services/agent/execution/task_runner.py:70-195`
+- 规划后处理证据：`PlanGenerator._post_process_plan` 只对规划结果做“修正/拆分/补全/强制探索”等静态规则，不涉及运行时自我修正；任何规则都在执行前完成。`backend/app/services/agent/planning/plan_generator.py:501-543`
+- 仅有的“局部自主性”证据：探索工具内部存在“工具循环决策”（例如 explore_content 的 tool loop 决策与 stop），但它局限在 explore 工具内部，不能改变全局任务图。`backend/app/services/agent/tools/explore_tools.py:2735-2790`
+
+#### 任务列表过少导致链路崩盘排查（本次，待确认）
+
+- [ ] 通读 `INFO.md` 中该条执行轨迹，标记任务列表/步骤数量与失败点
+- [ ] 回溯该条请求的 planning 产物与任务拆分规则（PlanGenerator/plan_schema），解释为何只生成 2 个任务
+- [ ] 回溯执行阶段（ParallelExecutor/TaskRunner）与结果汇总路径，确认缺少“执行中追加任务/重试探索”的机制
+- [ ] 给出直白结论：问题根因 + 受影响链路 + 若有自主决策应插入的位置（含证据）
+
+#### 参考 OpenCode 的自主决策机制梳理（本次，待确认）
+
+- [x] 抽取 OpenCode 的工具调用主循环、停止条件、权限/HITL、子代理与记忆压缩机制证据
+- [x] 对照当前项目 Plan-Executor 链路，标出“缺失的运行时决策点”
+- [x] 输出直白梳理：OpenCode 做法清单 + 可迁移要点 + 在本项目的最小插入位置（含证据）
+
+#### review
+
+- OpenCode 的“运行时决策主循环”证据：`SessionPrompt.loop` 在 while(true) 中持续处理消息/任务，并在 `SessionProcessor.process` 里解析 tool-call/result 形成“调用→观察→继续”的循环；`LLM.stream` 将 tools 作为 activeTools 提供给模型，模型可在多轮中决定是否继续调用工具。`opencode/packages/opencode/src/session/prompt.ts:258-625`、`opencode/packages/opencode/src/session/processor.ts:45-221`、`opencode/packages/opencode/src/session/llm.ts:162-216`
+- 停止条件与防死循环：`SessionProcessor` 在重复 tool-call 时触发 `doom_loop` 权限询问（HITL），并在 `finish`/`blocked` 时中止循环。`opencode/packages/opencode/src/session/processor.ts:146-218`
+- 子代理（运行时委派）：`TaskTool` 可创建子会话并调用 subagent，主循环遇到 subtask 会执行 task 工具并回流结果。`opencode/packages/opencode/src/tool/task.ts:23-188`、`opencode/packages/opencode/src/session/prompt.ts:316-455`
+- 权限/HITL：`PermissionNext.ask` 将“是否允许”作为运行时决策点（ask/allow/deny），`Question.ask` 支持显式问题确认。`opencode/packages/opencode/src/permission/next.ts:96-156`、`opencode/packages/opencode/src/question/index.ts:63-120`
+- 记忆压缩：`SessionCompaction` 在上下文溢出时触发压缩/剪枝，属于运行时状态管理。`opencode/packages/opencode/src/session/compaction.ts:30-193`
+
+- 对照本项目的缺失点：当前链路是“先生成计划 tasks → 执行 tasks → 汇总”，执行阶段没有“再决策/再规划”的入口；执行器只消费静态 tasks 队列。`backend/app/services/agent/langgraph_agent.py:898-1169`、`backend/app/services/agent/execution/parallel_executor.py:51-225`、`backend/app/services/agent/planning/plan_schema.py:19-42`
+
+- 可迁移要点（最小插入位）：
+  1) 在 `ParallelExecutor` 的“单任务完成点”插入 Decision Hook：基于 task result 决定是否追加“定位/重试/补证据”任务（对应 OpenCode 的 tool-call→observe→continue 回路）。`backend/app/services/agent/execution/parallel_executor.py:205-223`  
+  2) 在 `TaskRunner.execute_task` 返回结果后增加“结果判定→追加任务”的轻量策略（等价于 OpenCode 的运行时工具循环决策）。`backend/app/services/agent/execution/task_runner.py:171-195`
+  3) 通过现有 HITL/Question 机制作为“继续/停止”决策点（对标 OpenCode 的 Permission/Question）。`backend/app/services/agent/tools/hitl.py`（运行时 checkpoint 已存在，只缺与执行循环的绑定）
+
+#### 最小改造方案：Decision Hook（保持 Plan-Executor）（本次，待确认）
+
+- [x] 明确 Decision Hook 触发条件：搜索未命中/定位失败/ambiguous_locator（从现有错误格式与轨迹证据归纳）
+- [x] 设计最小插入点：在 ParallelExecutor 单任务完成后判定并“追加补救任务”，保持原任务列表不改
+- [x] 设计补救任务模板：针对 explore_content 未命中/ambiguous_locator 给出最小补任务（如精确搜索/定位/再读上下文）
+- [x] 给出风险控制与停止条件：最大补任务次数、同任务去重、HITL 触发点
+- [x] 输出直白方案说明（含伪代码/步骤）并在 todo.md 追加 review
+
+#### review
+
+- 触发条件证据：定位失败/歧义来自 `ToolExecutor._select_locate_target` 的 `missing_locate_targets/ambiguous_locator/locator_not_found/locator_index_out_of_range` 错误；探索未命中可从 explore_content 的 `missing_keywords` 字段判断。`backend/app/services/agent/execution/tool_executor.py:1337-1444`、`backend/app/services/agent/tools/explore_tools.py:3793-3801`
+- 最小插入点：`ParallelExecutor._execute_with_dag` 在单任务完成处追加 Decision Hook（对 result 进行判定并补任务），不改规划/执行大结构。`backend/app/services/agent/execution/parallel_executor.py:205-223`
+- 补救任务模板：使用 `explore_content(work_id, target_task, search_keywords, require_paragraph_index=True, force_global_search)` 作为“补证据/补定位”任务；explore_content 明确支持 search_keywords 与 require_paragraph_index。`backend/app/services/agent/tools/explore_tools.py:5024-5053`
+- 风险控制：新增 decision_budget（最多 1-2 次补任务）、按 tool+params 去重、重复 ambiguous_locator 转入 HITL/Question 询问或直接提示用户指定第几处；避免无限循环。
+
+#### Agentic AI 强自主性重构（本次，待确认）
+
+- [ ] 定义目标架构与边界：Goal/Policy/Action Loop + 运行时评估/策略排序 + 预算/步数/安全白名单
+- [ ] 盘点现有模块并映射：planning/execution/tools/memory/stream/hitl/context → 新循环中的角色
+- [ ] 设计运行时状态模型：AgentState（目标/策略候选/工具调用历史/证据/风险/成本）
+- [ ] 设计决策循环：Observe → Propose → Evaluate → Act → Reflect（含 stop 条件）
+- [ ] 设计策略生成/评估接口：多策略候选 + 评分/优先级 + 失败回退
+- [ ] 设计记忆与上下文：短期工作记忆 + 历史压缩 + 证据缓存/失效策略
+- [ ] 设计 HITL 与安全策略：决策点、审批触发、回滚与审计
+- [ ] 输出迁移路径与阶段落地：兼容旧 Plan-Executor、Feature Flag、回滚方案
+- [ ] 输出直白结论与落地清单（含证据对照）
+
+#### smart_continue 续写插入位置异常排查（待确认）
+
+- [x] 通读 smart_continue → operate_apply → apply_chapter_edit 链路，确认 append 写回逻辑与返回字段
+- [x] 通读 plan_generator 对 smart_continue 的 apply 任务构建，核对是否带入 paragraph_index/node_id
+- [x] 通读 stream_event_handler 对 append/continue 的 editor_action 构造，确认前端是否接收定位字段
+- [x] 通读 NovelEditor 修订显示流程（continue 定位优先级），确认定位字段如何影响插入位置
+- [x] 对照 Backend.md/INFO.md 证据，给出“为何插在中间”的核心原因链路
+- [x] 输出直白结论与最小修复建议，并在 todo.md 追加 review
+
+#### review
+
+- 计划器对 smart_continue 也注入定位字段：`_build_apply_task` 在 `operation=append` 情况下仍会把 `node_id/paragraph_index`（来自 locate/explore）写入 operate_apply 参数。`backend/app/services/agent/planning/plan_generator.py:2060-2145`
+- 事件层把这些字段原样下发：`stream_event_handler` 构造 `editor_action` 时无条件携带 `node_id/paragraph_index`，append 也会带到前端。`backend/app/services/agent/stream/stream_event_handler.py:372-409`
+- 前端续写定位优先级导致“插中间”：`NovelEditor` 在 continue 模式下优先使用 `nodeId/paragraphIndex` 定位，其次才是“末尾默认追加”，因此只要带了定位字段就会插到该段而不是末尾。`src/components/editor/NovelEditor.tsx:1043-1218`
+- 后端 append 实际是拼接末尾：`apply_chapter_edit` 对 append 执行 `old_content + actual_content`，说明“插中间”不是写回逻辑，而是前端修订展示定位导致。`backend/app/services/agent/tools/editor_tools.py:510-546`
+- 日志链路吻合：Backend.md 显示先 explore_content → smart_continue → operate_apply(append)，在此链路下规划器会引入 explore 的段落索引（推断），与“中间插入”的现象一致。`Backend.md:120-182`（推断基于规划器代码）
+
+#### smart_continue 续写插入位置修复（待确认）
+
+- [x] 明确修复策略：append 不应携带定位字段；continue 展示只允许末尾追加
+- [x] 后端：plan_generator 构造 append 任务时不注入 `node_id/paragraph_index/__auto_locator`
+- [x] 后端：stream_event_handler 对 append 的 editor_action 清空定位字段（双保险）
+- [x] 前端：continue 修订展示忽略定位字段，强制末尾插入
+- [ ] 自检：对照续写链路日志与界面行为，确认不再插中段
+- [x] 在 todo.md 追加 review（改动点与风险）
+
+#### review
+
+- 续写 append 不再携带定位字段：`_build_apply_task` 对 `smart_continue` 跳过注入 `node_id/paragraph_index/__auto_locator`，避免续写被当作“插入到某段”。`backend/app/services/agent/planning/plan_generator.py:2060-2145`
+- 事件层双保险：对 append 的 `editor_action` 清空 `before_anchor/after_anchor/node_id/paragraph_index`，防止旧链路残留字段误导前端。`backend/app/services/agent/stream/stream_event_handler.py:379-411`
+- 前端 continue 强制末尾：修订展示对 `continue` 忽略所有定位字段，仅保留“末尾追加”默认行为；定位逻辑仅保留给 `insert/modify`。`src/components/editor/NovelEditor.tsx:1043-1218`
+- 风险与影响：append 不再支持“续写到特定段落”，如需中段补写应改用 `smart_insert` + 定位流程；这与产品语义一致。
+
+#### smart_insert 模糊定位根因修复（待确认）
+
+- [x] 复盘 ambiguous_locator 触发路径与 locate_targets 生成逻辑
+- [x] 设计根因修复：为 smart_insert 自动补 locate_content，使用插入锚点短语定位
+- [x] 实现：规划后处理自动插入 locate_content 并绑定 smart_insert 依赖
+- [ ] 自检：第三个测试 prompt 重新执行，smart_insert 不再返回 ambiguous_locator
+- [x] 在 todo.md 追加 review（改动点与风险）
+
+#### review
+
+- 根因：smart_insert 仅依赖 explore_content 的 locate_targets；当定位短语（如“系统启动”）未进入 locate_targets 且候选多条时，ToolExecutor 触发 `ambiguous_locator` 并中止 smart_insert 执行。`backend/app/services/agent/execution/tool_executor.py:1320-1450`、`backend/app/services/agent/tools/explore_tools.py:1676-1785`
+- 修复：规划后处理自动为 smart_insert 补一个 `locate_content` 任务（query=插入锚点短语），并把 smart_insert 依赖绑定到该定位结果，避免在多候选中盲选。`backend/app/services/agent/planning/plan_generator.py`
+- 影响：当用户未指定“第几处/具体段落”但给出锚点短语时，系统会先定位后插入；若定位仍不唯一，会在 locate_content 层明确返回候选而不是直接 ambiguous。
+
+#### 深度探索 Agent 板块设计模式并评审计划可行性（待确认）
+
+- [x] 通读 Agent 架构相关文档（02_技术架构设计、03_Memory系统设计、04_工具系统设计、langgraph_agent重构/00-overview、06-interrupt-resume、explore/01-overview 等），提取设计模式证据
+- [x] 盘点后端核心链路：langgraph_agent（Planning 主链路）、planning/execution/tools/stream/memory/context/hitl，整理实际运行环路与 AgentState 字段
+- [x] 盘点前端对接：useAgentChatStream/ExecutionFlow 事件依赖，确认改动对 SSE/FlowEvent 的影响
+- [x] 对照你的计划输出映射表与缺口清单（Goal/Policy/Action Loop、策略排序、预算/白名单、HITL/安全、迁移路径）
+- [x] 给出直白可行性结论与落地清单（含风险/前置条件），并在 todo.md 追加 review
+
+#### review
+
+- 文档设计模式证据：架构文档定义了“LangGraph 工作流+规划/写作/反思/质量循环/HITL/版本管理”等节点与分层架构；中断恢复文档提出 interrupt/resume 与前端 SSE 事件格式；Explore 文档明确 `explore_content` 是内部自主循环的 mini-agent；工具系统设计强调标准化工具注册/类型验证。`docs/Agent/Primary-level-completed/02_技术架构设计.md:20-107`、`docs/langgraph_agent重构/06-interrupt-resume.md:10-176`、`docs/explore/01-overview.md:12-61`、`docs/Agent/Primary-level-completed/04_工具系统设计.md:25-104`
+- 实际后端链路证据：当前运行链路是 `/chat/stream → chat_with_planning → PlanGenerator → 执行 → ResponseBuilder`，属于静态 Plan-Execute；`AgentState` 仅包含 messages/work_id/chapter_id/intent/context/agent_steps 等，没有“目标/策略候选/评估/预算/风险”字段。`backend/app/services/agent/langgraph_agent.py:3-60`、`backend/app/services/agent/langgraph_agent.py:679-1267`
+- 前端 SSE/FlowEvent 依赖：前端 `agentApi` 解析固定事件类型（plan/task_start/task_done + flow events: step_start/step_complete/output_ready/summary/explore_round 等），`useAgentChatStream` 将其映射为 ExecutionFlow；当前未处理 interrupt/resume 事件。`src/services/agentApi.ts:168-377`、`src/hooks/useAgentChatStream.ts:341-528`、`src/components/agent/ExecutionFlow/index.tsx:71-200`
+- 缺口清单（对照 Agentic AI 目标）：
+  1) **动态任务分解/目标调整**：缺运行时决策循环，执行阶段只消费静态 tasks；需要引入 Observe→Propose→Evaluate→Act→Reflect 主循环。
+  2) **策略生成与优先级**：无策略候选/评分机制；目前只有 PlanGenerator 一次性产出 tasks。
+  3) **持续记忆与反馈闭环**：已有 ContextManager/MemoryPack，但未将“评估/反思”写回作为决策信号。
+  4) **环境感知与策略反馈**：只有 explore_content 内部循环具备局部反馈，未上升为全局 Agent Loop。
+  5) **HITL/安全**：已有 HITL 工具，但未与“运行时决策点”绑定；interrupt/resume 仍停留在文档设计。
+- 可行性结论：技术上可行（已有工具注册、上下文管理、FlowEvent、HITL 组件与 explore_content 的 mini-agent 经验），但要达“强自主性”必须重构主循环与事件协议，属于中高代价变更；最大风险在前端 SSE 事件兼容与执行轨迹重塑。
+- 落地清单（高层）：
+  1) 新增 Agentic 主循环与 AgentState（目标/策略/评估/预算/证据/风险）。
+  2) 把 PlanGenerator 降级为“策略生成器”而非唯一计划源。
+  3) 新增策略评估器（质量/风险/成本评分）与 stop 条件。
+  4) 扩展 SSE：加入 decision/interrupt/resume 事件，并更新 ExecutionFlow 映射。
+  5) 保留 Plan-Executor 作为 feature flag 回滚路径。
+
+#### 深度研读 opencode agent 设计模式（待确认）
+
+- [x] 通读 agent/会话/工具/插件/权限/ACP 等核心模块，标记设计模式证据位置
+- [x] 归纳该 agent 的主要设计模式，并逐条对应代码证据
+- [x] 输出直白结论：核心模式、为何这样设计、局限点
+
+#### review
+
+- 已定位核心证据文件：主循环与工具调用在 `opencode/packages/opencode/src/session/prompt.ts`、`opencode/packages/opencode/src/session/processor.ts`、`opencode/packages/opencode/src/session/llm.ts`；工具命令与注册在 `opencode/packages/opencode/src/tool/tool.ts`、`opencode/packages/opencode/src/tool/registry.ts`。
+- 已定位事件/插件/权限/协议适配证据：事件总线在 `opencode/packages/opencode/src/bus/index.ts`；插件钩子在 `opencode/packages/opencode/src/plugin/index.ts`；权限规则在 `opencode/packages/opencode/src/permission/next.ts`；ACP 适配在 `opencode/packages/opencode/src/acp/agent.ts`；多 Provider 工厂/策略在 `opencode/packages/opencode/src/provider/provider.ts`。
+
+#### 项目 Agent 死板根因深度探索（待确认）
+
+- [x] 通读现有 Agent 主链路（planning → execution → response）并列出“固定执行/无再决策”的证据
+- [x] 深挖执行器/任务调度（ParallelExecutor/TaskRunner/PlanSchema）确认任务集合是否静态、无运行时追加
+- [x] 盘点工具/探索/HITL 是否存在“局部自主性”，并说明为何未上升为全局决策
+- [x] 输出直白结论：死板的本质原因 + 受影响链路 + 证据清单
+
+#### review
+
+- 主链路证据：`chat_with_planning` 明确按阶段执行：规划 `PlanGenerator.generate_plan` → 执行 `_execute_tasks_in_parallel(tasks=plan_data["tasks"])` → 汇总 `_build_final_response`，执行阶段只消费规划产生的 tasks，没有“执行中再生成/追加任务”的入口。`backend/app/services/agent/langgraph_agent.py:898-1235`
+- 任务集合是静态 DAG：`PlanSchema` 只包含 `tasks/depends_on`，无“runtime replan/decision”字段；`ParallelExecutor._execute_with_dag` 只基于已生成的 `tasks` 建队列并执行，不会新增任务。`backend/app/services/agent/planning/plan_schema.py:19-42`、`backend/app/services/agent/execution/parallel_executor.py:139-225`
+- 执行器职责单一：`TaskRunner.execute_task` 只是“调用工具+参数准备+兜底/降级”，不具备“根据结果追加任务”的逻辑；`ParameterResolver` 只解析占位符依赖。`backend/app/services/agent/execution/task_runner.py:70-195`、`backend/app/services/agent/parameter_resolver.py:369-425`
+- 仅有局部自主性：`explore_content` 内部存在“round plan → 多轮工具调用”的 mini-loop（局部自主），但该循环被封装在工具内部，无法影响全局任务图；HITL 主要是“结果确认事件”，不改变任务列表。`backend/app/services/agent/tools/explore_tools.py:4331-4410`、`backend/app/services/agent/langgraph_agent.py:1566-1607`

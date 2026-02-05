@@ -515,7 +515,17 @@ async def check_story_consistency(
             checker.track_element(element)
 
     # 执行检查
-    return await checker.check_consistency(work_id, chapters)
+    report = await checker.check_consistency(work_id, chapters)
+    try:
+        from app.services.agent.utils.monitoring import increment_counter
+        increment_counter(
+            "worldview_conflicts_total",
+            value=report.total_inconsistencies,
+            labels={"checker": "story_bible"}
+        )
+    except Exception:
+        pass
+    return report
 
 
 # ==================== @tool 包装（2026-01-09）====================

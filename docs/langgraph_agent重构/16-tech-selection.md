@@ -23,12 +23,12 @@
 
 ---
 
-## 二、Deep Agents vs LangGraph 原生
+## 二、外部代理框架 vs LangGraph 原生
 
-### 2.1 Deep Agents 框架
+### 2.1 外部代理框架
 
 **官方描述**:
-> Deep Agents (deepagents 库) 是 LangChain 团队推出的用于构建深度代理的框架。
+> 外部代理框架提供 Sub-agents、上下文压缩、规划工具与文件系统集成等能力。
 
 **核心功能**:
 - Sub-agents 管理
@@ -42,17 +42,14 @@
 
 ```python
 # 验证代码
-from deepagents import create_deep_agent
 from langgraph.types import interrupt, Command  # ← 关键发现
-
-# interrupt 和 Command 来自 langgraph.types，不是 deepagents
 ```
 
-**结论**: `interrupt()` 和 `Command(resume=...)` 是 **LangGraph 原生功能**，不需要 deepagents 库。
+**结论**: `interrupt()` 和 `Command(resume=...)` 是 **LangGraph 原生功能**，不需要额外代理库。
 
 ### 2.3 对比分析
 
-| 功能 | deepagents | LangGraph 原生 |
+| 功能 | 外部框架 | LangGraph 原生 |
 |------|-----------|---------------|
 | interrupt/resume | ✅ 封装 | ✅ 原生支持 |
 | Sub-agents | ✅ 内置 | ⚠️ 需自行实现 |
@@ -66,7 +63,7 @@ from langgraph.types import interrupt, Command  # ← 关键发现
 | 场景 | 推荐 |
 |------|------|
 | 只需 interrupt/resume | **LangGraph 原生** |
-| 需要完整 Deep Agent 能力 | deepagents |
+| 需要完整代理框架能力 | 外部框架 |
 | 本项目 | **LangGraph 原生** |
 
 **理由**: 本项目核心需求是 HITL + 任务调整，只需 interrupt 机制，无需引入完整框架。

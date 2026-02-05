@@ -84,7 +84,7 @@ export function extractKeywordsAsTitle(message: string): string | null {
  * @param mode 会话模式（支持新旧命名）
  * @returns 带模式前缀的默认标题
  */
-export function getDefaultTitleByMode(mode?: 'plan' | 'agent' | 'planning' | 'react'): string {
+export function getDefaultTitleByMode(mode?: 'plan' | 'chat' | 'planning'): string {
   const timestamp = new Date().toLocaleTimeString('zh-CN', {
     hour: '2-digit',
     minute: '2-digit'
@@ -94,9 +94,8 @@ export function getDefaultTitleByMode(mode?: 'plan' | 'agent' | 'planning' | 're
     case 'plan':
     case 'planning':
       return `规划对话 ${timestamp}`;
-    case 'agent':
-    case 'react':
-      return `智能对话 ${timestamp}`;
+    case 'chat':
+      return `对话 ${timestamp}`;
     default:
       return `新对话 ${timestamp}`;
   }
@@ -112,7 +111,7 @@ export function getDefaultTitleByMode(mode?: 'plan' | 'agent' | 'planning' | 're
  * @param mode 会话模式（支持新旧命名）
  * @returns 生成的标题
  */
-export function smartGenerateTitle(message: string, mode?: 'plan' | 'agent' | 'planning' | 'react'): string {
+export function smartGenerateTitle(message: string, mode?: 'plan' | 'chat' | 'planning'): string {
   if (!message || message.trim().length === 0) {
     return getDefaultTitleByMode(mode);
   }

@@ -2,7 +2,7 @@
 """
 任务执行器
 
-负责执行单个任务（DeepAgent 模式使用）
+负责执行单个任务
 
 从 langgraph_agent.py 拆分，减少主文件复杂度
 """
@@ -78,7 +78,7 @@ class TaskRunner:
         conversation_id: Optional[str] = None,  # v8.0: 添加 conversation_id 用于操作日志
         state: Optional[Dict[str, Any]] = None  # 🆕 2026-01-12: 添加 state 用于章节缓存
     ) -> str:
-        """执行单个任务（DeepAgent 模式使用）
+        """执行单个任务
 
         Args:
             task: 任务配置
@@ -403,7 +403,7 @@ class TaskRunner:
         chapter_id: str,
         context: str
     ) -> str:
-        """DeepAgent 模式的降级执行（使用 @tool）
+        """降级执行（使用 @tool）
 
         Args:
             tool_name: 工具名称

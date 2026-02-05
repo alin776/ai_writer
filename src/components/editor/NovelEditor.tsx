@@ -1117,65 +1117,72 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
       try {
         // 🆕 v8.3: 定位优先级：nodeId > paragraphIndex > 锚点 > position(兜底) > 默认
-        const preferStructuredLocate = type === 'insert' || type === 'continue';
+        const preferStructuredLocate = type === 'insert';
         let resolvedPosition = preferStructuredLocate ? undefined : position;
 
-        // 1. 尝试通过 nodeId 定位（最高优先级）
-        if (!resolvedPosition && nodeId) {
-          const nodeResult = (window as any).__editorNodeAPI?.findByNodeID(nodeId);
-          if (nodeResult?.success) {
-            resolvedPosition = nodeResult.position;
-            console.log('[NovelEditor] nodeId 定位成功:', nodeId, resolvedPosition);
-          }
+        // 续写始终追加到末尾，忽略定位字段
+        if (type === 'continue') {
+          resolvedPosition = undefined;
         }
 
-        // 2. 尝试通过 paragraphIndex 定位（从 getAllNodes 获取 nodeId）
-        if (!resolvedPosition && paragraphIndex !== undefined) {
-          const nodes = (window as any).__editorNodeAPI?.getAllNodes();
-          if (nodes && nodes[paragraphIndex]) {
-            const targetNodeId = nodes[paragraphIndex].id;
-            const nodeResult = (window as any).__editorNodeAPI?.findByNodeID(targetNodeId);
+        if (type !== 'continue') {
+          // 1. 尝试通过 nodeId 定位（最高优先级）
+          if (!resolvedPosition && nodeId) {
+            const nodeResult = (window as any).__editorNodeAPI?.findByNodeID(nodeId);
             if (nodeResult?.success) {
               resolvedPosition = nodeResult.position;
-              console.log('[NovelEditor] paragraphIndex 定位成功:', paragraphIndex, '→', targetNodeId, resolvedPosition);
+              console.log('[NovelEditor] nodeId 定位成功:', nodeId, resolvedPosition);
             }
           }
-        }
 
-        // 3. 如果没有 position 但有锚点，使用锚点定位
-        if (!resolvedPosition && (beforeAnchor || afterAnchor)) {
-          const docText = editor.state.doc.textContent;
-
-          if (type === 'modify' && original) {
-            // 修改模式：定位原文位置
-            const result = locateRevisionPosition(docText, {
-              originalText: original,
-              beforeAnchor,
-              afterAnchor
-            });
-            if (result.success && result.position) {
-              resolvedPosition = result.position;
-              console.log('[NovelEditor] 锚点定位成功 (modify):', result.method, resolvedPosition);
-            }
-          } else if (type === 'continue' || type === 'insert') {
-            // 续写/插入模式：定位插入点
-            const result = locateInsertPosition(docText, { beforeAnchor, afterAnchor });
-            if (result.success && result.position) {
-              const isAnchorFallback = (beforeAnchor || afterAnchor) && result.method === 'exact';
-              if (!isAnchorFallback || type === 'continue') {
-                resolvedPosition = result.position;
-                console.log('[NovelEditor] 锚点定位成功 (insert):', result.method, resolvedPosition);
-              } else {
-                console.warn('[NovelEditor] 锚点定位失败，插入已取消');
+          // 2. 尝试通过 paragraphIndex 定位（从 getAllNodes 获取 nodeId）
+          if (!resolvedPosition && paragraphIndex !== undefined) {
+            const nodes = (window as any).__editorNodeAPI?.getAllNodes();
+            if (nodes && nodes[paragraphIndex]) {
+              const targetNodeId = nodes[paragraphIndex].id;
+              const nodeResult = (window as any).__editorNodeAPI?.findByNodeID(targetNodeId);
+              if (nodeResult?.success) {
+                resolvedPosition = nodeResult.position;
+                console.log('[NovelEditor] paragraphIndex 定位成功:', paragraphIndex, '→', targetNodeId, resolvedPosition);
               }
             }
           }
-        }
 
-        // 3.5 insert/continue 下 position 仅作兜底
-        if (!resolvedPosition && preferStructuredLocate && position) {
-          resolvedPosition = position;
-          console.log('[NovelEditor] 使用 position 兜底:', resolvedPosition);
+          // 3. 如果没有 position 但有锚点，使用锚点定位
+          if (!resolvedPosition && (beforeAnchor || afterAnchor)) {
+            const docText = editor.state.doc.textContent;
+
+            if (type === 'modify' && original) {
+              // 修改模式：定位原文位置
+              const result = locateRevisionPosition(docText, {
+                originalText: original,
+                beforeAnchor,
+                afterAnchor
+              });
+              if (result.success && result.position) {
+                resolvedPosition = result.position;
+                console.log('[NovelEditor] 锚点定位成功 (modify):', result.method, resolvedPosition);
+              }
+            } else if (type === 'insert') {
+              // 插入模式：定位插入点
+              const result = locateInsertPosition(docText, { beforeAnchor, afterAnchor });
+              if (result.success && result.position) {
+                const isAnchorFallback = (beforeAnchor || afterAnchor) && result.method === 'exact';
+                if (!isAnchorFallback) {
+                  resolvedPosition = result.position;
+                  console.log('[NovelEditor] 锚点定位成功 (insert):', result.method, resolvedPosition);
+                } else {
+                  console.warn('[NovelEditor] 锚点定位失败，插入已取消');
+                }
+              }
+            }
+          }
+
+          // 3.5 insert 下 position 仅作兜底
+          if (!resolvedPosition && preferStructuredLocate && position) {
+            resolvedPosition = position;
+            console.log('[NovelEditor] 使用 position 兜底:', resolvedPosition);
+          }
         }
 
         // 如果仍然没有位置，使用默认值

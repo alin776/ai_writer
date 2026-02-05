@@ -2,7 +2,7 @@
 世界观 API 路由
 提供人物、地点、设定、作品规范的 CRUD 接口
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from uuid import UUID
@@ -19,13 +19,18 @@ from app.schemas.worldview import (
     CharacterCreate, CharacterUpdate, CharacterResponse,
     LocationCreate, LocationUpdate, LocationResponse,
     SettingCreate, SettingUpdate, SettingResponse,
+    GlossaryTermCreate, GlossaryTermUpdate, GlossaryTermResponse,
     WorkGuidelinesCreate, WorkGuidelinesUpdate, WorkGuidelinesResponse,
     WorldDataResponse,
     # 世界观同步相关
     WorldviewChangesResponse, ExtractChangesRequest, ScanChangesRequest,
-    ApplyChangesRequest, ApplyChangesResponse, WorldviewScanProgressResponse
+    ApplyChangesRequest, ApplyChangesResponse, WorldviewScanProgressResponse,
+    WorldviewChangeCreateRequest, WorldviewChangeApplyRequest,
+    WorldviewChangeRejectRequest, WorldviewChangeResponse,
+    WorldviewChangeListResponse
 )
 from app.services.worldview_service import WorldviewService
+from app.services.worldview_change_service import WorldviewChangeService
 from app.services.ai_guidelines_service import AIGuidelinesService
 from app.schemas.ai_guidelines import (
     AIGuidelinesCreate, AIGuidelinesUpdate, AIGuidelinesResponse,
@@ -34,6 +39,7 @@ from app.schemas.ai_guidelines import (
 from app.services.work_service import WorkService
 from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 from app.utils.datetime_utils import get_utc_now
+from app.models.worldview_change import WorldviewChangeStatus
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -152,7 +158,7 @@ def _invalidate_worldview_cache(work_id: str, cache_types: list):
             logger.error(f"⚠️ [Worldview] 缓存失效失败: {cache_key}, error={e}")
 
     # 🔧 Review修复: 如果失效的是worlddata的组成部分，自动失效worlddata聚合缓存
-    worlddata_components = {'characters', 'locations', 'settings', 'guidelines'}
+    worlddata_components = {'characters', 'locations', 'settings', 'guidelines', 'glossary'}
     if any(cache_type in worlddata_components for cache_type in cache_types):
         worlddata_key = f"worldview:worlddata:{work_id}"
         try:
@@ -190,6 +196,8 @@ async def _preheat_worldview_cache(work_id: str, cache_type: str, worldview_serv
             data = await worldview_service.get_settings_by_work(work_id)
         elif cache_type == 'guidelines':
             data = await worldview_service.get_guidelines_by_work(work_id)
+        elif cache_type == 'glossary':
+            data = await worldview_service.get_glossary_by_work(work_id)
         else:
             logger.warning(f"⚠️ [Worldview] 未知的缓存类型: {cache_type}")
             return
@@ -492,12 +500,14 @@ async def get_world_data(
     locations = await worldview_service.get_locations_by_work(work_id)
     settings = await worldview_service.get_settings_by_work(work_id)
     guidelines = await worldview_service.get_guidelines_by_work(work_id)
+    glossary = await worldview_service.get_glossary_by_work(work_id)
 
     response = WorldDataResponse(
         characters=characters,
         locations=locations,
         settings=settings,
-        guidelines=guidelines
+        guidelines=guidelines,
+        glossary=glossary
     )
 
     # 缓存聚合结果
@@ -837,6 +847,106 @@ async def delete_setting(
 
     # 🔧 2025-12-02: P0修复 - 失效缓存
     _invalidate_worldview_cache(work_id, ['settings'])
+
+
+# ==================== Glossary（术语表） 接口 ====================
+
+@router.get("/works/{work_id}/glossary", response_model=List[GlossaryTermResponse])
+async def get_glossary(
+    work_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取作品术语表 (带Redis缓存，TTL=300秒)"""
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    cache_key = f"worldview:glossary:{work_id}"
+    cached = _get_cached_worldview_data(cache_key)
+    if cached:
+        return [GlossaryTermResponse(**item) for item in cached]
+
+    worldview_service = WorldviewService(db)
+    glossary = await worldview_service.get_glossary_by_work(work_id)
+
+    _cache_worldview_data(cache_key, glossary)
+    return glossary
+
+
+@router.post("/glossary", response_model=GlossaryTermResponse, status_code=status.HTTP_201_CREATED)
+async def create_glossary_term(
+    term_data: GlossaryTermCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """创建术语"""
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(term_data.work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    worldview_service = WorldviewService(db)
+    result = await worldview_service.create_glossary_term(term_data)
+
+    _invalidate_worldview_cache(term_data.work_id, ['glossary'])
+    await _preheat_worldview_cache(str(term_data.work_id), 'glossary', worldview_service)
+
+    return result
+
+
+@router.put("/glossary/{term_id}", response_model=GlossaryTermResponse)
+async def update_glossary_term(
+    term_id: str,
+    term_data: GlossaryTermUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新术语"""
+    worldview_service = WorldviewService(db)
+    term = await worldview_service.get_glossary_term_by_id(term_id)
+    if not term:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Glossary term not found")
+
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(str(term.work_id))
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    updated = await worldview_service.update_glossary_term(term_id, term_data)
+
+    _invalidate_worldview_cache(str(term.work_id), ['glossary'])
+    await _preheat_worldview_cache(str(term.work_id), 'glossary', worldview_service)
+
+    return updated
+
+
+@router.delete("/glossary/{term_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_glossary_term(
+    term_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """删除术语"""
+    worldview_service = WorldviewService(db)
+    term = await worldview_service.get_glossary_term_by_id(term_id)
+    if not term:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Glossary term not found")
+
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(str(term.work_id))
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    work_id = str(term.work_id)
+    await worldview_service.delete_glossary_term(term_id)
+
+    _invalidate_worldview_cache(work_id, ['glossary'])
 
 
 # ==================== WorkGuidelines（作品规范） 接口 ====================
@@ -1426,6 +1536,128 @@ async def apply_worldview_changes(
     _invalidate_worldview_cache(work_id, ['characters', 'locations', 'settings'])
 
     return ApplyChangesResponse(**stats)
+
+
+@router.post("/works/{work_id}/worldview/pending", response_model=WorldviewChangeResponse)
+async def create_worldview_pending_change(
+    work_id: str,
+    request: WorldviewChangeCreateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """创建 pending 世界观变更（用于回写闭环）"""
+    # 验证作品权限
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    change_service = WorldviewChangeService(db, user_id=str(current_user.id))
+    change = await change_service.create_pending_change(
+        work_id=work_id,
+        user_id=str(current_user.id),
+        changes=request.changes.model_dump(),
+        source=request.source,
+        selected_items=request.selected_items,
+        evidence=request.evidence,
+        user_notes=request.user_notes
+    )
+    return WorldviewChangeResponse.from_orm(change)
+
+
+@router.get("/works/{work_id}/worldview/pending", response_model=WorldviewChangeListResponse)
+async def list_worldview_pending_changes(
+    work_id: str,
+    status_filter: WorldviewChangeStatus | None = Query(None, alias="status"),
+    limit: int = 50,
+    offset: int = 0,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取 pending 世界观变更列表"""
+    # 验证作品权限
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    change_service = WorldviewChangeService(db, user_id=str(current_user.id))
+    items, total = await change_service.list_changes(
+        work_id=work_id,
+        status=status_filter,
+        limit=limit,
+        offset=offset
+    )
+    return WorldviewChangeListResponse(
+        total=total,
+        items=[WorldviewChangeResponse.from_orm(item) for item in items]
+    )
+
+
+@router.post("/works/{work_id}/worldview/pending/{change_id}/apply", response_model=WorldviewChangeResponse)
+async def apply_worldview_pending_change(
+    work_id: str,
+    change_id: str,
+    request: WorldviewChangeApplyRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """应用 pending 世界观变更并递增版本"""
+    # 验证作品权限
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    change_service = WorldviewChangeService(db, user_id=str(current_user.id))
+    change = await change_service.get_change_by_id(change_id)
+    if not change or str(change.work_id) != str(work_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Change not found")
+
+    await change_service.apply_change(
+        change=change,
+        applied_by=str(current_user.id),
+        selected_items_override=request.selected_items,
+        user_notes=request.user_notes
+    )
+
+    _invalidate_worldview_cache(work_id, ['characters', 'locations', 'settings'])
+    return WorldviewChangeResponse.from_orm(change)
+
+
+@router.post("/works/{work_id}/worldview/pending/{change_id}/reject", response_model=WorldviewChangeResponse)
+async def reject_worldview_pending_change(
+    work_id: str,
+    change_id: str,
+    request: WorldviewChangeRejectRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """拒绝 pending 世界观变更"""
+    # 验证作品权限
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    change_service = WorldviewChangeService(db, user_id=str(current_user.id))
+    change = await change_service.get_change_by_id(change_id)
+    if not change or str(change.work_id) != str(work_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Change not found")
+
+    change = await change_service.reject_change(
+        change=change,
+        user_notes=request.user_notes
+    )
+    return WorldviewChangeResponse.from_orm(change)
 
 
 @router.get("/works/{work_id}/worldview/scan-progress", response_model=WorldviewScanProgressResponse)

@@ -1,380 +1,108 @@
-﻿INFO:     127.0.0.1:64499 - "GET /api/v1/works?skip=0&limit=100 HTTP/1.1" 200 OK
-2026-02-04 11:25:19,688 - app.api.v1.import_routes - INFO - 用户 79913e7e-d5cd-4e09-bce6-ca6639bd8456 预览导入文件: 人在诸天，摆烂成帝.txt, 格式: txt
-2026-02-04 11:25:19,773 - app.api.v1.import_routes - INFO - 预览成功: 作品=人在诸天，摆烂成帝, 章节数=100
-INFO:     127.0.0.1:57611 - "POST /api/v1/works/import/preview HTTP/1.1" 200 OK
-2026-02-04 11:25:28,719 - app.api.v1.import_routes - INFO - 用户 79913e7e-d5cd-4e09-bce6-ca6639bd8456 导入文件: 人在诸天，摆烂成帝.txt, 格式: txt
-2026-02-04 11:25:28,720 - app.api.v1.import_routes - INFO - [导入参数] auto_extract_worldview=True, scan_mode=full, format=txt, background_tasks=True
-2026-02-04 11:25:28,721 - app.services.import_service - INFO - 用户 79913e7e-d5cd-4e09-bce6-ca6639bd8456 开始导入文本数据
-2026-02-04 11:25:32,375 - app.core.redis - INFO - ✅ Redis connected: redis://localhost:6379/0
-2026-02-04 11:25:32,387 - app.services.import_service - INFO - 文本导入完成: 作品ID=24998c56-d1e1-4ffa-93a7-e86dddf98b27, 章节=100
-2026-02-04 11:25:32,451 - app.api.v1.import_routes - INFO - [世界观提取] 已为作品 24998c56-d1e1-4ffa-93a7-e86dddf98b27 排队世界观提取任务
-2026-02-04 11:25:32,454 - app.api.v1.import_routes - INFO - 导入成功: 作品ID=24998c56-d1e1-4ffa-93a7-e86dddf98b27, 章节=100, 人物=0
-2026-02-04 11:25:32,461 - app.api.middleware.monitoring_middleware - INFO - API请求完成: POST /api/v1/works/import
-INFO:     127.0.0.1:55354 - "POST /api/v1/works/import HTTP/1.1" 200 OK
-2026-02-04 11:25:32,465 - app.services.worldview_extraction_runner - INFO - [世界观提取] 开始为作品 24998c56-d1e1-4ffa-93a7-e86dddf98b27 提取世界观
-2026-02-04 11:25:32,630 - app.services.ai.prompts - INFO - Prompts loaded successfully from D:\Java\ai_writer\backend\app\services\ai\prompts\default.json
-2026-02-04 11:25:32,635 - app.services.agent.model_selector - INFO - ModelSelector 初始化完成, 成本优化: True, 模型层级: 3
-2026-02-04 11:25:32,636 - app.services.ai.http_ai_service - INFO - ModelSelector 已启用
-2026-02-04 11:25:32,641 - app.services.ai.http_ai_service - INFO - AILogService 已启用 (用于成本追踪)
-2026-02-04 11:25:35,448 - app.services.ai.http_ai_service - INFO - HTTP AI Service 初始化成功，Base URL: https://204992.xyz:8443/v1, Model: gemini-2.5-pro, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: True, CostTracking: True
-2026-02-04 11:25:35,451 - app.services.ai.http_ai_service - INFO - AILogService 已启用 (用于成本追踪)
-2026-02-04 11:25:37,941 - app.services.ai.http_ai_service - INFO - HTTP AI Service 初始化成功，Base URL: https://204992.xyz:8443/v1, Model: gemini-2.5-flash, Timeout: 120s, HTTP/2: Enabled (多路复用), ModelSelector: False, CostTracking: True
-2026-02-04 11:25:38,157 - app.services.ai.http_ai_service - WARNING - [ModelSelector] ⚠️ 未启用(model_selector=None)，使用默认模型: gemini-2.5-flash
-INFO:     127.0.0.1:50115 - "GET /api/v1/works?skip=0&limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51720 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-2026-02-04 11:26:10,611 - app.services.worldview_sync_service - INFO - [世界观同步] 解析结果: 新人物=7, 新地点=10, 新设定=14
-2026-02-04 11:26:10,717 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
-2026-02-04 11:26:10,719 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=world_building, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: world_building; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
-INFO:     127.0.0.1:62551 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54606 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49617 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63282 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51002 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59449 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50597 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51803 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49390 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62188 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-2026-02-04 11:27:04,483 - app.services.worldview_sync_service - INFO - [世界观同步] 解析结果: 新人物=10, 新地点=6, 新设定=8
-2026-02-04 11:27:04,588 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
-2026-02-04 11:27:04,588 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=world_building, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: world_building; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
-INFO:     127.0.0.1:64980 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49454 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64599 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58431 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55434 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54658 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64309 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49817 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57193 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49515 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-2026-02-04 11:28:05,178 - app.services.worldview_sync_service - INFO - [世界观同步] 解析结果: 新人物=13, 新地点=5, 新设定=8
-2026-02-04 11:28:05,276 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
-2026-02-04 11:28:05,276 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=world_building, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: world_building; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
-INFO:     127.0.0.1:53862 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61216 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59599 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58327 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-2026-02-04 11:29:02,771 - app.services.worldview_sync_service - INFO - [世界观同步] 解析结果: 新人物=14, 新地点=4, 新设定=7
-2026-02-04 11:29:02,849 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
-2026-02-04 11:29:02,849 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=world_building, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: world_building; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
-INFO:     127.0.0.1:60706 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64337 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51698 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59824 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56150 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62820 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56832 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-2026-02-04 11:30:16,052 - app.services.worldview_sync_service - INFO - [世界观同步] 解析结果: 新人物=11, 新地点=7, 新设定=6
-2026-02-04 11:30:16,113 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
-2026-02-04 11:30:16,113 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=world_building, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: world_building; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
-2026-02-04 11:31:04,929 - app.services.worldview_sync_service - INFO - [世界观同步] 解析结果: 新人物=6, 新地点=6, 新设定=8
-2026-02-04 11:31:05,010 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
-2026-02-04 11:31:05,010 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=world_building, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: world_building; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
-2026-02-04 11:32:15,815 - app.services.worldview_sync_service - INFO - [世界观同步] 解析结果: 新人物=12, 新地点=10, 新设定=8
-2026-02-04 11:32:15,863 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
-2026-02-04 11:32:15,864 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=world_building, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: world_building; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
-2026-02-04 11:33:29,907 - app.services.worldview_sync_service - INFO - [世界观同步] 解析结果: 新人物=11, 新地点=4, 新设定=10
-2026-02-04 11:33:29,996 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
-2026-02-04 11:33:29,996 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=world_building, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: world_building; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
-INFO:     127.0.0.1:65305 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53626 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53028 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-2026-02-04 11:34:30,389 - app.services.ai.http_ai_service - ERROR - API 错误: 504, <!DOCTYPE html>
-<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
-<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
-<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
-<head>
-
-<title>204992.xyz | 504: Gateway time-out</title>
-<meta charset="UTF-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-<meta http-equiv="X-UA-Compatibl
-2026-02-04 11:34:30,389 - app.services.ai.http_ai_service - ERROR - AI API 调用错误: Exception: API 请求失败: 504, <!DOCTYPE html>
-<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
-<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
-<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
-<head>
-
-<title>204992.xyz | 504: Gateway time-out</title>
-<meta charset="UTF-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-<meta http-equiv="X-UA-Compatibl
-2026-02-04 11:34:30,389 - app.services.worldview_sync_service - ERROR - AI批量提取世界观变化失败: API 请求失败: 504, <!DOCTYPE html>
-<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
-<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
-<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
-<head>
-
-<title>204992.xyz | 504: Gateway time-out</title>
-<meta charset="UTF-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-<meta http-equiv="X-UA-Compatibl
-Traceback (most recent call last):
-  File "D:\Java\ai_writer\backend\app\services\worldview_sync_service.py", line 931, in _ai_batch_extract_changes
-    async for chunk, usage in ai_service._stream_chat(
-  File "D:\Java\ai_writer\backend\app\services\ai\http_ai_service.py", line 337, in _stream_chat
-    raise Exception(f"API 请求失败: {response.status_code}, {error_msg}")
-Exception: API 请求失败: 504, <!DOCTYPE html>
-<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
-<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
-<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
-<head>
-
-<title>204992.xyz | 504: Gateway time-out</title>
-<meta charset="UTF-8" />
-<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-<meta http-equiv="X-UA-Compatibl
-2026-02-04 11:34:30,547 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
-2026-02-04 11:34:30,549 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=world_building, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: world_building; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
-INFO:     127.0.0.1:55947 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56283 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62105 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62940 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54889 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52743 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59414 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
-2026-02-04 11:35:43,807 - app.services.worldview_sync_service - INFO - [世界观同步] 解析结果: 新人物=10, 新地点=6, 新设定=10
-2026-02-04 11:35:43,848 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
-2026-02-04 11:35:43,851 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=world_building, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: world_building; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
-2026-02-04 11:37:00,001 - app.services.worldview_sync_service - INFO - [世界观同步] 解析结果: 新人物=14, 新地点=6, 新设定=10
-2026-02-04 11:37:00,111 - app.services.worldview_extraction_runner - INFO - [世界观提取] 扫描完成: 100章, 发现 61人物, 48地点, 80设定
-2026-02-04 11:37:00,177 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 林仙
-2026-02-04 11:37:00,193 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 系统10086
-2026-02-04 11:37:00,216 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 叶凡
-2026-02-04 11:37:00,231 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 荒天帝
-2026-02-04 11:37:00,238 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 庞博
-2026-02-04 11:37:00,238 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 楚终极
-2026-02-04 11:37:00,251 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 龙虎山老天师
-2026-02-04 11:37:00,257 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 狠人大帝
-2026-02-04 11:37:00,257 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 张楚岚
-2026-02-04 11:37:00,269 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 冯宝宝
-2026-02-04 11:37:00,276 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 周毅
-2026-02-04 11:37:00,282 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 刘云志
-2026-02-04 11:37:00,288 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 夏禾
-2026-02-04 11:37:00,294 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 徐三
-2026-02-04 11:37:00,302 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 无根生（冯曜）
-2026-02-04 11:37:00,310 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 张怀义（张锡林）
-2026-02-04 11:37:00,317 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 风正豪
-2026-02-04 11:37:00,325 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 吕良
-2026-02-04 11:37:00,331 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 徐三/徐四
-2026-02-04 11:37:00,340 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 赵方旭（赵总）
-2026-02-04 11:37:00,349 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 柳妍妍
-2026-02-04 11:37:00,358 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 风莎燕/风星潼
-2026-02-04 11:37:00,369 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 徐翔（狗娃子）
-2026-02-04 11:37:00,378 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 张之维（老天师）
-2026-02-04 11:37:00,387 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 赵方旭
-2026-02-04 11:37:00,396 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 巴伦
-2026-02-04 11:37:00,403 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 陆谨
-2026-02-04 11:37:00,414 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 徐翔
-2026-02-04 11:37:00,422 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 田晋中
-2026-02-04 11:37:00,431 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 风天养
-2026-02-04 11:37:00,440 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 王蔼/王并
-2026-02-04 11:37:00,452 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 马云
-2026-02-04 11:37:00,461 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 神桥老妪
-2026-02-04 11:37:00,473 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 玉鼎掌教
-2026-02-04 11:37:00,483 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 张道陵
-2026-02-04 11:37:00,495 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 周圣
-2026-02-04 11:37:00,507 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 段德
-2026-02-04 11:37:00,520 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 青帝（万青）
-2026-02-04 11:37:00,533 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 颜如玉
-2026-02-04 11:37:00,543 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 马云长老
-2026-02-04 11:37:00,554 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 老疯子
-2026-02-04 11:37:00,566 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 姜婷婷
-2026-02-04 11:37:00,577 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 青帝
-2026-02-04 11:37:00,587 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: System 10086
-2026-02-04 11:37:00,598 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 姜逸飞
-2026-02-04 11:37:00,608 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 姜老头
-2026-02-04 11:37:00,617 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 摇光弟子
-2026-02-04 11:37:00,626 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 青帝十九代孙（药老）
-2026-02-04 11:37:00,635 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 韩长老（韩立/韩易火）
-2026-02-04 11:37:00,646 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 秦瑶
-2026-02-04 11:37:00,652 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 化龙老妪
-2026-02-04 11:37:00,661 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 姬家老圣人
-2026-02-04 11:37:00,666 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 李若愚
-2026-02-04 11:37:00,679 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 华云飞
-2026-02-04 11:37:00,689 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 姬皓月
-2026-02-04 11:37:00,699 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 姬紫月
-2026-02-04 11:37:00,707 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 虚空大帝
-2026-02-04 11:37:00,715 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 狠人一脉终极护道人
-2026-02-04 11:37:00,724 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 摇光圣子
-2026-02-04 11:37:00,729 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 星峰之主
-2026-02-04 11:37:00,740 - app.services.worldview_sync_service - INFO - [世界观同步] 创建人物: 小婷婷
-2026-02-04 11:37:00,770 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 繁华的都市
-2026-02-04 11:37:00,787 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 泰山
-2026-02-04 11:37:00,799 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 一人之下世界
-2026-02-04 11:37:00,811 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 遮天宇宙
-2026-02-04 11:37:00,817 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 星空宇宙
-2026-02-04 11:37:00,826 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 仙域
-2026-02-04 11:37:00,834 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 混沌海
-2026-02-04 11:37:00,841 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 洪荒古星
-2026-02-04 11:37:00,849 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 北斗古星
-2026-02-04 11:37:00,856 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 荧惑古星
-2026-02-04 11:37:00,862 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 九龙拉棺
-2026-02-04 11:37:00,869 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 北斗葬帝星
-2026-02-04 11:37:00,878 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 荒古禁地
-2026-02-04 11:37:00,883 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 荧惑古星（火星）
-2026-02-04 11:37:00,891 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 一人之下的地球
-2026-02-04 11:37:00,898 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 大雷音寺
-2026-02-04 11:37:00,904 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 哪都通公司
-2026-02-04 11:37:00,912 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 龙虎山
-2026-02-04 11:37:00,918 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 二十四节通天谷
-2026-02-04 11:37:00,925 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 天下会
-2026-02-04 11:37:00,931 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 林仙的别墅
-2026-02-04 11:37:00,938 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 一人之下/一世之尊世界
-2026-02-04 11:37:00,944 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 北斗星域（遮天世界）
-2026-02-04 11:37:00,952 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 玉鼎洞天
-2026-02-04 11:37:00,961 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 原始废墟
-2026-02-04 11:37:00,970 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 青帝坟
-2026-02-04 11:37:00,982 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 紫府圣地
-2026-02-04 11:37:00,989 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 东荒
-2026-02-04 11:37:00,997 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 北斗星
-2026-02-04 11:37:01,002 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 生命禁区
-2026-02-04 11:37:01,011 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 北斗古星/葬帝星
-2026-02-04 11:37:01,018 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 天璇圣地
-2026-02-04 11:37:01,027 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 紫微帝星
-2026-02-04 11:37:01,035 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 摇光圣地
-2026-02-04 11:37:01,042 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 飞仙星
-2026-02-04 11:37:01,048 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 地球/星空彼岸
-2026-02-04 11:37:01,058 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 天璇石坊
-2026-02-04 11:37:01,066 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 清风小镇
-2026-02-04 11:37:01,074 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 青帝一脉/玄元门
-2026-02-04 11:37:01,081 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 魏国
-2026-02-04 11:37:01,088 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 灵墟洞天
-2026-02-04 11:37:01,095 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 太玄门
-2026-02-04 11:37:01,103 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 拙峰
-2026-02-04 11:37:01,111 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 星峰
-2026-02-04 11:37:01,119 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 北斗
-2026-02-04 11:37:01,126 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 紫山
-2026-02-04 11:37:01,136 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 火域
-2026-02-04 11:37:01,143 - app.services.worldview_sync_service - INFO - [世界观同步] 创建地点: 北域
-2026-02-04 11:37:01,172 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 时空错位与系统绑定
-2026-02-04 11:37:01,185 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 系统层级与运作
-2026-02-04 11:37:01,197 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 林仙的“摆烂”哲学
-2026-02-04 11:37:01,208 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 《遮天》宇宙世界观
-2026-02-04 11:37:01,217 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 《一人之下》世界观
-2026-02-04 11:37:01,227 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 遮天法/秘境法
-2026-02-04 11:37:01,238 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 遮天三部曲
-2026-02-04 11:37:01,250 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 仙王境
-2026-02-04 11:37:01,264 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 道祖境
-2026-02-04 11:37:01,277 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 祭道之上
-2026-02-04 11:37:01,288 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 九龙拉棺
-2026-02-04 11:37:01,300 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 八奇技：炁体源流
-2026-02-04 11:37:01,312 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 轮海秘境详解
-2026-02-04 11:37:01,322 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 雷劫
-2026-02-04 11:37:01,331 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 遮天修炼体系
-2026-02-04 11:37:01,339 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 特殊体质
-2026-02-04 11:37:01,348 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 系统与穿越
-2026-02-04 11:37:01,357 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 生命禁区与至尊
-2026-02-04 11:37:01,366 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 一人之下异人体系
-2026-02-04 11:37:01,374 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 大帝
-2026-02-04 11:37:01,386 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 打卡系统
-2026-02-04 11:37:01,394 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 内圣外王
-2026-02-04 11:37:01,401 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 八奇技
-2026-02-04 11:37:01,412 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 长生不老之谜
-2026-02-04 11:37:01,421 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 跨世界修炼体系融合
-2026-02-04 11:37:01,429 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 炁体源流
-2026-02-04 11:37:01,437 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 异人与势力格局
-2026-02-04 11:37:01,445 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 甲申之乱与三十六贼
-2026-02-04 11:37:01,453 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 六库仙贼
-2026-02-04 11:37:01,461 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 主角的系统
-2026-02-04 11:37:01,470 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 先天一炁/先天之精
-2026-02-04 11:37:01,478 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 凡体理论
-2026-02-04 11:37:01,486 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 八奇技的深层解析
-2026-02-04 11:37:01,496 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 异人界势力格局
-2026-02-04 11:37:01,504 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 罗天大醮
-2026-02-04 11:37:01,512 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 鬼仙
-2026-02-04 11:37:01,520 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 双世界修炼体系差异
-2026-02-04 11:37:01,527 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 八奇技的本质与应用
-2026-02-04 11:37:01,535 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 系统机制
-2026-02-04 11:37:01,544 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 飞升机制
-2026-02-04 11:37:01,550 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 五雷正法
-2026-02-04 11:37:01,560 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 《遮天》世界炼器三要素
-2026-02-04 11:37:01,567 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 修炼体系
-2026-02-04 11:37:01,575 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 荒古圣体
-2026-02-04 11:37:01,584 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 帝兵
-2026-02-04 11:37:01,592 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 源
-2026-02-04 11:37:01,600 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 考古（盗墓）
-2026-02-04 11:37:01,609 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 拘灵遣将
-2026-02-04 11:37:01,616 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 啃之大道
-2026-02-04 11:37:01,624 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 《道经》
-2026-02-04 11:37:01,631 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 仙路
-2026-02-04 11:37:01,639 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 寿元体系
-2026-02-04 11:37:01,647 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 九秘
-2026-02-04 11:37:01,655 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 天璇圣地覆灭秘闻
-2026-02-04 11:37:01,663 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 荒奴
-2026-02-04 11:37:01,671 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 北斗七圣
-2026-02-04 11:37:01,678 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 修行五大秘境
-2026-02-04 11:37:01,687 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 禁（战力衡量）
-2026-02-04 11:37:01,695 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 六道轮回拳
-2026-02-04 11:37:01,703 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 人皇幡
-2026-02-04 11:37:01,709 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 至尊与黑暗动乱
-2026-02-04 11:37:01,718 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 妖帝之心
-2026-02-04 11:37:01,726 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 人族母经
-2026-02-04 11:37:01,733 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 行字秘
-2026-02-04 11:37:01,741 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 九秘·皆字秘
-2026-02-04 11:37:01,749 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 狠人传承体系（吞天魔功/不灭天功）
-2026-02-04 11:37:01,757 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 体质与道途
-2026-02-04 11:37:01,764 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 神禁与八禁
-2026-02-04 11:37:01,773 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 虚空大帝即黄帝
-2026-02-04 11:37:01,782 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 红尘仙路
-2026-02-04 11:37:01,791 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 信仰长生法
-2026-02-04 11:37:01,801 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 染血的黑色纸船
-2026-02-04 11:37:01,809 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 玄黄母气根
-2026-02-04 11:37:01,817 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 自然大道
-2026-02-04 11:37:01,826 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 帝路争锋
-2026-02-04 11:37:01,835 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 狠人传承体系
-2026-02-04 11:37:01,842 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 天庭/大爱仙盟
-2026-02-04 11:37:01,850 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 段德的多重身份
-2026-02-04 11:37:01,861 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 源与源天师
-2026-02-04 11:37:01,871 - app.services.worldview_sync_service - INFO - [世界观同步] 创建设定: 小纸船
-2026-02-04 11:37:01,906 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 系统10086: 互相吐槽的搭档/合作者
-2026-02-04 11:37:01,906 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 众人（叶凡、庞博等）(None) -> 林仙(c5403d3e-2be4-4f8e-8361-f7733a11fd29)
-2026-02-04 11:37:01,909 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 叶凡: 深度绑定的商业伙伴/共犯
-2026-02-04 11:37:01,911 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 张楚岚: 强行指定的保护者/师长
-2026-02-04 11:37:01,914 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 叶凡 -> 庞博: 同为特殊体质的修行道友
-2026-02-04 11:37:01,915 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 夏禾: 俘虏与控制者
-2026-02-04 11:37:01,917 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 风正豪: 战略盟友
-2026-02-04 11:37:01,918 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 冯宝宝: 引导者与追随者
-2026-02-04 11:37:01,920 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 冯宝宝 -> 无根生（冯曜）: 已确认的父女关系
-2026-02-04 11:37:01,921 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 张楚岚(55183e5e-6e2e-4b9b-bbe8-bd52a693f857) -> 风莎燕(None)
-2026-02-04 11:37:01,923 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 吕良: 被压榨的下属
-2026-02-04 11:37:01,923 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 张之维（老天师）: 对手转为合作者
-2026-02-04 11:37:01,925 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 赵方旭: 相互试探的谈判对象
-2026-02-04 11:37:01,925 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 风家(None) -> 王家(None)
-2026-02-04 11:37:01,927 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 巴伦: 传道者与求道者
-2026-02-04 11:37:01,927 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 林仙(c5403d3e-2be4-4f8e-8361-f7733a11fd29) -> 玉鼎洞天(None)
-2026-02-04 11:37:01,929 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 神桥老妪: 敌对并将其斩杀
-2026-02-04 11:37:01,929 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 周圣(77fde4e7-cdb6-4c3d-98af-069352f5edce) -> 王也(None)
-2026-02-04 11:37:01,931 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 田晋中 -> 巴伦: 师徒
-2026-02-04 11:37:01,934 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 段德: “考古”事业合伙人/互相算计的损友
-2026-02-04 11:37:01,936 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 叶凡 -> 段德: 受害者与加害者/“考古”事业合伙人
-2026-02-04 11:37:01,936 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 林仙、叶凡、段德(None) -> （团队）(None)
-2026-02-04 11:37:01,938 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 姜婷婷: 师徒 / 圣主与圣女
-2026-02-04 11:37:01,941 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 老疯子: 同门后辈与前辈 / 新圣主与旧圣人
-2026-02-04 11:37:01,941 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 叶凡(b5d8187b-4216-406f-975e-9ea97a63c085) -> 天璇圣地(None)
-2026-02-04 11:37:01,941 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 姜婷婷(3c5e0f48-8a30-411b-9235-c407eb545f7c) -> 天璇圣地(None)
-2026-02-04 11:37:01,945 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 颜如玉: 盟友与名义上的未婚夫妻
-2026-02-04 11:37:01,945 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 天璇圣地(None) -> 青帝一脉(None)
-2026-02-04 11:37:01,945 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 林仙(c5403d3e-2be4-4f8e-8361-f7733a11fd29) -> 青帝十九代孙(None)
-2026-02-04 11:37:01,949 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 老疯子 -> 姜婷婷: 类似祖孙的师徒关系
-2026-02-04 11:37:01,949 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 林仙(c5403d3e-2be4-4f8e-8361-f7733a11fd29) -> 姬家(None)
-2026-02-04 11:37:01,949 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 叶凡(b5d8187b-4216-406f-975e-9ea97a63c085) -> 姬家(None)
-2026-02-04 11:37:01,950 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 天璇圣地 (林仙代表)(None) -> 姬家、青帝一脉(None)
-2026-02-04 11:37:01,950 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 林仙(c5403d3e-2be4-4f8e-8361-f7733a11fd29) -> 李若愚 (拙峰)(None)
-2026-02-04 11:37:01,950 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 华云飞(34c8e550-2edc-4bde-8b95-7870ce42246c) -> 狠人一脉(None)
-2026-02-04 11:37:01,953 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 华云飞: 盟友/组织领袖与成员
-2026-02-04 11:37:01,953 - app.services.worldview_sync_service - WARNING - [世界观同步] 无法找到人物ID: 林仙、叶凡(None) -> 姬家、妖族(None)
-2026-02-04 11:37:01,955 - app.services.worldview_sync_service - INFO - [世界观同步] 创建关系: 林仙 -> 星峰之主: 记名弟子/受其投资的盟友
-2026-02-04 11:37:02,026 - app.services.worldview_sync_service - INFO - [Worldview Sync] Cache invalidated: worldview:characters:24998c56-d1e1-4ffa-93a7-e86dddf98b27
-2026-02-04 11:37:02,032 - app.services.worldview_sync_service - INFO - [Worldview Sync] Cache invalidated: worldview:locations:24998c56-d1e1-4ffa-93a7-e86dddf98b27
-2026-02-04 11:37:02,036 - app.services.worldview_sync_service - INFO - [Worldview Sync] Cache invalidated: worldview:settings:24998c56-d1e1-4ffa-93a7-e86dddf98b27
-2026-02-04 11:37:02,040 - app.services.worldview_sync_service - INFO - [Worldview Sync] Cache invalidated: worldview:guidelines:24998c56-d1e1-4ffa-93a7-e86dddf98b27
-2026-02-04 11:37:02,042 - app.services.worldview_sync_service - INFO - [Worldview Sync] Cache invalidated: worldview:worlddata:24998c56-d1e1-4ffa-93a7-e86dddf98b27
-2026-02-04 11:37:02,049 - app.services.worldview_extraction_runner - INFO - [世界观提取] 应用完成: {'characters_created': 61, 'characters_updated': 0, 'locations_created': 48, 'locations_updated': 0, 'settings_created': 80, 'settings_updated': 0, 'relationships_created': 22}
-2026-02-04 11:38:57,680 - app.api.middleware.monitoring_middleware - INFO - API请求完成: GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress
-INFO:     127.0.0.1:52245 - "GET /api/v1/works/24998c56-d1e1-4ffa-93a7-e86dddf98b27/worldview/scan-progress HTTP/1.1" 200 OK
+﻿INFO:     127.0.0.1:59482 - "POST /api/v1/agent/chat/stream HTTP/1.1" 200 OK
+2026-02-05 00:53:58,720 - app.api.v1.agent - INFO - [agent_chat_stream] 已绑定会话: 3d86775f-fae9-42d0-a402-11c3b714bc72 -> 3d86775f-fae9-42d0-a402-11c3b714bc72
+2026-02-05 00:53:58,720 - app.api.v1.agent - INFO - [LangGraph Agent Stream] ⏱️ 请求开始 - User: 79913e7e-d5cd-4e09-bce6-ca6639bd8456, Mode: planning, Message: 步骤：
+  1) 用 explore_content 精确搜索“系统10086 绑定宿主”“九龙拉棺...
+2026-02-05 00:53:58,825 - app.api.v1.agent - INFO - [agent_chat_stream] 📚 世界观数据已注入: 人物=89, 地点=64, 设定=200, 规范=无
+2026-02-05 00:53:58,825 - app.services.agent.langgraph_agent - INFO - [Planning] 使用隔离的thread_id: 79913e7e-d5cd-4e09-bce6-ca6639bd8456:1acf7e8a-87ab-42d6-b027-0a9fe44f60fb:3d86775f-fae9-42d0-a402-11c3b714bc72 (user_id=79913e7e-d5cd-4e09-bce6-ca6639bd8456, work_id=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb, conversation_id=3d86775f-fae9-42d0-a402-11c3b714bc72)
+2026-02-05 00:53:58,834 - app.services.context.manager - INFO - [ContextManager] 创建新上下文: 79913e7e-d5cd-4e09-bce6-ca6639bd8456:1acf7e8a-87ab-42d6-b027-0a9fe44f60fb:3d86775f-fae9-42d0-a402-11c3b714bc72
+2026-02-05 00:53:58,834 - app.services.context.manager - INFO - [ContextManager] Session 79913e7e-d5cd-4e09-bce6-ca6639bd8456:1acf7e8a-87ab-42d6-b027-0a9fe44f60fb:3d86775f-fae9-42d0-a402-11c3b714bc72: 0/16000 tokens
+2026-02-05 00:53:59,342 - app.services.context.vector_memory_store - INFO - 🔍 检索记忆 | 查询='步骤：
+  1) 用 explore_content 精确搜...' | 隔离键=['user:79913e7e-d5cd-4e09-bce6-ca6639bd8456:work:1acf7e8a-87ab-42d6-b027-0a9fe44f60fb', 'user:79913e7e-d5cd-4e09-bce6-ca6639bd8456'] | 找到=3条
+2026-02-05 00:53:59,342 - app.services.context.manager - INFO - 🔍 检索长期记忆 | 级别=work | work_id=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb | 含用户级=True | 找到=3条
+2026-02-05 00:53:59,361 - app.services.context.monitoring_integration - INFO - [Monitor] 上下文构建: 1条消息, 0 tokens, 耗时 534.28ms
+2026-02-05 00:53:59,361 - app.services.agent.langgraph_agent - INFO - [Planning] 从 ContextManager 加载了 1 条历史消息 (token: 0, has_summary: False)
+2026-02-05 00:53:59,361 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: simple
+2026-02-05 00:53:59,367 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 非流式调用智能选择: task_type=text_classification, selected_model=gemini-2.5-flash-lite, default_model=gemini-2.5-pro
+2026-02-05 00:54:02,384 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: simple
+2026-02-05 00:54:02,384 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 非流式调用智能选择: task_type=text_classification, selected_model=gemini-2.5-flash-lite, default_model=gemini-2.5-pro
+2026-02-05 00:54:03,677 - app.services.agent.intent.classifier - INFO - [Intent] AI识别结果: writing
+2026-02-05 00:54:03,677 - app.services.agent.langgraph_agent - INFO - [Planning] AI意图分类: writing (置信度: 0.90)
+2026-02-05 00:54:03,677 - app.services.agent.planning.plan_generator - INFO - [Planning] 开始规划: 步骤：
+  1) 用 explore_content 精确搜索“系统10086 绑定宿主”“九龙拉棺...
+2026-02-05 00:54:03,702 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: complex
+2026-02-05 00:54:03,702 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=story_planning, complexity=complex, selected_model=gemini-2.5-pro, default_model=gemini-2.5-pro, reason=任务复杂度为 complex; 任务类型: story_planning; 选择 Gemini 2.5 Pro (质量评分: 9.0/10, 成本: $1.25/$10.0 per 1M tokens)
+2026-02-05 00:55:12,435 - app.services.agent.langgraph_agent - INFO - [_generate_text] 使用HTTPAIService生成文本，tokens=28013
+2026-02-05 00:55:12,436 - app.services.agent.planning.plan_generator - INFO - [Planning] 思维链: 输出=用户要求执行一个多步骤任务：首先，使用`explore_co, 原料=完成此任务需要：1) 作品ID和章节ID, 处理=1. 构建`explore_conten
+2026-02-05 00:55:12,437 - app.services.agent.planning.plan_generator - INFO - [Planning] 直接回答模式，答案长度: 180
+2026-02-05 00:55:12,437 - app.services.agent.planning.plan_generator - INFO - [Planning] 规划生成成功，共2个任务
+2026-02-05 00:55:12,438 - app.services.agent.langgraph_agent - INFO - [Planning] 规划完成，共2个任务，耗时: 68.76s
+2026-02-05 00:55:12,439 - app.api.v1.agent - INFO - [Stream] Plan tasks: 2 items
+2026-02-05 00:55:12,439 - app.services.agent.langgraph_agent - WARNING - [Planning-Alert] AI 违反协议：同时返回 direct_answer(180字) 和 2 个 tasks，将执行 tasks 而忽略 direct_answer
+2026-02-05 00:55:12,440 - app.services.agent.langgraph_agent - INFO - [Execution] 开始智能并行执行任务
+2026-02-05 00:55:12,447 - app.services.agent.parameter_resolver - INFO - [ParameterResolver] 初始化完成, 严格模式: False
+2026-02-05 00:55:12,448 - app.services.agent.execution.parallel_executor - INFO - [ParameterResolver] 参数解析器已启用
+2026-02-05 00:55:12,448 - app.services.agent.execution.parallel_executor - INFO - [ParallelExecution] DAG 调度启用，任务数=2, 有依赖任务=1
+2026-02-05 00:55:12,449 - app.services.agent.execution.parallel_executor - INFO - [ParallelExecution] 串行就绪任务1开始: 使用 explore_content 精确搜索“系统10086 绑定宿主”和“九龙拉棺”，确认段落证据并获取上下文。
+2026-02-05 00:55:12,451 - app.api.v1.agent - INFO - [Stream] Task started: 使用 explore_content 精确搜索“系统10086 绑定宿主”和“九龙拉棺”，确认段落证据并获取上下文。 (icon=Wrench)
+2026-02-05 00:55:12,452 - app.services.agent.execution.task_runner - INFO - [TaskRunner] 使用统一接口调用未知工具: explore_content
+2026-02-05 00:55:12,456 - app.services.agent.tools.explore_tools - INFO - [explore_content] 开始: work_id=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb, target=精确搜索“系统10086 绑定宿主”和“九龙拉棺”，确认段落证据，并获取第1章“系统启动”的完整内容...
+2026-02-05 00:55:12,458 - app.services.agent.tools.explore_tools - INFO - [explore_content] 规划传入关键词: ['系统10086 绑定宿主', '九龙拉棺']
+2026-02-05 00:55:12,465 - app.services.agent.tools.explore_tools - INFO - [ContentExplorer] 章节范围锁定: 第1章
+2026-02-05 00:55:12,466 - app.services.agent.tools.explore_tools - INFO - [ContentExplorer] 开始探索 V5: work_id=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb, target=精确搜索“系统10086 绑定宿主”和“九龙拉棺”，确认段落证据，并获取第1章“系统启动”的完整内容...
+2026-02-05 00:55:12,468 - app.services.chapter_service - INFO - [ChapterService] Querying chapters for work_id=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb, type=<class 'uuid.UUID'>
+2026-02-05 00:55:12,485 - app.services.chapter_service - INFO - [ChapterService] Found 100 chapters
+2026-02-05 00:55:12,486 - app.services.chapter_service - INFO -   - Chapter: 第1章 【摆烂的宿主】, order=1
+2026-02-05 00:55:12,486 - app.services.chapter_service - INFO -   - ... (98 more chapters)
+2026-02-05 00:55:12,487 - app.services.chapter_service - INFO -   - Chapter: 第100章 【火域铸真器，两脉起冲突】, order=100
+2026-02-05 00:55:12,638 - app.services.agent.tools.explore_tools - INFO - [ContentExplorer] 章节范围映射: 第1章 -> 第1章
+2026-02-05 00:55:12,655 - app.services.agent.tools.explore_tools - INFO - [ContentExplorer] 自动获取世界观小包...
+2026-02-05 00:55:12,717 - app.services.agent.tools.explore_tools - INFO - [ContentExplorer] 世界观小包获取完成: 3 条
+2026-02-05 00:55:15,010 - app.services.agent.tools.explore_tools - INFO - [ContentExplorer] 强制流程步骤: list_chapters
+2026-02-05 00:55:15,011 - app.services.agent.tools.explore_tools - INFO - [ExploreTool] call=list_chapters params={"work_id": "1acf7e8a-87ab-42d6-b027-0a9fe44f60fb"}
+2026-02-05 00:55:15,011 - app.services.agent.tools.explore_tools - INFO - [ExploreTool] done=list_chapters success=True count=1
+2026-02-05 00:55:18,695 - app.services.agent.tools.explore_tools - INFO - [ContentExplorer] 强制流程步骤: list_paragraphs
+2026-02-05 00:55:18,695 - app.services.agent.tools.explore_tools - INFO - [ExploreTool] call=list_paragraphs params={"chapter_order": 1, "offset": 0, "limit": 50, "preview_len": 80, "work_id": "1acf7e8a-87ab-42d6-b027-0a9fe44f60fb"}
+2026-02-05 00:55:18,720 - app.services.agent.tools.explore_tools - INFO - [ExploreTool] done=list_paragraphs success=True chapter=1 offset=0 limit=50 approximate=None
+2026-02-05 00:55:21,194 - app.services.agent.tools.explore_tools - INFO - [ExploreTool] call=exact_search_paragraphs params={"keywords": ["系统10086", "绑定宿主"], "match_mode": "all", "limit": 10, "work_id": "1acf7e8a-87ab-42d6-b027-0a9fe44f60fb"}
+2026-02-05 00:55:21,195 - app.services.agent.tools.explore_tools - INFO - [ContentExplorer] 世界观匹配: 2 条
+2026-02-05 00:55:21,254 - app.services.chapter_vector_service - INFO - [exact_search] work=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb, keywords=['系统10086', '绑定宿主', '系统10086 绑定宿主']..., mode=all, range=(1, 1), hits=0
+2026-02-05 00:55:21,274 - app.services.chapter_vector_service - INFO - [exact_search] work=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb, keywords=['系统10086']..., mode=any, range=(1, 1), hits=5
+2026-02-05 00:55:21,278 - app.services.chapter_vector_service - INFO - [exact_search] work=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb, keywords=['绑定宿主']..., mode=any, range=(1, 1), hits=1
+2026-02-05 00:55:21,282 - app.services.chapter_vector_service - INFO - [exact_search] work=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb, keywords=['系统10086 绑定宿主']..., mode=any, range=(1, 1), hits=0
+2026-02-05 00:55:21,287 - app.services.chapter_vector_service - INFO - [exact_search] work=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb, keywords=['系统10086绑定宿主']..., mode=any, range=(1, 1), hits=0
+2026-02-05 00:55:21,291 - app.services.chapter_vector_service - INFO - [exact_search] work=1acf7e8a-87ab-42d6-b027-0a9fe44f60fb, keywords=['九龙拉棺']..., mode=any, range=(1, 1), hits=2
+2026-02-05 00:55:21,416 - app.services.agent.tools.explore_tools - INFO - [ExploreTool] done=exact_search_paragraphs success=True hits=10 (chapter=8, worldview=2) keywords=系统10086,绑定宿主,系统10086 绑定宿主,系统10086绑定宿主,九龙拉棺
+2026-02-05 00:55:30,519 - app.services.agent.tools.explore_tools - INFO - [ExploreTool] call=read_paragraphs params={"chapter_order": 1, "offset": 0, "limit": 23, "work_id": "1acf7e8a-87ab-42d6-b027-0a9fe44f60fb"}
+2026-02-05 00:55:30,549 - app.services.agent.langgraph_tools - INFO - [read_paragraphs] start items=23 index_base=zero
+2026-02-05 00:55:30,881 - app.services.agent.tools.explore_tools - INFO - [ExploreTool] done=read_paragraphs success=True count=23 index_base=None
+2026-02-05 00:55:39,436 - app.services.agent.tools.explore_tools - INFO - [ExploreTool] call=read_paragraphs params={"chapter_order": 1, "offset": 0, "limit": 114, "context_before": 0, "context_after": 0, "work_id": "1acf7e8a-87ab-42d6-b027-0a9fe44f60fb"}
+2026-02-05 00:55:39,453 - app.services.agent.langgraph_tools - INFO - [read_paragraphs] start items=114 index_base=zero
+2026-02-05 00:55:44,157 - app.services.agent.tools.explore_tools - INFO - [ExploreTool] done=read_paragraphs success=True count=114 index_base=None
+2026-02-05 00:56:07,754 - app.services.agent.tools.explore_tools - INFO - [ContentExplorer] 探索完成(工具循环): 5轮, 原因=已精确搜索到关键词“系统10086 绑定宿主”和“九龙拉棺”的段落证据（第1章第35段、第1章第66段、第1章第112段），并且第1章的全部内容（113段）已作为上下文被读取并收集，任务目标已全部达成。
+2026-02-05 00:56:07,892 - app.services.agent.execution.tool_executor - INFO - [StandardTool] explore_content 执行成功
+2026-02-05 00:56:07,895 - app.services.agent.execution.parallel_executor - INFO - [ParallelExecution] 目标章节已固化: 202ce110-5b95-48f3-8e52-2db3f5a06635 (source=explore.locate_targets)
+2026-02-05 00:56:07,897 - app.api.v1.agent - INFO - [Stream] 任务完成: 使用 explore_content 精确搜索“系统10086 绑定宿主”和“九龙拉棺”，确认段落证据并获取上下文。 (55.4s)
+2026-02-05 00:56:07,899 - app.services.agent.execution.parallel_executor - INFO - [ParallelExecution] 串行就绪任务1完成
+2026-02-05 00:56:07,900 - app.services.agent.execution.parallel_executor - INFO - [ParallelExecution] 串行就绪任务2开始: 在第1章“系统启动”前后插入一段180-220字短插入，包含指定术语，并保持主角普通人身份。
+2026-02-05 00:56:07,900 - app.api.v1.agent - INFO - [Stream] Task started: 在第1章“系统启动”前后插入一段180-220字短插入，包含指定术语，并保持主角普通人身份。 (icon=Plus)
+2026-02-05 00:56:07,901 - app.services.agent.execution.task_runner - INFO - [TaskRunner] 使用统一接口调用未知工具: smart_insert
+2026-02-05 00:56:07,902 - app.services.agent.execution.tool_executor - WARNING - [ToolExecutor] smart_insert evidence_context 非字符串，已强制转换
+2026-02-05 00:56:07,903 - app.api.v1.agent - INFO - [Stream] 任务完成: 在第1章“系统启动”前后插入一段180-220字短插入，包含指定术语，并保持主角普通人身份。 (0.0s)
+2026-02-05 00:56:07,903 - app.services.agent.execution.parallel_executor - INFO - [ParallelExecution] 串行就绪任务2完成
+2026-02-05 00:56:07,904 - app.services.agent.langgraph_agent - INFO - [Execution] 所有任务执行完成，共2个任务，耗时: 55.46s
+2026-02-05 00:56:07,904 - app.services.agent.langgraph_agent - INFO - [Response] 生成最终响应
+2026-02-05 00:56:07,905 - app.services.agent.planning.response_builder - INFO - [TaskClassify] 任务分类: 输入型=0, 输出型=2, 展示型=0
+2026-02-05 00:56:07,905 - app.services.agent.langgraph_agent - INFO - [Response] 2个输出任务（含续写），使用AI整合
+2026-02-05 00:56:07,906 - app.services.agent.planning.response_builder - INFO - [Summarization] 使用AI整合任务结果
+2026-02-05 00:56:07,906 - app.services.agent.planning.response_builder - INFO - [TaskClassify] 任务分类: 输入型=0, 输出型=2, 展示型=0
+2026-02-05 00:56:07,906 - app.services.agent.planning.response_builder - INFO - [Summarization] 上下文处理: 原始=1401字符, 处理后=1510字符
+2026-02-05 00:56:07,907 - app.services.agent.planning.response_builder - INFO - [Summarization] 准备发送 summarization_start 事件
+2026-02-05 00:56:07,907 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: simple
+2026-02-05 00:56:07,908 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 非流式调用智能选择: task_type=simple_qa, selected_model=gemini-2.5-flash-lite, default_model=gemini-2.5-pro
+2026-02-05 00:56:09,515 - app.services.agent.planning.response_builder - INFO - [Summarization] reason生成: len=58 content=系统成功搜索到“系统10086 绑定宿主”和“九龙拉棺”相关证据，但smart_insert因定位问题未能完成插入。
+2026-02-05 00:56:09,516 - app.services.agent.stream.stream_event_handler - INFO - [StreamEventHandler] emit_summarization_start 被调用, _on_flow_event=True, reason_len=58, reason=系统成功搜索到“系统10086 绑定宿主”和“九龙拉棺”相关证据，但smart_insert因定位问题未能完成插入。
+2026-02-05 00:56:09,516 - app.services.agent.planning.response_builder - INFO - [Summarization] summarization_start 事件已发送
+2026-02-05 00:56:09,517 - app.services.agent.planning.response_builder - INFO - [Summarization] 使用流式生成（_generate_text_stream）
+2026-02-05 00:56:09,517 - app.services.agent.langgraph_agent - INFO - [_generate_text_stream] 开始流式生成，buffer_size=1
+2026-02-05 00:56:09,523 - app.services.agent.model_selector - INFO - [ModelSelector] 任务复杂度: medium
+2026-02-05 00:56:09,523 - app.services.ai.http_ai_service - INFO - [ModelSelector] ✅ 智能选择成功: task_type=summarization, complexity=medium, selected_model=gemini-2.5-flash, default_model=gemini-2.5-pro, reason=任务复杂度为 medium; 任务类型: summarization; 选择 Gemini 2.5 Flash (质量评分: 8.0/10, 成本: $0.3/$2.5 per 1M tokens)
+2026-02-05 00:56:15,217 - app.services.agent.planning.response_builder - INFO - [Summarization] summarization_complete 事件已发送（第一个chunk时）
+2026-02-05 00:56:15,218 - app.services.agent.planning.response_builder - INFO - [Summarization] output_ready 事件已发送（第一个chunk时）
+2026-02-05 00:56:18,227 - app.services.agent.langgraph_agent - INFO - [_generate_text_stream] 流式生成完成，总长度=1131
+2026-02-05 00:56:19,557 - app.services.context.manager - INFO - ✅ 保存长期记忆 | ID=79913e7e-d5cd-4e09-b... | 隔离=work:1acf7e8a-87ab-42d6-b027-0a9fe44f60fb | 重要度=0.82
+2026-02-05 00:56:20,955 - app.services.context.manager - INFO - ✅ 保存长期记忆 | ID=79913e7e-d5cd-4e09-b... | 隔离=work:1acf7e8a-87ab-42d6-b027-0a9fe44f60fb | 重要度=0.92
+2026-02-05 00:56:20,991 - app.services.context.store - INFO - [ContextStore] 保存上下文: 79913e7e-d5cd-4e09-bce6-ca6639bd8456:1acf7e8a-87ab-42d6-b027-0a9fe44f60fb:3d86775f-fae9-42d0-a402-11c3b714bc72, token=1006
+2026-02-05 00:56:20,992 - app.services.context.manager - INFO - [ContextManager] 更新上下文: 79913e7e-d5cd-4e09-bce6-ca6639bd8456:1acf7e8a-87ab-42d6-b027-0a9fe44f60fb:3d86775f-fae9-42d0-a402-11c3b714bc72, 消息数=2, 摘要长度=0, Token=1006
+2026-02-05 00:56:20,993 - app.services.agent.langgraph_agent - INFO - [Planning] 已保存对话到 ContextManager (session=79913e7e-d5cd-4e09-bce6-ca6639bd8456:1acf7e8a-87ab-42d6-b027-0a9fe44f60fb:3d86775f-fae9-42d0-a402-11c3b714bc72)
+2026-02-05 00:56:20,993 - app.api.v1.agent - INFO - [Stream] 跳过最终响应（内容已流式发送）
+2026-02-05 00:56:21,011 - app.api.v1.agent - INFO - [LangGraph Agent Stream] User 79913e7e-d5cd-4e09-bce6-ca6639bd8456 - Mode: planning, Stream completed

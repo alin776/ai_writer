@@ -1,5 +1,5 @@
 /**
- * ActivityStream - ReAct模式实时活动流组件
+ * ActivityStream - 实时活动流组件
  *
  * 显示Agent执行过程中的实时活动，包括：
  * - 意图分析

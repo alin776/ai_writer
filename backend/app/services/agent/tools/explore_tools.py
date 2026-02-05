@@ -1016,11 +1016,13 @@ class ExploreState:
         if category not in self.worldview:
             self.worldview[category] = []
         for item in items:
+            name = item.get("name") or item.get("term") or ""
+            description = item.get("description") or item.get("definition") or ""
             self.worldview[category].append(WorldviewItem(
                 id=item.get("id", ""),
-                name=item.get("name", ""),
+                name=name,
                 category=category,
-                description=item.get("description", ""),
+                description=description,
                 attributes=item.get("attributes", {})
             ))
 
@@ -2089,7 +2091,8 @@ class ContentExplorer:
         max_tool_calls: Optional[int] = None,
         max_read_paragraphs: Optional[int] = None,
         require_paragraph_index: Optional[bool] = None,
-        force_global_search: Optional[bool] = None
+        force_global_search: Optional[bool] = None,
+        user_id: Optional[str] = None
     ):
         """
         初始化内容探索器
@@ -2105,6 +2108,7 @@ class ContentExplorer:
         self.work_id = work_id
         self.target_task = target_task
         self.search_keywords = search_keywords  # 规划阶段传入的关键词
+        self.user_id = user_id
         self.force_global_search = bool(force_global_search)
         self.chapter_scopes_raw = _parse_chapter_scopes(target_task)
         if self.force_global_search:
@@ -2691,26 +2695,41 @@ class ContentExplorer:
             # 不再发射探索总结事件（避免前端冗余模块）
             return result
 
-        # 首轮自动获取世界观（复用旧模式逻辑，不受章节范围限制）
+        # 首轮自动获取世界观（按需小包，不受章节范围限制）
         if self.state.should_read_worldview("all"):
             try:
-                from app.services.agent.langgraph_tools import get_writing_context
-                logger.info("[ContentExplorer] 自动获取世界观...")
-                wv_result = await get_writing_context.ainvoke({
+                from app.services.agent.langgraph_tools import get_worldview_pack
+                logger.info("[ContentExplorer] 自动获取世界观小包...")
+                keywords = self.search_keywords or _extract_keywords_for_search(self.target_task)
+                keywords = _normalize_search_keywords(keywords)
+                chapter_orders = ""
+                if self.chapter_scopes:
+                    parts = []
+                    for start, end in self.chapter_scopes:
+                        if start == end:
+                            parts.append(str(start))
+                        else:
+                            parts.append(f"{start}-{end}")
+                    chapter_orders = ",".join(parts)
+                wv_result = await get_worldview_pack.ainvoke({
                     "work_id": self.work_id,
-                    "include": "worldview"
+                    "user_id": self.user_id or "",
+                    "keywords": keywords,
+                    "top_k": 5,
+                    "include_guidelines": True,
+                    "task_hint": self.target_task or "",
+                    "chapter_orders": chapter_orders
                 })
                 wv_data = json.loads(wv_result) if isinstance(wv_result, str) else wv_result
-                if "worldview" in wv_data:
-                    wv = wv_data["worldview"]
-                    for cat, items in wv.items():
-                        if isinstance(items, list):
-                            self.state.add_worldview_items(items, cat)
+                for cat in ("characters", "locations", "settings", "glossary"):
+                    items = wv_data.get(cat)
+                    if isinstance(items, list) and items:
+                        self.state.add_worldview_items(items, cat)
                 self.state.record_worldview_read("all")
                 wv_count = sum(len(items) for items in self.state.worldview.values())
-                logger.info(f"[ContentExplorer] 世界观获取完成: {wv_count} 条")
+                logger.info(f"[ContentExplorer] 世界观小包获取完成: {wv_count} 条")
             except Exception as e:
-                logger.warning(f"[ContentExplorer] 获取世界观失败: {e}")
+                logger.warning(f"[ContentExplorer] 获取世界观小包失败: {e}")
 
         while tool_calls_left > 0:
             decision: Optional[ToolLoopDecision] = None
@@ -4311,7 +4330,7 @@ class ContentExplorer:
 
     async def _execute_round_with_plan(self, round_idx: int, plan: RoundPlan) -> ExploreRound:
         """根据 AI 计划执行一轮探索"""
-        from app.services.agent.langgraph_tools import search_content, get_writing_context, read_paragraph
+        from app.services.agent.langgraph_tools import search_content, get_writing_context, read_paragraph, get_worldview_pack
         from app.services.agent.tools.locate_tools import locate_content
 
         tool_calls = []
@@ -4326,26 +4345,41 @@ class ContentExplorer:
         elif self.chapter_scopes:
             scope_contexts = await self._get_scope_search_contexts()
 
-        # 1. 首轮获取世界观
+        # 1. 首轮获取世界观（按需小包）
         if round_idx == 1:
             if self.state.should_read_worldview("all"):
                 start = get_utc_now()
                 try:
-                    result = await get_writing_context.ainvoke({
+                    keywords = self.search_keywords or _extract_keywords_for_search(self.target_task)
+                    keywords = _normalize_search_keywords(keywords)
+                    chapter_orders = ""
+                    if self.chapter_scopes:
+                        parts = []
+                        for start, end in self.chapter_scopes:
+                            if start == end:
+                                parts.append(str(start))
+                            else:
+                                parts.append(f"{start}-{end}")
+                        chapter_orders = ",".join(parts)
+                    result = await get_worldview_pack.ainvoke({
                         "work_id": self.work_id,
-                        "include": "worldview"
+                        "user_id": self.user_id or "",
+                        "keywords": keywords,
+                        "top_k": 5,
+                        "include_guidelines": True,
+                        "task_hint": self.target_task or "",
+                        "chapter_orders": chapter_orders
                     })
                     result_data = json.loads(result) if isinstance(result, str) else result
-                    if "worldview" in result_data:
-                        wv = result_data["worldview"]
-                        for cat, items in wv.items():
-                            if isinstance(items, list):
-                                self.state.add_worldview_items(items, cat)
+                    for cat in ("characters", "locations", "settings", "glossary"):
+                        items = result_data.get(cat)
+                        if isinstance(items, list):
+                            self.state.add_worldview_items(items, cat)
                     self.state.record_worldview_read("all")
                     duration = int((get_utc_now() - start).total_seconds() * 1000)
                     tool_calls.append(ToolCall(
-                        tool_name="get_writing_context",
-                        params={"include": "worldview"},
+                        tool_name="get_worldview_pack",
+                        params={"keywords": keywords, "top_k": 5},
                         result=result_data,
                         duration_ms=duration
                     ))
@@ -5148,7 +5182,8 @@ async def explore_content(
             max_tool_calls=max_tool_calls,
             max_read_paragraphs=max_read_paragraphs,
             require_paragraph_index=require_paragraph_index,
-            force_global_search=force_global_search
+            force_global_search=force_global_search,
+            user_id=user_id
         )
     if shared_state:
         explorer.state = _clone_explore_state(shared_state)

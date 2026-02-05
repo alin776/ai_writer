@@ -44,7 +44,7 @@ export interface SessionState {
   // 元数据
   createdAt: number;
   lastActiveAt: number;
-  mode?: 'plan' | 'agent';
+  mode?: 'plan' | 'chat';
 }
 
 // 状态变更监听器

@@ -125,9 +125,12 @@ data = store.get(("users", "user_123", "preferences"), "writing_style")
 ```python
 # middleware/memory_middleware.py
 
-from deepagents import AgentMiddleware
 from langchain.tools import tool
 from app.services.agent.memory import EnhancedMemoryManager
+
+# 伪代码：AgentMiddleware 为约定接口
+class AgentMiddleware:
+    pass
 
 class MemoryMiddleware(AgentMiddleware):
     """将三层记忆系统集成到 Deep Agents - 继承 AgentMiddleware"""
@@ -306,7 +309,9 @@ class EnhancedMemoryStore(BaseStore):
 ```python
 # middleware/history_sync.py
 
-from deepagents import AgentMiddleware
+# 伪代码：AgentMiddleware 为约定接口
+class AgentMiddleware:
+    pass
 
 class HistorySyncMiddleware(AgentMiddleware):
     """同步消息历史到记忆系统 - 继承 AgentMiddleware"""
@@ -359,8 +364,11 @@ class HistorySyncMiddleware(AgentMiddleware):
 ```python
 # middleware/context_middleware.py
 
-from deepagents import AgentMiddleware
 from app.services.context import ContextManager
+
+# 伪代码：AgentMiddleware 为约定接口
+class AgentMiddleware:
+    pass
 
 class ContextMiddleware(AgentMiddleware):
     """上下文管理中间件 - 继承 AgentMiddleware"""
@@ -433,8 +441,11 @@ class ContextMiddleware(AgentMiddleware):
 ```python
 # middleware/budget_middleware.py
 
-from deepagents import AgentMiddleware
 from app.services.context.adaptive_budget import AdaptiveBudget
+
+# 伪代码：AgentMiddleware 为约定接口
+class AgentMiddleware:
+    pass
 
 class BudgetMiddleware(AgentMiddleware):
     """Token 预算管理中间件 - 继承 AgentMiddleware"""
@@ -478,7 +489,9 @@ class BudgetMiddleware(AgentMiddleware):
 ```python
 # middleware/unified_memory.py
 
-from deepagents import AgentMiddleware
+# 伪代码：AgentMiddleware 为约定接口
+class AgentMiddleware:
+    pass
 
 class UnifiedMemoryMiddleware(AgentMiddleware):
     """统一记忆协调中间件 - 整合所有记忆组件"""
@@ -526,9 +539,7 @@ class UnifiedMemoryMiddleware(AgentMiddleware):
 ### 6.1 创建带记忆的 Agent
 
 ```python
-# writing_agent.py
-
-from deepagents import create_deep_agent
+# writing_agent.py（伪代码）
 from .middleware.unified_memory import UnifiedMemoryMiddleware
 
 def create_writing_agent(
@@ -543,7 +554,7 @@ def create_writing_agent(
         checkpointer=checkpointer
     )
 
-    return create_deep_agent(
+    return build_agent_graph(
         tools=[...],
         system_prompt="...",
         middleware=[memory_middleware],

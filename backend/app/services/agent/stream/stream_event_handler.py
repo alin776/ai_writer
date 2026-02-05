@@ -392,13 +392,23 @@ class StreamEventHandler:
 
                     # v8.2: 添加锚点字段用于精确定位
                     # v8.3: 添加 node_id 和 paragraph_index 用于 UniqueID 定位
+                    before_anchor = tool_result.get("before_anchor")
+                    after_anchor = tool_result.get("after_anchor")
+                    node_id = tool_result.get("node_id")
+                    paragraph_index = tool_result.get("paragraph_index")
+                    # 续写 append 不应携带定位字段，避免前端插到中段
+                    if operation == "append":
+                        before_anchor = None
+                        after_anchor = None
+                        node_id = None
+                        paragraph_index = None
                     approval_data["editor_action"] = {
                         "type": inferred_type,
                         "position": position_payload,
-                        "before_anchor": tool_result.get("before_anchor"),
-                        "after_anchor": tool_result.get("after_anchor"),
-                        "node_id": tool_result.get("node_id"),  # 🆕 节点ID（最高优先级定位）
-                        "paragraph_index": tool_result.get("paragraph_index"),  # 🆕 段落索引
+                        "before_anchor": before_anchor,
+                        "after_anchor": after_anchor,
+                        "node_id": node_id,  # 🆕 节点ID（最高优先级定位）
+                        "paragraph_index": paragraph_index,  # 🆕 段落索引
                         "requires_confirmation": True
                     }
 

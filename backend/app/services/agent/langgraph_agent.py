@@ -1,101 +1,46 @@
 # -*- coding: utf-8 -*-
 """
-LangGraph Agent 工作流实现
+Agent 执行链路实现（Planning 主链路）
 
-使用 LangGraph 框架实现智能写作助手，支持：
-- 4个核心场景（写作/规划/分析/卡文）
-- 工具调用（HTTPAIService集成）
-- 记忆管理（Checkpointer）
-- 人机协同（HITL）
+当前实际运行链路为：
+- /chat/stream → chat_with_planning → PlanGenerator → 执行 → 汇总输出
 
-重构说明（2025-12-09）：
-- 工具函数拆分到 langgraph_tools.py
-- 上下文构建拆分到 utils/context_builder.py
+保留：
+- Checkpointer（对话分支/回溯）
+- Planning 执行与工具调度
 """
 
-from typing import TypedDict, Annotated, List, Dict, Any, Optional, Literal
+from typing import TypedDict, Annotated, List, Dict, Any, Optional
 from datetime import datetime
 import os
-from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
-from app.services.agent.parallel_tool_node import ParallelToolNode
 from langgraph.checkpoint.redis import AsyncRedisSaver
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 import operator
 import logging
-import httpx
 import uuid
 import asyncio
-import threading  # ✅ P0-2修复: 添加threading以支持线程锁
 import redis
 import json
 import re
 
 from app.services.ai.http_ai_service import HTTPAIService
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal
-from app.services.agent.prompts import NovelPhase, PhaseCharacteristics
 from app.services.agent.model_selector import TaskType
-from app.services.agent.prompts import get_tool_decision_static_prompt, get_planning_static_prompt, get_planning_agent_mode_prompt, get_complexity_decision_prompt
-from app.services.agent.progress_tracker import ProgressTracker
-from app.services.agent.node_metadata import get_node_info
-# DeepAgent 反思系统
-from app.services.agent.deep_agent import DeepAgentExecutor
 from app.services.agent.timeout_config import TimeoutConfig, async_timeout
 from app.services.context.context_config import ContextConfig
-from app.services.agent.tools.editor_tools import (
-    smart_continue,
-    smart_rewrite,
-    smart_insert
-)
 # 🔧 2025-12-14: 导入 registry 用于统一工具调用
-from app.services.agent.tools import registry
 from app.utils.datetime_utils import get_utc_now
 
 # ✅ 拆分模块导入
 from app.services.agent.langgraph_tools import (
     # 全局服务管理
     set_global_ai_service,
-    get_global_ai_service,
-    # 辅助函数
-    validate_uuid,
-    _retry_on_failure,
-    _generate_text_helper,
-    # 工具列表 & 单个工具（LangGraph 节点内直接调用）
-    LANGGRAPH_TOOLS,
-    analyze_text_tool,
-    read_chapter_tool,
-    get_chapter_by_order_tool,
-    get_context_tool,
-    search_analysis_fragments_tool,
-    get_worldview_summary,
-)
-from app.services.agent.utils.context_builder import (
-    _compress_task_result,
-    _build_summarization_context,
-    _build_knowledge_system_messages,
-    _build_worldview_system_messages,
-)
-# ✅ Phase 2.4: 导入工具辅助函数
-from app.services.agent.utils.tool_helpers import (
-    resolve_version_reference,
-    normalize_tool_params,
 )
 
 # ✅ 2025-12-23: 解耦重构 - 导入拆分模块
 from app.services.agent.intent import IntentClassifier
-from app.services.agent.handlers import (
-    handle_writing,
-    handle_planning,
-    handle_analysis,
-    handle_stuck,
-    handle_general
-)
-from app.services.agent.execution import ToolExecutor, ParallelExecutor, TaskRunner, AgentExecutor
+from app.services.agent.execution import ToolExecutor, ParallelExecutor, TaskRunner
 from app.services.agent.stream import EventParser, StreamEventHandler
 from app.services.agent.planning import ResponseBuilder, classify_tasks, PlanGenerator, QuickPathHandler
-# ✅ 2025-12-23: Phase 2 解耦 - 导入 core 模块
-from app.services.agent.core import MessageBuilder, ToolDispatcher, MessageCleaner, SecondaryToolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -113,12 +58,6 @@ class AgentState(TypedDict):
     agent_steps: Annotated[List[Dict[str, Any]], operator.add]  # Agent执行步骤
     suggested_actions: Annotated[List[str], operator.add]  # 建议操作
     final_response: Optional[str]  # 最终响应
-
-
-# ==================== 工具列表（从 langgraph_tools 导入）====================
-
-# 使用 LANGGRAPH_TOOLS 替代原 WRITING_TOOLS
-WRITING_TOOLS = LANGGRAPH_TOOLS
 
 
 # ==================== Agent 节点定义 ====================
@@ -263,8 +202,6 @@ class WritingAgentGraph:
         self.event_parser = EventParser(self._cached_tool_calls)
         # ✅ Phase 4.3: ResponseBuilder 需要延迟设置 stream generator
         self.response_builder = ResponseBuilder(ai_service)
-        # ✅ Phase 2: 初始化 core 模块
-        self.tool_dispatcher = ToolDispatcher(self)
         # ✅ Phase 2.2: 初始化 ParallelExecutor
         self.parallel_executor = ParallelExecutor(self)
         # ✅ Phase 2.3: 初始化 PlanGenerator
@@ -277,16 +214,6 @@ class WritingAgentGraph:
             cached_tool_calls=self._cached_tool_calls,
             approval_callback=self._approval_callback
         )
-        # ✅ Phase 4.1: 初始化 SecondaryToolHandler（二次工具调用处理）
-        self.secondary_tool_handler = SecondaryToolHandler(
-            generate_text_func=self._generate_text
-        )
-        # ✅ 2025-12-25: 初始化 AgentExecutor（HTTPAIService 执行引擎）
-        self.agent_executor = AgentExecutor(
-            secondary_tool_handler=self.secondary_tool_handler,
-            tool_dispatcher=self.tool_dispatcher,
-            generate_text_func=self._generate_text
-        )
         # ✅ Phase 4.4: 初始化 TaskRunner（单任务执行）
         self.task_runner = TaskRunner(
             call_tool_via_registry_func=self._call_tool_via_registry,
@@ -296,10 +223,7 @@ class WritingAgentGraph:
         self.response_builder.set_stream_generator(self._generate_text_stream)
         # ✅ Phase 4.4: 设置 ResponseBuilder 的流式事件处理器（用于 Summarization 事件）
         self.response_builder.set_stream_event_handler(self.stream_event_handler)
-        logger.info("[LangGraph] ✅ 解耦模块已初始化 (IntentClassifier, ToolExecutor, EventParser, ResponseBuilder, ToolDispatcher, ParallelExecutor, PlanGenerator, QuickPathHandler, StreamEventHandler, SecondaryToolHandler, TaskRunner, AgentExecutor)")
-
-        # 构建图
-        self.graph = self._build_graph()
+        logger.info("[LangGraph] ✅ 解耦模块已初始化 (IntentClassifier, ToolExecutor, EventParser, ResponseBuilder, ParallelExecutor, PlanGenerator, QuickPathHandler, StreamEventHandler, TaskRunner)")
 
     def _init_unified_memory_coordinator(self):
         """
@@ -369,148 +293,6 @@ class WritingAgentGraph:
         """确保记忆协调器已完成异步初始化"""
         if self.memory_coordinator and not self.memory_coordinator._initialized:
             await self.memory_coordinator.initialize()
-
-    def _build_graph(self) -> StateGraph:
-        """
-        构建 LangGraph 工作流
-
-        完整工作流结构：
-        START
-          ↓
-        intent_classifier (分类意图)
-          ↓
-        [条件路由]
-          ├─> writing_agent (生成AIMessage + tool_calls)
-          ├─> planning_agent (生成AIMessage + tool_calls)
-          ├─> analysis_agent (生成AIMessage + tool_calls)
-          ├─> stuck_agent (生成AIMessage + tool_calls)
-          └─> general_chat (直接响应)
-          ↓
-        [条件判断: 是否需要工具?]
-          ├─> YES → tools (ToolNode执行工具)
-          └─> NO  → END
-          ↓
-        [工具执行后返回Agent]
-          ↓
-        Agent节点 (处理工具结果，生成最终响应)
-          ↓
-        END
-        """
-
-        # ✅ 回滚开关：支持快速禁用 CoT 快速路径
-        enable_quick_path = os.getenv("ENABLE_QUICK_PATH", "true").lower() == "true"
-
-        # 创建图
-        workflow = StateGraph(AgentState)
-
-        # 添加节点
-        if enable_quick_path:
-            # ✅ CoT 快速路径：使用增强版意图识别
-            workflow.add_node("intent_classifier", self._classify_intent_with_cot)
-            # ✅ 新增快速执行节点
-            workflow.add_node("quick_tool_execute", self._quick_tool_execute)
-            workflow.add_node("direct_response", self._direct_response)
-        else:
-            # 回滚模式：使用原有意图分类
-            logger.warning("[LangGraph] CoT 快速路径已禁用，使用原有流程")
-            workflow.add_node("intent_classifier", self._classify_intent)
-        # 原有 Agent 节点
-        workflow.add_node("writing_agent", self._handle_writing)
-        workflow.add_node("planning_agent", self._handle_planning)
-        workflow.add_node("analysis_agent", self._handle_analysis)
-        workflow.add_node("stuck_agent", self._handle_stuck)
-        workflow.add_node("general_chat", self._handle_general)
-        # 🟢 Phase 3.7: 使用ParallelToolNode替代标准ToolNode，支持并行执行
-        workflow.add_node("tools", ParallelToolNode(
-            WRITING_TOOLS,
-            max_concurrent=5  # 最大并发数（基于数据库连接池大小）
-        ))
-
-        # 设置入口点
-        workflow.set_entry_point("intent_classifier")
-
-        # 添加条件边：根据意图/CoT 结果路由到不同节点
-        if enable_quick_path:
-            # ✅ CoT 模式：支持快速路径
-            workflow.add_conditional_edges(
-                "intent_classifier",
-                self._route_after_intent_cot,
-                {
-                    # 新增快速路径
-                    "quick_tool_execute": "quick_tool_execute",
-                    "direct_response": "direct_response",
-                    # 原有路径
-                    "writing_agent": "writing_agent",
-                    "planning_agent": "planning_agent",
-                    "analysis_agent": "analysis_agent",
-                    "stuck_agent": "stuck_agent",
-                    "general_chat": "general_chat"
-                }
-            )
-
-            # ✅ 快速路径直接结束
-            workflow.add_edge("quick_tool_execute", END)
-            workflow.add_edge("direct_response", END)
-        else:
-            # 回滚模式：使用原有路由
-            workflow.add_conditional_edges(
-                "intent_classifier",
-                self._route_intent,
-                {
-                    "writing": "writing_agent",
-                    "planning": "planning_agent",
-                    "analysis": "analysis_agent",
-                    "stuck": "stuck_agent",
-                    "general": "general_chat"
-                }
-            )
-
-        # ✅ 2025-12-30: 所有Agent节点（包括general_chat）都支持工具调用
-        for agent_node in ["writing_agent", "planning_agent", "analysis_agent", "stuck_agent", "general_chat"]:
-            workflow.add_conditional_edges(
-                agent_node,
-                self._should_continue,
-                {
-                    "continue": "tools",  # 需要工具 → 执行工具
-                    "end": END  # 不需要工具 → 结束
-                }
-            )
-
-        # 工具执行后，根据意图返回对应的Agent节点（让Agent处理工具结果）
-        workflow.add_conditional_edges(
-            "tools",
-            self._route_after_tools,
-            {
-                "writing": "writing_agent",
-                "planning": "planning_agent",
-                "analysis": "analysis_agent",
-                "stuck": "stuck_agent",
-                "general": "general_chat"  # ✅ 2025-12-30: general 也可以返回处理工具结果
-            }
-        )
-
-        # 编译图
-        return workflow.compile(checkpointer=self.checkpointer)
-
-    def _should_continue(self, state: AgentState) -> Literal["continue", "end"]:
-        """判断是否需要继续执行工具"""
-        messages = state["messages"]
-        last_message = messages[-1]
-
-        # 如果最后一条消息是 AIMessage 且包含 tool_calls，则继续执行工具
-        if isinstance(last_message, AIMessage) and last_message.tool_calls:
-            logger.info(f"[LangGraph] 检测到工具调用: {len(last_message.tool_calls)} 个工具")
-            return "continue"
-
-        # 否则结束
-        logger.info("[LangGraph] 无需工具调用，结束流程")
-        return "end"
-
-    def _route_after_tools(self, state: AgentState) -> str:
-        """工具执行后路由回对应的Agent"""
-        intent = state.get("intent", "general")
-        logger.info(f"[LangGraph] 工具执行完毕，路由回: {intent}_agent")
-        return intent
 
     # ==================== 工具执行（委托到 ToolExecutor）====================
 
@@ -770,20 +552,6 @@ class WritingAgentGraph:
 
         return thread_id
 
-    # ==================== 意图分类（委托到 IntentClassifier）====================
-
-    def _classify_intent_by_rules(self, message: str) -> tuple[str, float]:
-        """基于规则的快速意图识别 - 委托到 IntentClassifier"""
-        return self.intent_classifier.classify_by_rules(message)
-
-    async def _ai_classify_intent(self, message: str) -> tuple[str, float]:
-        """使用AI进行意图分类 - 委托到 IntentClassifier"""
-        return await self.intent_classifier.classify_by_ai(message)
-
-    async def _judge_complexity(self, message: str, intent: str) -> Dict:
-        """判断请求复杂度 - 委托到 IntentClassifier"""
-        return await self.intent_classifier.judge_complexity(message, intent)
-
     async def _infer_tool_policy_from_context(
         self,
         message: str,
@@ -821,6 +589,7 @@ class WritingAgentGraph:
             "characters": len(worldview_data.get("characters", []) or []),
             "locations": len(worldview_data.get("locations", []) or []),
             "settings": len(worldview_data.get("settings", []) or []),
+            "glossary": len(worldview_data.get("glossary", []) or []),
             "has_guidelines": bool(worldview_data.get("guidelines"))
         }
 
@@ -883,346 +652,6 @@ class WritingAgentGraph:
 
         return None
 
-    def _detect_quick_action(self, message: str) -> Optional[Dict]:
-        """规则检测快速路径 - 委托到 IntentClassifier"""
-        return self.intent_classifier.detect_quick_action(message)
-
-    def _chinese_to_number(self, s: str) -> int:
-        """中文数字转阿拉伯数字 - 委托到 IntentClassifier"""
-        return self.intent_classifier._chinese_to_number(s)
-
-    async def _classify_intent(self, state: AgentState) -> AgentState:
-        """意图分类节点 - AI优先，极简规则快速通道
-
-        🆕 支持 selected_text: 当检测到编辑器选中文字时，自动判定为 writing 意图
-        """
-        logger.info("[LangGraph] 意图分类（AI优先架构）")
-
-        last_message = state["messages"][-1].content
-        context = state.get("context", {})
-
-        # 🆕 检测选中文字 - 如果有选中文字，强制判定为 writing
-        selected_text = context.get("selected_text", "")
-        if selected_text and len(selected_text.strip()) > 0:
-            logger.info(f"[Intent] 检测到 selected_text ({len(selected_text)} 字符)，强制判定为 writing")
-            return {
-                "intent": "writing",
-                "agent_steps": [{
-                    "step": "intent_classification",
-                    "result": "识别意图: writing (编辑器选中文字模式)",
-                    "usage": {}
-                }]
-            }
-
-        # 1. 极简规则快速通道（只处理极端情况）
-        intent, confidence = self._classify_intent_by_rules(last_message)
-        classification_method = "快速通道"
-
-        # 2. 非极端情况（confidence < 0.9）全部使用AI判断
-        if confidence < 0.9:
-            logger.info(f"[Intent] 触发AI语义分类（规则置信度={confidence:.2f}）")
-            ai_intent, ai_confidence = await self._ai_classify_intent(last_message)
-            intent = ai_intent
-            confidence = ai_confidence
-            classification_method = "AI语义分类"
-            logger.info(f"[Intent] AI分类结果: {intent} ({confidence:.2f})")
-
-        logger.info(
-            f"[Intent] 最终结果: {intent}, 置信度: {confidence:.2f}, 方法: {classification_method}"
-        )
-
-        # ✅ 只返回节点新增/修改的字段，避免 operator.add 重复添加
-        return {
-            "intent": intent,
-            "agent_steps": [{
-                "step": "intent_classification",
-                "result": f"识别意图: {intent} ({classification_method})",
-                "usage": {}  # Token消耗在AI调用中已记录
-            }]
-        }
-
-    def _route_intent(self, state: AgentState) -> str:
-        """路由决策函数"""
-        intent = state.get("intent", "general")
-        logger.info(f"[LangGraph] 路由到: {intent}")
-        return intent
-
-    # ==================== CoT 快速路径（新增）====================
-
-    async def _classify_intent_with_cot(self, state: AgentState) -> AgentState:
-        """增强版意图识别 - 在现有分类基础上增加复杂度判断
-
-        流程：
-        1. 调用现有的意图分类逻辑（复用 _classify_intent_by_rules + _ai_classify_intent）
-        2. 新增：判断复杂度（simple/complex）
-        3. 新增：如果 simple，确定执行方案
-
-        🆕 支持 selected_text: 当检测到编辑器选中文字时，自动判定为 writing 意图
-
-        Returns:
-            AgentState: 包含 intent, intent_decision, agent_steps
-        """
-        message = state["messages"][-1].content
-        context = state.get("context", {})
-        logger.info(f"[Intent-CoT] 开始分析: {message[:50]}...")
-
-        # 🆕 检测选中文字 - 如果有选中文字，强制判定为 writing/complex
-        selected_text = context.get("selected_text", "")
-        if selected_text and len(selected_text.strip()) > 0:
-            logger.info(f"[Intent-CoT] 检测到 selected_text ({len(selected_text)} 字符)，强制判定为 writing/complex")
-            return {
-                "intent": "writing",
-                "intent_decision": {"complexity": "complex", "action": {}},
-                "agent_steps": [{
-                    "step": "intent_cot",
-                    "result": "writing/complex (编辑器选中文字模式)",
-                }]
-            }
-
-        # ========== 步骤1: 复用现有意图分类 ==========
-        intent, confidence = self._classify_intent_by_rules(message)
-        classification_method = "快速通道"
-
-        if confidence < 0.9:
-            intent, confidence = await self._ai_classify_intent(message)
-            classification_method = "AI语义分类"
-
-        logger.info(f"[Intent-CoT] 意图: {intent} ({classification_method})")
-
-        # ========== 步骤2: 复杂度判断 ==========
-        # writing/planning/analysis/stuck 意图默认为 complex
-        if intent in ("writing", "planning", "analysis", "stuck"):
-            logger.info(f"[Intent-CoT] {intent} 意图默认为 complex")
-            return {
-                "intent": intent,
-                "intent_decision": {"complexity": "complex", "action": {}},
-                "agent_steps": [{
-                    "step": "intent_cot",
-                    "result": f"{intent}/complex (默认)",
-                }]
-            }
-
-        # general 意图需要进一步判断复杂度
-        complexity_decision = await self._judge_complexity(message, intent)
-
-        logger.info(
-            f"[Intent-CoT] 决策: intent={intent}, "
-            f"complexity={complexity_decision.get('complexity', 'complex')}"
-        )
-
-        return {
-            "intent": intent,
-            "intent_decision": complexity_decision,
-            "agent_steps": [{
-                "step": "intent_cot",
-                "result": f"{intent}/{complexity_decision.get('complexity', 'complex')}",
-            }]
-        }
-
-    async def _judge_complexity(self, message: str, intent: str) -> Dict:
-        """判断请求复杂度并确定执行方案
-
-        Args:
-            message: 用户消息
-            intent: 已识别的意图类型
-
-        Returns:
-            Dict: {"complexity": "simple|complex", "action": {...}}
-        """
-        prompt_template = await get_complexity_decision_prompt()
-        prompt = prompt_template.format(intent=intent, message=message)
-
-        try:
-            result = await self.ai_service.call_ai(
-                system_prompt="你是执行路径决策器，返回严格的JSON格式。",
-                user_prompt=prompt,
-                max_tokens=300,
-                temperature=0.1,
-                task_type=TaskType.TEXT_CLASSIFICATION
-            )
-
-            decision = self._extract_json_from_text(result)
-            if decision and decision.get("complexity"):
-                return decision
-
-        except Exception as e:
-            logger.warning(f"[Intent-CoT] 复杂度判断失败: {e}，降级为 complex")
-
-        # 降级：默认为 complex
-        return {"complexity": "complex", "action": {}}
-
-    def _route_after_intent_cot(self, state: AgentState) -> str:
-        """根据 CoT 结果路由到对应节点
-
-        路由规则：
-        - simple + direct_answer → direct_response 节点（新增）
-        - simple + tool_name → quick_tool_execute 节点（新增）
-        - complex → 原有 Agent 节点（按意图路由）
-
-        Returns:
-            str: 目标节点名称
-        """
-        decision = state.get("intent_decision", {})
-        complexity = decision.get("complexity", "complex")
-        action = decision.get("action", {})
-        intent = state.get("intent", "general")
-
-        # ========== 快速路径（新增）==========
-        if complexity == "simple":
-            if action.get("direct_answer"):
-                logger.info("[Route-CoT] → direct_response (直接回答)")
-                return "direct_response"
-            elif action.get("tool_name"):
-                logger.info(f"[Route-CoT] → quick_tool_execute ({action['tool_name']})")
-                return "quick_tool_execute"
-
-        # ========== 原有路径（保持不变）==========
-        # 复杂请求走原有的 Agent 节点
-        route_map = {
-            "writing": "writing_agent",
-            "planning": "planning_agent",
-            "analysis": "analysis_agent",
-            "stuck": "stuck_agent",
-            "general": "general_chat",
-        }
-        target = route_map.get(intent, "general_chat")
-        logger.info(f"[Route-CoT] → {target} (complex)")
-        return target
-
-    async def _quick_tool_execute(self, state: AgentState) -> AgentState:
-        """快速执行单工具（新增节点，跳过完整 Agent 流程）
-
-        用于 simple + tool 场景，直接调用工具并格式化返回。
-
-        Returns:
-            AgentState: 包含 final_response, agent_steps
-        """
-        decision = state.get("intent_decision", {})
-        action = decision.get("action", {})
-
-        tool_name = action.get("tool_name")
-        tool_args = action.get("tool_args", {})
-        response_hint = action.get("response_hint")
-
-        logger.info(f"[QuickExecute] 执行工具: {tool_name}, 参数: {tool_args}")
-
-        # 1. 获取工具函数
-        tool_func = self._get_tool_by_name(tool_name)
-        if not tool_func:
-            return {
-                "final_response": f"抱歉，无法执行该操作（未知工具: {tool_name}）",
-                "agent_steps": [{"step": "quick_tool_execute", "result": "工具不存在"}]
-            }
-
-        # 2. 执行工具
-        try:
-            # 添加 work_id 参数（如果工具需要）
-            work_id = state.get("work_id")
-
-            # ✅ 检查 work_id 是否存在（某些工具需要）
-            tools_need_work_id = {"get_chapter_by_order_tool", "get_context_tool", "read_chapter_tool"}
-            if tool_name in tools_need_work_id and not work_id:
-                return {
-                    "final_response": "需要先选择一部作品才能执行此操作。请告诉我您要查看哪部作品？",
-                    "agent_steps": [{"step": "quick_tool_execute", "result": "缺少 work_id"}]
-                }
-
-            if work_id and "work_id" not in tool_args:
-                tool_args["work_id"] = work_id
-
-            result = await tool_func.ainvoke(tool_args)
-        except Exception as e:
-            logger.error(f"[QuickExecute] 工具执行失败: {e}")
-            return {
-                "final_response": f"工具执行失败: {str(e)}",
-                "agent_steps": [{"step": "quick_tool_execute", "result": f"错误: {e}"}]
-            }
-
-        # 3. 根据 hint 格式化响应
-        response = self._format_tool_response(result, tool_args, response_hint)
-
-        return {
-            "final_response": response,
-            "agent_steps": [{
-                "step": "quick_tool_execute",
-                "result": f"执行 {tool_name}",
-            }]
-        }
-
-    async def _direct_response(self, state: AgentState) -> AgentState:
-        """直接返回答案（新增节点，无需工具）
-
-        用于 simple + direct_answer 场景。
-
-        Returns:
-            AgentState: 包含 final_response, agent_steps
-        """
-        decision = state.get("intent_decision", {})
-        action = decision.get("action", {})
-        answer = action.get("direct_answer", "")
-
-        logger.info(f"[DirectResponse] 返回预设答案")
-
-        return {
-            "final_response": answer,
-            "agent_steps": [{
-                "step": "direct_response",
-                "result": "直接回答"
-            }]
-        }
-
-    def _get_tool_by_name(self, tool_name: str):
-        """根据名称获取工具函数
-
-        维护一个工具名到函数的映射表。
-        """
-        # 从全局工具列表中查找
-        for tool in WRITING_TOOLS:
-            if tool.name == tool_name:
-                return tool
-        return None
-
-    def _format_tool_response(
-        self,
-        result: Any,
-        tool_args: Dict,
-        response_hint: Optional[str]
-    ) -> str:
-        """格式化工具响应
-
-        根据 response_hint 提取特定字段并格式化为用户友好的响应。
-        """
-        # 解析 result（可能是 JSON 字符串）
-        if isinstance(result, str):
-            try:
-                result = json.loads(result)
-            except json.JSONDecodeError:
-                return result
-
-        if not response_hint or not isinstance(result, dict):
-            return str(result)
-
-        chapter_order = tool_args.get("chapter_order", "")
-
-        if response_hint == "title":
-            title = result.get("title", "未知")
-            return f"第{chapter_order}章的标题是：**{title}**"
-
-        elif response_hint == "word_count":
-            word_count = result.get("word_count", 0)
-            return f"第{chapter_order}章共 **{word_count}** 字"
-
-        elif response_hint == "content":
-            return result.get("content", "")
-
-        elif response_hint == "title_and_word_count":
-            title = result.get("title", "未知")
-            word_count = result.get("word_count", 0)
-            return f"第{chapter_order}章「{title}」共 **{word_count}** 字"
-
-        else:
-            return str(result)
-
     def _extract_task_dependencies(self, params: Dict[str, Any]) -> set:
         """从参数中提取依赖的任务 ID
 
@@ -1243,93 +672,6 @@ class WritingAgentGraph:
 
         return deps
 
-    async def _handle_agent_with_tools(self, state: AgentState, agent_type: str, system_prompt: str) -> AgentState:
-        """
-        通用的Agent处理逻辑 - 使用HTTPAIService手动工具调用
-        """
-        logger.info(f"[LangGraph] 处理{agent_type}场景")
-        return await self._handle_with_httpai(state, agent_type, system_prompt)
-
-    async def _handle_with_httpai(self, state: AgentState, agent_type: str, system_prompt: str, recursion_depth: int = 0) -> AgentState:
-        """HTTPAIService 模式 - 手动工具调用（绕过 Cloudflare）
-
-        ✅ 2025-12-25: 重构为委托模式，核心逻辑移至 AgentExecutor
-
-        Args:
-            state: Agent状态
-            agent_type: Agent类型
-            system_prompt: 系统提示词
-            recursion_depth: 递归深度（默认0）
-        """
-        return await self.agent_executor.execute(
-            state=state,
-            agent_type=agent_type,
-            system_prompt=system_prompt,
-            recursion_depth=recursion_depth
-        )
-
-    # ==================== 场景处理（委托到 handlers 模块）====================
-
-    async def _handle_writing(self, state: AgentState) -> AgentState:
-        """处理写作场景 - 委托到 handlers 模块"""
-        return await handle_writing(self, state)
-
-    async def _handle_planning(self, state: AgentState) -> AgentState:
-        """处理规划场景 - 委托到 handlers 模块"""
-        return await handle_planning(self, state)
-
-    async def _handle_analysis(self, state: AgentState) -> AgentState:
-        """处理分析场景 - 委托到 handlers 模块"""
-        return await handle_analysis(self, state)
-
-    async def _handle_stuck(self, state: AgentState) -> AgentState:
-        """处理卡文场景 - 委托到 handlers 模块"""
-        return await handle_stuck(self, state)
-
-    async def _handle_general(self, state: AgentState) -> AgentState:
-        """处理一般对话 - 委托到 handlers 模块"""
-        return await handle_general(self, state)
-
-    async def _handle_stream_event(
-        self,
-        event: dict,
-        on_progress: Optional[callable] = None,
-        on_tool_call: Optional[callable] = None,
-        on_content: Optional[callable] = None,
-        progress_tracker: Optional[ProgressTracker] = None,
-        context: Optional[dict] = None
-    ):
-        """处理 astream 事件 - 委托到 StreamEventHandler"""
-        # 同步 approval_callback（可能在运行时更新）
-        self.stream_event_handler.set_approval_callback(self._approval_callback)
-
-        await self.stream_event_handler.handle_event(
-            event=event,
-            on_progress=on_progress,
-            on_tool_call=on_tool_call,
-            on_content=on_content,
-            progress_tracker=progress_tracker,
-            context=context
-        )
-
-    # ==================== 流式处理（委托到 EventParser）====================
-
-    def _parse_node_event(self, node_name: str, node_data: dict, progress_tracker=None) -> Optional[dict]:
-        """解析节点事件 - 委托到 EventParser"""
-        return self.event_parser.parse_node_event(node_name, node_data, progress_tracker)
-
-    def _extract_tool_calls(self, node_data: dict) -> list:
-        """提取工具调用 - 委托到 EventParser"""
-        return self.event_parser.extract_tool_calls(node_data)
-
-    def _generate_tool_description(self, tool_name: str, tool_args: dict) -> str:
-        """生成工具描述 - 委托到 EventParser"""
-        return self.event_parser.generate_tool_description(tool_name, tool_args)
-
-    def _extract_content(self, node_name: str, node_data: dict) -> Optional[str]:
-        """提取内容 - 委托到 EventParser"""
-        return self.event_parser.extract_content(node_name, node_data)
-
     def _extract_json_from_text(self, text: str) -> Optional[dict]:
         """从文本提取JSON - 委托到 EventParser"""
         return EventParser.extract_json_from_text(text)
@@ -1349,7 +691,6 @@ class WritingAgentGraph:
         on_content: Optional[callable] = None,
         on_flow_event: Optional[callable] = None,  # v6.0: 执行轨迹事件回调
         db: Optional[Any] = None,
-        enable_reflection: bool = False  # DeepAgent 反思模式
     ) -> Dict[str, Any]:
         """
         与 Agent 对话 - Planning + Execution 模式
@@ -1368,7 +709,6 @@ class WritingAgentGraph:
             on_content: 内容生成回调
             on_flow_event: 执行轨迹事件回调 (v6.0)
             db: 数据库会话（用于token记录）
-            enable_reflection: 是否启用DeepAgent反思模式
 
         Returns:
             Dict: Agent响应
@@ -1564,8 +904,7 @@ class WritingAgentGraph:
                         work_id=work_id,
                         chapter_id=chapter_id,
                         context=context,
-                        conversation_history=conversation_history,
-                        enable_reflection=enable_reflection
+                        conversation_history=conversation_history
                     )
                 except Exception as e:
                     logger.error(f"[Planning Agent] 执行失败: {e}", exc_info=True)
@@ -1809,127 +1148,25 @@ class WritingAgentGraph:
                 # ✅ 为任务执行添加超时保护（使用统一配置）
                 try:
                     async with async_timeout(TimeoutConfig.TASK_EXECUTION):
-                        # ════════════════════════════════════════════
-                        # DeepAgent 反思模式分支
-                        # ════════════════════════════════════════════
-                        if enable_reflection:
-                            logger.info("[DeepAgent] 启用反思模式")
-                            deep_executor = DeepAgentExecutor(
-                                agent_graph=self,
-                                on_plan=on_plan,
-                                on_task_start=wrapped_on_task_start,  # v6.0: 使用包装回调
-                                on_task_progress=on_task_progress,
-                                on_task_done=wrapped_on_task_done,  # v6.0: 使用包装回调
-                                on_content=on_content,
-                            )
-
-                            # ✅ 创建参数解析器（与 Plan 模式保持一致）
-                            from app.services.agent.parameter_resolver import ParameterResolver
-                            deep_resolver = ParameterResolver(strict_mode=False)
-                            logger.info("[DeepAgent] ParameterResolver 已启用")
-
-                            # 🆕 2026-01-12: 创建共享 state 用于章节缓存（在闭包外部，跨任务共享）
-                            shared_state = {
-                                "work_id": work_id,
-                                "chapter_id": chapter_id,
-                                "context": context if isinstance(context, dict) else {},
-                                "tool_policy": tool_policy,
-                                "task_step_map": task_step_map,
-                            }
-
-                            # 定义任务执行函数（传递给 DeepAgentExecutor）
-                            async def execute_single_task(task, context, on_task_progress):
-                                import time as time_module  # ✅ 添加计时支持
-                                start_time = time_module.time()
-
-                                # ✅ 解析任务参数中的占位符（修复 $TASK_N.content$ 未解析问题）
-                                resolved_task = task.copy()
-                                task_id = task.get("task_id", 0)
-                                if "params" in resolved_task:
-                                    resolved_task["params"] = await deep_resolver.resolve_params(
-                                        resolved_task["params"],
-                                        current_task_id=task_id
-                                    )
-                                    logger.debug(f"[DeepAgent] 任务{task_id}参数已解析")
-
-                                task_state = dict(shared_state)
-                                step_id = task_step_map.get(task_id)
-                                if isinstance(step_id, int):
-                                    task_state["step_id"] = step_id
-                                stream_handler = getattr(self, "stream_event_handler", None)
-                                if stream_handler:
-                                    task_state["stream_event_handler"] = stream_handler
-
-                                result_str = await self._execute_task(
-                                    task=resolved_task,  # ✅ 使用解析后的任务
-                                    work_id=work_id,
-                                    chapter_id=chapter_id,
-                                    context=context.get("context_str", initial_context),
-                                    on_progress=on_task_progress,
-                                    conversation_id=conversation_id,  # v8.0: 传递 conversation_id 用于操作日志
-                                    state=task_state,  # 🆕 使用共享 state 用于章节缓存
-                                )
-
-                                # ✅ 注册任务结果到参数解析器（供后续任务使用）
-                                await deep_resolver.register_result(task_id, result_str)
-                                logger.debug(f"[DeepAgent] 任务{task_id}结果已注册")
-
-                                # ✅ 计算耗时（与 Plan 模式保持一致）
-                                elapsed_time = time_module.time() - start_time
-
-                                return {"status": "completed", "content": result_str, "elapsed_time": elapsed_time}
-
-                            deep_result = await deep_executor.execute_with_reflection(
-                                plan=plan_data,
-                                context={"context_str": initial_context, "work_id": work_id, "chapter_id": chapter_id},
-                                execute_task_func=execute_single_task,
-                            )
-
-                            # 如果发生重规划，使用最新的任务列表覆盖原规划，确保后续返回/缓存一致
-                            if deep_result.get("replan_count", 0) > 0:
-                                plan_data["tasks"] = deep_result.get("tasks", plan_data.get("tasks", []))
-
-                            # 转换结果格式
-                            task_results = []
-                            # ✅ 构建任务ID到任务的映射（用于获取 tool 字段）
-                            task_map = {t.get("task_id", i+1): t for i, t in enumerate(deep_result.get("tasks", []))}
-                            for task_id, result in deep_result.get("results", {}).items():
-                                task_info = task_map.get(task_id, {})
-                                task_results.append({
-                                    "task_id": task_id,
-                                    "result": result.get("content", result.get("result", str(result))),
-                                    "status": result.get("status", "completed"),
-                                    "tool": task_info.get("tool", ""),  # ✅ 添加 tool 字段，用于任务分类
-                                    "description": task_info.get("description", ""),  # ✅ 添加描述
-                                    "elapsed_time": result.get("elapsed_time", 0),  # ✅ 添加耗时字段
-                                })
-
-                            logger.info(
-                                f"[DeepAgent] 执行完成: 反思={deep_result.get('reflection_count', 0)}次, "
-                                f"重规划={deep_result.get('replan_count', 0)}次"
-                            )
-                        else:
-                            # 标准模式：使用原有并行执行
-                            shared_state = {
-                                "work_id": work_id,
-                                "chapter_id": chapter_id,
-                                "context": context if isinstance(context, dict) else {},
-                                "tool_policy": tool_policy,
-                                "task_step_map": task_step_map,
-                            }
-                            task_results = await self._execute_tasks_in_parallel(
-                                tasks=plan_data["tasks"],
-                                work_id=work_id,
-                                chapter_id=chapter_id,
-                                context=initial_context,
-                                context_payload=context,
-                                on_task_start=wrapped_on_task_start,  # v6.0: 使用包装回调
-                                on_task_progress=on_task_progress,
-                                on_task_done=wrapped_on_task_done,  # v6.0: 使用包装回调
-                                conversation_id=conversation_id,  # v8.0: 传递 conversation_id 用于操作日志
-                                state=shared_state
-                            )
-                        # ════════════════════════════════════════════
+                        shared_state = {
+                            "work_id": work_id,
+                            "chapter_id": chapter_id,
+                            "context": context if isinstance(context, dict) else {},
+                            "tool_policy": tool_policy,
+                            "task_step_map": task_step_map,
+                        }
+                        task_results = await self._execute_tasks_in_parallel(
+                            tasks=plan_data["tasks"],
+                            work_id=work_id,
+                            chapter_id=chapter_id,
+                            context=initial_context,
+                            context_payload=context,
+                            on_task_start=wrapped_on_task_start,  # v6.0: 使用包装回调
+                            on_task_progress=on_task_progress,
+                            on_task_done=wrapped_on_task_done,  # v6.0: 使用包装回调
+                            conversation_id=conversation_id,  # v8.0: 传递 conversation_id 用于操作日志
+                            state=shared_state
+                        )
                 except asyncio.TimeoutError:
                     logger.error(f"[Execution] 任务执行超时（{TimeoutConfig.TASK_EXECUTION}秒）")
                     return {
@@ -2516,7 +1753,7 @@ class WritingAgentGraph:
         chapter_id: str,
         context: str
     ) -> str:
-        """DeepAgent 模式的降级执行 - 委托到 TaskRunner"""
+        """降级执行 - 委托到 TaskRunner"""
         return await self.task_runner._fallback_legacy_execute(
             tool_name=tool_name,
             params=params,

@@ -7,7 +7,6 @@ import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
 import type { AgentChatRequest, TaskSnapshot, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
-import type { AgentMode } from '../agent/ModeSelector';
 import ActivityStream from '../agent/ActivityStream';  // 导入 ActivityStream
 import { ExecutionFlow } from '../agent/ExecutionFlow';  // v5.0: 执行轨迹可视化
 import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // 编辑确认对话框
@@ -444,7 +443,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const { saveDraft, getDraft, clearDraft } = useChatDraftStore();
 
   const [inputValue, setInputValue] = useState('');
-  const [mode] = useState<AgentMode>('plan'); // Agent 执行模式：plan(固定规划) | agent(DeepAgent 反思)
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesContentRef = useRef<HTMLDivElement>(null);
@@ -692,7 +690,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   handleSendWithContextRef.current = async (message: string, context?: any) => {
     if (!message.trim() || isLoading) return;
 
-    const backendMode: AgentChatRequest['mode'] = mode === 'agent' ? 'react' : 'planning';
+    const backendMode: AgentChatRequest['mode'] = 'planning';
 
     // 固定 payload 结构，将选中信息放入独立 selection 字段
     // 避免将选中文本放入 prompt/chapter_context 导致被覆盖或结构混乱
@@ -714,7 +712,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       mode: backendMode,
       work_id: workId,
       chapter_id: chapterId,
-      enable_reflection: mode === 'agent',
       context: {
         ...context,
         // 新增独立 selection 字段，推荐结构化
@@ -1321,10 +1318,6 @@ ${context.selected_text}
         }
       : {};
 
-    // Agent 模式 = Planning + DeepAgent 反思，可动态调整计划
-    // Plan 模式 = 仅 Planning，无反思，任务列表固定
-    const enableDeepAgent = mode === 'agent';
-
     const locateHint = (() => {
       const quoted = getQuotedRangeLocateHint(message);
       if (Object.keys(quoted).length > 0) return quoted;
@@ -1334,7 +1327,6 @@ ${context.selected_text}
     const request: AgentChatRequest = {
       message,
       mode: 'planning',  // 始终使用 planning 模式
-      enable_reflection: enableDeepAgent,  // Agent 模式启用 DeepAgent 反思
       work_id: workId,
       chapter_id: chapterId,
       context: {
@@ -1704,7 +1696,7 @@ ${selectionContext.selected_text}
           const completionItem = messageFlowItems.find((item: any) => item?.type === 'completion');
           const lastOutputItem = outputItems.length > 0 ? outputItems[outputItems.length - 1] : null;
           const isStreamingMessage = isLastMessage && isLoading;
-          const showActivityStream = isStreamingMessage && mode === 'agent' && activities.length > 0;
+          const showActivityStream = isStreamingMessage && activities.length > 0;
           const showThinking = isStreamingMessage && !showActivityStream && meaningfulFlowItems.length === 0;
           const showFlowBlock = flowItemsWithoutOutput.length > 0 || showActivityStream || showThinking;
           const findRevisionByItemId = (targetId: string): RevisionFlowData | null => {
