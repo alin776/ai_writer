@@ -198,7 +198,8 @@ class StreamEventHandler:
         on_tool_call: Optional[callable] = None,
         on_content: Optional[callable] = None,
         progress_tracker: Optional["ProgressTracker"] = None,
-        context: Optional[dict] = None
+        context: Optional[dict] = None,
+        approval_callback: Optional[callable] = None
     ):
         """处理 astream 事件，转换为用户友好的进度信息并触发回调
 
@@ -209,6 +210,7 @@ class StreamEventHandler:
             on_content: 内容生成回调
             progress_tracker: 进度追踪器
             context: 上下文（用于 HITL）
+            approval_callback: 请求级 HITL 确认回调（优先于实例默认回调）
         """
         if not event:
             return
@@ -237,7 +239,10 @@ class StreamEventHandler:
                 await self._handle_tool_calls(node_data, on_tool_call)
 
             # HITL 确认请求处理
-            await self._handle_hitl_confirmation(node_data)
+            await self._handle_hitl_confirmation(
+                node_data,
+                approval_callback=approval_callback
+            )
 
         # 5. 检测内容生成并触发 on_content
         if on_content:
@@ -292,9 +297,14 @@ class StreamEventHandler:
             except Exception as e:
                 logger.error(f"[Stream] 工具回调失败: {e}")
 
-    async def _handle_hitl_confirmation(self, node_data: dict):
+    async def _handle_hitl_confirmation(
+        self,
+        node_data: dict,
+        approval_callback: Optional[callable] = None
+    ):
         """处理 HITL 确认请求"""
-        if not self._approval_callback:
+        request_approval_callback = approval_callback or self._approval_callback
+        if not request_approval_callback:
             return
 
         messages = node_data.get("messages", [])
@@ -408,7 +418,7 @@ class StreamEventHandler:
                     f"editor_action={approval_data.get('editor_action')}"
                 )
 
-                callback_result = await self._approval_callback(approval_data)
+                callback_result = await request_approval_callback(approval_data)
                 logger.info(f"[HITL] ✅ 回调执行成功")
 
                 # 🆕 v8.3: approval_request 已包含完整数据，不再重复发送 revision 事件

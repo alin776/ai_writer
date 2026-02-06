@@ -1297,19 +1297,18 @@ class WritingAgentGraph:
         on_tool_call: Optional[callable] = None,
         on_content: Optional[callable] = None,
         progress_tracker: Optional[ProgressTracker] = None,
-        context: Optional[dict] = None
+        context: Optional[dict] = None,
+        approval_callback: Optional[callable] = None,
     ):
         """处理 astream 事件 - 委托到 StreamEventHandler"""
-        # 同步 approval_callback（可能在运行时更新）
-        self.stream_event_handler.set_approval_callback(self._approval_callback)
-
         await self.stream_event_handler.handle_event(
             event=event,
             on_progress=on_progress,
             on_tool_call=on_tool_call,
             on_content=on_content,
             progress_tracker=progress_tracker,
-            context=context
+            context=context,
+            approval_callback=approval_callback,
         )
 
     # ==================== 流式处理（委托到 EventParser）====================
@@ -1348,6 +1347,7 @@ class WritingAgentGraph:
         on_task_done: Optional[callable] = None,
         on_content: Optional[callable] = None,
         on_flow_event: Optional[callable] = None,  # v6.0: 执行轨迹事件回调
+        approval_callback: Optional[callable] = None,  # 请求级审批回调（避免全局共享状态）
         db: Optional[Any] = None,
         enable_reflection: bool = False  # DeepAgent 反思模式
     ) -> Dict[str, Any]:
@@ -1367,6 +1367,7 @@ class WritingAgentGraph:
             on_task_done: 任务完成回调
             on_content: 内容生成回调
             on_flow_event: 执行轨迹事件回调 (v6.0)
+            approval_callback: 请求级审批回调
             db: 数据库会话（用于token记录）
             enable_reflection: 是否启用DeepAgent反思模式
 
@@ -1851,6 +1852,7 @@ class WritingAgentGraph:
                                     on_progress=on_task_progress,
                                     conversation_id=conversation_id,  # v8.0: 传递 conversation_id 用于操作日志
                                     state=task_state,  # 🆕 使用共享 state 用于章节缓存
+                                    approval_callback=approval_callback,
                                 )
 
                                 # ✅ 注册任务结果到参数解析器（供后续任务使用）
@@ -1910,7 +1912,8 @@ class WritingAgentGraph:
                                 on_task_progress=on_task_progress,
                                 on_task_done=wrapped_on_task_done,  # v6.0: 使用包装回调
                                 conversation_id=conversation_id,  # v8.0: 传递 conversation_id 用于操作日志
-                                state=shared_state
+                                state=shared_state,
+                                approval_callback=approval_callback,
                             )
                         # ════════════════════════════════════════════
                 except asyncio.TimeoutError:
@@ -2062,7 +2065,8 @@ class WritingAgentGraph:
         on_task_progress: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
         conversation_id: Optional[str] = None,  # v8.0: 添加 conversation_id 用于操作日志
-        state: Optional[Dict[str, Any]] = None  # 🆕 2026-01-12: 添加 state 用于章节缓存
+        state: Optional[Dict[str, Any]] = None,  # 🆕 2026-01-12: 添加 state 用于章节缓存
+        approval_callback: Optional[callable] = None,
     ) -> List[Dict[str, Any]]:
         """智能并行执行任务 - 委托到 ParallelExecutor
 
@@ -2091,7 +2095,8 @@ class WritingAgentGraph:
             on_task_progress=on_task_progress,
             on_task_done=on_task_done,
             conversation_id=conversation_id,
-            state=state  # 🆕 传递 state 用于章节缓存
+            state=state,  # 🆕 传递 state 用于章节缓存
+            approval_callback=approval_callback,
         )
 
     # ==================== 规划响应（委托到 ResponseBuilder）====================
@@ -2292,7 +2297,8 @@ class WritingAgentGraph:
         context_payload: Optional[Dict[str, Any]] = None,
         on_progress: Optional[callable] = None,
         conversation_id: Optional[str] = None,  # v8.0: 添加 conversation_id 用于操作日志
-        state: Optional[Dict[str, Any]] = None  # 🆕 2026-01-12: 添加 state 用于章节缓存
+        state: Optional[Dict[str, Any]] = None,  # 🆕 2026-01-12: 添加 state 用于章节缓存
+        approval_callback: Optional[callable] = None,
     ) -> str:
         """执行单个任务 - 委托到 TaskRunner
 
@@ -2320,7 +2326,13 @@ class WritingAgentGraph:
             state=state  # 🆕 传递 state 用于章节缓存
         )
         # v7.0: 检测HITL确认请求并发送审批/修订事件
-        await self._handle_hitl_tool_result(task, result, work_id=work_id, chapter_id=chapter_id)
+        await self._handle_hitl_tool_result(
+            task,
+            result,
+            work_id=work_id,
+            chapter_id=chapter_id,
+            approval_callback=approval_callback,
+        )
         return result
 
     async def _handle_hitl_tool_result(
@@ -2328,7 +2340,8 @@ class WritingAgentGraph:
         task: Dict[str, Any],
         tool_result: Any,
         work_id: Optional[str] = None,
-        chapter_id: Optional[str] = None
+        chapter_id: Optional[str] = None,
+        approval_callback: Optional[callable] = None,
     ) -> None:
         """处理工具结果中的HITL确认请求（Planning路径）"""
         if not tool_result:
@@ -2440,9 +2453,10 @@ class WritingAgentGraph:
 
         # 调用审批回调（用于前端通知）
         callback_result = None
-        if self._approval_callback:
+        request_approval_callback = approval_callback or self._approval_callback
+        if request_approval_callback:
             try:
-                callback_result = await self._approval_callback(approval_data)
+                callback_result = await request_approval_callback(approval_data)
             except Exception as e:
                 logger.warning(f"[HITL] 审批回调执行失败: {e}")
 

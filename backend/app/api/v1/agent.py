@@ -282,6 +282,9 @@ class ApprovalResponseRequest(BaseModel):
     approved: bool
     selected_version: Optional[int] = None
     reason: Optional[str] = None
+    chapter_id: Optional[str] = None
+    work_id: Optional[str] = None
+    conversation_id: Optional[str] = None
 
 
 class ApprovalResponse(BaseModel):
@@ -1600,6 +1603,15 @@ async def agent_chat_stream(
                     approval_data["request_id"] = request_id
                     description = approval_data.get("description") or approval_data.get("message") or "修订请求"
                     approval_data["description"] = description
+                    if request.work_id and not approval_data.get("work_id"):
+                        approval_data["work_id"] = request.work_id
+                    if request.chapter_id and not approval_data.get("chapter_id"):
+                        approval_data["chapter_id"] = request.chapter_id
+                    if conversation_id:
+                        approval_data["conversation_id"] = conversation_id
+
+                    target_work_id = approval_data.get("work_id") or request.work_id
+                    target_chapter_id = approval_data.get("chapter_id") or request.chapter_id
 
                     # 创建 approval request 存储到 Redis（使用相同的 request_id）
                     hitl.create_approval_request(
@@ -1608,7 +1620,13 @@ async def agent_chat_stream(
                         title=description,
                         description=description,
                         proposed_action=approval_data,  # 存储完整的修订数据
-                        context={"work_id": request.work_id, "chapter_id": request.chapter_id},
+                        context={
+                            "work_id": request.work_id,
+                            "chapter_id": request.chapter_id,
+                            "target_work_id": target_work_id,
+                            "target_chapter_id": target_chapter_id,
+                            "conversation_id": conversation_id,
+                        },
                         timeout_seconds=3600,  # 1小时过期
                         request_id=request_id  # v7.5: 使用相同的 request_id
                     )
@@ -1619,10 +1637,7 @@ async def agent_chat_stream(
                 # 在后台运行 Agent（仅 planning 模式）
                 async def run_agent():
                     nonlocal result
-                    prev_approval_callback = getattr(agent_graph, "_approval_callback", None)
                     try:
-                        # 绑定审批回调（注意：全局Agent可能被并发请求复用）
-                        agent_graph._approval_callback = on_approval_request
                         result = await agent_graph.chat_with_planning(
                             message=request.message,
                             user_id=user_id,
@@ -1636,6 +1651,7 @@ async def agent_chat_stream(
                             on_task_done=on_task_done,
                             on_content=on_content,
                             on_flow_event=on_flow_event,  # v6.0: 执行轨迹事件
+                            approval_callback=on_approval_request,
                             db=db,
                             enable_reflection=request.enable_reflection,  # DeepAgent 反思模式
                         )
@@ -1648,8 +1664,6 @@ async def agent_chat_stream(
                             'error': str(e),
                             'error_type': type(e).__name__
                         }))
-                    finally:
-                        agent_graph._approval_callback = prev_approval_callback
 
                 # 启动 Agent 任务
                 agent_task = asyncio.create_task(run_agent())
@@ -1859,6 +1873,130 @@ async def submit_approval_response(
 
         approval_request = hitl.get_approval_request(request.request_id)
         approval_data = approval_request.proposed_action if approval_request else None
+        approval_context = (
+            approval_request.context
+            if approval_request and isinstance(approval_request.context, dict)
+            else {}
+        )
+
+        if not revision and not approval_request:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="审批请求不存在或已过期，请重新生成。"
+            )
+
+        current_user_id = str(current_user.id)
+        if approval_request and str(approval_request.user_id) != current_user_id:
+            logger.warning(
+                "[Approval] 用户越权: user=%s request=%s owner=%s",
+                current_user_id,
+                request.request_id,
+                approval_request.user_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权限操作该审批请求。"
+            )
+
+        if revision and revision.user_id and str(revision.user_id) != current_user_id:
+            logger.warning(
+                "[Approval] 修订越权: user=%s request=%s owner=%s",
+                current_user_id,
+                request.request_id,
+                revision.user_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权限操作该修订请求。"
+            )
+        if revision and not revision.user_id and not approval_request:
+            logger.warning(
+                "[Approval] 修订缺少 owner 且审批记录已失效: request=%s",
+                request.request_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="审批记录已失效，请重新生成修订后再操作。"
+            )
+
+        def _normalize_uuid_like(value: Optional[Any]) -> Optional[str]:
+            if value is None:
+                return None
+            raw = str(value).strip()
+            if not raw:
+                return None
+            try:
+                return str(uuid.UUID(raw))
+            except (ValueError, AttributeError, TypeError):
+                return raw
+
+        client_chapter_id = _normalize_uuid_like(request.chapter_id)
+        client_work_id = _normalize_uuid_like(request.work_id)
+        client_conversation_id = str(request.conversation_id).strip() if request.conversation_id else None
+
+        expected_chapter_id: Optional[str] = None
+        expected_work_id: Optional[str] = None
+        expected_conversation_id: Optional[str] = None
+
+        if revision:
+            expected_chapter_id = _normalize_uuid_like(revision.chapter_id)
+            expected_work_id = _normalize_uuid_like(revision.work_id)
+
+        if isinstance(approval_data, dict):
+            expected_chapter_id = expected_chapter_id or _normalize_uuid_like(approval_data.get("chapter_id"))
+            expected_work_id = expected_work_id or _normalize_uuid_like(approval_data.get("work_id"))
+            if approval_data.get("conversation_id"):
+                expected_conversation_id = str(approval_data.get("conversation_id")).strip()
+
+        if isinstance(approval_context, dict):
+            expected_chapter_id = expected_chapter_id or _normalize_uuid_like(
+                approval_context.get("target_chapter_id") or approval_context.get("chapter_id")
+            )
+            expected_work_id = expected_work_id or _normalize_uuid_like(
+                approval_context.get("target_work_id") or approval_context.get("work_id")
+            )
+            if not expected_conversation_id and approval_context.get("conversation_id"):
+                expected_conversation_id = str(approval_context.get("conversation_id")).strip()
+
+        if client_chapter_id and expected_chapter_id and client_chapter_id != expected_chapter_id:
+            logger.warning(
+                "[Approval] 章节不一致: request=%s client=%s expected=%s",
+                request.request_id,
+                client_chapter_id,
+                expected_chapter_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="采纳失败：当前章节与修订目标章节不一致，请切换到目标章节后重试。"
+            )
+
+        if client_work_id and expected_work_id and client_work_id != expected_work_id:
+            logger.warning(
+                "[Approval] 作品不一致: request=%s client=%s expected=%s",
+                request.request_id,
+                client_work_id,
+                expected_work_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="采纳失败：当前作品与修订目标作品不一致，请刷新后重试。"
+            )
+
+        if (
+            client_conversation_id
+            and expected_conversation_id
+            and client_conversation_id != expected_conversation_id
+        ):
+            logger.warning(
+                "[Approval] 会话不一致: request=%s client=%s expected=%s",
+                request.request_id,
+                client_conversation_id,
+                expected_conversation_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="采纳失败：会话已切换，请在正确会话中重试。"
+            )
 
         # 如果是采纳，需要写入数据库
         if request.approved:
@@ -1879,10 +2017,10 @@ async def submit_approval_response(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"修订应用失败: {revision_error}"
                     )
-            elif approval_data:
+            elif isinstance(approval_data, dict):
                 action_type = approval_data.get("action_type")
-                chapter_id = approval_data.get("chapter_id")
-                work_id = approval_data.get("work_id")
+                chapter_id = approval_data.get("chapter_id") or expected_chapter_id
+                work_id = approval_data.get("work_id") or expected_work_id
 
                 # 处理章节创建
                 if action_type == "create" and work_id:

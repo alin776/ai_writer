@@ -2078,6 +2078,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         await agentApi.submitApprovalResponse({
           request_id: requestId,
           approved: true,
+          chapter_id: chapterId,
+          work_id: workId,
         });
       } catch (error) {
         console.error('[NovelEditor] 采纳修订写入失败:', error);
@@ -2139,6 +2141,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         await agentApi.submitApprovalResponse({
           request_id: requestId,
           approved: false,
+          chapter_id: chapterId,
+          work_id: workId,
         });
       } catch (error) {
         console.error('[NovelEditor] 弃用修订写入失败:', error);

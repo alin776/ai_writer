@@ -59,7 +59,8 @@ class ParallelExecutor:
         on_task_progress: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
         conversation_id: Optional[str] = None,  # v8.0: 添加 conversation_id 用于操作日志
-        state: Optional[Dict[str, Any]] = None  # 🆕 2026-01-12: 添加 state 用于章节缓存
+        state: Optional[Dict[str, Any]] = None,  # 🆕 2026-01-12: 添加 state 用于章节缓存
+        approval_callback: Optional[callable] = None,
     ) -> List[Dict[str, Any]]:
         """
         智能并行执行任务
@@ -84,16 +85,14 @@ class ParallelExecutor:
         Returns:
             任务结果列表
         """
-        # 保存 conversation_id 供内部方法使用
-        self._conversation_id = conversation_id
         # 🆕 2026-01-12: 保存或创建共享 state 用于章节缓存
-        self._shared_state = state if state else {
+        shared_state = state if state else {
             "work_id": work_id,
             "chapter_id": chapter_id,
             "context": context_payload or {},
         }
         if isinstance(context_payload, dict) and "tool_policy" in context_payload:
-            self._shared_state.setdefault("tool_policy", context_payload.get("tool_policy"))
+            shared_state.setdefault("tool_policy", context_payload.get("tool_policy"))
         # 创建参数解析器
         from app.services.agent.parameter_resolver import ParameterResolver
 
@@ -109,7 +108,10 @@ class ParallelExecutor:
             resolver=resolver,
             on_task_start=on_task_start,
             on_task_progress=on_task_progress,
-            on_task_done=on_task_done
+            on_task_done=on_task_done,
+            shared_state=shared_state,
+            conversation_id=conversation_id,
+            approval_callback=approval_callback,
         )
 
         task_results.sort(key=lambda x: x["task_id"])
@@ -146,7 +148,10 @@ class ParallelExecutor:
         on_task_start: Optional[callable],
         on_task_progress: Optional[callable],
         on_task_done: Optional[callable],
-        context_payload: Optional[Dict[str, Any]] = None
+        context_payload: Optional[Dict[str, Any]] = None,
+        shared_state: Optional[Dict[str, Any]] = None,
+        conversation_id: Optional[str] = None,
+        approval_callback: Optional[callable] = None,
     ) -> tuple:
         """基于 depends_on 的就绪队列调度执行任务。"""
         tasks_by_id, deps_by_id, ordered_ids = self._build_dependency_graph(tasks)
@@ -192,7 +197,10 @@ class ParallelExecutor:
                     on_task_start=on_task_start,
                     on_task_progress=on_task_progress,
                     on_task_done=on_task_done,
-                    batch_name="并行就绪"
+                    batch_name="并行就绪",
+                    shared_state=shared_state,
+                    conversation_id=conversation_id,
+                    approval_callback=approval_callback,
                 )
                 task_results.extend(results)
                 for result in results:
@@ -215,7 +223,10 @@ class ParallelExecutor:
                 on_task_start=on_task_start,
                 on_task_progress=on_task_progress,
                 on_task_done=on_task_done,
-                batch_name="串行就绪"
+                batch_name="串行就绪",
+                shared_state=shared_state,
+                conversation_id=conversation_id,
+                approval_callback=approval_callback,
             )
             task_results.append(result)
             all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
@@ -369,7 +380,10 @@ class ParallelExecutor:
         on_task_progress: Optional[callable],
         on_task_done: Optional[callable],
         batch_name: str,
-        context_payload: Optional[Dict[str, Any]] = None
+        context_payload: Optional[Dict[str, Any]] = None,
+        shared_state: Optional[Dict[str, Any]] = None,
+        conversation_id: Optional[str] = None,
+        approval_callback: Optional[callable] = None,
     ) -> tuple:
         """
         并行执行一批任务
@@ -404,7 +418,10 @@ class ParallelExecutor:
                     on_task_start=on_task_start,
                     on_task_progress=on_task_progress,
                     on_task_done=on_task_done,
-                    batch_name=batch_name
+                    batch_name=batch_name,
+                    shared_state=shared_state,
+                    conversation_id=conversation_id,
+                    approval_callback=approval_callback,
                 )
 
         # 并行执行
@@ -446,7 +463,10 @@ class ParallelExecutor:
         on_task_start: Optional[callable],
         on_task_progress: Optional[callable],
         on_task_done: Optional[callable],
-        context_payload: Optional[Dict[str, Any]] = None
+        context_payload: Optional[Dict[str, Any]] = None,
+        shared_state: Optional[Dict[str, Any]] = None,
+        conversation_id: Optional[str] = None,
+        approval_callback: Optional[callable] = None,
     ) -> tuple:
         """
         串行执行一批任务
@@ -481,7 +501,10 @@ class ParallelExecutor:
                 on_task_start=on_task_start,
                 on_task_progress=on_task_progress,
                 on_task_done=on_task_done,
-                batch_name="串行"
+                batch_name="串行",
+                shared_state=shared_state,
+                conversation_id=conversation_id,
+                approval_callback=approval_callback,
             )
             task_results.append(result)
             all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
@@ -499,7 +522,10 @@ class ParallelExecutor:
         on_task_progress: Optional[callable],
         on_task_done: Optional[callable],
         batch_name: str,
-        context_payload: Optional[Dict[str, Any]] = None
+        context_payload: Optional[Dict[str, Any]] = None,
+        shared_state: Optional[Dict[str, Any]] = None,
+        conversation_id: Optional[str] = None,
+        approval_callback: Optional[callable] = None,
     ) -> Dict[str, Any]:
         """
         执行单个任务（带重试）
@@ -529,7 +555,6 @@ class ParallelExecutor:
         if on_task_start:
             await on_task_start(task)
 
-        shared_state = getattr(self, '_shared_state', None)
         step_id = None
         if isinstance(shared_state, dict):
             step_map = shared_state.get("task_step_map")
@@ -577,8 +602,9 @@ class ParallelExecutor:
                     context=context,
                     context_payload=context_payload,
                     on_progress=on_task_progress,
-                    conversation_id=getattr(self, '_conversation_id', None),  # v8.0: 传递 conversation_id
-                    state=task_state  # 🆕 2026-01-12: 传递共享 state 用于章节缓存
+                    conversation_id=conversation_id,  # v8.0: 传递 conversation_id
+                    state=task_state,  # 🆕 2026-01-12: 传递共享 state 用于章节缓存
+                    approval_callback=approval_callback,
                 )
 
                 raw_result = result

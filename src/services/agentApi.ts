@@ -646,6 +646,9 @@ class AgentApiService {
     approved: boolean;
     selected_version?: number;
     reason?: string;
+    chapter_id?: string;
+    work_id?: string;
+    conversation_id?: string;
   }): Promise<{ success: boolean; request_id: string }> {
     const response = await this.client.post('/chat/approval-response', request);
     return response.data;

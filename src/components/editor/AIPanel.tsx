@@ -1781,12 +1781,38 @@ ${selectionContext.selected_text}
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(true, selectedVersion);
                           } else if (resolvedRequestId) {
+                            const effectiveChapterId = targetChapterId || chapterId;
+                            const chapterMismatch = Boolean(
+                              chapterId &&
+                              targetChapterId &&
+                              chapterId !== targetChapterId
+                            );
+                            if (chapterMismatch && targetChapterId) {
+                              console.warn('[AIPanel] 跨章节采纳，按目标章节执行', {
+                                requestId: resolvedRequestId,
+                                currentChapterId: chapterId,
+                                targetChapterId
+                              });
+                              window.dispatchEvent(
+                                new CustomEvent('agent-jump-revision', {
+                                  detail: {
+                                    workId,
+                                    chapterId: targetChapterId,
+                                    requestId: resolvedRequestId,
+                                    revisionId: resolvedRequestId,
+                                    position: revisionData?.editorPosition
+                                  }
+                                })
+                              );
+                            }
                             // v7.5: 非阻塞式修订 - 直接调用后端 API 写入数据
                             console.log('[AIPanel] 非阻塞式修订，直接调用后端 API');
                             agentApi.submitApprovalResponse({
                               request_id: resolvedRequestId,
                               approved: true,
-                              selected_version: selectedVersion
+                              selected_version: selectedVersion,
+                              chapter_id: effectiveChapterId,
+                              work_id: workId
                             }).then(() => {
                               console.log('[AIPanel] ✅ 修订已写入数据库');
                               if (workId) {
@@ -1799,15 +1825,17 @@ ${selectionContext.selected_text}
                               console.error('[AIPanel] 写入数据库失败:', err);
                             });
                             // 派发采纳事件到编辑器
-                            window.dispatchEvent(
-                              new CustomEvent('agent-accept-revision', {
-                                detail: {
-                                  request_id: resolvedRequestId,
-                                  revision_id: itemId,
-                                  chapter_id: targetChapterId
-                                }
-                              })
-                            );
+                            if (!chapterMismatch) {
+                              window.dispatchEvent(
+                                new CustomEvent('agent-accept-revision', {
+                                  detail: {
+                                    request_id: resolvedRequestId,
+                                    revision_id: itemId,
+                                    chapter_id: effectiveChapterId
+                                  }
+                                })
+                              );
+                            }
                           } else {
 
 
@@ -1854,24 +1882,52 @@ ${selectionContext.selected_text}
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(false);
                           } else if (resolvedRequestId) {
+                            const effectiveChapterId = targetChapterId || chapterId;
+                            const chapterMismatch = Boolean(
+                              chapterId &&
+                              targetChapterId &&
+                              chapterId !== targetChapterId
+                            );
+                            if (chapterMismatch && targetChapterId) {
+                              console.warn('[AIPanel] 跨章节弃用，按目标章节执行', {
+                                requestId: resolvedRequestId,
+                                currentChapterId: chapterId,
+                                targetChapterId
+                              });
+                              window.dispatchEvent(
+                                new CustomEvent('agent-jump-revision', {
+                                  detail: {
+                                    workId,
+                                    chapterId: targetChapterId,
+                                    requestId: resolvedRequestId,
+                                    revisionId: resolvedRequestId,
+                                    position: revisionData?.editorPosition
+                                  }
+                                })
+                              );
+                            }
                             // v7.5: 非阻塞式修订 - 直接调用后端 API
                             console.log('[AIPanel] 非阻塞式修订，直接调用后端 API (弃用)');
                             agentApi.submitApprovalResponse({
                               request_id: resolvedRequestId,
-                              approved: false
+                              approved: false,
+                              chapter_id: effectiveChapterId,
+                              work_id: workId
                             }).catch((err) => {
                               console.error('[AIPanel] 弃用请求失败:', err);
                             });
                             // v7.6: 派发弃用事件到编辑器（直接操作修订标记）
-                            window.dispatchEvent(
-                              new CustomEvent('agent-discard-revision', {
-                                detail: {
-                                  request_id: resolvedRequestId,
-                                  revision_id: itemId,
-                                  chapter_id: targetChapterId
-                                }
-                              })
-                            );
+                            if (!chapterMismatch) {
+                              window.dispatchEvent(
+                                new CustomEvent('agent-discard-revision', {
+                                  detail: {
+                                    request_id: resolvedRequestId,
+                                    revision_id: itemId,
+                                    chapter_id: effectiveChapterId
+                                  }
+                                })
+                              );
+                            }
                           } else {
                             // v7.6: 即使没有 pendingApproval，也派发弃用事件到编辑器
 
