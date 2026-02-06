@@ -903,6 +903,5 @@ export default function ChatInput({
           <span>Shift + Enter 换行</span>
         </div>
       </div>
-    </div>
   );
 }

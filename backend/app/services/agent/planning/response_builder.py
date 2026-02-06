@@ -12,6 +12,7 @@
 from typing import Dict, List, Any, Optional, Callable, Awaitable, TYPE_CHECKING
 import json
 import logging
+import re
 
 from app.services.agent.utils.context_builder import _build_summarization_context
 from app.services.agent.model_selector import TaskType
@@ -150,6 +151,7 @@ class ResponseBuilder:
             "create": "创建章节",
         }
         ops = []
+        change_summaries: List[str] = []
         for item in pending_items:
             operation = str(item.get("operation", "")).strip()
             op_name = op_map.get(operation, "内容修改")
@@ -158,13 +160,26 @@ class ResponseBuilder:
                 ops.append(f"{op_name}（{chapter_title}）")
             else:
                 ops.append(op_name)
+            description = str(item.get("description", "")).strip()
+            if description:
+                change_summaries.append(description)
+                continue
+            content = str(item.get("content") or item.get("new_content") or "").strip()
+            if content:
+                content = re.sub(r"<[^>]+>", "", content)
+                content = re.sub(r"\s+", " ", content).strip()
+                if len(content) > 90:
+                    content = content[:90] + "..."
+                change_summaries.append(content)
         unique_ops = list(dict.fromkeys(ops))[:3]
+        unique_changes = list(dict.fromkeys([c for c in change_summaries if c]))[:2]
         op_summary = "、".join(unique_ops) if unique_ops else "内容修改"
+        change_summary = "；".join(unique_changes) if unique_changes else "内容已生成，可在修订卡片预览。"
 
         return (
-            f"已生成{len(pending_items)}条待确认修订，尚未写回数据库。\n\n"
-            f"本次操作：{op_summary}。\n"
-            "当前状态：待确认（未落库）。\n"
+            f"已完成任务：{op_summary}。\n"
+            f"改动内容：{change_summary}\n"
+            f"当前状态：已生成{len(pending_items)}条待确认修订，尚未写回数据库。\n"
             "下一步：请在修订卡片点击“采纳”，落库成功后编辑器才会更新。"
         )
 

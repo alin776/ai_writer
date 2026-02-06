@@ -3841,3 +3841,32 @@
 - 验证结果：
 - 后端语法检查通过：`python3 -m py_compile backend/app/api/v1/agent.py backend/app/services/agent/planning/response_builder.py`
 - 前端构建仍被历史错误拦截：`src/components/agent/ChatInput.tsx:906` / `src/components/agent/ChatInput.tsx:907`，与本次改动无直接关联。
+
+#### ChatInput 语法修复（待确认）
+
+- [x] 定位并修复 `src/components/agent/ChatInput.tsx:906/907` 语法错误（多余闭合标签）
+- [x] 重新执行前端构建，确认错误已不再出现
+
+#### review
+
+- 已删除 `ChatInput.tsx` 末尾多余 `</div>`，`TS1005/TS1109` 语法错误消失。`src/components/agent/ChatInput.tsx`
+- 构建目前失败于其它历史类型错误（ExecutionFlow/NovelEditor/sessionCompression/WorkDetailView/WorksView 等），不再是 ChatInput 的语法错误。`npm run -s build`
+
+#### 待确认文案优化（待确认）
+
+- [x] 待确认模板增加“已完成任务”摘要
+- [x] 待确认模板增加“改动内容”摘要（优先 description，兜底 content 预览）
+- [x] 保留下一步采纳引导文案，明确“采纳后才落库”
+
+#### review
+
+- `pending` 响应不再只报状态，改为先告诉用户“已完成什么任务、改了什么内容”，再给出“待确认未落库 + 采纳下一步”。`backend/app/services/agent/planning/response_builder.py`
+
+#### opencode agent框架深度研读（待确认）
+
+- [ ] 盘点 `opencode` 项目中 agent 相关入口与模块边界（CLI、Server、Session、Provider、Tool、Prompt、MCP）
+- [ ] 深读主执行链路：从命令入口到会话创建、模型调用、工具执行、结果回流
+- [ ] 深读状态与上下文机制：消息历史、文件快照、权限策略、持久化结构
+- [ ] 深读扩展机制：工具注册/发现、模型提供商适配、事件与 hook 设计
+- [ ] 深读 App/SDK 与 Agent 内核的通信边界，并确认关键 API 合同
+- [ ] 产出证据清单（文件路径+关键实现点）与直白详细结论
