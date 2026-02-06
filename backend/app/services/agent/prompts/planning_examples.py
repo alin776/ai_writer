@@ -908,26 +908,25 @@ def get_operate_apply_examples() -> str:
 ⚠️ insert 操作必须传 node_id/paragraph_index（不允许降级）
 
 ---
-【场景4：整章替换 - 使用 operate_apply(content)】
+【场景4：整章替换 - 使用 rewrite_chapter_content + operate_apply(content)】
 
 用户: "重写第2章"
 {
   "thinking": {
     "step1_output": "用户要重写整章内容",
     "step2_material": "需要世界观和大纲",
-    "step3_process": "获取上下文 → smart_continue 生成新内容 → operate_apply(content) 整章替换"
+    "step3_process": "获取上下文 → rewrite_chapter_content 生成整章 → operate_apply(content) 整章替换"
   },
   "user_intent": "重写第2章",
   "tasks": [
     {"task_id": 1, "description": "获取创作上下文", "tool": "explore_content", "params": {"target_task": "重写第2章准备，获取第1-2章和世界观"}, "depends_on": []},
-    {"task_id": 2, "description": "重写第2章", "tool": "smart_continue", "params": {
-      "chapter_content": "",
-      "user_requirement": "基于世界观和第1章，重新创作第2章",
-      "word_count": 3000
+    {"task_id": 2, "description": "重写第2章", "tool": "rewrite_chapter_content", "params": {
+      "chapter_id": {"$ref": {"task_id": 1, "path": "chapters[0].chapter_id"}},
+      "user_requirement": "基于世界观和第1章，重写第2章"
     }, "depends_on": [1]},
     {"task_id": 3, "description": "整章替换", "tool": "operate_apply", "params": {
       "operation": "content",
-      "chapter_id": {"$ref": {"task_id": 1, "path": "locate_targets[0].chapter_id"}},
+      "chapter_id": {"$ref": {"task_id": 2, "path": "chapter_id"}},
       "content": {"$ref": {"task_id": 2, "path": "content"}}
     }, "depends_on": [1, 2]}
   ]

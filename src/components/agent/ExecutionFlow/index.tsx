@@ -165,6 +165,8 @@ export function ExecutionFlow({
             );
           case 'revision': {
             const revisionData = item.data as RevisionFlowData;
+            const isChapterReplace =
+              revisionData.operation === 'content' || revisionData.operation === 'replace_all';
             return (
               <RevisionCard
                 key={item.id}
@@ -172,7 +174,7 @@ export function ExecutionFlow({
                 onAccept={(selectedVersion) => onAcceptRevision?.(item.id, revisionData.requestId, selectedVersion)}
                 onDiscard={() => onDiscardRevision?.(item.id, revisionData.requestId)}
                 onUndo={() => onUndoRevision?.(item.id)}
-                onRedo={() => onRedoRevision?.(item.id)}
+                onRedo={isChapterReplace ? undefined : () => onRedoRevision?.(item.id)}
                 onJump={() => onJumpRevision?.(item.id, revisionData.requestId)}
               />
             );

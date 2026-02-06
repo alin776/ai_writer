@@ -112,6 +112,62 @@ class ResponseBuilder:
         """设置流式事件处理器"""
         self._stream_event_handler = handler
 
+    def _extract_result_obj(self, raw_result: Any) -> Dict[str, Any]:
+        """将 task.result 统一解析为 dict，解析失败返回空 dict。"""
+        if isinstance(raw_result, dict):
+            return raw_result
+        if isinstance(raw_result, str):
+            try:
+                parsed = json.loads(raw_result)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                return {}
+        return {}
+
+    def _collect_pending_confirmations(self, task_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """收集待确认修订任务（未落库）。"""
+        pending_items: List[Dict[str, Any]] = []
+        for task in task_results:
+            result_obj = self._extract_result_obj(task.get("result"))
+            if not result_obj:
+                continue
+            requires_confirmation = bool(result_obj.get("requires_confirmation"))
+            apply_state = str(result_obj.get("apply_state", "")).lower()
+            if requires_confirmation or apply_state == "pending":
+                pending_items.append(result_obj)
+        return pending_items
+
+    def _build_pending_confirmation_response(self, pending_items: List[Dict[str, Any]]) -> str:
+        """构建待确认修订的硬约束响应，禁止宣称已落库。"""
+        op_map = {
+            "append": "续写",
+            "replace": "段落改写",
+            "insert": "插入",
+            "content": "整章替换",
+            "replace_all": "整章替换",
+            "title": "改标题",
+            "create": "创建章节",
+        }
+        ops = []
+        for item in pending_items:
+            operation = str(item.get("operation", "")).strip()
+            op_name = op_map.get(operation, "内容修改")
+            chapter_title = str(item.get("chapter_title", "")).strip()
+            if chapter_title:
+                ops.append(f"{op_name}（{chapter_title}）")
+            else:
+                ops.append(op_name)
+        unique_ops = list(dict.fromkeys(ops))[:3]
+        op_summary = "、".join(unique_ops) if unique_ops else "内容修改"
+
+        return (
+            f"已生成{len(pending_items)}条待确认修订，尚未写回数据库。\n\n"
+            f"本次操作：{op_summary}。\n"
+            "当前状态：待确认（未落库）。\n"
+            "下一步：请在修订卡片点击“采纳”，落库成功后编辑器才会更新。"
+        )
+
     async def _generate_summarization_reason(
         self,
         message: str,
@@ -389,6 +445,44 @@ class ResponseBuilder:
             logger.warning("[Summarization] 未设置流式生成函数，返回简单拼接")
             return self._simple_concat(task_results, on_content)
 
+        pending_items = self._collect_pending_confirmations(task_results)
+        if pending_items:
+            logger.info(
+                "[Summarization] 检测到待确认修订，启用硬约束响应模板（count=%s）",
+                len(pending_items),
+            )
+            pending_response = self._build_pending_confirmation_response(pending_items)
+            if self._stream_event_handler:
+                try:
+                    task_classification = classify_tasks(task_results)
+                    await self._stream_event_handler.emit_summarization_start(
+                        {
+                            "input_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in task_classification["input_tasks"]],
+                            "output_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in task_classification["output_tasks"]],
+                            "display_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in task_classification["display_tasks"]]
+                        },
+                        {
+                            "original_length": 0,
+                            "compressed_length": 0,
+                            "mode": "硬约束模板"
+                        },
+                        "检测到待确认修订，返回固定说明"
+                    )
+                    await self._stream_event_handler.emit_summarization_complete()
+                    from app.services.agent.stream.flow_events import FlowEventBuilder
+                    await self._stream_event_handler.emit_flow_event(
+                        FlowEventBuilder.output_ready(
+                            output_title or "生成内容",
+                            "",
+                            is_applicable=is_applicable
+                        )
+                    )
+                except Exception as event_err:
+                    logger.warning(f"[Summarization] 硬约束事件发送失败: {event_err}")
+            if on_content:
+                await on_content(pending_response)
+            return pending_response
+
         # 任务分类
         classified = classify_tasks(task_results)
 
@@ -478,7 +572,7 @@ class ResponseBuilder:
      3. 重点展开哪些内容？"
 
 3. 【编辑器操作识别】⚠️ 非常重要！
-   - 如果任务结果中包含 `requires_confirmation: true`，表示内容**已经应用到编辑器**
+   - 如果任务结果中包含 `requires_confirmation: true`，表示内容**已生成待确认修订，尚未落库**
    - 此时**禁止**在响应中重复展示完整的创作内容！
    - 应该只输出：
      a) 简要总结做了什么操作（如"已在第一章末尾续写了约500字"）
@@ -491,7 +585,7 @@ class ResponseBuilder:
      - 延续了主角的内心独白
      - 加入了新角色的伏笔
 
-     内容已在编辑器中显示，你可以直接查看和编辑。需要我继续往下写吗？"
+     内容已生成待确认修订，采纳后才会写回。需要我继续调整吗？"
 
 4. 综合所有任务结果，用清晰、友好的语言呈现
 5. 编号列表必须使用 Markdown 有序列表语法 `1.`，禁止 `1、` / `（1）` / `一、`

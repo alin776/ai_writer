@@ -99,9 +99,11 @@ from .editor_tools import (
     apply_chapter_edit,
     smart_continue,
     smart_rewrite,
+    rewrite_chapter_content,
     smart_insert,
     # StandardTool 版本
     smart_rewrite_tool,
+    rewrite_chapter_content_tool,
     smart_continue_tool,
     smart_insert_tool,
     apply_chapter_edit_tool
@@ -252,9 +254,11 @@ __all__ = [
     "apply_chapter_edit",
     "smart_continue",
     "smart_rewrite",
+    "rewrite_chapter_content",
     "smart_insert",
     # StandardTool 版本
     "smart_rewrite_tool",
+    "rewrite_chapter_content_tool",
     "smart_continue_tool",
     "smart_insert_tool",
     "apply_chapter_edit_tool",
@@ -323,6 +327,7 @@ def _register_standard_tools():
 
     # 编辑器工具（2025-12-14: 新增）
     registry.register_standard_tool(smart_rewrite_tool)
+    registry.register_standard_tool(rewrite_chapter_content_tool)
     registry.register_standard_tool(smart_continue_tool)
     registry.register_standard_tool(smart_insert_tool)
     registry.register_standard_tool(apply_chapter_edit_tool)

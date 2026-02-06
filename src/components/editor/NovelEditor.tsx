@@ -695,6 +695,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         if (cancelled || !revisions || revisions.length === 0) return;
 
         revisions.forEach((revision: ChapterRevision) => {
+          // 章节级替换（replace_all/content）不走段落修订标记展示
+          if (revision.operation === 'replace_all' || revision.operation === 'content') {
+            return;
+          }
           const editorType: 'modify' | 'continue' | 'insert' =
             revision.operation === 'append'
               ? 'continue'
@@ -1555,9 +1559,11 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         position?: { from: number; to: number };
         action_type?: string;
         skipRevision?: boolean;  // 跳过修订标记，直接替换
+        forceReplaceAll?: boolean;  // 章节级整章替换
+        chapterId?: string;
       }>;
 
-      const { original, replacement, position, action_type, skipRevision } = customEvent.detail;
+      const { original, replacement, position, action_type, skipRevision, forceReplaceAll, chapterId: targetChapterId } = customEvent.detail;
 
       // 如果不是跳过修订标记的请求，转发到显示修订
       if (!skipRevision) {
@@ -1573,11 +1579,17 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         return;
       }
 
+      if (targetChapterId && chapterId && targetChapterId !== chapterId) {
+        console.log('[NovelEditor] 跳过跨章节直接替换:', { targetChapterId, currentChapterId: chapterId });
+        return;
+      }
+
       console.log('[NovelEditor] 收到直接替换请求:', {
         original: original?.substring(0, 50) + '...',
         replacement: replacement?.substring(0, 50) + '...',
         position,
-        action_type
+        action_type,
+        forceReplaceAll
       });
 
       if (!replacement) {
@@ -1586,6 +1598,16 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }
 
       try {
+        if (forceReplaceAll) {
+          editor.commands.setContent(replacement);
+          setSaveStatus('unsaved');
+          if (autoSave) {
+            debouncedSave(editor);
+          }
+          toast.success(t('editor.aiMenu.appliedRewrite'));
+          return;
+        }
+
         if (position && position.from !== undefined && position.to !== undefined) {
           editor.chain()
             .focus()
@@ -1724,6 +1746,22 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
       try {
         const currentHtml = editor.getHTML();
+        const hasTargetMarkers = !isBatch && revisionIds.length > 0
+          ? revisionIds.some((revisionId) =>
+              currentHtml.includes(`data-revision-id="${revisionId}"`)
+            )
+          : true;
+
+        // 章节级修订（无段落标记）不做本地 setContent，避免旧稿覆盖
+        if (!isBatch && revisionIds.length > 0 && !hasTargetMarkers) {
+          clearPendingRevisions(revisionIds);
+          setActiveRevision(null);
+          setRevisionBarPosition(null);
+          revisionSaveBlockedRef.current = false;
+          console.log('[NovelEditor] 采纳请求未找到修订标记，跳过本地内容覆盖');
+          return;
+        }
+
         const nextHtml = applyRevisionDecisionToHtml(
           currentHtml,
           'accept',

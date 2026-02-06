@@ -53,8 +53,10 @@ async def get_tool_decision_static_prompt() -> str:
 【第二步：如果需要工具，选择合适的工具】
 
 【编辑器工具 - 修改内容时优先使用】
-- smart_rewrite: 改写/修改章节内容（只生成1个改写结果）
+- smart_rewrite: 段落级改写/修改章节内容（只生成1个改写结果）
   参数: chapter_id, text_to_rewrite, user_requirement, evidence_context
+- rewrite_chapter_content: 整章改写（只生成整章内容）
+  参数: chapter_id, user_requirement, chapter_content(可选), evidence_context(可选)
 - smart_continue: 智能续写（根据上下文生成续写内容）
   参数: chapter_id, chapter_content, user_requirement, evidence_context, word_count
 - smart_insert: 智能插入（根据意图生成插入内容）
@@ -78,17 +80,18 @@ async def get_tool_decision_static_prompt() -> str:
 【工具使用规则】
 
 1. 用户提到具体文字但未说章节 → 先用 explore_content 定位章节
-2. 用户说"修改第X章"、"改写第X章" → smart_rewrite → operate_apply(operation="replace")
-3. 用户说"续写"、"继续写" → smart_continue → operate_apply(operation="append")
-4. 用户说"插入" → smart_insert → operate_apply(operation="insert")
-5. 用户说"创建新章节"、"新建章节" → operate_apply(operation="create")
-6. 用户说"删除章节" → delete_chapter（⚠️ 危险操作，需确认）
-7. 用户说"改标题"、"重命名章节" → operate_apply(operation="title")
-8. 用户说"检查一致性"、"有没有矛盾" → 使用 analyze_content（analysis_types=["consistency"]）
-9. 用户说"分析风格"、"写作特点" → 使用 analyze_content（analysis_types=["style"]）
-10. 用户说"情感描写"、"展示情绪" → 使用 show_emotion_tool
-11. 用户说"增强场景"、"画面感" → 使用 enhance_scene_tool
-12. 用户要“暗线/伏笔/剧情大纲/设定补充/推演方案” → 只用 explore_content（取证据后直接回答，不用 analyze_content）
+2. 用户说"整章重写/全文改写/全章改写" → rewrite_chapter_content → operate_apply(operation="content")
+3. 用户说"修改第X章"、"改写第X章" → smart_rewrite → operate_apply(operation="replace")
+4. 用户说"续写"、"继续写" → smart_continue → operate_apply(operation="append")
+5. 用户说"插入" → smart_insert → operate_apply(operation="insert")
+6. 用户说"创建新章节"、"新建章节" → operate_apply(operation="create")
+7. 用户说"删除章节" → delete_chapter（⚠️ 危险操作，需确认）
+8. 用户说"改标题"、"重命名章节" → operate_apply(operation="title")
+9. 用户说"检查一致性"、"有没有矛盾" → 使用 analyze_content（analysis_types=["consistency"]）
+10. 用户说"分析风格"、"写作特点" → 使用 analyze_content（analysis_types=["style"]）
+11. 用户说"情感描写"、"展示情绪" → 使用 show_emotion_tool
+12. 用户说"增强场景"、"画面感" → 使用 enhance_scene_tool
+13. 用户要“暗线/伏笔/剧情大纲/设定补充/推演方案” → 只用 explore_content（取证据后直接回答，不用 analyze_content）
 
 ⚠️ **operate_apply 定位规则**：
 - replace/insert 必须传 node_id 或 paragraph_index

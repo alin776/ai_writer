@@ -565,6 +565,7 @@ export interface RewriteVersion {
 export interface RevisionFlowData {
   revisionType: RevisionType;
   status: RevisionStatus;
+  operation?: string;
   requestId?: string;
   chapterId?: string;
   chapterTitle?: string;

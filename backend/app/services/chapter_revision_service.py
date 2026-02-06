@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Optional, Tuple
 import re
+import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,8 @@ from app.models.chapter_revision import ChapterRevision, ChapterRevisionStatus
 from app.services.chapter_service import ChapterService
 from app.schemas.chapter import ChapterUpdate
 from app.utils.datetime_utils import get_utc_now
+
+logger = logging.getLogger(__name__)
 
 
 class ChapterRevisionService:
@@ -91,12 +94,29 @@ class ChapterRevisionService:
         self,
         revision: ChapterRevision,
     ) -> Tuple[Optional[object], str]:
+        logger.info(
+            "[ApprovalFlow] apply_revision start request_id=%s revision_id=%s chapter_id=%s operation=%s status=%s",
+            revision.request_id,
+            str(revision.id),
+            str(revision.chapter_id),
+            revision.operation,
+            revision.status,
+        )
         chapter_service = ChapterService(self.db)
         chapter = await chapter_service.get_chapter_by_id(str(revision.chapter_id))
         if not chapter:
+            logger.warning(
+                "[ApprovalFlow] apply_revision failed request_id=%s reason=chapter_not_found",
+                revision.request_id,
+            )
             return (None, "chapter_not_found")
 
         if revision.status != ChapterRevisionStatus.PENDING:
+            logger.info(
+                "[ApprovalFlow] apply_revision skipped request_id=%s reason=status_%s",
+                revision.request_id,
+                revision.status,
+            )
             return (chapter, "")
 
         base_version_mismatch = (
@@ -108,26 +128,53 @@ class ChapterRevisionService:
             if base_version_mismatch:
                 revision.status = ChapterRevisionStatus.CONFLICT
                 await self.db.commit()
+                logger.warning(
+                    "[ApprovalFlow] apply_revision failed request_id=%s reason=conflict(base_version_mismatch)",
+                    revision.request_id,
+                )
                 return (None, "conflict")
+            logger.warning(
+                "[ApprovalFlow] apply_revision failed request_id=%s reason=%s",
+                revision.request_id,
+                error,
+            )
             return (None, error)
 
+        expected_version = chapter.version
         updated, update_error = await chapter_service.update_chapter_with_lock(
             chapter_id=str(chapter.id),
             chapter_data=ChapterUpdate(content=new_content),
-            expected_version=chapter.version,
+            expected_version=expected_version,
             modifier="agent",
         )
         if update_error:
             if update_error == "conflict":
                 revision.status = ChapterRevisionStatus.CONFLICT
                 await self.db.commit()
+                logger.warning(
+                    "[ApprovalFlow] apply_revision failed request_id=%s reason=conflict(update_lock)",
+                    revision.request_id,
+                )
                 return (None, "conflict")
+            logger.warning(
+                "[ApprovalFlow] apply_revision failed request_id=%s reason=%s",
+                revision.request_id,
+                update_error,
+            )
             return (None, update_error)
 
         revision.status = ChapterRevisionStatus.ACCEPTED
         revision.applied_at = get_utc_now()
         await self.db.commit()
         await self.db.refresh(revision)
+        logger.info(
+            "[ApprovalFlow] revision applied request_id=%s revision_id=%s chapter_id=%s from_version=%s to_version=%s",
+            revision.request_id,
+            str(revision.id),
+            str(revision.chapter_id),
+            expected_version,
+            getattr(updated, "version", None),
+        )
 
         return (updated, "")
 

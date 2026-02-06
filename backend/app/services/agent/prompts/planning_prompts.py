@@ -216,7 +216,7 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 | 续写 | smart_continue | operate_apply(operation="append") |
 | 改写 | smart_rewrite | operate_apply(operation="replace") |
 | 插入 | smart_insert | operate_apply(operation="insert") |
-| 整章重写 | smart_rewrite | operate_apply(operation="content") |
+| 整章重写 | rewrite_chapter_content | operate_apply(operation="content") |
 
 ⚠️ **operate_apply 不再自动定位**！
 - replace/insert 必须传 node_id 或 paragraph_index
@@ -224,8 +224,10 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 
 ⚠️ **参数引用规则**：后续工具参数只允许引用 explore_content 的 `evidences` / `locate_targets`
 （默认输出完整字段；如需精简，请显式传 output_mode="evidence_only"）
+⚠️ **整章改写例外**：rewrite_chapter_content 可引用 explore_content 的 `chapters[0].chapter_id` / `chapters[0].content`
 ⚠️ smart_* 必须注入 explore 证据（evidence_context），否则不允许创作写入
-⚠️ smart_rewrite 的 text_to_rewrite **必须**引用 `evidences[0].text`（禁止使用 locate_targets[0].text）
+⚠️ smart_rewrite 的 text_to_rewrite **必须**引用 `evidences[0].text`（仅限段落级改写，禁止使用 locate_targets[0].text）
+⚠️ **整章改写必须使用 rewrite_chapter_content**，禁止用 smart_rewrite
 
 ⚠️ **locate_content 输出字段规则**：
 - locate_content 的输出字段在顶层：`chapter_id` / `paragraph_index` / `node_id` / `text` / `before_anchor` / `after_anchor`

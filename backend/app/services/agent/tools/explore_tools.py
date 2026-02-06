@@ -43,11 +43,9 @@ LOCATE_QUERY_MAX_LEN = 200
 
 TOOL_LOOP_MAX_CALLS_DEFAULT = 200
 TOOL_LOOP_MAX_READS_DEFAULT = 200
-TOOL_LOOP_EMPTY_READ_STREAK_LIMIT = 3
 TOOL_LOOP_RESULT_PREVIEW_LIMIT = 1200
 SEARCH_HIT_TEXT_LIMIT = 2000
 KEYWORD_READ_MAX_PER_TERM = 1
-KEYWORD_COVERAGE_MAX = 20
 SEARCH_HIT_PREVIEW_LIMIT = 100
 SEARCH_HIT_TOTAL_CHAR_LIMIT = 20000
 SEARCH_HIT_MIN_ITEMS = 5
@@ -784,19 +782,7 @@ class ExploreState:
         return False
 
     def should_search(self, query: str) -> bool:
-        """判断是否应该执行搜索（包含相似度检查）"""
-        if query in self.searched_queries:
-            return False
-
-        # 检查是否与已搜索的词高度相似
-        for existing in self.searched_queries:
-            if self._is_query_similar(query, existing):
-                logger.info(
-                    "[ExploreState] 搜索词与已有词相似，跳过: '%s' ~ '%s'",
-                    query[:30], existing[:30]
-                )
-                return False
-
+        """判断是否应该执行搜索（去重/相似判断已禁用）"""
         return True
 
     def record_search(self, query: str):
@@ -2144,7 +2130,6 @@ class ContentExplorer:
         self.allowed_chapter_orders: List[int] = []
         self.chapter_paragraph_counts: Dict[int, int] = {}
         self.chapter_read_caps: Dict[int, int] = {}
-        self.empty_read_streak = 0
         self.flow_listed_chapters = False
         self.flow_listed_paragraphs: set[int] = set()
         if self.require_paragraph_index:
@@ -2790,10 +2775,6 @@ class ContentExplorer:
                 stop_reason = f"不支持的工具: {decision.tool}"
                 break
 
-            if decision.tool in ("read_paragraph", "read_paragraphs") and reads_left is not None and reads_left <= 0:
-                stop_reason = "达到读取上限"
-                break
-
             before_evidences = len(self.state.evidences)
             before_paragraphs = len(self.state.paragraphs)
 
@@ -2826,33 +2807,9 @@ class ContentExplorer:
             if self.emit_callback:
                 await self._emit_round_event(round_data)
 
-            if decision.tool in ("read_paragraph", "read_paragraphs"):
-                if reads_used <= 0:
-                    self.empty_read_streak += 1
-                    empty_reason = ""
-                    if isinstance(tool_call.result, dict):
-                        empty_reason = str(tool_call.result.get("empty_reason") or tool_call.result.get("error") or "")
-                    logger.info(
-                        "[ContentExplorer] 空读计数: %s/%s reason=%s",
-                        self.empty_read_streak,
-                        TOOL_LOOP_EMPTY_READ_STREAK_LIMIT,
-                        empty_reason
-                    )
-                    if self.empty_read_streak >= TOOL_LOOP_EMPTY_READ_STREAK_LIMIT:
-                        stop_reason = f"连续空读达到上限({TOOL_LOOP_EMPTY_READ_STREAK_LIMIT})"
-                        break
-                else:
-                    self.empty_read_streak = 0
-            else:
-                self.empty_read_streak = 0
-
             last_tool_name = tool_call.tool_name
             last_tool_result = result_preview
             round_idx += 1
-
-            if reads_left is not None and reads_left <= 0:
-                stop_reason = "达到读取上限"
-                break
 
         if self.state.rounds:
             self.state.rounds[-1].sufficient = True
@@ -3325,63 +3282,22 @@ class ContentExplorer:
             if not keywords:
                 result_data = {"success": False, "error": "缺少 keywords"}
             else:
-                required_keywords: List[str] = []
-                if self.search_keywords:
-                    for item in self.search_keywords:
-                        text = str(item).strip()
-                        if not text:
-                            continue
-                        required_keywords.extend(_split_keywords(text))
-
-                expanded = []
+                cleaned_keywords = []
                 seen_kw = set()
                 for kw in keywords:
-                    cleaned = kw.strip().strip("\"'“”‘’《》")
-                    variants = [kw, cleaned, cleaned.replace(" ", ""), cleaned.replace("　", "")]
-                    for item in variants:
-                        if not item:
-                            continue
-                        if item in seen_kw:
-                            continue
-                        seen_kw.add(item)
-                        expanded.append(item)
-                required_expanded = []
-                for kw in required_keywords:
                     cleaned = str(kw).strip().strip("\"'“”‘’《》")
-                    variants = [kw, cleaned, cleaned.replace(" ", ""), cleaned.replace("　", "")]
-                    for item in variants:
-                        if not item:
-                            continue
-                        if item in seen_kw:
-                            continue
-                        seen_kw.add(item)
-                        required_expanded.append(item)
-
-                keywords = expanded
-                force_set = set(required_expanded)
-                if required_expanded:
-                    merged = []
-                    for kw in keywords + required_expanded:
-                        if kw in merged:
-                            continue
-                        merged.append(kw)
-                        if len(merged) >= KEYWORD_COVERAGE_MAX:
-                            break
-                    keywords = merged
-                    if len(merged) >= KEYWORD_COVERAGE_MAX and len(required_expanded) > KEYWORD_COVERAGE_MAX:
-                        logger.info(
-                            "[ExploreTool] 关键词覆盖截断: %s -> %s",
-                            len(required_expanded),
-                            KEYWORD_COVERAGE_MAX
-                        )
-                # 去重 & 过滤已搜索
-                deduped = []
-                for kw in keywords:
-                    if not kw:
+                    if not cleaned:
                         continue
-                    if kw in force_set or self.state.should_search(kw):
-                        deduped.append(kw)
-                keywords = deduped or keywords
+                    if cleaned in seen_kw:
+                        continue
+                    seen_kw.add(cleaned)
+                    cleaned_keywords.append(cleaned)
+
+                keywords = cleaned_keywords
+                search_blocked = False
+                if not keywords:
+                    result_data = {"success": False, "error": "缺少 keywords"}
+                    search_blocked = True
 
                 def _coerce_int(value: Any) -> Optional[int]:
                     if isinstance(value, int):
@@ -3449,42 +3365,6 @@ class ContentExplorer:
                     min_order = min(s[0] for s in ranges_to_use)
                     max_order = max(s[1] for s in ranges_to_use)
                     current_scope = (min_order, max_order)
-
-                # 拦截检查：已穷尽或相同范围+0命中的关键词
-                blocked_keywords = []
-                allowed_keywords = []
-                for kw in keywords:
-                    if "," in kw:
-                        allowed_keywords.append(kw)
-                        continue
-                    if kw in force_set:
-                        allowed_keywords.append(kw)
-                        continue
-                    should_block, block_reason = self.state.should_block_search(kw, current_scope)
-                    if should_block:
-                        blocked_keywords.append((kw, block_reason))
-                        logger.info(f"[ContentExplorer] 拦截搜索: {block_reason}")
-                    else:
-                        allowed_keywords.append(kw)
-
-                # 如果所有关键词都被拦截，返回拦截信息
-                if not allowed_keywords and blocked_keywords:
-                    block_reasons = [f"{kw}: {reason}" for kw, reason in blocked_keywords]
-                    result_data = {
-                        "success": True,
-                        "keywords": keywords,
-                        "hits": 0,
-                        "blocked": True,
-                        "block_reasons": block_reasons,
-                        "message": "所有关键词已搜索过或已确认不存在"
-                    }
-                    logger.info(f"[ExploreTool] done={tool_name} blocked=True keywords={','.join(keywords[:6])}")
-                    # 跳过后续搜索逻辑
-                    search_blocked = True
-                else:
-                    # 使用未被拦截的关键词继续搜索
-                    keywords = allowed_keywords if allowed_keywords else keywords
-                    search_blocked = False
 
                 if not search_blocked:
                     for kw in keywords:

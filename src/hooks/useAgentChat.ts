@@ -1,6 +1,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { agentApi } from '@/services/agentApi';
+import { DataService } from '@/services/DataService';
 import { useConversationPersistence } from './useConversationPersistence';
 import { getGlobalSessionManager } from '@/contexts/SessionContext';
 import type { SessionState } from './SessionStateManager';
@@ -55,6 +56,7 @@ export interface EditorAction {
 export interface ApprovalRequest {
   request_id: string;
   action_type: 'edit' | 'rewrite' | 'insert' | 'create' | 'rename';
+  apply_state?: 'pending' | 'applied' | 'rejected' | 'failed';
   operation?: string;
   original_content?: string;
   new_content?: string;
@@ -591,6 +593,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               const pendingData = {
                 request_id: approvalReq.request_id,
                 action_type: approvalReq.action_type,
+                apply_state: approvalReq.apply_state || 'pending',
                 operation: approvalReq.operation,
                 original_content: approvalReq.original_content,
                 new_content: approvalReq.new_content,
@@ -892,7 +895,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   }
 
                   // v7.5: 派发事件到编辑器显示修订标记
-                  if (revisionData.content || revisionData.editorAction) {
+                  // 章节级替换（operation=content/replace_all）不走段落修订标记，避免定位失败
+                  const revisionOperation = (revisionData as any)?.operation;
+                  const isChapterReplace = revisionOperation === 'content' || revisionOperation === 'replace_all';
+                  if (!isChapterReplace && (revisionData.content || revisionData.editorAction)) {
                     const editorAction = revisionData.editorAction;
                     const position = editorAction?.position || revisionData.position;
 
@@ -1410,6 +1416,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         console.warn('[useAgentChat] no pending approval request');
         return;
       }
+      const isChapterReplace =
+        pending.operation === 'content' || pending.operation === 'replace_all';
 
       try {
         if (approved) {
@@ -1433,13 +1441,16 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             }
           }
 
-          // 派发"确认采纳"事件，让编辑器应用修改（移除标记，保留新内容）
-          window.dispatchEvent(
-            new CustomEvent('agent-accept-revision', {
-              detail: { request_id: pending.request_id, chapter_id: pending.chapter_id }
-            })
-          );
-          console.log('[useAgentChat] ✅ 派发采纳事件');
+          // 章节级整章替换不走段落修订采纳事件，避免触发旧稿保存覆盖
+          if (!isChapterReplace) {
+            // 派发"确认采纳"事件，让编辑器应用修改（移除标记，保留新内容）
+            window.dispatchEvent(
+              new CustomEvent('agent-accept-revision', {
+                detail: { request_id: pending.request_id, chapter_id: pending.chapter_id }
+              })
+            );
+            console.log('[useAgentChat] ✅ 派发采纳事件');
+          }
 
           // 🆕 处理 create/rename 类型（不触发编辑器修订，直接提交审批）
           if (pending.action_type === 'create' || pending.action_type === 'rename') {
@@ -1471,15 +1482,55 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           }
         }
 
-        await agentApi.submitApprovalResponse({
+        const approvalResponse = await agentApi.submitApprovalResponse({
           request_id: pending.request_id,
           approved,
           selected_version: selectedVersion
         });
+        const isApplied = approvalResponse.apply_state === 'applied';
+
+        // 章节级替换在审批成功后回读后端章节内容，避免本地草稿与后端状态不一致
+        if (approved && isChapterReplace) {
+          if (!isApplied) {
+            console.warn('[useAgentChat] 章节级审批未落库，跳过本地替换:', approvalResponse);
+          } else {
+            let replacement = pending.new_content;
+            if (pending.chapter_id) {
+              try {
+                const latestChapter = await DataService.getChapter(pending.chapter_id);
+                if (latestChapter?.content) {
+                  replacement = latestChapter.content;
+                }
+              } catch (readErr) {
+                console.warn('[useAgentChat] 回读章节最新内容失败，回退到 pending 内容:', readErr);
+              }
+            }
+            if (!replacement) {
+              console.warn('[useAgentChat] 章节级替换缺少可用内容，跳过本地替换');
+            } else {
+              window.dispatchEvent(
+                new CustomEvent('agent-replace-text', {
+                  detail: {
+                    replacement,
+                    skipRevision: true,
+                    forceReplaceAll: true,
+                    chapterId: pending.chapter_id
+                  }
+                })
+              );
+              console.log('[useAgentChat] ✅ 章节级替换已在审批成功后同步到编辑器');
+            }
+          }
+        }
 
         // 🆕 章节操作采纳后派发确认事件，通知 WorkDetailView 刷新列表
         const targetWorkId = (pending as any).work_id || workId;
-        if (approved && targetWorkId && ['create', 'rename', 'delete'].includes(pending.action_type || '')) {
+        if (
+          approved &&
+          isApplied &&
+          targetWorkId &&
+          ['create', 'rename', 'delete'].includes(pending.action_type || '')
+        ) {
           window.dispatchEvent(
             new CustomEvent('agent-chapter-confirm', {
               detail: { work_id: targetWorkId }

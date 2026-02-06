@@ -1555,6 +1555,7 @@ async def agent_chat_stream(
                     # v7.5: 存储修订数据到 HITLManager（用于后续采纳时写入数据库）
                     request_id = approval_data.get("request_id") or str(uuid.uuid4())
                     approval_data["request_id"] = request_id
+                    approval_data.setdefault("apply_state", "pending")
                     description = approval_data.get("description") or approval_data.get("message") or "修订请求"
                     approval_data["description"] = description
 
@@ -1568,6 +1569,14 @@ async def agent_chat_stream(
                         context={"work_id": request.work_id, "chapter_id": request.chapter_id},
                         timeout_seconds=3600,  # 1小时过期
                         request_id=request_id  # v7.5: 使用相同的 request_id
+                    )
+                    logger.info(
+                        "[ApprovalFlow] approval_request created request_id=%s action_type=%s operation=%s work_id=%s chapter_id=%s",
+                        request_id,
+                        approval_data.get("action_type"),
+                        approval_data.get("operation"),
+                        approval_data.get("work_id"),
+                        approval_data.get("chapter_id"),
                     )
 
                     await event_queue.put(('approval_request', approval_data))
@@ -1800,6 +1809,13 @@ async def submit_approval_response(
     from app.services.chapter_service import ChapterService
 
     try:
+        logger.info(
+            "[ApprovalFlow] approval_response received request_id=%s approved=%s selected_version=%s",
+            request.request_id,
+            request.approved,
+            request.selected_version,
+        )
+        apply_state = "pending"
         approval_status = ApprovalStatus.APPROVED if request.approved else ApprovalStatus.REJECTED
         extra_data: Dict[str, Any] = {}
         if request.selected_version is not None:
@@ -1835,6 +1851,13 @@ async def submit_approval_response(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"修订应用失败: {revision_error}"
                     )
+                apply_state = "applied"
+                logger.info(
+                    "[ApprovalFlow] approval_response applied request_id=%s revision_id=%s chapter_id=%s",
+                    request.request_id,
+                    str(revision.id),
+                    str(revision.chapter_id),
+                )
             elif approval_data:
                 action_type = approval_data.get("action_type")
                 chapter_id = approval_data.get("chapter_id")
@@ -1854,7 +1877,13 @@ async def submit_approval_response(
                         order=order,
                         chapter_id=chapter_id  # 使用预生成的 chapter_id
                     )
+                    apply_state = "applied"
                     logger.info(f"[Approval] 章节已创建: chapter_id={new_chapter.id}, title={title}")
+                    logger.info(
+                        "[ApprovalFlow] approval_response applied request_id=%s action_type=create chapter_id=%s",
+                        request.request_id,
+                        str(new_chapter.id),
+                    )
 
                 # 处理章节内容编辑（兼容历史审批）
                 elif chapter_id and action_type in ["edit", "rewrite", "continue", "update_content"]:
@@ -1876,7 +1905,20 @@ async def submit_approval_response(
                             operation=operation,
                             position=position
                         )
+                        apply_state = "applied"
                         logger.info(f"[Approval] 修订已写入数据库: chapter_id={chapter_id}, operation={operation}")
+                        logger.info(
+                            "[ApprovalFlow] approval_response applied request_id=%s action_type=%s chapter_id=%s",
+                            request.request_id,
+                            action_type,
+                            chapter_id,
+                        )
+                    else:
+                        apply_state = "failed"
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="审批通过但缺少可写入内容，请重新生成后再采纳。"
+                        )
 
                 # 处理章节标题修改
                 elif chapter_id and action_type == "rename":
@@ -1885,18 +1927,44 @@ async def submit_approval_response(
                     if new_title:
                         from app.schemas.chapter import ChapterUpdate
                         await chapter_service.update_chapter(chapter_id, ChapterUpdate(title=new_title))
+                        apply_state = "applied"
                         logger.info(f"[Approval] 章节标题已修改: chapter_id={chapter_id}, new_title={new_title}")
+                        logger.info(
+                            "[ApprovalFlow] approval_response applied request_id=%s action_type=rename chapter_id=%s",
+                            request.request_id,
+                            chapter_id,
+                        )
 
                 # 处理章节删除
                 elif chapter_id and action_type == "delete":
                     chapter_service = ChapterService(db)
                     await chapter_service.delete_chapter(chapter_id)
+                    apply_state = "applied"
                     logger.info(f"[Approval] 章节已删除: chapter_id={chapter_id}")
+                    logger.info(
+                        "[ApprovalFlow] approval_response applied request_id=%s action_type=delete chapter_id=%s",
+                        request.request_id,
+                        chapter_id,
+                    )
+                else:
+                    apply_state = "failed"
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="审批通过但未执行任何变更，请检查审批数据。"
+                    )
+            else:
+                apply_state = "failed"
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="未找到审批请求，无法应用变更。"
+                )
         else:
             if revision:
                 await revision_service.mark_status(revision, ChapterRevisionStatus.DISCARDED)
+            apply_state = "rejected"
 
         # 更新 HITLManager 状态
+        extra_data["apply_state"] = apply_state
         await hitl.submit_approval(
             request_id=request.request_id,
             status=approval_status,
@@ -1906,7 +1974,8 @@ async def submit_approval_response(
         return {
             "success": True,
             "request_id": request.request_id,
-            "action": "accepted" if request.approved else "rejected"
+            "action": "accepted" if request.approved else "rejected",
+            "apply_state": apply_state
         }
     except HTTPException:
         raise

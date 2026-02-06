@@ -6,6 +6,7 @@ import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
+import { DataService } from '../../services/DataService';
 import type { AgentChatRequest, TaskSnapshot, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
 import ActivityStream from '../agent/ActivityStream';  // 导入 ActivityStream
 import { ExecutionFlow } from '../agent/ExecutionFlow';  // v5.0: 执行轨迹可视化
@@ -1729,6 +1730,10 @@ ${selectionContext.selected_text}
                           const revisionData = findRevisionByItemId(itemId);
                           const resolvedRequestId = requestId || revisionData?.requestId;
                           const targetChapterId = revisionData?.chapterId;
+                          const isChapterReplace =
+                            revisionData?.operation === 'content' || revisionData?.operation === 'replace_all';
+                          const chapterReplacement =
+                            (revisionData as any)?.content || revisionData?.newContent;
 
                           // v7.2: 从 pendingApproval 中提取快照数据用于撤销/重做
                           let snapshot: {
@@ -1779,7 +1784,12 @@ ${selectionContext.selected_text}
                               request_id: resolvedRequestId,
                               approved: true,
                               selected_version: selectedVersion
-                            }).then(() => {
+                            }).then((approvalResponse) => {
+                              const isApplied = approvalResponse.apply_state === 'applied';
+                              if (!isApplied) {
+                                console.warn('[AIPanel] 审批未落库，跳过本地采纳事件:', approvalResponse);
+                                return;
+                              }
                               console.log('[AIPanel] ✅ 修订已写入数据库');
                               if (workId) {
                                 window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
@@ -1787,31 +1797,65 @@ ${selectionContext.selected_text}
                                 }));
                                 console.log('[AIPanel] ✅ 派发章节确认事件，刷新列表');
                               }
+                              if (isChapterReplace) {
+                                const syncChapterReplace = async () => {
+                                  let replacement = chapterReplacement;
+                                  if (targetChapterId) {
+                                    try {
+                                      const latestChapter = await DataService.getChapter(targetChapterId);
+                                      if (latestChapter?.content) {
+                                        replacement = latestChapter.content;
+                                      }
+                                    } catch (readErr) {
+                                      console.warn('[AIPanel] 回读章节最新内容失败，回退到修订内容:', readErr);
+                                    }
+                                  }
+                                  if (!replacement) {
+                                    console.warn('[AIPanel] 章节级替换缺少可用内容，跳过本地替换');
+                                    return;
+                                  }
+                                  window.dispatchEvent(
+                                    new CustomEvent('agent-replace-text', {
+                                      detail: {
+                                        replacement,
+                                        skipRevision: true,
+                                        forceReplaceAll: true,
+                                        chapterId: targetChapterId
+                                      }
+                                    })
+                                  );
+                                };
+                                void syncChapterReplace();
+                              } else {
+                                // 派发采纳事件到编辑器
+                                window.dispatchEvent(
+                                  new CustomEvent('agent-accept-revision', {
+                                    detail: {
+                                      request_id: resolvedRequestId,
+                                      revision_id: itemId,
+                                      chapter_id: targetChapterId
+                                    }
+                                  })
+                                );
+                              }
                             }).catch((err) => {
                               console.error('[AIPanel] 写入数据库失败:', err);
                             });
-                            // 派发采纳事件到编辑器
-                            window.dispatchEvent(
-                              new CustomEvent('agent-accept-revision', {
-                                detail: {
-                                  request_id: resolvedRequestId,
-                                  revision_id: itemId,
-                                  chapter_id: targetChapterId
-                                }
-                              })
-                            );
                           } else {
-
-
-                            window.dispatchEvent(
-                              new CustomEvent('agent-accept-revision', {
-                                detail: {
-                                  request_id: itemId,
-                                  revision_id: itemId,
-                                  chapter_id: targetChapterId
-                                }
-                              })
-                            );
+                            if (isChapterReplace) {
+                              // 章节级替换必须有 request_id 才能保证后端已落库
+                              console.warn('[AIPanel] 章节级采纳缺少 request_id，跳过本地替换');
+                            } else {
+                              window.dispatchEvent(
+                                new CustomEvent('agent-accept-revision', {
+                                  detail: {
+                                    request_id: itemId,
+                                    revision_id: itemId,
+                                    chapter_id: targetChapterId
+                                  }
+                                })
+                              );
+                            }
                           }
                         }}
                         onDiscardRevision={(itemId, requestId) => {

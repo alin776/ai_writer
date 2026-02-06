@@ -1779,7 +1779,7 @@ tool_policy: {tool_policy}
             elif tool == "explore_content":
                 last_explore_task_id = task_id
 
-            if tool in {"smart_rewrite", "smart_continue", "smart_insert"} and task_id:
+            if tool in {"smart_rewrite", "smart_continue", "smart_insert", "rewrite_chapter_content"} and task_id:
                 if not params.get("chapter_id"):
                     idx += 1
                     continue
@@ -1917,24 +1917,30 @@ tool_policy: {tool_policy}
                 continue
 
             if tool in {"smart_rewrite", "smart_insert", "smart_continue", "operate_apply", "apply_chapter_edit"}:
-                force_override = tool in {"smart_rewrite", "smart_insert", "operate_apply", "apply_chapter_edit"} and (
-                    last_locate_task_id or last_explore_task_id
-                )
-                if last_locate_task_id and (force_override or self._should_override_chapter_id(params.get("chapter_id"), last_locate_task_id)):
-                    params["chapter_id"] = {
-                        "$ref": {
-                            "task_id": last_locate_task_id,
-                            "path": "chapter_id"
+                allow_locator_override = True
+                if tool in {"operate_apply", "apply_chapter_edit"}:
+                    operation = str(params.get("operation") or "").strip().lower()
+                    if operation not in {"replace", "insert"}:
+                        allow_locator_override = False
+                if allow_locator_override:
+                    force_override = tool in {"smart_rewrite", "smart_insert", "operate_apply", "apply_chapter_edit"} and (
+                        last_locate_task_id or last_explore_task_id
+                    )
+                    if last_locate_task_id and (force_override or self._should_override_chapter_id(params.get("chapter_id"), last_locate_task_id)):
+                        params["chapter_id"] = {
+                            "$ref": {
+                                "task_id": last_locate_task_id,
+                                "path": "chapter_id"
+                            }
                         }
-                    }
-                elif last_explore_task_id and (force_override or self._should_override_chapter_id(params.get("chapter_id"), last_explore_task_id)):
-                    params["chapter_id"] = {
-                        "$ref": {
-                            "task_id": last_explore_task_id,
-                            "path": self._locate_target_path(params, "chapter_id"),
-                            "default": params.get("chapter_id")
+                    elif last_explore_task_id and (force_override or self._should_override_chapter_id(params.get("chapter_id"), last_explore_task_id)):
+                        params["chapter_id"] = {
+                            "$ref": {
+                                "task_id": last_explore_task_id,
+                                "path": self._locate_target_path(params, "chapter_id"),
+                                "default": params.get("chapter_id")
+                            }
                         }
-                    }
                 if tool in {"smart_rewrite", "smart_insert"}:
                     if last_locate_task_id:
                         if tool == "smart_rewrite" and not params.get("text_to_rewrite"):
@@ -2088,6 +2094,12 @@ tool_policy: {tool_policy}
                 "operation": "append",
                 "content": {"$ref": {"task_id": source_task_id, "path": "data.content"}}
             }
+        elif source_tool == "rewrite_chapter_content":
+            params = {
+                "chapter_id": chapter_id_ref,
+                "operation": "content",
+                "content": {"$ref": {"task_id": source_task_id, "path": "data.content"}}
+            }
         elif source_tool == "smart_insert":
             params = {
                 "chapter_id": chapter_id_ref,
@@ -2123,8 +2135,8 @@ tool_policy: {tool_policy}
         if target_hint:
             params.setdefault("locate_target_hint", target_hint)
 
-        # 续写 append 不应携带定位字段，否则前端会插入到中段
-        if source_tool != "smart_continue":
+        # 续写 append 与整章改写不应携带定位字段
+        if source_tool not in {"smart_continue", "rewrite_chapter_content"}:
             if locate_task_id:
                 params.setdefault("node_id", {"$ref": {"task_id": locate_task_id, "path": "node_id"}})
                 params.setdefault("paragraph_index", {"$ref": {"task_id": locate_task_id, "path": "paragraph_index"}})

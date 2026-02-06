@@ -39,6 +39,9 @@ class ParallelExecutor:
     MAX_RETRIES = 2
     RETRYABLE_KEYWORDS = ["timeout", "connection", "network", "网络", "连接", "超时"]
 
+    REVIEW_WRITE_TOOLS = {"smart_insert", "smart_rewrite", "operate_apply"}
+    REVIEW_ANALYSIS_TOOLS = {"analyze_content", "analyze_text_tool"}
+
     def __init__(self, agent: "WritingAgentGraph"):
         """
         初始化并行执行器
@@ -200,6 +203,9 @@ class ParallelExecutor:
                     if isinstance(task_id, int):
                         completed.add(task_id)
                         pending.discard(task_id)
+                    if result.get("status") == "blocked":
+                        logger.info("[ParallelExecution] Review Gate 阻塞，终止后续任务执行")
+                        return task_results, all_context
                 continue
 
             # 依赖任务或非并行安全任务：按顺序串行执行
@@ -219,6 +225,9 @@ class ParallelExecutor:
             )
             task_results.append(result)
             all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
+            if result.get("status") == "blocked":
+                logger.info("[ParallelExecution] Review Gate 阻塞，终止后续任务执行")
+                break
             completed.add(task_id)
             pending.discard(task_id)
 
@@ -569,6 +578,31 @@ class ParallelExecutor:
                         )
                     logger.debug(f"[ParameterResolver] 任务{task_id}参数已解析")
 
+                gate_payload = self._check_review_gate(
+                    task=task,
+                    resolved_task=resolved_task,
+                    task_state=task_state
+                )
+                if gate_payload:
+                    elapsed_time = time.time() - start_time
+                    gate_text = json.dumps(gate_payload, ensure_ascii=False)
+                    await resolver.register_result(task_id, gate_payload)
+                    task_with_time = {**task, "elapsed_time": elapsed_time}
+                    if on_task_done:
+                        await on_task_done(task_with_time, gate_text)
+                    logger.info(
+                        f"[ParallelExecution] {batch_name}任务{task_id} Review Gate 阻塞"
+                    )
+                    return {
+                        "task_id": task_id,
+                        "description": description,
+                        "tool": tool_name,
+                        "result": gate_text,
+                        "raw_result": gate_payload,
+                        "status": "blocked",
+                        "elapsed_time": elapsed_time
+                    }
+
                 # 执行任务
                 result = await self.agent._execute_task(
                     task=resolved_task,
@@ -664,6 +698,120 @@ class ParallelExecutor:
             "result": error_result,
             "status": "failed"
         }
+
+    @staticmethod
+    def _has_locate_targets(explore_result: Any) -> bool:
+        if not isinstance(explore_result, dict):
+            return False
+        locate_targets = explore_result.get("locate_targets")
+        if not isinstance(locate_targets, list):
+            return False
+        for item in locate_targets:
+            if not isinstance(item, dict):
+                continue
+            chapter_id = item.get("chapter_id") or ""
+            paragraph_index = item.get("paragraph_index")
+            node_id = item.get("node_id") or ""
+            if chapter_id and (paragraph_index is not None or node_id):
+                return True
+        return False
+
+    @staticmethod
+    def _has_evidences(explore_result: Any) -> bool:
+        if not isinstance(explore_result, dict):
+            return False
+        evidences = explore_result.get("evidences")
+        if not isinstance(evidences, list):
+            return False
+        for item in evidences:
+            if isinstance(item, dict) and (item.get("text") or item.get("content")):
+                return True
+        return False
+
+    @staticmethod
+    def _has_direct_locator(params: Dict[str, Any]) -> bool:
+        if not isinstance(params, dict):
+            return False
+        if isinstance(params.get("source_locator"), dict):
+            return True
+        if params.get("node_id"):
+            return True
+        if params.get("paragraph_index") is not None:
+            return True
+        if params.get("locator_id") or params.get("locate_target_id"):
+            return True
+        if params.get("locate_target_index") is not None:
+            return True
+        return False
+
+    @staticmethod
+    def _operation_needs_locator(params: Dict[str, Any]) -> bool:
+        if not isinstance(params, dict):
+            return False
+        operation = str(params.get("operation") or "").strip().lower()
+        return operation in {"replace", "insert"}
+
+    def _params_reference_evidences(self, params: Any) -> bool:
+        if isinstance(params, dict):
+            ref = params.get("$ref")
+            if isinstance(ref, dict):
+                path = ref.get("path")
+                if isinstance(path, str) and ("evidences" in path or "locate_targets" in path):
+                    return True
+            for value in params.values():
+                if self._params_reference_evidences(value):
+                    return True
+        elif isinstance(params, list):
+            for item in params:
+                if self._params_reference_evidences(item):
+                    return True
+        return False
+
+    def _check_review_gate(
+        self,
+        task: Dict[str, Any],
+        resolved_task: Dict[str, Any],
+        task_state: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        tool_name = resolved_task.get("tool", "") if isinstance(resolved_task, dict) else ""
+        params = resolved_task.get("params", {}) if isinstance(resolved_task, dict) else {}
+        if not tool_name:
+            return None
+
+        explore_result = None
+        if isinstance(task_state, dict):
+            explore_result = task_state.get("last_explore_result")
+        has_locate_targets = self._has_locate_targets(explore_result)
+        has_evidences = self._has_evidences(explore_result)
+
+        if tool_name in self.REVIEW_WRITE_TOOLS:
+            if tool_name == "operate_apply" and not self._operation_needs_locator(params):
+                return None
+            if self._has_direct_locator(params):
+                return None
+            if has_locate_targets:
+                return None
+            return {
+                "status": "missing_prerequisite",
+                "missing": ["locate_targets"],
+                "message": "缺少可写回的定位证据，请先定位目标段落。",
+                "suggested_response": "请指定要修改的具体位置（第几段/哪句原文），或让我先用 explore_content 读取并定位。",
+                "tool": tool_name
+            }
+
+        if tool_name in self.REVIEW_ANALYSIS_TOOLS:
+            if self._params_reference_evidences(task.get("params")):
+                if has_evidences:
+                    return None
+                return {
+                    "status": "missing_prerequisite",
+                    "missing": ["evidences"],
+                    "message": "缺少分析所需的原文证据，请先读取原文。",
+                    "suggested_response": "请先提供要分析的原文，或让我用 explore_content 读取相关内容。",
+                    "tool": tool_name
+                }
+
+        return None
 
     @staticmethod
     def _stringify_result(result: Any) -> str:

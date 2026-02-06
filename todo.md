@@ -3637,3 +3637,207 @@
 - 任务集合是静态 DAG：`PlanSchema` 只包含 `tasks/depends_on`，无“runtime replan/decision”字段；`ParallelExecutor._execute_with_dag` 只基于已生成的 `tasks` 建队列并执行，不会新增任务。`backend/app/services/agent/planning/plan_schema.py:19-42`、`backend/app/services/agent/execution/parallel_executor.py:139-225`
 - 执行器职责单一：`TaskRunner.execute_task` 只是“调用工具+参数准备+兜底/降级”，不具备“根据结果追加任务”的逻辑；`ParameterResolver` 只解析占位符依赖。`backend/app/services/agent/execution/task_runner.py:70-195`、`backend/app/services/agent/parameter_resolver.py:369-425`
 - 仅有局部自主性：`explore_content` 内部存在“round plan → 多轮工具调用”的 mini-loop（局部自主），但该循环被封装在工具内部，无法影响全局任务图；HITL 主要是“结果确认事件”，不改变任务列表。`backend/app/services/agent/tools/explore_tools.py:4331-4410`、`backend/app/services/agent/langgraph_agent.py:1566-1607`
+
+#### Explore 规则移除重构（待确认）
+
+- [x] 移除 `exact_search_paragraphs` 的关键词合并/force_set/拦截规则，仅保留基础清洗与范围过滤
+- [x] 禁用搜索去重/相似判断（`should_search`/`searched_queries`），不再因历史跳过搜索
+- [x] 移除 tool_loop 的“空读硬停”与相关计数，停止只由 LLM 或 max_tool_calls 决定
+- [x] 最小自检：关键词不被合并/拦截，空读不再触发硬停
+
+#### review
+
+- `exact_search_paragraphs` 已移除关键词合并/force_set/拦截逻辑，仅保留基础清洗（去空白/引号/去重）与范围过滤；不再强制合并 `search_keywords` 或覆盖截断。`backend/app/services/agent/tools/explore_tools.py`
+- 搜索去重/相似判断已禁用：`should_search` 直接放行，语义搜索与精确搜索不再因历史跳过。`backend/app/services/agent/tools/explore_tools.py`
+- tool_loop 移除空读硬停与计数，并取消读取上限触发的提前停止；停机只剩 LLM 停止或工具调用上限。`backend/app/services/agent/tools/explore_tools.py`
+
+#### OpenCode 风格 Review Gate 重设计（待确认）
+
+- [x] 盘点 Review Gate 切入点与数据流（explore_content → shared_state → task_runner/tool_executor → 下游写回）
+- [x] 定义 Review Gate 标准（写回必须 locate_targets；分析/回答必须 evidences；允许显式 chapter_id/paragraph_index 直通）
+- [x] 落地 Review Gate：在执行器前置检查证据，不满足则阻塞并提示用户指定位置
+- [x] 事件与输出：阻塞时发明确信息（前端/最终回复可见），避免继续执行下游任务
+- [x] 最小自检：缺证据时不再继续写回；提供明确 HITL 提示
+
+#### review
+
+- Review Gate 落点在执行器前置：`ParallelExecutor._execute_single_task_with_retry` 在执行前检查写回/分析证据，缺失则返回 `missing_prerequisite`，最终响应会直接提示用户补充定位或原文。`backend/app/services/agent/execution/parallel_executor.py`
+- 写回 Gate：`smart_insert/smart_rewrite/operate_apply(replace/insert)` 需要 `locate_targets` 或显式 `node_id/paragraph_index/source_locator`；否则阻塞并提示 HITL。`backend/app/services/agent/execution/parallel_executor.py`
+- 分析 Gate（仅在参数引用 evidences 时启用）：若任务参数 `$ref` 指向 `evidences/locate_targets` 且无证据，则阻塞并提示先取证。`backend/app/services/agent/execution/parallel_executor.py`
+- 阻塞后停止后续任务：并行/串行路径遇到 `status=blocked` 立即终止后续执行，避免继续写回。`backend/app/services/agent/execution/parallel_executor.py`
+
+#### Review Gate 变更验证（待确认）
+
+- [ ] 确认测试入口（如何触发 agent/提供 work_id 与章节）
+- [ ] 执行 5 条复杂 prompt 测试（按顺序）
+- [ ] 记录每条的预期/实际：是否触发 missing_prerequisite、是否继续写回
+- [ ] 汇总测试结论与风险
+
+#### 解决“严格定位 vs 整章读取”矛盾（待确认）
+
+- [x] 复核冲突点与触发链路（严格定位 + 范围读取导致 locate_targets 为空）
+- [x] 设计“统一定位契约”：区分章节级/段落级定位，明确各工具的输入/输出要求
+- [x] 给出 2-3 种可落地方案并评估（章节级写回工具 / 范围读取产出定位 / 规划层放宽严格定位）
+- [x] 输出推荐方案与直白结论（包含影响范围与最小改动点）
+
+#### review
+
+- 冲突链路确认：规划层对编辑类任务强制 `require_paragraph_index=True`，而 `read_paragraphs` 的范围读取会标记 `is_target=False`，`locate_targets` 只收 `is_target=True`，导致“读全章但无定位”。`backend/app/services/agent/planning/plan_generator.py:784` `backend/app/services/agent/tools/explore_tools.py:3840` `backend/app/services/agent/tools/explore_tools.py:4099` `backend/app/services/agent/tools/explore_tools.py:1718`
+- 统一定位契约建议：明确区分 `chapter_scope`（整章替换/续写/全章改写）与 `paragraph_scope`（插入/替换某段），前者只要求 `chapter_id + 章节原文证据`，后者必须 `locate_targets`/`node_id/paragraph_index`。
+- 可落地方案对比：
+  1) **章节级写回通道**（推荐）：整章改写走 `operate_apply(operation=content)` 或 `update_chapter_content`，规划层不再对这类任务设置 `require_paragraph_index`；避免空定位失败。
+  2) **范围读取产出定位**：当 `require_paragraph_index=True` 且范围读取时，把段落标为 `is_target=True` 或直接从整章内容拆出 `locate_targets`；能过关但会产生大量定位/歧义。
+  3) **严格定位条件收敛**：仅在 `replace/insert` 等段落级操作时开启严格定位；对 `content/append` 关闭严格定位。
+- 推荐结论：采用“章节级写回通道 + 严格定位条件收敛”，把“整章任务”和“段落任务”拆成两条协议，既保留精确定位，又避免整章读取被强制失败。
+
+#### Backend.md 失败原因深度排查（待确认）
+
+- [x] 读取 Backend.md 失败日志并定位关键链路（explore_content → smart_rewrite → operate_apply）
+- [x] 对照 explore_content 输出规则与 locate_targets 生成逻辑，确认“读全章但无定位”的成因
+- [x] 追踪 require_paragraph_index 的注入点（规划/参数），确认为何强制定位
+- [x] 汇总证据与给出直白结论（根因链路 + 受影响模块）
+
+#### review
+
+- Backend.md 显示 explore_content 通过 `read_paragraphs` 以 `chapter_order/offset/limit` 分页读取 114 段后仍报错“缺少 paragraph_index/node_id”，关键链路已定位。`Backend.md:91` `Backend.md:127` `Backend.md:128`
+- `explore_content` 在 `require_paragraph_index=True` 且 `locate_targets` 为空时直接返回 `missing_locate_targets`，因此即使读到了原文也会报错。`backend/app/services/agent/tools/explore_tools.py:5134` `backend/app/services/agent/tools/explore_tools.py:5142`
+- `read_paragraphs` 的“范围读取”会设置 `is_target=False`（`use_range` 为真），而 `_build_locate_targets` 只收集 `is_target=True` 的段落，因此“读全章但无定位”。`backend/app/services/agent/tools/explore_tools.py:3840` `backend/app/services/agent/tools/explore_tools.py:4099` `backend/app/services/agent/tools/explore_tools.py:1718`
+- 规划层对编辑类任务强制 `require_paragraph_index=True`，导致上述空定位直接触发严格失败。`backend/app/services/agent/planning/plan_generator.py:784` `backend/app/services/agent/planning/plan_generator.py:1223`
+
+#### 推荐方案再评审（待确认）
+
+- [x] 复核“章节级通道”是否被现有 Review Gate/计划器阻断（含 smart_rewrite/operate_apply 的 gate 条件）
+- [x] 追踪计划器是否真正会产出 operation=content/整章写回路径（否则需补规划逻辑）
+- [x] 校验 smart_rewrite 的整章改写链路是否安全（参数默认/自动取章/输出路径/写回字段）
+- [x] 汇总潜在纰漏与修正建议（若需新增 chapter_scope 标记或调整 Review Gate）
+
+#### review
+
+- **Review Gate 会卡住整章 smart_rewrite**：`parallel_executor` 把 `smart_rewrite` 视作写回工具，若无 `locate_targets`/定位字段会直接 `missing_prerequisite` 阻断；整章读取通常没有 `locate_targets`，因此会被拦截。`backend/app/services/agent/execution/parallel_executor.py:787` `backend/app/services/agent/execution/parallel_executor.py:794`
+- **规划器目前不会自动产出 operation=content**：`_build_apply_task` 对 `smart_rewrite` 固定生成 `operate_apply(operation="replace")`，这意味着即使是整章改写也会走段落替换路径，仍要求定位。`backend/app/services/agent/planning/plan_generator.py:2081`
+- **整章改写会丢 HTML 结构**：`creative_output_filter` 会主动剥离 `<p>/<br>` 等标签，`replace_all` 直接写入新内容不做 HTML 包装；如果章节原文是 HTML，将被替换成纯文本，排版会塌。`backend/app/services/agent/tools/tool_behaviors.py:109` `backend/app/services/agent/tools/editor_tools.py:515`
+- **提示词规则与整章改写冲突**：规划提示强制 `text_to_rewrite` 引用 `evidences[0].text`，但整章改写应引用 `chapters[0].content` 或整章原文，否则只会改写单段证据。`backend/app/services/agent/prompts/planning_prompts.py:225` `backend/app/services/agent/tools/explore_tools.py:5289`
+
+#### 章节级改写工具落地（待确认）
+
+- [x] 新增章节级改写工具（rewrite_chapter_content）：读取整章→生成改写→输出整章内容
+- [x] 规划层支持整章改写流程：rewrite_chapter_content → operate_apply(operation="content")
+- [x] 更新工具/规划提示词：整章改写禁用 smart_rewrite，保留段落改写的严格定位规则
+- [x] 最小自检：整章改写不再要求 paragraph_index/node_id，段落改写仍强制
+
+#### review
+
+- 新增章节级改写工具 `rewrite_chapter_content`：可直接读取整章、生成整章改写内容；对 HTML 章节自动包裹 `<p>`，避免整章写回塌排版。`backend/app/services/agent/tools/editor_tools.py`
+- 规划层支持整章改写链路：`rewrite_chapter_content` 自动补 `operate_apply(operation="content")`，且不会附加段落定位字段。`backend/app/services/agent/planning/plan_generator.py`
+- 章节级写回不再被 locate 覆写 chapter_id：`operate_apply(content/append)` 跳过 locator 覆盖，避免引用 `locate_targets` 导致缺失。`backend/app/services/agent/planning/plan_generator.py`
+- 严格定位规则保持不变：`smart_rewrite/smart_insert` 仍强制段落定位；整章改写通过新工具绕开定位硬要求。`backend/app/services/agent/prompts/planning_prompts.py` `backend/app/services/agent/prompts/tool_descriptions.py`
+
+#### rewrite_chapter_content 输出过滤修复（待确认）
+
+- [x] 通读 Backend.md，确认 `<p>` 标签导致写回/插入失败的报错链路
+- [x] 复核 rewrite_chapter_content 的输出过滤与 HTML 包裹逻辑，确定 `<p>` 来源
+- [x] 制定修复策略：保留纯文本输出或仅在特定写回模式保留 HTML
+- [x] 最小改动落地并自检：rewrite_chapter_content 输出不含 `<p>`，写回不再失败
+
+#### review
+
+- 移除 rewrite_chapter_content 的 `<p>` 包裹逻辑，改为强制清理所有 HTML 标签，确保整章改写输出为纯文本，避免前端插入/替换失败。`backend/app/services/agent/tools/editor_tools.py`
+
+#### 修订失败原因深度排查（待确认）
+
+- [x] 通读 INFO.md 与 Backend.md，定位“显示修订失败”的前后任务链路
+- [x] 对照前端 ExecutionFlow/修订显示逻辑，确认失败是前端渲染还是后端写回
+- [x] 追踪后端定位/写回/Review Gate 的阻断点与错误码（missing_prerequisite/locator/paragraph_index 等）
+- [x] 汇总证据并给出直白结论（根因链路 + 影响范围）
+
+#### review
+
+- 后端实际写回成功：Backend.md 记录 `operate_apply op=content → apply_chapter_edit replace_all` 执行成功，`needs_locate=False`，无任何写回失败日志；因此“显示修订失败”不是写回失败而是前端渲染失败。`Backend.md:106-113`
+- 根因链路：`replace_all` 不生成 `position`（仅 insert/replace 才填），且内容替换流程没有补 `original_text`；导致 `editor_action` 自动推断为 `modify` 但 **无 position/node_id/paragraph_index**。`backend/app/services/agent/tools/editor_tools.py`、`backend/app/services/agent/langgraph_agent.py`
+- 前端无法定位修订：`NovelEditor` 在 `modify/insert` 无定位时仅在“original 全文匹配”才兜底，否则直接 `toast.error('显示修订失败')` 并取消应用；整章改写缺原文与定位因此触发失败提示。`src/components/editor/NovelEditor.tsx:1188-1213`
+- 可能出现双提示：修订事件既来自 `langgraph_agent.emit_revision`（流事件）又可能来自章节修订持久化加载（getChapterRevisions），两条都缺定位会各触发一次失败 toast。`backend/app/services/agent/langgraph_agent.py`、`src/components/editor/NovelEditor.tsx:682-742`
+
+#### 方案一落地：章节级修订仅预览确认（待确认）
+
+- [x] 前端流事件：operation=content/replace_all 的修订不派发 `agent-show-revision`（保留修订卡片）
+- [x] 前端持久化：加载章节修订时跳过 replace_all（避免重复 toast）
+- [x] 前端保护：章节级修订禁用“重做”触发（避免再次走段落修订）
+
+#### review
+
+- 流事件过滤：`useAgentChat` 在 revision 事件中检测 `operation=content/replace_all`，跳过派发 `agent-show-revision`，避免整章改写触发定位失败 toast；修订卡片仍保留。`src/hooks/useAgentChat.ts`
+- 持久化过滤：加载章节修订时跳过 `replace_all/content`，不再对整章替换生成段落修订标记，避免重复失败提示。`src/components/editor/NovelEditor.tsx`
+- 重做禁用：ExecutionFlow 在章节级替换时不传 `onRedo`，RevisionCard 不显示“重做”按钮，防止再次触发段落修订流程。`src/components/agent/ExecutionFlow/index.tsx`
+
+#### 全章节替换“看起来未生效”排查（待确认）
+
+- [x] 核对后端链路：`operate_apply(content)` 是否真正走到 `replace_all`
+- [x] 核对审批链路：采纳时是否先本地事件再调用 `/chat/approval-response`
+- [x] 核对编辑器采纳逻辑：无修订标记时是否仍触发 `setContent + autoSave`
+- [x] 给出根因与最小修复方向
+
+#### review
+
+- 后端并非没执行整章替换：日志明确显示 `operate_apply(op=content) -> apply_chapter_edit(operation=replace_all)` 成功；说明“写回请求”已发起。`Backend.md:106-113`
+- 关键机制是“审批后才真正落库”：`apply_chapter_edit` 先创建 `PENDING` 修订，采纳时通过 `/api/v1/agent/chat/approval-response` 调用 `ChapterRevisionService.apply_revision` 才写入章节正文。`backend/app/services/agent/tools/editor_tools.py` `backend/app/api/v1/agent.py` `backend/app/services/chapter_revision_service.py`
+- 现象根因是前端采纳竞态：
+  - `submitApproval(true)` 先派发 `agent-accept-revision`，后调后端审批接口。`src/hooks/useAgentChat.ts`
+  - 章节级替换被过滤掉 `agent-show-revision` 后，编辑器里没有任何 revision 标记。
+  - 但 `handleAcceptRevisionEvent` 仍会执行 `applyRevisionDecisionToHtml -> setContent(nextHtml) -> debouncedSave(editor)`；`nextHtml` 实际等于旧内容，于是触发自动保存旧稿。`src/components/editor/NovelEditor.tsx`
+  - `WorkDetailView` 的 `onSave` 会直接 `DataService.updateChapter(...)`，可能把后端刚应用的新整章内容覆盖回旧内容，表现为“看起来没有全章节替换”。`src/views/WorkDetailView/index.tsx`
+- 最小修复方向：
+  1) 对 `operation=content/replace_all` 的采纳事件在编辑器侧跳过 `setContent+autoSave`（避免旧稿覆盖）；
+  2) 采纳成功后主动刷新当前章节内容（或直接用 `pendingApproval.new_content` 替换编辑器内容）；
+  3) 保持章节级修订不走段落 revision 标记。
+
+#### 全章节替换采纳后编辑器不更新修复（待确认）
+
+- [x] `useAgentChat.submitApproval`：章节级采纳不再派发 `agent-accept-revision`，改为审批成功后派发整章直接替换事件
+- [x] `NovelEditor.handleAgentReplace`：支持章节级 `forceReplaceAll` 直接 `setContent(replacement)` 并保存
+- [x] `NovelEditor.handleAcceptRevisionEvent`：无修订标记时不再执行 `setContent(nextHtml)+autoSave`（避免旧稿覆盖）
+- [x] `AIPanel` 非 `pendingApproval` 分支补齐章节级采纳路径：审批成功后触发整章直接替换
+
+#### review
+
+- 章节级采纳顺序修正：`submitApproval` 对 `operation=content/replace_all` 不再先派发 `agent-accept-revision`，改为审批接口成功后派发 `agent-replace-text(skipRevision=true, forceReplaceAll=true)`，避免本地旧稿先写回。`src/hooks/useAgentChat.ts`
+- 编辑器新增整章直替入口：`handleAgentReplace` 支持 `forceReplaceAll`，直接 `setContent(replacement)` 并触发保存；同时加了 `chapterId` 校验，避免跨章节误替换。`src/components/editor/NovelEditor.tsx`
+- 采纳兜底防护：`handleAcceptRevisionEvent` 在找不到目标 revision 标记时直接跳过本地 `setContent + autoSave`，防止章节级采纳把旧内容覆盖回库。`src/components/editor/NovelEditor.tsx`
+- 非 pending 分支补齐：`AIPanel` 在 `submitApprovalResponse` 成功后，若是章节级修订则派发整章直替事件；非章节级保留原有 `agent-accept-revision` 逻辑。`src/components/editor/AIPanel.tsx`
+- 本地构建校验：`npm run -s build` 失败于既有文件 `src/components/agent/ChatInput.tsx:906` / `src/components/agent/ChatInput.tsx:907` 语法错误，与本次改动文件无直接关联。
+
+#### 采纳一致性与可观测性修复（待确认）
+
+- [x] 修正文案语义：`requires_confirmation=true` 改为“待确认，未落库”
+- [x] 审批后回读章节：章节级采纳成功后以服务端章节内容回填编辑器
+- [x] 审批链路打点：补 `approval_request created` / `approval_response received` / `revision applied` 三段同 `request_id` 日志
+- [x] 最小验证：静态检查改动路径，确认无分支遗漏
+
+#### review
+
+- 修正总结文案语义：`requires_confirmation: true` 不再解释为“已应用到编辑器”，改为“已生成待确认修订，尚未落库”，避免误导用户。`backend/app/services/agent/planning/response_builder.py`
+- 章节级采纳改为“审批成功后回读服务端章节内容再替换编辑器”，优先使用最新后端 `chapter.content`，回读失败才回退 `pending.new_content`。`src/hooks/useAgentChat.ts` `src/components/editor/AIPanel.tsx`
+- 增加章节级采纳保护：当缺少 `request_id` 时不再执行本地整章替换，避免“未落库先改前端”的假成功。`src/components/editor/AIPanel.tsx`
+- 审批链路新增统一可观测日志（同 request_id）：`approval_request created`、`approval_response received`、`revision applied`，并补失败原因日志，便于快速定位卡点。`backend/app/api/v1/agent.py` `backend/app/services/chapter_revision_service.py`
+- 验证结果：
+- 后端语法检查通过：`python3 -m py_compile backend/app/api/v1/agent.py backend/app/services/chapter_revision_service.py backend/app/services/agent/planning/response_builder.py`
+- 前端构建仍被既有错误拦截：`src/components/agent/ChatInput.tsx:906` / `src/components/agent/ChatInput.tsx:907`，与本次改动文件无直接关联。
+
+#### 审批状态闭环修复（方案一执行中）
+
+- [x] 后端增加统一 `apply_state`：`pending|applied|rejected|failed`
+- [x] `/chat/approval-response` 返回明确状态，采纳失败返回 `failed`
+- [x] 前端采纳门禁：仅 `apply_state=applied` 才触发章节替换事件
+- [x] Summarization 增加硬约束：`pending` 时禁止宣称“已写回成功”
+- [x] 最小验证：链路日志 + 关键路径静态检查
+
+#### review
+
+- 后端审批状态闭环已补齐：`approval_request` 默认附带 `apply_state=pending`；`/chat/approval-response` 按实际执行结果返回 `apply_state=applied/rejected/failed`，并回写到 HITL extra_data。`backend/app/api/v1/agent.py`
+- 边界保护补齐：审批通过但缺少写回内容时，后端显式返回 `failed`（HTTP 400），避免“成功但未落库”的灰状态。`backend/app/api/v1/agent.py`
+- 前端门禁已生效：章节级采纳路径只有 `apply_state=applied` 才会触发 `agent-replace-text`（以及章节确认刷新）；未落库直接跳过本地替换，避免假成功。`src/hooks/useAgentChat.ts` `src/components/editor/AIPanel.tsx`
+- Summarization 增加硬约束兜底：一旦检测到 `requires_confirmation` 或 `apply_state=pending`，直接输出“待确认未落库”模板，不再让模型自由总结，避免“写回成功”幻觉。`backend/app/services/agent/planning/response_builder.py`
+- 保持前端执行流兼容：`pending` 硬约束分支仍发送 `summarization_start/summarization_complete/output_ready` 事件，避免 UI 状态倒退。`backend/app/services/agent/planning/response_builder.py`
+- 接口类型已同步：前端 `agentApi.submitApprovalResponse` 增加 `apply_state` 返回类型声明，便于后续流程显式判断。`src/services/agentApi.ts`
+- 验证结果：
+- 后端语法检查通过：`python3 -m py_compile backend/app/api/v1/agent.py backend/app/services/agent/planning/response_builder.py`
+- 前端构建仍被历史错误拦截：`src/components/agent/ChatInput.tsx:906` / `src/components/agent/ChatInput.tsx:907`，与本次改动无直接关联。

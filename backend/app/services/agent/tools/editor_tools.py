@@ -61,7 +61,8 @@ async def _generate_rewrite_versions(
     user_requirement: Optional[str] = None,
     evidence_context: Optional[str] = None,
     worldview_context: Optional[str] = None,
-    worldview_hard_constraints: Optional[str] = None
+    worldview_hard_constraints: Optional[str] = None,
+    max_tokens: int = 4000
 ) -> List[Dict[str, Any]]:
     """
     使用AI生成单个改写结果
@@ -134,7 +135,7 @@ async def _generate_rewrite_versions(
             response_text = await ai_service.call_ai(
                 system_prompt=system_prompt,
                 user_prompt=creative_prompt,
-                max_tokens=4000,
+                max_tokens=max_tokens,
                 temperature=0.8,
                 task_type=TaskType.CONTENT_CREATION
             )
@@ -194,7 +195,7 @@ async def _generate_rewrite_versions(
         response_text = await ai_service.call_ai(
             system_prompt=system_prompt,
             user_prompt=prompt,
-            max_tokens=4000,  # 需要足够的token来生成改写内容
+            max_tokens=max_tokens,  # 需要足够的token来生成改写内容
             temperature=0.8,  # 稍高的温度以获得更多样化的结果
             task_type=TaskType.CONTENT_CREATION
         )
@@ -904,6 +905,160 @@ async def smart_rewrite(
         return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 
+@tool
+@register_as_tool(
+    "rewrite_chapter_content",
+    "creative",
+    """整章改写工具（只生成，不写入编辑器）
+
+    使用场景：
+    - 用户明确要求“整章重写/全文改写/全章改写”
+    - ❗️禁止用于段落级改写（段落改写必须用 smart_rewrite + 精确定位）
+
+    返回：整章改写后的完整内容（content）
+    """
+)
+async def rewrite_chapter_content(
+    chapter_id: str,
+    user_requirement: Optional[str] = None,
+    chapter_content: Optional[str] = None,
+    evidence_context: Optional[str] = None,
+    work_id: Optional[str] = None,
+    user_id: Optional[str] = None
+) -> str:
+    """
+    整章改写 - 改写整章内容
+
+    Args:
+        chapter_id: 章节ID（支持 UUID 或章节序号）
+        user_requirement: 用户的具体要求
+        chapter_content: 章节完整内容（可选，未传则自动读取）
+        evidence_context: 探索证据上下文（可选）
+        work_id: 作品ID（章节序号解析需要）
+        user_id: 用户ID
+    """
+    try:
+        # ✅ 优先从请求上下文获取 user_id
+        from app.core.request_context import get_request_user_id
+        actual_user_id = user_id or get_request_user_id()
+
+        # 检查速率限制
+        if actual_user_id:
+            is_allowed, remaining = await agent_edit_limiter.check(actual_user_id)
+            if not is_allowed:
+                return json.dumps({
+                    "success": False,
+                    "error": "rate_limit_exceeded",
+                    "message": "操作过于频繁，请稍后再试。",
+                    "retry_after": 60
+                }, ensure_ascii=False)
+
+        if not chapter_id:
+            return json.dumps({
+                "success": False,
+                "error": "missing_chapter_id",
+                "message": "缺少章节ID"
+            }, ensure_ascii=False)
+
+        resolved_chapter_id = chapter_id
+        if work_id:
+            from app.services.agent.langgraph_tools import resolve_chapter_id, is_chapter_order
+            if isinstance(chapter_id, str) and is_chapter_order(chapter_id):
+                resolved_id, error = await resolve_chapter_id(work_id, chapter_id)
+                if error:
+                    return error
+                if resolved_id:
+                    resolved_chapter_id = resolved_id
+
+        if not chapter_content:
+            try:
+                async with AsyncSessionLocal() as db:
+                    from app.services.chapter_service import ChapterService
+                    chapter_svc = ChapterService(db)
+                    chapter = await chapter_svc.get_chapter_by_id(resolved_chapter_id)
+                    if chapter and chapter.content:
+                        chapter_content = chapter.content
+                    else:
+                        return json.dumps({
+                            "success": False,
+                            "error": "chapter_not_found",
+                            "message": f"无法获取章节内容: {chapter_id}"
+                        }, ensure_ascii=False)
+            except Exception as e:
+                logger.error(f"[rewrite_chapter_content] 获取章节内容失败: {e}")
+                return json.dumps({
+                    "success": False,
+                    "error": "fetch_chapter_failed",
+                    "message": f"获取章节内容失败: {str(e)}"
+                }, ensure_ascii=False)
+
+        original_text = TextCleaner.html_to_clean_text(
+            chapter_content or "",
+            preserve_structure=True
+        ).strip()
+        if not original_text:
+            return json.dumps({
+                "success": False,
+                "error": "missing_content",
+                "message": "章节内容为空，无法改写"
+            }, ensure_ascii=False)
+
+        user_requirement_context = ""
+        if user_requirement:
+            user_requirement_context = f"\n\n【用户的具体要求】\n{user_requirement}\n\n请严格满足用户要求。"
+        evidence_block = f"\n\n【探索证据】\n{evidence_context}" if evidence_context else ""
+
+        prompt = f"""你是专业的小说改写助手。任务：在不改变剧情与信息的前提下，重写整章内容。
+
+【原文】
+{original_text}
+{user_requirement_context}
+{evidence_block}
+
+【改写要求】
+1. 保持原有剧情顺序与关键信息
+2. 保持整体风格一致
+3. 保留段落结构，用换行分段
+4. 不输出编号/版本/解释
+
+请直接输出改写后的完整章节正文："""
+
+        ai_service = _get_ai_service()
+        max_tokens = min(12000, max(4000, int(len(original_text) * 2)))
+        system_prompt = "你是资深网文作家，专注于高质量内容创作。"
+        response_text = await ai_service.call_ai(
+            system_prompt=system_prompt,
+            user_prompt=prompt,
+            max_tokens=max_tokens,
+            temperature=0.8,
+            task_type=TaskType.CONTENT_CREATION
+        )
+
+        rewritten = creative_output_filter(response_text or "")
+        if re.search(r'<[^>]+>', rewritten):
+            rewritten = TextCleaner.html_to_clean_text(rewritten, preserve_structure=True)
+        if not rewritten:
+            return json.dumps({
+                "success": False,
+                "error": "empty_rewrite",
+                "message": "改写结果为空"
+            }, ensure_ascii=False)
+
+        return json.dumps({
+            "success": True,
+            "action_type": "rewrite_chapter",
+            "chapter_id": str(resolved_chapter_id or chapter_id),
+            "content": rewritten,
+            "content_length": len(rewritten),
+            "original_length": len(original_text),
+            "description": f"AI整章改写：{len(original_text)}字 → {len(rewritten)}字"
+        }, ensure_ascii=False)
+
+    except Exception as e:
+        logger.error(f"rewrite_chapter_content failed: {e}", exc_info=True)
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
 def _has_multi_version_intent(text: Optional[str]) -> bool:
     if not text:
         return False
@@ -1113,6 +1268,7 @@ def _get_operation_name(operation: str) -> str:
     return names.get(operation, operation)
 
 
+
 def register_editor_tools():
     """注册所有编辑器工具"""
     logger.info("Registering editor tools...")
@@ -1120,6 +1276,7 @@ def register_editor_tools():
         "apply_chapter_edit",
         "smart_continue",
         "smart_rewrite",
+        "rewrite_chapter_content",
         "smart_insert"
     ]
     for tool_name in tools:
@@ -1206,7 +1363,68 @@ smart_rewrite_tool = StandardTool(
 )
 
 
-# ==================== 2. SmartContinue StandardTool ====================
+# ==================== 2. RewriteChapterContent StandardTool ====================
+
+class RewriteChapterContentInput(ToolInput):
+    """整章改写工具输入"""
+    chapter_id: str = Field(..., description="章节ID")
+    user_requirement: Optional[str] = Field(default=None, description="用户的具体要求")
+    chapter_content: Optional[str] = Field(default=None, description="章节完整内容")
+    evidence_context: Optional[str] = Field(default=None, description="探索证据上下文")
+    work_id: Optional[str] = Field(default=None, description="作品ID（章节序号解析需要）")
+    user_id: Optional[str] = Field(default=None, description="用户ID")
+
+
+class RewriteChapterContentOutput(ToolOutput):
+    """整章改写工具输出"""
+    pass
+
+
+async def rewrite_chapter_content_executor(
+    input_data: RewriteChapterContentInput
+) -> RewriteChapterContentOutput:
+    """整章改写执行器（包装 @tool 版本）"""
+    try:
+        result_str = await rewrite_chapter_content.ainvoke({
+            "chapter_id": input_data.chapter_id,
+            "user_requirement": input_data.user_requirement,
+            "chapter_content": input_data.chapter_content,
+            "evidence_context": input_data.evidence_context,
+            "work_id": input_data.work_id,
+            "user_id": input_data.user_id
+        })
+
+        result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
+
+        return RewriteChapterContentOutput(
+            success=result_data.get("success", True),
+            message=result_data.get("description", "整章改写完成"),
+            data=result_data,
+            metadata={"tool": "rewrite_chapter_content"}
+        )
+    except Exception as e:
+        logger.error(f"rewrite_chapter_content_executor 失败: {e}")
+        return RewriteChapterContentOutput(
+            success=False,
+            message=f"整章改写失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+rewrite_chapter_content_tool = StandardTool(
+    name="rewrite_chapter_content",
+    description="整章改写章节内容，生成完整章节文本",
+    category=ToolCategory.CREATIVE,
+    input_schema=RewriteChapterContentInput,
+    output_schema=RewriteChapterContentOutput,
+    executor=rewrite_chapter_content_executor,
+    tags=["editor", "rewrite", "chapter", "hitl"],
+    version="1.0.0"
+)
+
+
+# ==================== 3. SmartContinue StandardTool ====================
 
 class SmartContinueInput(ToolInput):
     """智能续写工具输入"""
@@ -1430,9 +1648,11 @@ __all__ = [
     "apply_chapter_edit",
     "smart_continue",
     "smart_rewrite",
+    "rewrite_chapter_content",
     "smart_insert",
     # StandardTool 版本
     "smart_rewrite_tool",
+    "rewrite_chapter_content_tool",
     "smart_continue_tool",
     "smart_insert_tool",
     "apply_chapter_edit_tool",

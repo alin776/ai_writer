@@ -28,6 +28,7 @@ def _get_new_aggregated_tools_section() -> str:
   🆕 返回字段包含 artifact_id / artifact_preview（用于后续按需取回完整结果）
   ⚠️ 默认返回完整字段（含 frontend_display/explore_summary）；如需精简，仅返回 evidences/locate_targets 时设置 output_mode="evidence_only"
   ⚠️ 后续工具参数只允许引用 evidences / locate_targets；旧字段仅用于兼容
+  ⚠️ 整章改写例外：rewrite_chapter_content 可引用 chapters[0].chapter_id / chapters[0].content
 
 - load_explore_artifact: **按需取回探索结果**
   参数:
@@ -122,21 +123,29 @@ def _get_editor_tools_section() -> str:
 ⚠️ **创作类工具 → 操作类工具的推荐对应关系**
 - smart_continue → operate_apply(operation="append")
 - smart_insert → operate_apply(operation="insert")
-- smart_rewrite → operate_apply(operation="replace")
+- smart_rewrite → operate_apply(operation="replace")（段落级改写）
+- rewrite_chapter_content → operate_apply(operation="content")（整章改写）
 
 ---
 
-- smart_rewrite: 改写/修改章节内容（只生成1个改写结果）
+- smart_rewrite: 段落级改写/修改章节内容（只生成1个改写结果）
   参数: chapter_id, text_to_rewrite, user_requirement, evidence_context
   触发词: "修改"、"改写"、"重写"、"润色"、"优化"、"扩写"
   ⚠️ "扩写"= 把现有内容写得更丰富，属于改写场景，不是续写！
+  ⚠️ **整章重写禁止使用 smart_rewrite**，必须使用 rewrite_chapter_content
   ⚠️ 如果用户想把改写内容写入编辑器 → 后续调用 operate_apply(operation="replace")
   ⚠️ **参数填充规则**（极其重要！）：
     * 如果用户指定了要改写的文本 → text_to_rewrite 填入该文本
-    * 如果用户说"改写第X章" → 先用 explore_content 定位证据，再用 {"$ref": {"task_id": N, "path": "evidences[0].text"}} 引用
+    * 如果用户说"改写第X章"（但未说明整章） → 先用 explore_content 定位证据，再用 {"$ref": {"task_id": N, "path": "evidences[0].text"}} 引用
     * user_requirement 必须从用户消息中提取改写要求！
   ⚠️ 输出只允许单段内容，不要编号/版本列表
   ⚠️ 即使用户要求多版本/多候选，也只生成一条
+
+- rewrite_chapter_content: 整章改写工具（只生成，不写入编辑器）
+  参数: chapter_id, user_requirement, chapter_content(可选), evidence_context(可选)
+  触发词: "整章重写"、"全文改写"、"全章改写"
+  ⚠️ 不需要 paragraph_index/node_id（只用于整章）
+  ⚠️ 输出是整章内容，必须用 operate_apply(operation="content") 写入
 
 - smart_continue: 智能续写（只生成内容）
   参数: chapter_id, chapter_content, user_requirement, evidence_context, word_count
