@@ -3870,3 +3870,303 @@
 - [ ] 深读扩展机制：工具注册/发现、模型提供商适配、事件与 hook 设计
 - [ ] 深读 App/SDK 与 Agent 内核的通信边界，并确认关键 API 合同
 - [ ] 产出证据清单（文件路径+关键实现点）与直白详细结论
+
+#### Agent Explore 实现深度梳理（待确认）
+
+- [x] 深读后端 Explore 主入口与执行器（`langgraph_agent.py` / `tool_executor.py`）
+- [x] 深读 `explore_content` 实现细节（任务拆解、工具循环、停止条件、缓存与共享状态）
+- [x] 深读 Explore 只读工具链（search/locate/read）与证据结构生成
+- [x] 深读流式事件到前端展示链路（SSE 事件、类型映射、ExploreCard 渲染条件）
+- [x] 针对“这种现象”提炼根因：触发条件、代码机制、为何会重复/偏差
+- [x] 在 `todo.md` 追加 review：修改记录、证据列表、最终结论
+
+#### review
+
+- 入口与执行链路已核对：规划层把作品相关取证统一路由到 `explore_content`，执行层在并行执行器里把 `explore_content` 结果写入共享 state（`last_explore_result/target_chapter_id`），供后续写作或写回工具引用。`backend/app/services/agent/prompts/planning_prompts.py` `backend/app/services/agent/langgraph_tools.py` `backend/app/services/agent/execution/parallel_executor.py` `backend/app/services/agent/execution/tool_executor.py`
+- Explore 核心机制确认：`explore_content` 统一走 `ContentExplorer.explore_tool_loop`（pipeline 已弃用），并且只允许只读工具 `list_chapters/list_paragraphs/exact_search_paragraphs/read_paragraph/read_paragraphs`。`backend/app/services/agent/tools/explore_tools.py`
+- 证据口径确认：搜索命中先进入 `search_hits`，只有读取原文后（`read_paragraph/read_paragraphs`）才会进入 `evidences`。这意味着“搜到了但证据数不涨”是设计结果，不是前端错漏。`backend/app/services/agent/tools/explore_tools.py`
+- 轮次与停止逻辑确认：循环条件看 `tool_calls_left`，停止主要依赖 LLM 决策或工具上限；代码中 `max_rounds`/`check_convergence`/`should_block_search` 存在但当前循环未实际使用。`backend/app/services/agent/tools/explore_tools.py`
+- 缓存与复用确认：存在 Redis 结果缓存（1小时）+ 进程内共享状态缓存（20分钟）；章节变更失效逻辑只清 Redis/Artifact，未清进程内共享状态。`backend/app/services/agent/tools/explore_tools.py` `backend/app/services/agent/utils/explore_cache.py`
+- 前端链路确认：SSE 透传 `explore_round/explore_summary`，前端映射为 `toolCalls` 并按 `stepId` 归组渲染；`ExploreRoundCard` 默认折叠，工具标签仅在展开时可见。`backend/app/api/v1/agent.py` `src/services/agentApi.ts` `src/hooks/useAgentChat.ts` `src/hooks/useAgentChatStream.ts` `src/components/agent/ExecutionFlow/index.tsx` `src/components/agent/ExecutionFlow/ExploreCard.tsx`
+- “这种现象”的核心成因（代码级）：
+  - 重复探索/轮次偏多：`should_search` 恒为 `True` + `max_rounds` 未参与循环判停 + 强制首轮 `list_chapters/list_paragraphs`，导致 Explore 天然更“啰嗦”。`backend/app/services/agent/tools/explore_tools.py`
+  - 命中很多但可写回失败：`locate_targets` 目前只从“已读段落”构建，若只搜索未读，写回前置检查会报 `missing_prerequisite(locate_targets)`。`backend/app/services/agent/tools/explore_tools.py` `backend/app/services/agent/execution/parallel_executor.py`
+  - Explore 后还追问：总结提示词对创作类强制“分阶段追问”，即使已探索到准备信息也会继续问用户参数。`backend/app/services/agent/planning/response_builder.py`
+- 抽象需求检索失败的核心矛盾（新增）：
+  - 当前 Explore 主循环是“只读 Grep 模式”：可用工具明确只有 `exact_search_paragraphs`（字面匹配），并显式禁用 `search_content` 语义检索；旧的语义搜索逻辑在 pipeline 分支里，但 pipeline 已弃用。`backend/app/services/agent/tools/explore_tools.py` `backend/app/services/agent/tools/explore_tools.py`
+  - `exact_search_paragraphs` 与实时正文版本质都是 `chunk_text ilike %keyword%` / `kw in text`，不做语义近邻；抽象意图（如“压迫感递进”“关系张力”）天然难命中。`backend/app/services/chapter_vector_service.py`
+  - 缺失关键词判定绑定“原文是否包含关键词字面”：`missing_keywords` 依据 `kw.lower() in target_text.lower()` 计算，导致“语义相关但不含字面词”被当作未命中，驱动继续探索。`backend/app/services/agent/tools/explore_tools.py`
+  - Read 崩盘常见触发：`read_paragraphs(items)` 过滤后若 `chapter_order/paragraph_index` 无效会返回“没有可读取的段落（无效/超范围/已读）”；node_id 仅在已做过 `list_paragraphs` 的缓存映射下才能还原为段落号。`backend/app/services/agent/tools/explore_tools.py`
+  - 还存在“上限错位”：`tool_executor` 默认只给 `max_rounds=10`，但循环实际按 `max_tool_calls`（默认200）停止，`max_rounds` 当前不参与判停，容易出现长时间打转。`backend/app/services/agent/execution/tool_executor.py` `backend/app/services/agent/tools/explore_tools.py`
+
+#### 删除旧 pipeline 语义残留（待确认）
+
+- [x] 清理 `explore_tools.py` 中未使用的旧 pipeline 结构（`RoundPlan` 与 `_execute_round_with_plan`）
+- [x] 清理与旧 pipeline 相关的默认值/文案（`explore_mode` 默认与注释统一为 `tool_loop`）
+- [x] 运行最小静态校验（`python3 -m py_compile backend/app/services/agent/tools/explore_tools.py`）
+- [x] 在 `todo.md` 追加 review（删除范围、影响评估、验证结果）
+
+#### review
+
+- 已删除 `backend/app/services/agent/tools/explore_tools.py` 中旧 pipeline 残留：`RoundPlan` 数据结构与 `_execute_round_with_plan` 整段执行逻辑（含 `search_content` 语义搜索分支、旧 locate/read 路径），避免代码库继续保留不可达的旧实现。
+- 已统一默认入口语义：`ContentExplorer.__init__` 的 `explore_mode` 默认值与兜底值均改为 `tool_loop`，文件头核心流程描述同步改为当前“工具循环 + 原文读取证据”逻辑。
+- 同步清理提示文案中的旧模式暴露：`backend/app/services/agent/prompts/tool_descriptions.py` 中 `explore_mode` 说明改为“仅支持 tool_loop”，内部禁用工具列表改为当前真实内部工具（list/search/read）。
+- 语法校验通过：`python3 -m py_compile backend/app/services/agent/tools/explore_tools.py backend/app/services/agent/prompts/tool_descriptions.py` 返回 0。
+
+#### 删除 explore_mode 参数（待确认）
+
+- [x] 清理 `explore_tools.py` 中 `ContentExplorer.__init__` 与 `explore_content` 的 `explore_mode` 入参及传递
+- [x] 清理 `tool_executor.py` 中 `explore_content` 允许参数白名单里的 `explore_mode`
+- [x] 清理提示词文档中 `explore_mode` 的参数说明，保持“只有 tool_loop”事实一致
+- [x] 运行最小语法校验并在 `todo.md` 追加 review
+
+#### review
+
+- `backend/app/services/agent/tools/explore_tools.py` 已删除 `explore_mode` 全链路：`ContentExplorer.__init__` 入参、无效成员赋值、`explore_content` 入参与 `ContentExplorer(...)` 传参，避免继续暴露无意义模式开关。
+- `backend/app/services/agent/execution/tool_executor.py` 的 `explore_content` 参数白名单已移除 `explore_mode`，上层即使传入该字段也不会再参与调用。
+- `backend/app/services/agent/prompts/tool_descriptions.py` 已删除 `explore_content` 的 `explore_mode` 参数说明，工具文档与实际接口一致（仅保留预算类参数）。
+- 语法校验通过：`python3 -m py_compile backend/app/services/agent/tools/explore_tools.py backend/app/services/agent/execution/tool_executor.py backend/app/services/agent/prompts/tool_descriptions.py` 返回 0。
+
+#### 研读 opencode 上下文获取机制（待确认）
+
+- [x] 通读 `opencode/packages/opencode/src/session` 主链路，定位“消息→模型输入”构建路径
+- [x] 通读 `opencode/packages/opencode/src/tool` 的读/搜工具与截断逻辑，定位“上下文证据”来源与治理策略
+- [x] 通读 `opencode/packages/opencode/src/agent/prompt` 与 compaction/summary 逻辑，定位“上下文压缩与续航”机制
+- [x] 输出“为何能稳定拿到足够上下文”的证据链结论（含关键文件+行号）
+- [x] 在 `todo.md` 追加 review（结论、风险点、可迁移建议）
+
+#### review
+
+- 主链路证据：`SessionPrompt.loop` 每轮先读取历史并过滤已压缩段，再拼接 `SystemPrompt.environment + custom + MessageV2.toModelMessages` 喂给模型；用户上传文件/选区会在 `createUserMessage` 阶段先真实调用 `ReadTool/ListTool/MCP.readResource` 注入文本，确保“先拿证据再推理”。`opencode/packages/opencode/src/session/prompt.ts:275` `opencode/packages/opencode/src/session/prompt.ts:601` `opencode/packages/opencode/src/session/prompt.ts:822`
+- 工具治理证据：`read` 默认分段读取（`limit=2000`、50KB 上限、offset 续读提示），`grep` 结果按时间排序后只保留前 100，`Truncate.output` 超限会落盘并强制引导“继续 grep/read(offset/limit) 或委托 explore 子任务”，避免一次性把超长文本塞进上下文。`opencode/packages/opencode/src/tool/read.ts:12` `opencode/packages/opencode/src/tool/read.ts:92` `opencode/packages/opencode/src/tool/grep.ts:107` `opencode/packages/opencode/src/tool/truncation.ts:50`
+- 续航证据：`SessionCompaction.isOverflow` 基于 token 预算触发压缩；`process` 会把历史模型消息交给 compaction agent 生成“继续工作提示”；主循环结束还会执行 `prune` 清理早期工具长输出，减少上下文噪声。`opencode/packages/opencode/src/session/compaction.ts:30` `opencode/packages/opencode/src/session/compaction.ts:92` `opencode/packages/opencode/src/session/prompt.ts:627`
+- 前端上下文注入证据：页面把“文件选区/评论”存入 prompt context，发送时统一转成 `file://...?...start=&end=` + 注释文本，后端收到后立刻 read 成可消费文本，不依赖模型“猜文件内容”。`opencode/packages/app/src/pages/session.tsx:515` `opencode/packages/app/src/components/prompt-input.tsx:1313` `opencode/packages/opencode/src/session/prompt.ts:954`
+- 风险点：它不是语义向量检索，而是“文件显式注入 + grep/read 迭代 + 压缩续航”；如果用户问题高度抽象且未给任何可落地线索，仍会出现探索轮次增加，只是通过任务拆分与截断治理把失控概率压低。`opencode/packages/opencode/src/agent/agent.ts:125` `opencode/packages/opencode/src/tool/task.ts:165`
+- 可迁移建议：优先迁移“前端选区强注入 + read/grep 分页续读 + truncation 落盘提示 + compaction/prune 双层续航 + explore 子任务并行”这套可解释机制，再考虑补语义检索；先把召回可控性做稳，语义只是增益层。
+
+#### 深度追踪 Explore 证据传递与评判机制（待确认）
+
+- [x] 通读 `explore_content` 主链路（调用入口→轮次执行→输出组装），定位“探索结果如何落到任务结果”
+- [x] 通读执行层参数解析与 `$ref` 注入链路，定位“探索结果如何传给后续 AI 工具（smart_* / operate_apply）”
+- [x] 通读创作工具提示词组装逻辑，定位“AI 实际依据哪些信息做判断（evidence_context/段落上下文/用户需求）”
+- [x] 通读前端 SSE 事件映射与展示链路，定位“探索信息如何呈现给模型外层与用户”
+- [x] 汇总“为什么会出现你说的现象”的核心机制（带文件+行号证据）
+- [x] 在 `todo.md` 追加 review（完整链路、关键断点、最小修复方向）
+
+#### review
+
+- Explore 主链路已确认：`explore_tool_loop` 先强制 `list_chapters/list_paragraphs`，再由 LLM 在只读工具集合内循环决策；命中后必须 `read_paragraph/read_paragraphs` 才会进入 `evidences`，最终由 `explore_content` 输出 `evidences + locate_targets + context_for_task + explore_summary`。`backend/app/services/agent/tools/explore_tools.py`
+- 结果注入链路已确认：`parallel_executor` 把 `explore_content` 完整 `raw_result` 注册进 `ParameterResolver`，规划层用 `$ref` 把 `locate_targets/evidences` 注入到 `smart_*` 与 `operate_apply` 参数；执行层还会把 `last_explore_result` 放入共享 state 作为兜底。`backend/app/services/agent/execution/parallel_executor.py` `backend/app/services/agent/parameter_resolver.py` `backend/app/services/agent/planning/plan_generator.py`
+- AI 评判依据已确认：Explore 轮次决策时，模型看到“搜索历史+命中列表+已读原文证据+已读范围”；创作阶段模型看到 `evidence_context`（探索摘要/证据/定位候选）与段落上下文补读结果，再生成 `smart_rewrite/smart_continue/smart_insert`。`backend/app/services/agent/tools/explore_tools.py` `backend/app/services/agent/execution/tool_executor.py` `backend/app/services/agent/tools/editor_tools.py`
+- 前后端事件链路已确认：后端 `flow_events` 生成 `explore_round/explore_summary`，SSE 透传到前端，前端映射为 `flowItems` 展示；这条链路主要给“人和外层流程看”，真正给后续 AI 工具喂数据的是任务结果注册 + `$ref` 注入。`backend/app/services/agent/stream/flow_events.py` `backend/app/api/v1/agent.py` `src/services/agentApi.ts` `src/hooks/useAgentChat.ts`
+- 核心断点：当前检索层是“字面匹配”而非语义匹配（`ilike %kw%` / `kw in text`），抽象需求在关键词阶段就可能失配；若 `locate_targets` 不唯一或缺失，写回阶段会触发 `ambiguous_locator/missing_source_locator` 并阻断。`backend/app/services/chapter_vector_service.py` `backend/app/services/agent/execution/tool_executor.py`
+- 最小修复方向：先提升召回入口（关键词扩展/同义词改写/用户提供锚句引导），再强化定位选择（默认要求 `locate_target_index/locator_id`），最后把“检索失配”与“定位歧义”拆成可见错误类型，避免 Explore 看起来像“死循环”。`backend/app/services/agent/tools/explore_tools.py` `backend/app/services/agent/execution/tool_executor.py`
+
+#### Explore 动态 regex 检索与硬判停改造（待确认）
+
+- [x] 新增 regex 搜索能力：`exact_search_paragraphs` 支持 `patterns`（正则）与 `regex_mode`（any/all）
+- [x] Explore 工具循环支持动态 regex 参数：在 `exact_search_paragraphs` 分支解析/校验/执行 `patterns`
+- [x] 增加 regex 安全校验与诊断回传（编译失败/危险模式/过长）
+- [x] 接入程序化硬判停：`max_rounds` 真正生效 + 连续无进展停机 + 重复同调用停机
+- [x] 接入已有搜索拦截器：`should_block_search` 在执行搜索前生效，避免重复无效搜索
+- [x] 补充最小验证（`py_compile`），并在 `todo.md` 追加 review（改动点、证据、残余风险）
+
+#### review
+
+- `chapter_vector_service` 已支持关键词+regex 双通道：`exact_search_paragraphs` 新增 `patterns/regex_mode`，有 regex 时自动走正文扫描路径，返回 `matched_patterns/pattern_count`，避免 SQL 字面匹配漏召回。`backend/app/services/chapter_vector_service.py`
+- Explore 执行分支已支持动态 regex：`exact_search_paragraphs` 现在解析 `keywords + patterns`，并把 `patterns/regex_mode` 透传到搜索服务；搜索结果会回传 `blocked_keywords/invalid_patterns` 供 LLM 下一轮修正。`backend/app/services/agent/tools/explore_tools.py`
+- regex 安全校验已落地：新增长度上限、条数上限、危险模式拦截（嵌套量词/多重 `.*`）、编译失败诊断。`backend/app/services/agent/tools/explore_tools.py`
+- 硬判停已接入主循环：`while` 同时受 `max_tool_calls + max_rounds` 控制，并增加“连续2轮无新增证据”与“连续3轮重复同调用”停机；`check_convergence(window=2)` 也已真正生效。`backend/app/services/agent/tools/explore_tools.py`
+- 搜索拦截器已启用：执行搜索前先跑 `should_block_search`，被判穷尽的关键词会被拦截，不再重复空转。
+- 已执行最小验证：`python3 -m py_compile backend/app/services/chapter_vector_service.py backend/app/services/agent/tools/explore_tools.py` 通过。
+- 残余风险：regex 危险模式拦截目前是启发式，可能存在误拦/漏拦；如果后续线上有误判，可再补“执行超时熔断 + 更细粒度正则 AST 校验”。
+
+#### 删除 prompt 抽关键词残留（待确认）
+
+- [x] 删除 `_extract_keywords_for_search` 函数（包括 jieba 抽词逻辑）
+- [x] 删除世界观预取里的 prompt 抽词兜底，只保留 `search_keywords`
+- [x] 运行最小语法校验并在 `todo.md` 追加 review
+
+#### review
+
+- 已删除 `backend/app/services/agent/tools/explore_tools.py` 中 `_extract_keywords_for_search` 整段实现，原先的“从用户 prompt 规则抽词 + jieba 抽词”逻辑不再存在。
+- 已修改世界观小包预取关键词来源：`keywords = self.search_keywords or []`，不再从 `target_task` 自动抽取关键词。
+- 语法校验通过：`python3 -m py_compile backend/app/services/agent/tools/explore_tools.py`。
+
+#### 清理旧 pipeline 残留（待确认）
+
+- [x] 删除未调用的旧阶段方法（`_execute_exact_search_phase`）
+- [x] 删除未调用的 `explore()` 兼容壳方法（仅保留 `explore_tool_loop` 主链）
+- [x] 删除伴随旧流程遗留的未使用章节排序方法（`_chapter_has_paragraph_evidence` 等）
+- [x] 清理 `pipeline 已弃用` 文案残留并做语法校验
+
+#### review
+
+- `backend/app/services/agent/tools/explore_tools.py` 中旧 pipeline 的执行残留已删除：`_execute_exact_search_phase`、`explore()` 包装入口、以及未再使用的章节排序/筛选辅助方法，当前仅保留 `explore_tool_loop` 主链路。
+- 相关“pipeline 已弃用”注释文案已清理，避免继续误导。
+- 校验通过：`python3 -m py_compile backend/app/services/agent/tools/explore_tools.py backend/app/services/chapter_vector_service.py`。
+
+#### INFO/Backend 日志深度归因排查（待确认）
+
+- [x] 通读 `INFO.md` 与 `Backend.md`，对齐同一轮请求的时间线与症状
+- [x] 提取关键异常信号（循环、超时、参数错配、工具失败）并做证据摘录
+- [x] 反查对应实现代码（Explore/tool_loop/写回链路）确认触发机制
+- [x] 判断是否与本轮改动直接相关，区分“新增问题”与“历史遗留问题”
+- [x] 输出直白结论：核心根因、次要因素、复现条件、最小修复方向
+- [x] 在 `todo.md` 追加 review（证据清单+结论）
+
+#### review
+
+- 同一轮请求的前后端症状完全一致：前端轨迹中仅出现 `ListChapters/ListParagraphs` 重复 6 组，没有 `exact_search_paragraphs/read_paragraph`；后端 6 次 `explore_content` 也都在 2 轮后停止。`INFO.md` `Backend.md`
+- 关键异常信号明确：每次 Explore 都是 `stop_reason=连续2轮无新增证据，停止探索`，随后触发 `missing_locate_targets` 错误（缺少 `paragraph_index/node_id`）。`Backend.md`
+- 触发机制已在代码层闭环：`explore_tool_loop` 先强制执行 `list_chapters -> list_paragraphs`，而“连续2轮无新增证据即停”是无条件生效，导致在进入 AI 决策前就被硬停；因此根本不会调用 `exact_search_paragraphs/read_paragraph(s)`。`backend/app/services/agent/tools/explore_tools.py`
+- 与本轮改动关系：这是本轮新增“硬判停”策略引入的副作用，不是历史老问题。因为日志里的停机文案与新增代码字符串一致，且触发点与新增判停条件完全重合。`backend/app/services/agent/tools/explore_tools.py` `Backend.md`
+- 次要放大因素：本次任务被规划成 6 个独立输出任务，全部串行调用 `explore_content`，每个都在同一早停点失败，前端因此看起来像“工具在无意义重复”。`Backend.md` `INFO.md`
+- 最小修复方向：保留硬判停，但排除强制准备轮（`list_chapters/list_paragraphs`）不计入 `no_progress_streak`；或把阈值改成“至少出现过一次搜索/读取工具调用后再启用无进展判停”。
+
+#### 移除2轮无进展硬停（待确认）
+
+- [x] 删除 `explore_tool_loop` 中“连续2轮无新增证据，停止探索”判停
+- [x] 删除等价的2轮收敛判停分支，避免同类早停仍触发
+- [x] 保留其余判停机制（`max_rounds`、`max_tool_calls`、重复同调用停机）
+- [x] 运行最小语法校验并记录结果
+
+#### review
+
+- 已按要求移除“2轮无新增证据即停”逻辑，并同步移除等价的 `check_convergence(window=2)` 停机分支，避免仅执行 `list_chapters/list_paragraphs` 就被提前终止。`backend/app/services/agent/tools/explore_tools.py`
+- 其他保护机制保持不变：`max_rounds`、`max_tool_calls`、`连续3轮重复同一工具调用` 仍生效。`backend/app/services/agent/tools/explore_tools.py`
+- 语法校验通过：`python3 -m py_compile backend/app/services/agent/tools/explore_tools.py`。
+
+#### Explore 动态 grep 检索改造计划（待确认）
+
+- [x] 阶段1：明确“查询生成”唯一入口
+- [x] 移除 `explore_content` 对规划层 `search_keywords` 的强依赖，改为以每轮 LLM 动态生成 `keywords/patterns` 为主（规划词仅作可选 seed）
+- [x] 在工具循环状态中增加“查询尝试栈”（记录每轮 regex/关键词、命中数、失败原因），作为下一轮提示上下文
+- [x] 统一 `exact_search_paragraphs` 的入参规范（keywords/patterns/match_mode/regex_mode），避免模型反复切换无效参数组合
+
+- [x] 阶段2：建立“程序化查询改写”护栏（不把成败全交给 AI）
+- [x] 当 `exact_search_paragraphs` 连续 2 轮 0 命中时，程序强制注入一次“放宽策略”查询（如 all→any、短语→拆词、去掉过强连接词）
+- [x] 当检测到重复同调用（同工具+同参数）达到阈值时，不直接结束，先强制要求“结构化改写查询”再允许继续
+- [x] 对“关键词已确认不存在”的拦截增加前置条件：必须经历“全局范围 + 至少一次改写策略”后才能标记 exhausted
+
+- [x] 阶段3：收紧停机质量门槛（解决“过早停”）
+- [x] `action=stop` 前增加程序校验：若尚未完成“有效搜索覆盖 + 至少一次原文读取尝试”，拒绝 stop 并回退到继续搜索
+- [x] 对“内容不存在”结论增加硬条件：至少 N 组不同查询策略都为 0 命中，且覆盖范围满足章节约束
+- [ ] 保留现有 `max_rounds/max_tool_calls/重复调用停机`，但将 stop_reason 细化为机器可判别原因码
+
+- [ ] 阶段4：提升可观测性与可调试性
+- [x] 在日志中输出每轮查询策略标签（strict/broad/fallback）、命中统计、是否触发程序强制改写
+- [ ] 前端流事件补充“本轮为何继续/为何拒绝停止”的简短说明，避免看起来像无意义打转
+- [ ] 为 `missing_locate_targets` 增加上游诊断字段（是否读过原文、是否仅 preview）
+
+- [ ] 阶段5：最小回归验证与压测
+- [ ] 基于 `INFO.md/Backend.md` 的真实轨迹构建 3 组回放用例（能找到、找不到、半命中）
+- [ ] 新增单测：重复同调用拦截、0命中强制改写、stop 前质量门槛
+- [x] 运行最小验证（`py_compile`），确认无语法回归
+
+#### review（计划审查）
+
+- [x] 贴合现状：计划直接落在当前主链 `explore_tool_loop + exact_search_paragraphs`，不引入新 pipeline，改动面可控。
+- [x] 风险可控：优先做“程序护栏与停机门槛”，不先改底层存储或向量体系，避免大改引发连锁回归。
+- [x] 与现有日志问题对齐：可直接针对“0命中早停、重复调用、missing_locate_targets”三类症状给出对应控制点。
+- [x] 兼容你当前设计原则：保留“必须读原文才算 evidence、写回必须精确定位”两条硬约束。
+- [x] 主要风险：若门槛设置过严，可能增加轮次与时延；需要通过阶段5回放用例校准阈值。
+- [x] 结论：该计划合理、可落地、经得起推敲，建议按阶段1→2→3顺序实施，阶段4/5并行补齐。
+
+#### review（实施进度）
+
+- 已完成阶段1~3核心改造：查询尝试栈、0命中强制改写、重复同调用触发改写、`action=stop` 质量门槛、`不存在` 结论硬条件。`backend/app/services/agent/tools/explore_tools.py`
+- `exact_search_paragraphs` 已统一参数规范并写入尝试记录：`keywords/patterns/match_mode/regex_mode/strategy`，失败与命中都会入栈。`backend/app/services/agent/tools/explore_tools.py`
+- `search_keywords` 已降级为可选 seed：Explore 选择目标段时会合并“近期真实查询词”，不再只依赖规划层初始词。`backend/app/services/agent/tools/explore_tools.py`
+- 已完成最小语法校验：`python3 -m py_compile backend/app/services/agent/tools/explore_tools.py` 通过。
+- 尚未完成：stop reason 机器码细化、前端继续/拒停可视化、`missing_locate_targets` 上游诊断字段、回放用例与单测。
+
+#### Opencode grep 关键词来源机制深挖（待确认）
+
+- [x] 核对 `opencode` 中 grep 工具入参与执行实现，确认是否存在“程序抽关键词”模块
+- [x] 核对 explore 子代理提示词与权限配置，确认 LLM 是否被引导动态生成 grep pattern
+- [x] 核对会话主循环中模型消息构建链路，确认 LLM 每轮能看到哪些上下文来决定下一组词/regex
+- [x] 核对工具结果回灌与循环控制（含 doom loop 保护），确认“上一轮结果如何影响下一轮 pattern”
+- [x] 形成证据链与直白结论（回答“AI 根据什么想出这些词”）
+
+#### review
+
+- `grep` 工具只接受单个 `pattern`（regex 字符串）并原样传给 `rg --regexp`，没有任何“程序自动抽关键词”逻辑。`opencode/packages/opencode/src/tool/grep.ts`
+- explore 子代理提示词只给策略性指导（用 Glob/Grep/Read），并未提供固定词库或规则抽词器；因此 pattern 来自 LLM 当轮决策。`opencode/packages/opencode/src/agent/prompt/explore.txt` `opencode/packages/opencode/src/agent/agent.ts`
+- 每轮模型输入由“系统提示 + 对话历史 + 工具调用结果”组成；工具结果会被结构化写回消息并在下一轮再次送入模型，因此 pattern 依据是动态迭代的。`opencode/packages/opencode/src/session/prompt.ts` `opencode/packages/opencode/src/session/message-v2.ts`
+- grep 输出会明确返回“命中行/No files found/截断提示”，这些反馈构成下一轮改词/改 regex 的直接依据。`opencode/packages/opencode/src/tool/grep.ts`
+- 会话处理器有 doom loop 检测：同工具同输入连续 3 次会触发 `doom_loop` 权限检查，避免无限重复同一 pattern。`opencode/packages/opencode/src/session/processor.ts`
+
+#### 对齐 Opencode 动态 grep 效果（最小落地计划）（待确认）
+
+- [x] 阶段1：参数与范围语义修正（先治“搜错范围”）
+- [x] 在 `exact_search_paragraphs` 参数解析中补齐 `chapter_orders`（支持 `[2]`、`[1,2,3]`、字符串列表）
+- [x] 明确范围优先级：`chapter_range/chapter_ranges/chapter_orders/chapter_order`（从高到低），并在日志输出“最终生效范围”
+- [x] 保持现有章节 scope 过滤逻辑不变，避免影响写回定位链路
+
+- [x] 阶段2：检索执行改为“分层回退”而非“一票否决”
+- [x] 保留首轮严格检索：`keywords + patterns`
+- [x] 若 0 命中，自动追加第2轮：`keywords-only`（去掉 patterns）
+- [x] 若仍 0 命中，再追加第3轮：`patterns-only`（去掉 keywords）
+- [x] 每轮都写入 `query_attempts`，并带 `strategy` 标签（`strict`/`kw_fallback`/`regex_fallback`）
+
+- [x] 阶段3：修正 forced_rewrite 的“假放宽”
+- [x] `forced_rewrite` 默认先走 `keywords-only`，不继承上一轮 patterns
+- [x] 仅当 `keywords-only` 仍 0 命中时，再尝试保守 regex（短 pattern、低复杂度）
+- [x] 保留现有 stop 质量门槛，不再新增硬停规则
+
+- [x] 阶段4：提示词最小改写（不改架构）
+- [x] 将“优先给 regex”改为“先关键词召回，再 regex 收敛”
+- [x] 明确禁止一次性给长串抽象负向词（如“代价/限制/风险/误判...”全家桶）
+- [x] 要求每轮最多 1-2 条短 regex，避免复杂表达式先天漏召回
+
+- [ ] 阶段5：最小验证（基于你现有日志回放）
+- [x] 用 `INFO.md/Backend.md` 中 3 个失败样例回放：复杂困境检索、三线并轨联合 regex、限定章节检索
+- [ ] 验证指标：命中率提升、`range` 与请求一致、10轮内收敛、`locate_targets` 不回退
+- [x] 执行 `py_compile` + 目标单测（仅新增必要用例，不扩面）
+
+#### review（计划审查）
+
+- [x] 计划符合“少改动”原则：只改 `explore_tools.py`（参数解析/决策提示/回退策略）与少量 `chapter_vector_service.py` 调用分支，不动数据库结构与前端协议。
+- [x] 先修 `chapter_orders` 再调策略，顺序合理：先保证“搜对地方”，再优化“怎么搜”。
+- [x] 分层回退比全局改 OR 更稳：可维持首轮精度，同时避免 regex 偏差导致全盘 0 命中。
+- [x] 与现有机制兼容：保留“必须读原文才算 evidence”“写回必须精确定位”“stop 质量门槛”三条硬约束。
+- [x] 风险可控：主要风险是回退轮次增加带来时延；通过“最多3层回退 + 现有 max_rounds”可控。
+- [x] 可验证性强：可直接复用你当前 `INFO.md/Backend.md` 失败样本做回放，不需要新造复杂测试场景。
+- [x] 结论：该计划在当前项目状态下合理、可落地、经得起推敲，建议按阶段1→2→3执行，阶段4/5并行。
+
+#### review（实施进展）
+
+- 已落地 `chapter_orders` 解析，并在 `exact_search_paragraphs` 执行时输出“参数范围/任务范围/最终生效范围”日志，优先级按 `chapter_range/chapter_ranges/chapter_orders/chapter_order` 生效。`backend/app/services/agent/tools/explore_tools.py`
+- 已把检索改为分层回退：首轮 `keywords+patterns`，0 命中后自动 `kw_fallback`，仍 0 命中再走 `regex_fallback`；每层都写入 `query_attempts`。`backend/app/services/agent/tools/explore_tools.py`
+- 已修正补偿检索逻辑：缺失关键词补偿时不再携带旧 regex（`patterns=[]`），避免“补偿仍被 regex 一票否决”。`backend/app/services/agent/tools/explore_tools.py`
+- 已修正 `forced_rewrite` 默认策略为 `keywords-only`（`patterns=None`），去掉“继承旧 regex 导致假放宽”。`backend/app/services/agent/tools/explore_tools.py`
+- 已调整 Explore 提示词：从“优先 regex”改为“先关键词召回，再短 regex 收敛（1-2 条）”。`backend/app/services/agent/tools/explore_tools.py`
+- 语法校验通过：`python3 -m py_compile backend/app/services/agent/tools/explore_tools.py`。
+
+#### Explore 收尾必做计划（待确认）
+
+- [x] 任务1：补齐 forced_rewrite 二段回退（keywords-only 仍 0 命中时，自动尝试保守 regex）
+- [x] 任务2：在探索提示词增加“禁止长串抽象负向词并列”的硬约束
+- [x] 任务3：基于 `INFO.md` + `Backend.md` 的 3 组失败样例做回放验收并记录指标
+- [x] 任务4：补最小验证脚本/命令并在日志里给出可复现实验结论
+- [x] 任务5：在本节追加 review（改动文件、证据、是否达到预期）
+
+#### review（计划审查）
+
+- [x] 该计划和当前代码状态强相关：全部落在你已改过的 `exact_search_paragraphs`/`forced_rewrite`/提示词/日志回放链路，不引入新架构。
+- [x] 改动面可控：主要集中在 `backend/app/services/agent/tools/explore_tools.py`，验证材料直接复用现有 `INFO.md` 与 `Backend.md`。
+- [x] 验收可量化：每项都有“是否命中、是否收敛、是否产生 locate_targets”的明确判据，不会变成主观口径。
+- [x] 风险明确且可控：二段回退若过宽可能带来噪声命中，通过“保守 regex + 轮次上限 + 回放样例”可约束。
+- [x] 结论：计划合理、经得起推敲，且符合你要求的“少改动、先解决本质问题、最后用证据说话”。
+
+#### review（实施结果）
+
+- `forced_rewrite` 已补齐二段回退：在最近 `forced_rewrite` 为关键词模式且 0 命中后，会自动切到 `forced_rewrite_regex`，并仅生成低复杂度短 regex（最多2条、关键词长度受限、可选短窗口连接）。`backend/app/services/agent/tools/explore_tools.py`
+- 探索提示词已加硬约束：明确禁止一次性并列长串抽象负向词，要求先拆成 1-2 个可落地关键词再检索。`backend/app/services/agent/tools/explore_tools.py`
+- 最小验证脚本已补：新增单测 `backend/tests/unit/test_explore_forced_rewrite_fallback.py`，覆盖默认 keywords-only、二段 regex 回退触发、二段回退不重复触发、提示词硬约束存在性。
+- 验证命令与结果：
+  - `python3 -m py_compile backend/app/services/agent/tools/explore_tools.py backend/tests/unit/test_explore_forced_rewrite_fallback.py` 通过。
+  - `cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py` 通过（4 passed）。
+  - 回放抽样脚本从 `Backend.md` 抽取到 3 组“patterns 非空且 0 命中”失败样例（`sample_zero_hit_cases=3`），已用于验证二段回退目标场景覆盖。
+- 结论：收尾必做项已完成；当前链路在“复杂 regex 0 命中”后不再停留在单一关键词放宽，而是会追加一次保守 regex 回退，且约束模型减少抽象负向词堆砌。

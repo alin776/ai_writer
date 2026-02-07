@@ -18,7 +18,6 @@ def _get_new_aggregated_tools_section() -> str:
     - work_id: 作品ID（必需）
     - target_task: 目标任务描述（必需，描述需要什么信息）
     - max_rounds: 最大探索轮数（默认10，简单任务1轮即返回）
-    - explore_mode: 探索模式（pipeline/tool_loop，默认tool_loop）
     - max_tool_calls: 工具调用上限（仅 tool_loop 生效）
     - max_read_paragraphs: 读取段落上限（仅 tool_loop 生效）
   返回: {
@@ -52,9 +51,10 @@ def _get_new_aggregated_tools_section() -> str:
     - LLM 自行决定停止或达到安全上限
 
   ⚠️ **禁止直接使用以下工具**（这些是内部工具）:
-    - ❌ search_content（已整合到 explore_content）
-    - ❌ get_writing_context（已整合到 explore_content）
-    - ❌ get_chapter_by_order（已整合到 explore_content）
+    - ❌ list_chapters（已整合到 explore_content）
+    - ❌ list_paragraphs（已整合到 explore_content）
+    - ❌ exact_search_paragraphs（已整合到 explore_content）
+    - ❌ read_paragraph/read_paragraphs（已整合到 explore_content）
 
 ---
 
@@ -96,8 +96,10 @@ def _get_retrieval_tools_section() -> str:
 
 以下工具已整合到 explore_content，请使用 explore_content 代替：
 
-- search_content: ❌ 内部工具（由 explore_content 自动调用）
-- get_writing_context: ❌ 内部工具（由 explore_content 自动调用）
+- list_chapters: ❌ 内部工具（由 explore_content 自动调用）
+- list_paragraphs: ❌ 内部工具（由 explore_content 自动调用）
+- exact_search_paragraphs: ❌ 内部工具（由 explore_content 自动调用）
+- read_paragraph / read_paragraphs: ❌ 内部工具（由 explore_content 自动调用）
 
 ✅ **正确做法**：使用 explore_content(target_task="你的查询需求")
 """

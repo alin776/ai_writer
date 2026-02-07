@@ -27,10 +27,10 @@ services:
 
   # ==================== 缓存 ====================
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack-server:latest
     container_name: wenshu_redis
     restart: always
-    command: redis-server --appendonly yes
+    command: redis-stack-server --appendonly yes
     volumes:
       - redis_data:/data
     networks:
