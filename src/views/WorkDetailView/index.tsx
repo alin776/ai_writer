@@ -1560,6 +1560,13 @@ const WorkDetailView: React.FC = () => {
       try {
         const freshChapters = await DataService.getChapters(workId);
         setChapters(freshChapters);
+        const activeChapterId = editorChapterIdRef.current || currentChapterId;
+        if (activeChapterId) {
+          const activeChapter = freshChapters.find(ch => ch.id === activeChapterId);
+          if (activeChapter) {
+            setCurrentChapterContent(activeChapter.content || '');
+          }
+        }
         console.log('[WorkDetailView] 🔄 从数据库刷新章节列表');
       } catch (err) {
         console.error('[WorkDetailView] 刷新章节列表失败:', err);

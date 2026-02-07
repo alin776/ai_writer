@@ -568,6 +568,7 @@ export interface RewriteVersion {
 export interface RevisionFlowData {
   revisionType: RevisionType;
   status: RevisionStatus;
+  statusUpdatedAt?: string;    // 状态更新时间（用于“已撤销记录”追溯）
   requestId?: string;
   chapterId?: string;
   chapterTitle?: string;

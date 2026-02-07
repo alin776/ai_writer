@@ -92,7 +92,7 @@ interface UseAgentChatReturn {
   getAllHistorySessions: () => any[];
   createNewConversation: () => Promise<void>;
   pendingApproval: ApprovalRequest | null;
-  submitApproval: (approved: boolean, selectedVersion?: number) => Promise<void>;
+  submitApproval: (approved: boolean, selectedVersion?: number) => Promise<boolean>;
   updateRevisionStatus: (itemId: string, status: RevisionStatus, snapshot?: {
     originalContent?: string;
     newContent?: string;
@@ -646,17 +646,16 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       chapterBoundActions.includes(approvalReq.action_type) &&
                       approvalReq.chapter_id !== chapterId
                     );
-                    if (!chapterMismatch) {
-                      sessionManager.updateSession(sessionId, {
-                        pendingApproval: pendingData
-                      });
-                    } else {
-                      console.warn('[useAgentChat] 忽略跨章节 pendingApproval (planning)', {
+                    if (chapterMismatch) {
+                      console.info('[useAgentChat] 接收跨章节 pendingApproval (planning)', {
                         requestId: approvalReq.request_id,
                         currentChapterId: chapterId,
                         targetChapterId: approvalReq.chapter_id
                       });
                     }
+                    sessionManager.updateSession(sessionId, {
+                      pendingApproval: pendingData
+                    });
 
                     // 🆕 章节操作的乐观更新（立即在目录中显示）
                     const actionType = approvalReq.action_type;
@@ -789,17 +788,16 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       chapterBoundActions.includes(approvalReq.action_type) &&
                       approvalReq.chapter_id !== chapterId
                     );
-                    if (!chapterMismatch) {
-                      sessionManager.updateSession(sessionId, {
-                        pendingApproval: pendingData
-                      });
-                    } else {
-                      console.warn('[useAgentChat] 忽略跨章节 pendingApproval (react)', {
+                    if (chapterMismatch) {
+                      console.info('[useAgentChat] 接收跨章节 pendingApproval (react)', {
                         requestId: approvalReq.request_id,
                         currentChapterId: chapterId,
                         targetChapterId: approvalReq.chapter_id
                       });
                     }
+                    sessionManager.updateSession(sessionId, {
+                      pendingApproval: pendingData
+                    });
 
                     // 🆕 章节操作的乐观更新（立即在目录中显示）
                     const actionType = approvalReq.action_type;
@@ -1082,7 +1080,26 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 case 'revision': {
                   // v7.5: 非阻塞式修订 - 嵌入到最后一个 step 中 + 派发事件到编辑器
                   const revisionItemId = `flow-${Date.now()}-revision`;
-                  const revisionData = event.data;
+                  const rawRevisionData = (event.data || {}) as Record<string, any>;
+                  const normalizedEditorAction =
+                    (rawRevisionData.editorAction || rawRevisionData.editor_action || {}) as Record<string, any>;
+                  const normalizedRevisionData = {
+                    ...rawRevisionData,
+                    requestId: rawRevisionData.requestId || rawRevisionData.request_id,
+                    chapterId: rawRevisionData.chapterId || rawRevisionData.chapter_id,
+                    chapterTitle: rawRevisionData.chapterTitle || rawRevisionData.chapter_title,
+                    revisionType: rawRevisionData.revisionType || rawRevisionData.revision_type,
+                    originalContent: rawRevisionData.originalContent ?? rawRevisionData.original_content,
+                    content: rawRevisionData.content ?? rawRevisionData.newContent ?? rawRevisionData.new_content,
+                    editorAction: normalizedEditorAction,
+                    position:
+                      rawRevisionData.position ||
+                      rawRevisionData.editorPosition ||
+                      rawRevisionData.editor_position ||
+                      normalizedEditorAction.position,
+                    status: rawRevisionData.status || 'pending',
+                  };
+                  const revisionData = normalizedRevisionData as any;
 
                   // 查找最后一个 step 类型的 FlowItem
                   const lastStepIndex = [...currentFlowItems].reverse().findIndex(item => item.type === 'step');
@@ -1632,7 +1649,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       const pending = sessionManager.getSession(sessionId)?.pendingApproval as ApprovalRequest | null;
       if (!pending) {
         console.warn('[useAgentChat] no pending approval request');
-        return;
+        return false;
       }
 
       try {
@@ -1649,87 +1666,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           currentChapterId !== targetChapterId
         );
         if (chapterMismatch && targetChapterId) {
-          console.warn('[useAgentChat] chapter mismatch when submit approval', {
+          console.info('[useAgentChat] 检测到跨章节审批', {
             requestId: pending.request_id,
             currentChapterId,
             targetChapterId,
             actionType: pending.action_type
           });
-          if (targetChapterId) {
-            window.dispatchEvent(
-              new CustomEvent('agent-jump-revision', {
-                detail: {
-                  workId: pending.work_id || workId,
-                  chapterId: targetChapterId,
-                  requestId: pending.request_id,
-                  revisionId: pending.request_id,
-                }
-              })
-            );
-          }
-        }
-
-        if (approved) {
-          // 🆕 采纳时：修订标记已经显示，现在派发"确认采纳"事件
-          // 对于 rewrite 类型，如果用户选择了不同版本，需要更新显示
-          if (pending.action_type === 'rewrite' && selectedVersion !== undefined && selectedVersion > 0) {
-            const versions = pending.versions;
-            if (versions && versions[selectedVersion]) {
-              const selectedContent = versions[selectedVersion].content;
-              const editorAction = pending.editor_action;
-
-              // 用户选择了非默认版本，需要更新编辑器中的修订内容
-              window.dispatchEvent(
-                new CustomEvent('agent-update-revision', {
-                  detail: {
-                    replacement: selectedContent,
-                    position: editorAction?.position
-                  }
-                })
-              );
-            }
-          }
-
-          // 派发"确认采纳"事件，让编辑器应用修改（移除标记，保留新内容）
-          if (!chapterMismatch) {
-            window.dispatchEvent(
-              new CustomEvent('agent-accept-revision', {
-                detail: { request_id: pending.request_id, chapter_id: resolvedTargetChapterId }
-              })
-            );
-            console.log('[useAgentChat] ✅ 派发采纳事件');
-          }
-
-          // 🆕 处理 create/rename 类型（不触发编辑器修订，直接提交审批）
-          if (pending.action_type === 'create' || pending.action_type === 'rename') {
-            // 无需触发 editor 修订标记
-          }
-        } else {
-          // v7.6: 弃用时：派发弃用事件，移除修订标记，恢复原文
-          if (!chapterMismatch) {
-            window.dispatchEvent(
-              new CustomEvent('agent-discard-revision', {
-                detail: { request_id: pending.request_id, chapter_id: resolvedTargetChapterId }
-              })
-            );
-            console.log('[useAgentChat] ❌ 派发弃用事件');
-          }
-
-          // 🆕 章节操作弃用时：派发撤销事件
-          const targetWorkId = pending.work_id || workId;
-          if (targetWorkId && ['create', 'rename', 'delete'].includes(pending.action_type || '')) {
-            window.dispatchEvent(
-              new CustomEvent('agent-chapter-revert', {
-                detail: {
-                  action_type: pending.action_type,
-                  request_id: pending.request_id,
-                  work_id: targetWorkId,
-                  chapter_id: targetChapterId
-                }
-              })
-            );
-            console.log('[useAgentChat] 🔄 派发章节撤销事件:', pending.action_type);
-          }
         }
 
         const currentConversationId =
@@ -1743,8 +1685,48 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           conversation_id: currentConversationId
         });
 
-        // 🆕 采纳后派发确认事件，通知 WorkDetailView 刷新列表（覆盖跨章节内容修订）
+        // 对 rewrite 的候选版本，后端确认成功后再更新前端修订内容，避免失败时前端错乱
+        if (approved && pending.action_type === 'rewrite' && selectedVersion !== undefined && selectedVersion > 0) {
+          const versions = pending.versions;
+          if (versions && versions[selectedVersion]) {
+            const selectedContent = versions[selectedVersion].content;
+            const editorAction = pending.editor_action;
+            window.dispatchEvent(
+              new CustomEvent('agent-update-revision', {
+                detail: {
+                  replacement: selectedContent,
+                  position: editorAction?.position
+                }
+              })
+            );
+          }
+        }
+
+        if (chapterBoundActions.has(pending.action_type)) {
+          window.dispatchEvent(
+            new CustomEvent(approved ? 'agent-accept-revision' : 'agent-discard-revision', {
+              detail: { request_id: pending.request_id, chapter_id: resolvedTargetChapterId }
+            })
+          );
+        }
+
+        // 章节操作撤销（create/rename/delete）需在后端确认拒绝后再回滚预览
         const targetWorkId = pending.work_id || workId;
+        if (!approved && targetWorkId && ['create', 'rename', 'delete'].includes(pending.action_type || '')) {
+          window.dispatchEvent(
+            new CustomEvent('agent-chapter-revert', {
+              detail: {
+                action_type: pending.action_type,
+                request_id: pending.request_id,
+                work_id: targetWorkId,
+                chapter_id: targetChapterId
+              }
+            })
+          );
+          console.log('[useAgentChat] 🔄 派发章节撤销事件:', pending.action_type);
+        }
+
+        // 🆕 采纳后派发确认事件，通知 WorkDetailView 刷新列表（覆盖跨章节内容修订）
         if (approved && targetWorkId) {
           window.dispatchEvent(
             new CustomEvent('agent-chapter-confirm', {
@@ -1768,6 +1750,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
         // 🆕 无论批准还是拒绝，都清理 pendingApproval 状态
         sessionManager.updateSession(sessionId, { pendingApproval: null });
+        return true;
       } catch (err: any) {
         console.error('[useAgentChat] submit approval failed:', err);
         const statusCode = err?.response?.status;
@@ -1790,12 +1773,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             error: `${detail} 已为你定位到目标章节，请再次点击采纳。`,
             pendingApproval: pending
           });
-          return;
+          return false;
         }
         sessionManager.updateSession(sessionId, {
           error: detail,
           pendingApproval: null  // 🆕 错误时也清理状态
         });
+        return false;
       }
     },
     [chapterId, sessionId, sessionManager, workId]
@@ -1808,9 +1792,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       newContent?: string;
       editorPosition?: { from: number; to: number };
       selectedVersion?: number;
+      statusUpdatedAt?: string;
     }) => {
       const currentSession = sessionManager.getSession(sessionId);
       const currentMessages = currentSession?.messages || [];
+      const mergedSnapshot = {
+        ...(snapshot || {}),
+        statusUpdatedAt: snapshot?.statusUpdatedAt || new Date().toISOString()
+      };
 
       // 遍历所有消息，找到包含该 revision 的消息并更新
       const updated = currentMessages.map((msg: Message) => {
@@ -1829,7 +1818,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   revision: {
                     ...stepData.revision,
                     status,
-                    ...(snapshot || {})
+                    ...mergedSnapshot
                   }
                 }
               };
@@ -1844,7 +1833,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 ...(item.data as RevisionFlowData),
                 status,
                 // v7.2: 保存快照数据用于撤销/重做
-                ...(snapshot || {})
+                ...mergedSnapshot
               }
             };
           }
@@ -1993,6 +1982,38 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     [updateRevisionStatus]
   );
 
+  const getPendingCrossChapterRevisionIds = useCallback((): string[] => {
+    if (!chapterId) return [];
+    const currentSession = sessionManager.getSession(sessionId);
+    const currentMessages = (currentSession?.messages || []) as Message[];
+    const pendingIds = new Set<string>();
+
+    const collectRevision = (revision: RevisionFlowData | undefined | null, fallbackId?: string) => {
+      if (!revision) return;
+      if (revision.status !== 'pending') return;
+      const revisionChapterId = (revision.chapterId || (revision as any).chapter_id) as string | undefined;
+      if (!revisionChapterId || revisionChapterId === chapterId) return;
+      const id = (revision.requestId || (revision as any).request_id || fallbackId) as string | undefined;
+      if (id) pendingIds.add(id);
+    };
+
+    currentMessages.forEach((msg: Message) => {
+      if (!msg.flowItems) return;
+      msg.flowItems.forEach((item: FlowItem) => {
+        if (item.type === 'step') {
+          const stepData = item.data as StepFlowData;
+          collectRevision(stepData.revision as RevisionFlowData | undefined, stepData.revisionItemId || item.id);
+          return;
+        }
+        if (item.type === 'revision') {
+          collectRevision(item.data as RevisionFlowData, item.id);
+        }
+      });
+    });
+
+    return Array.from(pendingIds);
+  }, [chapterId, sessionId, sessionManager]);
+
   // v8.0: 批量操作管理 - 检查是否有待确认的操作
   const [hasOperations, setHasOperations] = useState(false);
 
@@ -2023,6 +2044,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       console.warn('[useAgentChat] acceptAllOperations: conversationId 为空，操作取消');
       return;
     }
+    const crossChapterPendingIds = getPendingCrossChapterRevisionIds();
+    if (crossChapterPendingIds.length > 0) {
+      const errorMsg = `检测到 ${crossChapterPendingIds.length} 条跨章节修订，请逐条采纳或撤销。`;
+      sessionManager.updateSession(sessionId, { error: errorMsg });
+      console.warn('[useAgentChat] acceptAllOperations blocked by cross chapter revisions:', crossChapterPendingIds);
+      return;
+    }
     try {
       console.log('[useAgentChat] 正在调用 API acceptOperations...');
       await agentApi.acceptOperations(sessionState.conversationId);
@@ -2037,13 +2065,20 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     } catch (error) {
       console.error('[useAgentChat] 采纳操作失败:', error);
     }
-  }, [sessionState.conversationId]);
+  }, [getPendingCrossChapterRevisionIds, sessionId, sessionManager, sessionState.conversationId]);
 
   // v8.0: 回滚所有操作
   const rollbackAllOperations = useCallback(async () => {
     console.log('[useAgentChat] rollbackAllOperations 被调用, conversationId:', sessionState.conversationId);
     if (!sessionState.conversationId) {
       console.warn('[useAgentChat] rollbackAllOperations: conversationId 为空，操作取消');
+      return;
+    }
+    const crossChapterPendingIds = getPendingCrossChapterRevisionIds();
+    if (crossChapterPendingIds.length > 0) {
+      const errorMsg = `检测到 ${crossChapterPendingIds.length} 条跨章节修订，请逐条采纳或撤销。`;
+      sessionManager.updateSession(sessionId, { error: errorMsg });
+      console.warn('[useAgentChat] rollbackAllOperations blocked by cross chapter revisions:', crossChapterPendingIds);
       return;
     }
     try {
@@ -2065,7 +2100,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     } catch (error) {
       console.error('[useAgentChat] 回滚操作失败:', error);
     }
-  }, [sessionState.conversationId]);
+  }, [getPendingCrossChapterRevisionIds, sessionId, sessionManager, sessionState.conversationId]);
 
   return {
     messages: sessionState.messages as Message[],

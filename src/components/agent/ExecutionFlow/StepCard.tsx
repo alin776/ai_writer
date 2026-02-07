@@ -12,6 +12,7 @@ import { RevisionCard } from './RevisionCard';
 interface StepCardProps extends StepFlowData {
   defaultExpanded?: boolean;
   children?: ReactNode;
+  revisionEventTimestamp?: string;
   // v7.3: 修订回调（从 ExecutionFlow 传入）
   onAcceptRevision?: (selectedVersion?: number) => void;
   onDiscardRevision?: () => void;
@@ -28,6 +29,7 @@ export function StepCard({
   toolCall,
   children,
   revision,
+  revisionEventTimestamp,
   defaultExpanded = true,
   onAcceptRevision,
   onDiscardRevision,
@@ -110,6 +112,7 @@ export function StepCard({
             <div className="mt-2">
               <RevisionCard
                 {...revision}
+                eventTimestamp={revisionEventTimestamp}
                 onAccept={onAcceptRevision}
                 onDiscard={onDiscardRevision}
                 onUndo={onUndoRevision}

@@ -96,6 +96,7 @@ export function ExecutionFlow({
               <StepCard
                 key={item.id}
                 {...stepData}
+                revisionEventTimestamp={item.timestamp}
                 description={isExploreStep ? undefined : stepData.description}
                 // v7.3: 传递修订回调给 StepCard（用于内嵌的 RevisionCard）
                 onAcceptRevision={stepData.revision ? (selectedVersion) => onAcceptRevision?.(revisionId, (stepData.revision as any)?.requestId, selectedVersion) : undefined}
@@ -169,6 +170,7 @@ export function ExecutionFlow({
               <RevisionCard
                 key={item.id}
                 {...revisionData}
+                eventTimestamp={item.timestamp}
                 onAccept={(selectedVersion) => onAcceptRevision?.(item.id, revisionData.requestId, selectedVersion)}
                 onDiscard={() => onDiscardRevision?.(item.id, revisionData.requestId)}
                 onUndo={() => onUndoRevision?.(item.id)}
