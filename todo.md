@@ -4438,3 +4438,54 @@
   - `python3 -m py_compile backend/app/services/agent/tools/explore_tools.py backend/app/services/search/opensearch_chapter_search_service.py`
   - `cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py`（6 passed）
 - [x] 残余风险：当前是“自动翻页聚合到上限”而非对外显式游标分页（`next_cursor`）；若后续要前端“第X页/共Y页”交互，还需补响应契约与分页参数。
+
+#### Explore 检索稳定性治理（待确认）
+
+- [ ] 深挖并固化根因证据：补充 `explore_tools.py` 与 OpenSearch 检索链路中导致“0命中空转/结果过载”的关键触发点（含参数与阈值）
+- [ ] 修正检索结果上限语义：将 OpenSearch `limit` 从“单页大小”收敛为“总返回上限”，保留翻页仅用于补齐有效命中
+- [ ] 限制单轮自动读取量：为 `exact_search_paragraphs` 后的自动 `read_paragraph` 增加每轮读取上限，避免一次性读取过多段落
+- [ ] 优化关键词收敛策略：增强关键词清洗/拆分与重复 0 命中拦截，降低同义变体反复空转概率
+- [ ] 增加最小回归测试：覆盖“limit 不超量”“重复 0 命中触发收敛”“自动读取不过载”三个核心场景
+- [ ] 执行最小验证（`py_compile` + 定向 pytest），并在本节补充 review（改动点、结果、残余风险）
+
+#### Explore 检索失稳深度排查（待确认）
+
+- [x] 汇总证据：从 `explore_tools.py`、`opensearch_chapter_search_service.py` 与运行日志抽取“0 命中空转/单次过载”的直接触发链路
+- [x] 定位核心矛盾：明确“关键词策略、结果上限语义、停机门槛”三者如何耦合导致不稳定
+- [x] 结合当前项目状态给出最优优化方案：按“必须先改/可并行改/后续增强”分层，注明每项收益与风险
+- [x] 在本节补充 review：用直白详细语言输出最终结论与落地顺序（含关键文件与日志证据）
+
+#### review
+
+- 直接证据（空转）：`exact_search` 0 命中占比偏高，且存在同关键词连续空转。统计 `backend/logs/app.log`：`done=exact_search_paragraphs` 共 487 次，其中 0 命中 101 次；最近尾部 51 次中 0 命中 23 次。典型案例见 `backend/logs/app.log:64852`、`backend/logs/app.log:64861`、`backend/logs/app.log:64871`、`backend/logs/app.log:64881`、`backend/logs/app.log:64895`。
+- 直接证据（过载）：OpenSearch 当前把 `limit` 当“单页大小”，并按估算总量自动翻页聚合到 `target_total`（上限 5000），导致单次检索可拉取超大结果。实现见 `backend/app/services/search/opensearch_chapter_search_service.py:375`、`backend/app/services/search/opensearch_chapter_search_service.py:401`、`backend/app/services/search/opensearch_chapter_search_service.py:412`；运行样本见 `backend/logs/app.log:65322`（`hits=137 pages=4 page_size=50 target_total=166`）。
+- 直接证据（放大效应）：`explore_content` 默认不设读段总预算（`max_read_paragraphs=None`），且每轮 `exact_search` 会沿结果集自动读段，章节读上限函数当前直接返回 `None`（等于禁用）。见 `backend/app/services/agent/tools/explore_tools.py:4599`、`backend/app/services/agent/tools/explore_tools.py:2256`、`backend/app/services/agent/tools/explore_tools.py:3735`。日志中出现大结果导致缓存跳过：`backend/logs/app.log:65325`（`229090 chars > 200000`）。
+- 直接证据（去重治理不足）：`should_search()` 当前恒为 `True`，查询去重逻辑事实上被关闭；`should_block_search()` 对“多关键词 0 命中”默认不拦截，容易让同一语义在组合/拆分间来回重试。见 `backend/app/services/agent/tools/explore_tools.py:708`、`backend/app/services/agent/tools/explore_tools.py:1087`。
+- 直接证据（停机门槛与范围耦合）：停机判定里的“不存在”分支使用 `self.chapter_scopes` 推导目标范围；而实际查询范围可能来自当轮参数（`chapter_order/chapter_range`），两者可不一致，导致“策略不足”误判并继续空转。范围来源见 `backend/app/services/agent/tools/explore_tools.py:3383`、`backend/app/services/agent/tools/explore_tools.py:3391`，停机判定见 `backend/app/services/agent/tools/explore_tools.py:2394`、`backend/app/services/agent/tools/explore_tools.py:2406`、`backend/app/services/agent/tools/explore_tools.py:2417`；日志表现见 `backend/logs/app.log:64872`（提示“全局0命中策略不足”）。
+- 当前开发现实：Explore 已是高复杂热路径（`explore_tools.py` 约 5k 行），同时单测覆盖不均衡。回归核验结果：`tests/unit/test_explore_forced_rewrite_fallback.py` 通过（6 passed），`tests/unit/test_explore_query_mode.py` 失败 17 项（与现有实现断层）。这意味着“最佳方案”应优先做小步稳态修复，而不是大重构。
+- 推荐落地顺序（最优方案）：
+  1) 必须先改（止血）：统一 `limit` 为“总返回上限”；增加每轮自动读段上限（例如 8-12）；恢复基础查询指纹去重（关键词+范围+策略）；修正停机门槛范围取值，优先用最近有效 query_attempt 的范围。
+  2) 可并行改（稳态）：把 worldview 命中与章节命中在状态机中彻底分轨，避免互相干扰停机/重试；将超大 `context_for_task` 改为“摘要+artifact_id”优先返回。
+  3) 后续增强（长期）：补 3 类回归测试（0 命中收敛、limit 不超量、自动读段限流），再考虑结构拆分（把检索执行器从 `explore_tools.py` 拆出）。
+
+#### Explore 彻底解决方案（待执行）
+
+- [ ] 定义验收指标（基线 + 目标）：0 命中重复率、单次返回体积、P95 时延、命中覆盖率（含可翻页全量）
+- [ ] 实现关键词治理层（`query_governor`）：关键词归一化、别名扩展、宽词抑制、任务词配对、查询指纹生成
+- [ ] 在规划层接入关键词治理：替换 `missing[:8]` 直塞策略，改为“词簇 + 优先级 + 禁用词”输出
+- [ ] 在 Explore 执行层接入关键词治理：`exact_search_paragraphs` 只消费治理后的词簇，不再裸用原始关键词
+- [ ] 重写 0 命中状态机：`strict -> alias_expand -> relaxed_match -> stop/expand_scope`，同指纹同范围最多重试 1 次
+- [ ] 修正停机判定范围：优先使用最近有效 `query_attempt.chapter_scope`，避免与 `self.chapter_scopes` 脱节
+- [ ] 统一检索契约：`limit` 改为 `total_limit`（总返回上限），新增 `page_size/cursor/has_more/next_cursor/total_hits`
+- [ ] 改造 OpenSearch 检索返回：默认首屏受控，支持 cursor 翻页拿全，去掉“按估算总量一次性聚合”
+- [ ] 检索与阅读解耦：默认不自动全量读段，仅读首屏候选（或预算内 top_k），继续读取走显式续页
+- [ ] 增加读取预算硬限制：每轮上限 + 全局上限（默认值可配置），防止命中爆量时读段雪崩
+- [ ] 前端展示契约升级：除首屏列表外，显示 `total_hits/has_more`，支持“加载更多命中”
+- [ ] 优化结果体策略：优先返回摘要 + `artifact_id`，大正文/大命中通过 artifact/cursor 按需取回
+- [ ] 增加回归测试：`0命中收敛`、`total_limit 不超量`、`cursor 翻页一致性`、`自动读取不过载`
+- [ ] 增加可观测性：埋点 `zero_hit_retry_rate`、`hits_per_query`、`payload_size`、`cache_skip_rate`
+- [ ] 灰度发布与回滚：增加特性开关（`EXPLORE_V2_QUERY_GOVERNOR` / `EXPLORE_V2_CURSOR` / `EXPLORE_V2_READ_DECOUPLE`），分批放量验证
+
+#### review
+
+- [ ] 待完成：记录分阶段实施结果、指标对比（基线 vs 改造后）、残余风险与后续计划。
