@@ -37,6 +37,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # OpenSearch 检索
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: novelaide_opensearch
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    networks:
+      - novelaide_network
+
   # FastAPI 应用
   backend:
     build: .
@@ -49,12 +65,15 @@ services:
       - SECRET_KEY=your-secret-key-change-this-in-production
       - DEBUG=True
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENSEARCH_HOSTS=http://opensearch:9200
       - ENABLE_SCHEDULER=false
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      opensearch:
+        condition: service_started
     networks:
       - novelaide_network
     volumes:
@@ -72,12 +91,15 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=your-secret-key-change-this-in-production
       - DEBUG=True
+      - OPENSEARCH_HOSTS=http://opensearch:9200
       - ENABLE_SCHEDULER=true
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      opensearch:
+        condition: service_started
     networks:
       - novelaide_network
     volumes:
@@ -88,6 +110,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  opensearch_data:
 
 networks:
   novelaide_network:

@@ -79,6 +79,7 @@ networkx==3.4.2
 nodeenv==1.9.1
 numpy==2.1.0
 openai==2.6.1
+opensearch-py==2.4.2
 ormsgpack==1.12.0
 orjson==3.11.4
 packaging==23.2

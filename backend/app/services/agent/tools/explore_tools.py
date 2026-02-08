@@ -2362,6 +2362,21 @@ class ContentExplorer:
             args["chapter_range"] = [chapter_scope[0], chapter_scope[1]]
         return args
 
+    def _has_unread_locatable_search_hits(self) -> bool:
+        """是否存在“可定位且未读取”的章节候选命中。"""
+        for hit in self.state.search_hits:
+            if getattr(hit, "source_type", "") == "worldview":
+                continue
+            chapter_order = getattr(hit, "chapter_order", None)
+            paragraph_index = getattr(hit, "paragraph_index", None)
+            if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                continue
+            if self.chapter_scopes and not self._is_chapter_in_scope(chapter_order):
+                continue
+            if self.state.should_read_paragraph(chapter_order, paragraph_index):
+                return True
+        return False
+
     def _evaluate_stop_quality_gate(self, stop_reason: str) -> Tuple[bool, str]:
         """程序化停机门槛：不把停机完全交给 AI。"""
         query_attempts = self.state.count_query_attempts()
@@ -2369,22 +2384,39 @@ class ContentExplorer:
             return False, "尚未执行有效查询，禁止停止"
 
         has_read_attempt = bool(self.state.read_paragraph_positions)
-        has_search_hits = bool(self.state.search_hits)
-        if has_search_hits and not has_read_attempt:
+        has_locatable_search_hits = self._has_unread_locatable_search_hits()
+        if has_locatable_search_hits and not has_read_attempt:
             return False, "已有候选命中但未读取原文，禁止停止"
 
         lower_reason = (stop_reason or "").lower()
         non_existent_hint = any(token in lower_reason for token in ("不存在", "无法找到", "无证据", "not found"))
         if non_existent_hint:
+            target_scope: Optional[Tuple[int, int]] = None
+            if self.chapter_scopes:
+                min_order = min(scope[0] for scope in self.chapter_scopes)
+                max_order = max(scope[1] for scope in self.chapter_scopes)
+                target_scope = (min_order, max_order)
+
             full_scope_zero_strategies = set()
             for attempt in self.state.query_attempts:
-                if attempt.chapter_scope is not None:
+                attempt_scope = attempt.chapter_scope
+                if target_scope is None:
+                    if attempt_scope is not None:
+                        continue
+                elif attempt_scope != target_scope:
                     continue
-                if attempt.chapter_hits != 0 or attempt.worldview_hits != 0:
+                if int(attempt.chapter_hits or 0) != 0:
+                    continue
+                # 严格段落模式下仅以“章节命中”判断，不让 worldview 命中阻塞停机。
+                if not self.require_paragraph_index and int(attempt.worldview_hits or 0) != 0:
                     continue
                 full_scope_zero_strategies.add(attempt.strategy or "ai")
-            if len(full_scope_zero_strategies) < ZERO_HIT_NON_EXISTENT_MIN_STRATEGIES:
-                return False, "不存在结论证据不足（全局0命中策略不足）"
+            min_strategies = ZERO_HIT_NON_EXISTENT_MIN_STRATEGIES
+            if self.require_paragraph_index or target_scope is not None:
+                min_strategies = 2
+            if len(full_scope_zero_strategies) < min_strategies:
+                scope_label = "全局" if target_scope is None else f"范围{target_scope[0]}-{target_scope[1]}"
+                return False, f"不存在结论证据不足（{scope_label}0命中策略不足）"
 
         return True, ""
 
@@ -2734,7 +2766,11 @@ class ContentExplorer:
                 result_obj = tool_call.result if isinstance(tool_call.result, dict) else {}
                 chapter_hits = result_obj.get("chapter_hits", result_obj.get("hits", 0))
                 worldview_hits = result_obj.get("worldview_hits", 0)
-                if bool(result_obj.get("success")) and int(chapter_hits or 0) == 0 and int(worldview_hits or 0) == 0:
+                zero_hit_for_loop = (
+                    int(chapter_hits or 0) == 0
+                    and (self.require_paragraph_index or int(worldview_hits or 0) == 0)
+                )
+                if bool(result_obj.get("success")) and zero_hit_for_loop:
                     consecutive_zero_hit_searches += 1
                 else:
                     consecutive_zero_hit_searches = 0
@@ -3144,6 +3180,14 @@ class ContentExplorer:
                 })
             return preview
 
+        def _pick_first_defined(mapping: Dict[str, Any], keys: Tuple[str, ...]) -> Any:
+            for key in keys:
+                if key in mapping:
+                    value = mapping.get(key)
+                    if value is not None:
+                        return value
+            return None
+
         result_data: Any = {"success": False, "error": "未执行"}
         logger.info(
             "[ExploreTool] call=%s params=%s",
@@ -3427,15 +3471,7 @@ class ContentExplorer:
 
                 async with AsyncSessionLocal() as db:
                     vector_service = ChapterVectorService(db)
-                    use_vector = await vector_service.are_vectors_fresh(
-                        work_id=self.work_id,
-                        chapter_ranges=ranges_to_use or None
-                    )
-                    search_fn = (
-                        vector_service.exact_search_paragraphs
-                        if use_vector
-                        else vector_service.exact_search_paragraphs_from_content
-                    )
+                    search_fn = vector_service.exact_search_paragraphs
 
                     async def _run_exact_search_layer(
                         layer_strategy: str,
@@ -3463,8 +3499,26 @@ class ContentExplorer:
                             )
                             layer_results.extend(part or [])
 
+                        dropped_missing_locator = 0
+                        normalized_layer_results: List[Dict[str, Any]] = []
+                        for item in layer_results:
+                            if not isinstance(item, dict):
+                                continue
+                            chapter_order = item.get("chapter_order")
+                            paragraph_index = item.get("paragraph_index")
+                            if isinstance(chapter_order, str) and chapter_order.isdigit():
+                                chapter_order = int(chapter_order)
+                            if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                                paragraph_index = int(paragraph_index)
+                            if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                                dropped_missing_locator += 1
+                                continue
+                            item["chapter_order"] = chapter_order
+                            item["paragraph_index"] = paragraph_index
+                            normalized_layer_results.append(item)
+
                         layer_chapter_hits = [
-                            item for item in layer_results
+                            item for item in normalized_layer_results
                             if isinstance(item, dict) and item.get("source") != "worldview"
                         ]
                         layer_query_terms = layer_keywords[:3]
@@ -3473,8 +3527,9 @@ class ContentExplorer:
                             "strategy": layer_strategy,
                             "keywords": list(layer_keywords),
                             "match_mode": layer_match_mode,
-                            "hits": len(layer_results),
-                            "chapter_hits": len(layer_chapter_hits)
+                            "hits": len(normalized_layer_results),
+                            "chapter_hits": len(layer_chapter_hits),
+                            "dropped_missing_locator": dropped_missing_locator,
                         })
                         self.state.add_query_attempt(QueryAttempt(
                             query=layer_query,
@@ -3483,13 +3538,13 @@ class ContentExplorer:
                             chapter_scope=current_scope,
                             round_idx=round_idx,
                             strategy=layer_strategy,
-                            hits=len(layer_results),
+                            hits=len(normalized_layer_results),
                             chapter_hits=len(layer_chapter_hits),
-                            worldview_hits=0,
+                            worldview_hits=len(worldview_matches),
                             blocked_keywords=len(blocked_keywords),
                             error=""
                         ))
-                        return layer_results
+                        return normalized_layer_results
 
                     chapter_results = await _run_exact_search_layer(
                         layer_strategy=effective_strategy,
@@ -3569,6 +3624,34 @@ class ContentExplorer:
 
                 if self.chapter_scopes:
                     results = self._filter_results_in_scope(results)
+
+                # 定位契约兜底：仅允许可定位命中进入后续读取流程
+                locator_filtered_results: List[Dict[str, Any]] = []
+                dropped_locator_results = 0
+                for item in results:
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("source") == "worldview":
+                        locator_filtered_results.append(item)
+                        continue
+                    chapter_order = item.get("chapter_order")
+                    paragraph_index = item.get("paragraph_index")
+                    if isinstance(chapter_order, str) and chapter_order.isdigit():
+                        chapter_order = int(chapter_order)
+                    if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+                        paragraph_index = int(paragraph_index)
+                    if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                        dropped_locator_results += 1
+                        continue
+                    item["chapter_order"] = chapter_order
+                    item["paragraph_index"] = paragraph_index
+                    locator_filtered_results.append(item)
+                if dropped_locator_results:
+                    logger.info(
+                        "[ExploreTool] exact_search locator filter dropped=%s",
+                        dropped_locator_results
+                    )
+                results = locator_filtered_results
 
                 merged = {}
                 for item in results:
@@ -3774,7 +3857,7 @@ class ContentExplorer:
                 result_data = {"success": False, "error": "读取预算已用尽"}
             else:
                 chapter_order = params.get("chapter_order") or params.get("chapter")
-                paragraph_index = params.get("paragraph_index") or params.get("paragraph")
+                paragraph_index = _pick_first_defined(params, ("paragraph_index", "paragraph"))
                 chapter_id = params.get("chapter_id") or ""
                 if isinstance(chapter_order, str) and chapter_order.isdigit():
                     chapter_order = int(chapter_order)
@@ -3974,7 +4057,7 @@ class ContentExplorer:
                             if not isinstance(item, dict):
                                 continue
                             chapter_order = item.get("chapter_order") or item.get("chapter")
-                            paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
+                            paragraph_index = _pick_first_defined(item, ("paragraph_index", "paragraph", "index"))
                             if isinstance(chapter_order, str) and chapter_order.isdigit():
                                 chapter_order = int(chapter_order)
                             if isinstance(paragraph_index, str) and paragraph_index.isdigit():
@@ -4043,7 +4126,7 @@ class ContentExplorer:
                             if isinstance(chapter_order, int):
                                 item["chapter_order"] = chapter_order
 
-                        paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
+                        paragraph_index = _pick_first_defined(item, ("paragraph_index", "paragraph", "index"))
                         if isinstance(paragraph_index, str) and paragraph_index.isdigit():
                             paragraph_index = int(paragraph_index)
                         if not isinstance(paragraph_index, int):
@@ -4747,6 +4830,47 @@ async def explore_content(
         evidences_output = _build_evidences_output(result, node_id_map=node_id_map)
 
         if explorer.require_paragraph_index and not locate_targets:
+            has_locatable_chapter_candidate = any(
+                isinstance(getattr(hit, "chapter_order", None), int)
+                and isinstance(getattr(hit, "paragraph_index", None), int)
+                and getattr(hit, "source_type", "") != "worldview"
+                for hit in (result.search_hits or [])
+            )
+            has_read_paragraph = any(
+                isinstance(getattr(p, "chapter_order", None), int)
+                and isinstance(getattr(p, "paragraph_index", None), int)
+                for p in (result.paragraphs or [])
+            )
+            if not has_locatable_chapter_candidate and not has_read_paragraph:
+                search_results = _build_search_results(result, node_id_map=node_id_map)
+                frontend_display = to_frontend_display(result)
+                frontend_display["search_results"] = search_results
+                frontend_display["locate_targets"] = []
+                worldview_dict = {}
+                for category, items in result.worldview.items():
+                    worldview_dict[category] = [
+                        {"name": item.name, "description": item.description}
+                        for item in items
+                    ]
+                result_payload = {
+                    "success": True,
+                    "no_hits": True,
+                    "message": "探索未命中可定位章节段落（chapter_order+paragraph_index）。",
+                    "evidences": evidences_output,
+                    "locate_targets": [],
+                    "search_results": search_results,
+                    "paragraphs": [],
+                    "chapters": [],
+                    "worldview": worldview_dict,
+                    "analysis": result.analysis,
+                    "stats": result.stats,
+                    "frontend_display": frontend_display
+                }
+                await _attach_artifact(result_payload)
+                if use_cache and cache_key:
+                    await _set_cached_explore_result(cache_key, result_payload)
+                return json.dumps(result_payload, ensure_ascii=False, indent=2)
+
             message = "探索未产出可定位段落（缺少 paragraph_index/node_id），请先用 list_paragraphs/read_paragraphs 精确读取目标段落。"
             result_payload = {
                 "success": False,

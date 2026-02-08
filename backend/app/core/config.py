@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     
     # Redis 配置
     REDIS_URL: str = "redis://localhost:6379/0"
+
+    # OpenSearch 配置（Explore 精确检索）
+    OPENSEARCH_HOSTS: str = "http://localhost:9200"
+    OPENSEARCH_INDEX_NAME: str = "novel_chapter_vectors"
+    OPENSEARCH_USERNAME: Optional[str] = None
+    OPENSEARCH_PASSWORD: Optional[str] = None
+    OPENSEARCH_USE_SSL: bool = False
+    OPENSEARCH_VERIFY_CERTS: bool = False
+    OPENSEARCH_TIMEOUT_SECONDS: int = 10
+    OPENSEARCH_REINDEX_ON_STARTUP: bool = False
+    OPENSEARCH_REINDEX_RECREATE_INDEX: bool = False
     
     # JWT 配置
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60

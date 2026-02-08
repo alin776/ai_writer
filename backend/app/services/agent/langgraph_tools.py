@@ -2817,7 +2817,11 @@ async def read_paragraphs(
             invalid_items += 1
             continue
         chapter_order = item.get("chapter_order") or item.get("chapter")
-        paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
+        paragraph_index = item.get("paragraph_index")
+        if paragraph_index is None:
+            paragraph_index = item.get("paragraph")
+        if paragraph_index is None:
+            paragraph_index = item.get("index")
         if isinstance(chapter_order, str) and chapter_order.isdigit():
             chapter_order = int(chapter_order)
         if isinstance(paragraph_index, str) and paragraph_index.isdigit():

@@ -239,6 +239,67 @@
 
 #### smart_rewrite 写回修复（方案1+2）（待确认）
 
+#### OpenSearch 替换 Explore 旧精确检索（待确认）
+
+- [x] 盘点 Explore 与章节向量服务中的旧精确检索路径（ILIKE/正文扫描/新鲜度分支）并锁定改造点
+- [x] 补齐 OpenSearch 配置与依赖（`config.py`、`requirements.txt`），确保服务可初始化
+- [x] 重写 `ChapterVectorService` 精确检索入口为 OpenSearch 调用，并删除旧 `exact_search_paragraphs_from_content` 与旧 ILIKE 实现
+- [x] 更新 `explore_tools.py`：去掉向量新鲜度分支，统一调用 OpenSearch 精确检索
+- [x] 执行最小验证（语法检查/相关单测）并记录结果
+- [x] 在 todo.md 追加 review（改动清单、证据、剩余风险）
+
+#### review
+
+- 已新增 OpenSearch 检索服务 `backend/app/services/search/opensearch_chapter_search_service.py`，提供索引初始化、按作品首次同步、章节增量 upsert/delete、关键词检索（any/all/phrase）。
+- 配置与依赖已补齐：`backend/app/core/config.py` 新增 `OPENSEARCH_*` 字段；`backend/requirements.txt` 新增 `opensearch-py==2.4.2`。
+- 已删除旧精确检索实现：`backend/app/services/chapter_vector_service.py` 中移除 `are_vectors_fresh` 与 `exact_search_paragraphs_from_content`，`exact_search_paragraphs` 改为直接调用 OpenSearch 服务，不再使用 ILIKE。
+- Explore 主链已切换：`backend/app/services/agent/tools/explore_tools.py` 删除“向量新鲜度二选一”逻辑，统一走 `vector_service.exact_search_paragraphs`（即 OpenSearch）。
+- 同步链路已接入：`store_chapter_vector`/`delete_chapter_vectors` 在数据库写入后会执行 OpenSearch upsert/delete（失败仅记录日志，不回滚 DB）。
+- 验证结果：`python3 -m py_compile` 覆盖改动文件通过；`cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py` 通过（6 passed）；`tests/unit/test_explore_query_mode.py` 当前失败 17 项，失败内容与本次 OpenSearch 替换无直接关联（该测试文件断言的函数/行为在当前分支本就不匹配）。
+
+#### OpenSearch 重建索引命令（待确认）
+
+- [x] 新增 `scripts/reindex_opensearch_vectors.py`（支持全量重建与指定 work_id）
+- [x] 新增启动开关 `OPENSEARCH_REINDEX_ON_STARTUP`，可选在启动阶段触发重建
+- [x] 执行最小验证（py_compile + 脚本 --help）并回填 review
+
+#### review
+
+- 新增脚本：`backend/scripts/reindex_opensearch_vectors.py`，支持全量重建、按 `--work-id` 重建、`--recreate-index`（删索引重建）与 `--clear-index`（清文档保留 mapping）。
+- 新增服务能力：`OpenSearchChapterSearchService` 增加 `clear_index()` / `recreate_index()` / `reset_sync_cache()`，用于全量重建前清场并重置同步缓存。
+- 启动开关接入：`backend/app/core/config.py` 新增 `OPENSEARCH_REINDEX_ON_STARTUP` 与 `OPENSEARCH_REINDEX_RECREATE_INDEX`；`backend/app/main.py` 在启动阶段按开关执行全作品重建。
+- 兼容性修复：`backend/app/services/search/__init__.py` 改为惰性导入，避免脚本/模块在无关依赖未安装时被提前导入阻塞。
+- 验证结果：`python3 -m py_compile`（新增/修改文件）通过；`cd backend && python3 scripts/reindex_opensearch_vectors.py --help` 输出正常。
+
+#### 素材驱动 OpenSearch 检索验证脚本 + 复杂 Prompt（待确认）
+
+- [x] 新增脚本：读取《一夕千悟，从杂役弟子开始.txt》并写入临时 OpenSearch 索引
+- [x] 脚本校验：`any/all/phrase` 命中、`limit` 截断、分页拿全（search_after）与本地基线对照
+- [x] 运行最小验证（`--help` + `py_compile`）并记录结果
+- [x] 输出 5 条复杂测试 Prompt（围绕段融/器灵/赵穆/浑圆桩等关键信息）
+
+#### review
+
+- 已新增脚本：`backend/scripts/verify_opensearch_material_search.py`。
+- 脚本能力：读取素材文本，按“章节+段落”切分，写入临时 OpenSearch 索引，运行 5 组检索用例，校验 `limit` 截断与 `search_after` 分页拿全，并与本地字符串基线对照。
+- 最小验证通过：`python3 -m py_compile backend/scripts/verify_opensearch_material_search.py`、`cd backend && python3 scripts/verify_opensearch_material_search.py --help`。
+- 当前环境未安装 `opensearchpy`，因此未执行“真实连库检索回归”；运行全量验证前需先安装依赖（`backend/requirements.txt` 已声明）。
+
+#### 5条复杂Prompt自动验收脚本（待确认）
+
+- [x] 新增脚本：批量调用 `/api/v1/agent/chat/stream` 执行 5 条 Prompt（支持 token 或登录）
+- [x] 增加规则校验：逐条检查 search_keywords、证据定位、结论字段、分页字段等硬性要求
+- [x] 输出结构化报告（终端摘要 + JSON 文件）
+- [x] 执行最小验证（`py_compile` + `--help`）并回填 review
+
+#### review
+
+- 新增脚本：`backend/scripts/validate_complex_prompts.py`。
+- 能力：自动执行你给的 5 条高复杂度 Prompt，调用 `/api/v1/agent/chat/stream`，从 SSE 流里拼接最终内容，并按每条 Prompt 的硬性格式规则判定 PASS/FAIL。
+- 支持认证：可直接传 `--token`，或传 `--username/--password` 自动登录拿 token。
+- 输出：终端打印逐条结果与失败原因，并落盘 JSON 报告（默认 `backend/log/complex_prompt_validation_report.json`）。
+- 最小验证通过：`python3 -m py_compile backend/scripts/validate_complex_prompts.py`、`cd backend && python3 scripts/validate_complex_prompts.py --help`。
+
 - [x] 方案1：在计划层强制修正 smart_rewrite 的写回路径为 versions[0].content
 - [x] 方案2：在 smart_rewrite 输出补充兼容字段 content=versions[0].content
 - [x] 验证不会影响 smart_continue/smart_insert 的现有写回流程
@@ -4312,3 +4373,68 @@
   1) `fallback_to_legacy` 的 `explore_content` 参数组装未透传 `search_keywords`，若 StandardTool 异常触发降级会丢关键词。`backend/app/services/agent/execution/tool_executor.py:2087`
   2) 建议新增回归测试：显式断言 Explore 忽略/拒绝 `patterns/regex_mode`，并验证 `keywords-only` 行为。
   3) 若业务目标是“尽量全量命中”，建议在 `exact_search_paragraphs` 支持分页游标或多批次拉取，而不是单次 `limit` 截断。
+
+#### Grep 翻页拿全（待确认）
+
+- [ ] 梳理当前 `exact_search_paragraphs` 的截断点与返回结构（工具层 + 底层服务）
+- [ ] 设计分页协议（`cursor` / `has_more` / `next_cursor`）并确认兼容策略
+- [ ] 实现 `ChapterVectorService` 的游标续查能力（向量路径 + 正文路径）
+- [ ] 实现 Explore 的 `exact_search_paragraphs` 分页分支，支持连续翻页直到拿完
+- [ ] 更新提示词与返回字段说明（让上层知道可以翻页继续拿）
+- [ ] 执行最小验证（`py_compile` + 目标单测），并回填本节 review
+
+#### review
+
+- [ ] 待完成：输出本次分页改造的改动、验证与使用说明。
+
+#### OpenSearch/Elasticsearch 接入（待确认）
+
+- [ ] 梳理当前检索链路接入点（`explore_tools -> ChapterVectorService`），确定最小替换面
+- [ ] 增加检索后端配置项（`SEARCH_BACKEND` / OpenSearch 连接参数），默认保持现有 DB 检索
+- [ ] 引入 OpenSearch 客户端与服务封装（索引名、查询 DSL、结果映射到现有字段结构）
+- [ ] 在 `ChapterVectorService.exact_search_paragraphs` / `exact_search_paragraphs_from_content` 增加 OpenSearch 分支
+- [ ] 保持向后兼容：OpenSearch 不可用时自动降级到现有 DB/正文检索
+- [ ] 补充最小验证（配置分支 + 降级分支），执行 `py_compile` 与目标单测
+- [ ] 在本节补充 review（改动文件、运行方式、风险与回滚说明）
+
+#### review
+
+- [ ] 待完成：输出 OpenSearch/Elasticsearch 接入结论与验证结果。
+
+#### 修复 Explore 定位契约（待确认）
+
+- [x] 在 `OpenSearchChapterSearchService.search_paragraphs` 强制校验命中项：必须同时具备 `chapter_order` 与 `paragraph_index`（均为 int），缺失即丢弃
+- [x] 在同一方法增加分页续查（`search_after`）：当本页被过滤后有效命中不足时继续翻页，直到拿满 `limit` 或无更多结果
+- [x] 在 `explore_tools.py` 的 `exact_search_paragraphs` 结果处理处再加一层定位过滤，确保不会把无定位命中传给后续读取
+- [x] 修复 `read_paragraphs`/Explore 里 `paragraph_index=0` 被 `or` 误判为缺失的问题（改为显式取键），避免首段被错误丢弃
+- [x] 跑最小验证：`py_compile` + 目标单测（重点覆盖“无定位命中被过滤、可继续翻页、0段索引可读”）
+- [x] 在本节补充 review（改动点、验证结果、剩余风险）
+
+#### review
+
+- [x] OpenSearch 检索层已改为“定位先决”：命中项必须有 `chapter_order(int)` 与 `paragraph_index(int)`，缺失即丢弃；并增加 `search_after` 分页续查，避免“前页无效导致早停”。修改文件：`backend/app/services/search/opensearch_chapter_search_service.py`
+- [x] Explore 执行层新增双重兜底：`exact_search` 每层结果先标准化定位字段，再在合并后做一次定位过滤，保证无定位命中不会流入读取链路。修改文件：`backend/app/services/agent/tools/explore_tools.py`
+- [x] 修复 `paragraph_index=0` 误判：将 `or` 链取值改为“按键显式取值（None 才回退）”，覆盖 Explore 与批量读取工具。修改文件：`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/langgraph_tools.py`
+- [x] 最小验证通过：`python3 -m py_compile backend/app/services/search/opensearch_chapter_search_service.py backend/app/services/agent/tools/explore_tools.py backend/app/services/agent/langgraph_tools.py`（通过）；`cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py`（6 passed）
+
+#### Explore 定位契约二次修复（执行中）
+
+- [x] 复盘 5 条复杂 prompt 的后台日志，确认失败主因（worldview 命中误判候选 + 停机门槛冲突 + 无定位结果失败）
+- [x] 修正停机门槛：`已有候选命中` 仅以“可定位章节命中”为准，不再将 worldview 命中计入
+- [x] 修正“不存在”判定：在严格段落模式下，按“章节 0 命中”统计策略覆盖，不受 worldview 干扰
+- [x] 修正输出契约：严格段落模式下若无任何可定位章节候选，返回“无命中”而非 `missing_locate_targets` 错误
+- [x] 调整 OpenSearch `limit` 语义：作为单页大小，自动翻页聚合至总量上限（可控）
+- [x] 补充日志字段与最小验证（`py_compile` + 指定单测）
+- [x] 在本节补充 review（改动点、验证结果、残余风险）
+
+#### review
+
+- [x] 停机门槛改为只看“可定位章节候选”：新增 `_has_unread_locatable_search_hits()`，忽略 `source=worldview` 且要求 `chapter_order+paragraph_index` 都是整数，解决“worldview 命中触发候选却无法读取”的死循环。修改文件：`backend/app/services/agent/tools/explore_tools.py`
+- [x] “不存在”策略在严格段落模式按章节 0 命中统计：`_evaluate_stop_quality_gate()` 在 `require_paragraph_index=True` 时，不再把 worldview 命中当阻塞项；并按范围/全局区分最小策略数，减少无效循环。修改文件：`backend/app/services/agent/tools/explore_tools.py`
+- [x] 严格段落模式新增“无命中成功返回”分支：当无任何可定位章节候选时，返回 `success=true + no_hits=true`，不再返回 `missing_locate_targets` 错误；仅在“有候选但仍不可定位”时保留错误。修改文件：`backend/app/services/agent/tools/explore_tools.py`
+- [x] OpenSearch `limit` 语义调整为单页大小：`search_paragraphs()` 先 `count` 估算总量，再通过 `search_after` 自动翻页聚合，直到 `target_total` 或页数上限；新增日志字段 `page_size/est_total/target_total/truncated`。修改文件：`backend/app/services/search/opensearch_chapter_search_service.py`
+- [x] 补强 query_attempt 元数据：`exact_search` 分层记录 `worldview_hits`，避免后续停机判断误把“有 worldview 命中”视为纯 0 命中。修改文件：`backend/app/services/agent/tools/explore_tools.py`
+- [x] 最小验证通过：
+  - `python3 -m py_compile backend/app/services/agent/tools/explore_tools.py backend/app/services/search/opensearch_chapter_search_service.py`
+  - `cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py`（6 passed）
+- [x] 残余风险：当前是“自动翻页聚合到上限”而非对外显式游标分页（`next_cursor`）；若后续要前端“第X页/共Y页”交互，还需补响应契约与分页参数。

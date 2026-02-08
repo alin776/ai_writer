@@ -86,6 +86,50 @@ async def lifespan(app: FastAPI):
 
     await init_db()
 
+    # 可选：启动阶段重建 OpenSearch 段落索引（默认关闭）
+    if settings.OPENSEARCH_REINDEX_ON_STARTUP:
+        try:
+            from sqlalchemy import select
+            from app.core.database import AsyncSessionLocal
+            from app.models.work import Work
+            from app.services.search.opensearch_chapter_search_service import OpenSearchChapterSearchService
+
+            logger.info("[STARTUP] 开始重建 OpenSearch 段落索引...")
+            async with AsyncSessionLocal() as db:
+                search_service = OpenSearchChapterSearchService(db)
+                if settings.OPENSEARCH_REINDEX_RECREATE_INDEX:
+                    await search_service.recreate_index()
+                else:
+                    await search_service.ensure_index()
+
+                result = await db.execute(select(Work.id).order_by(Work.created_at.asc()))
+                work_ids = [str(row[0]) for row in result.all() if row and row[0]]
+
+                total = len(work_ids)
+                total_indexed = 0
+                failed = 0
+                for idx, work_id in enumerate(work_ids, 1):
+                    try:
+                        total_indexed += int(await search_service.sync_work_vectors(work_id) or 0)
+                    except Exception as work_exc:
+                        failed += 1
+                        logger.warning(
+                            "[STARTUP] OpenSearch 重建失败: work_id=%s error=%s",
+                            work_id,
+                            work_exc,
+                        )
+                    if idx % 20 == 0 or idx == total:
+                        logger.info(
+                            "[STARTUP] OpenSearch 重建进度: %s/%s, indexed=%s, failed=%s",
+                            idx,
+                            total,
+                            total_indexed,
+                            failed,
+                        )
+            logger.info("[STARTUP] ✅ OpenSearch 段落索引重建完成")
+        except Exception as e:
+            logger.warning(f"[STARTUP] ⚠️ OpenSearch 段落索引重建失败: {e}")
+
     # 初始化官方频道
     try:
         from init_official_channels_sql import init_channels
