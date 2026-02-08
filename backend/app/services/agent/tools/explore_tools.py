@@ -56,11 +56,6 @@ FORCED_REWRITE_MAX_ROUNDS = 2
 PER_CHAPTER_READ_CAP_RATIO = 0.2
 PER_CHAPTER_READ_CAP_MIN = 10
 PER_CHAPTER_READ_CAP_MAX = 30
-REGEX_PATTERNS_MAX_COUNT = 8
-REGEX_PATTERN_MAX_LEN = 160
-FORCED_REWRITE_REGEX_MAX_PATTERNS = 2
-FORCED_REWRITE_REGEX_MAX_KEYWORD_LEN = 12
-FORCED_REWRITE_REGEX_WINDOW = 18
 TOOL_LOOP_ALLOWED_TOOLS = (
     "list_chapters",
     "list_paragraphs",
@@ -586,9 +581,7 @@ class QueryAttempt:
     """单次查询尝试（用于循环治理与可观测）"""
     query: str
     keywords: List[str]
-    patterns: List[str]
     match_mode: str
-    regex_mode: str
     chapter_scope: Optional[Tuple[int, int]]
     round_idx: int
     strategy: str = "ai"  # ai/forced_rewrite
@@ -596,7 +589,6 @@ class QueryAttempt:
     chapter_hits: int = 0
     worldview_hits: int = 0
     blocked_keywords: int = 0
-    invalid_patterns: int = 0
     error: str = ""
     timestamp: datetime = field(default_factory=get_utc_now)
 
@@ -1202,103 +1194,6 @@ def _normalize_search_keywords(keywords: Optional[List[str]]) -> List[str]:
     if not normalized:
         return []
     return sorted(set(normalized))
-
-
-def _extract_regex_patterns(raw_patterns: Any) -> List[str]:
-    """从工具参数中提取 regex 列表（不拆分 |，避免破坏正则语义）"""
-    if raw_patterns is None:
-        return []
-
-    patterns: List[str] = []
-    if isinstance(raw_patterns, str):
-        text = raw_patterns.strip()
-        if not text:
-            return []
-        if "\n" in text:
-            patterns.extend([line.strip() for line in text.splitlines() if line.strip()])
-        else:
-            patterns.append(text)
-    elif isinstance(raw_patterns, list):
-        for item in raw_patterns:
-            if not isinstance(item, str):
-                continue
-            value = item.strip()
-            if value:
-                patterns.append(value)
-
-    deduped: List[str] = []
-    seen = set()
-    for pattern in patterns:
-        if pattern in seen:
-            continue
-        seen.add(pattern)
-        deduped.append(pattern)
-    return deduped
-
-
-def _is_dangerous_regex_pattern(pattern: str) -> bool:
-    """轻量防护：拦截常见灾难回溯结构。"""
-    if not pattern:
-        return False
-
-    # 连续 dot-star 通常会导致回溯爆炸
-    if re.search(r"(?:\.\*){2,}", pattern):
-        return True
-
-    # (a+)+ / (.*)+ / (\w+)* 这类嵌套量词
-    nested_quantifier = re.search(r"\((?:[^()\\]|\\.)+[+*]\)[+*?]", pattern)
-    if nested_quantifier:
-        return True
-
-    return False
-
-
-def _validate_regex_patterns(patterns: List[str]) -> Tuple[List[str], List[Dict[str, str]]]:
-    """校验 regex，返回可用模式和失败原因。"""
-    valid_patterns: List[str] = []
-    diagnostics: List[Dict[str, str]] = []
-
-    if not patterns:
-        return valid_patterns, diagnostics
-
-    for index, pattern in enumerate(patterns):
-        if index >= REGEX_PATTERNS_MAX_COUNT:
-            diagnostics.append({
-                "pattern": pattern,
-                "reason": "too_many_patterns",
-                "detail": f"最多支持 {REGEX_PATTERNS_MAX_COUNT} 条 regex"
-            })
-            continue
-
-        if len(pattern) > REGEX_PATTERN_MAX_LEN:
-            diagnostics.append({
-                "pattern": pattern,
-                "reason": "pattern_too_long",
-                "detail": f"regex 长度不能超过 {REGEX_PATTERN_MAX_LEN}"
-            })
-            continue
-
-        if _is_dangerous_regex_pattern(pattern):
-            diagnostics.append({
-                "pattern": pattern,
-                "reason": "dangerous_pattern",
-                "detail": "regex 可能导致灾难回溯，已拒绝"
-            })
-            continue
-
-        try:
-            re.compile(pattern)
-        except re.error as exc:
-            diagnostics.append({
-                "pattern": pattern,
-                "reason": "compile_error",
-                "detail": str(exc)
-            })
-            continue
-
-        valid_patterns.append(pattern)
-
-    return valid_patterns, diagnostics
 
 
 def _build_explore_result_cache_key(
@@ -1983,25 +1878,13 @@ def _format_tool_calls_for_frontend(round_data: ExploreRound) -> List[Dict[str, 
                 "value": "列段落预览"
             })
         elif tc.tool_name == "exact_search_paragraphs":
-            # 关键词/regex 搜索
+            # 关键词搜索
             keywords = tc.params.get("keywords", "")
             if isinstance(keywords, list):
                 keywords = ", ".join(keywords[:3])
             elif isinstance(keywords, str) and "|" in keywords:
                 keywords = ", ".join(keywords.split("|")[:3])
-
-            patterns = tc.params.get("patterns") or tc.params.get("pattern") or []
-            pattern_text = ""
-            if isinstance(patterns, list):
-                pattern_text = ", ".join([str(p) for p in patterns[:2] if str(p).strip()])
-            elif isinstance(patterns, str):
-                pattern_text = patterns.strip()
-
             label = (keywords or "").strip()
-            if not label and pattern_text:
-                label = f"regex:{pattern_text}"
-            elif label and pattern_text:
-                label = f"{label} | regex:{pattern_text}"
             if not label:
                 label = "关键词搜索"
 
@@ -2438,66 +2321,16 @@ class ContentExplorer:
             terms.append(value)
         return terms
 
-    def _build_conservative_regex_patterns(self, keywords: List[str]) -> List[str]:
-        """基于关键词生成低复杂度 regex（仅 forced_rewrite 二段回退使用）。"""
-        normalized: List[str] = []
-        seen_kw = set()
-        for raw_kw in keywords or []:
-            kw = str(raw_kw or "").strip().strip("\"'“”‘’《》()[]{}")
-            if not kw:
-                continue
-            if kw in seen_kw:
-                continue
-            seen_kw.add(kw)
-            normalized.append(kw)
-
-        patterns: List[str] = []
-        seen_patterns = set()
-
-        for kw in normalized:
-            if len(kw) > FORCED_REWRITE_REGEX_MAX_KEYWORD_LEN:
-                continue
-            escaped = re.escape(kw)
-            if escaped in seen_patterns:
-                continue
-            seen_patterns.add(escaped)
-            patterns.append(escaped)
-            if len(patterns) >= FORCED_REWRITE_REGEX_MAX_PATTERNS:
-                break
-
-        if len(patterns) < FORCED_REWRITE_REGEX_MAX_PATTERNS and len(normalized) >= 2:
-            first_kw = normalized[0]
-            second_kw = normalized[1]
-            if (
-                len(first_kw) <= FORCED_REWRITE_REGEX_MAX_KEYWORD_LEN
-                and len(second_kw) <= FORCED_REWRITE_REGEX_MAX_KEYWORD_LEN
-            ):
-                pair_pattern = (
-                    f"{re.escape(first_kw)}.{{0,{FORCED_REWRITE_REGEX_WINDOW}}}{re.escape(second_kw)}"
-                )
-                if pair_pattern not in seen_patterns:
-                    patterns.append(pair_pattern)
-
-        return patterns[:FORCED_REWRITE_REGEX_MAX_PATTERNS]
-
     def _build_forced_rewrite_search_args(self) -> Optional[Dict[str, Any]]:
-        """构造程序强制放宽查询参数（默认 keywords-only），避免 0 命中空转。"""
+        """构造程序强制放宽查询参数（关键词模式），避免 0 命中空转。"""
         recent_attempts = self.state.get_recent_query_attempts(limit=5)
         latest_attempt = recent_attempts[-1] if recent_attempts else None
 
         keywords: List[str] = []
-        patterns: List[str] = []
         chapter_scope = None
         if latest_attempt:
             keywords.extend([kw for kw in latest_attempt.keywords if kw])
-            patterns.extend([pt for pt in latest_attempt.patterns if pt])
             chapter_scope = latest_attempt.chapter_scope
-
-        if patterns and not keywords:
-            for pattern in patterns:
-                cleaned = re.sub(r"\\.", " ", pattern or "")
-                cleaned = re.sub(r"[^\w\u4e00-\u9fff]+", " ", cleaned)
-                keywords.extend(self._split_search_terms(cleaned))
 
         if not keywords:
             keywords.extend(_normalize_search_keywords(self.search_keywords))
@@ -2521,34 +2354,10 @@ class ContentExplorer:
 
         args: Dict[str, Any] = {
             "keywords": keywords or None,
-            "patterns": None,
             "match_mode": "any",
-            "regex_mode": "any",
             "limit": 100,
             "strategy": "forced_rewrite",
         }
-        forced_attempts = [
-            attempt for attempt in recent_attempts
-            if isinstance(getattr(attempt, "strategy", ""), str)
-            and str(attempt.strategy).startswith("forced_rewrite")
-        ]
-        keyword_only_zero = any(
-            int(getattr(attempt, "chapter_hits", 0) or 0) == 0
-            and int(getattr(attempt, "worldview_hits", 0) or 0) == 0
-            and not getattr(attempt, "patterns", None)
-            for attempt in forced_attempts
-        )
-        regex_fallback_tried = any(
-            int(getattr(attempt, "chapter_hits", 0) or 0) == 0
-            and int(getattr(attempt, "worldview_hits", 0) or 0) == 0
-            and str(getattr(attempt, "strategy", "")).startswith("forced_rewrite_regex")
-            for attempt in forced_attempts
-        )
-        if keyword_only_zero and not regex_fallback_tried:
-            conservative_patterns = self._build_conservative_regex_patterns(keywords)
-            if conservative_patterns:
-                args["patterns"] = conservative_patterns
-                args["strategy"] = "forced_rewrite_regex"
         if chapter_scope and isinstance(chapter_scope, tuple):
             args["chapter_range"] = [chapter_scope[0], chapter_scope[1]]
         return args
@@ -3021,14 +2830,13 @@ class ContentExplorer:
             for attempt in recent_attempts:
                 scope_text = "全书" if attempt.chapter_scope is None else f"第{attempt.chapter_scope[0]}-{attempt.chapter_scope[1]}章"
                 kw_text = ",".join(attempt.keywords[:4]) if attempt.keywords else "-"
-                pt_text = ",".join(attempt.patterns[:2]) if attempt.patterns else "-"
                 if attempt.error:
                     lines.append(
-                        f"  · R{attempt.round_idx} [{attempt.strategy}] {scope_text} kw={kw_text} re={pt_text} -> error:{attempt.error}"
+                        f"  · R{attempt.round_idx} [{attempt.strategy}] {scope_text} kw={kw_text} -> error:{attempt.error}"
                     )
                 else:
                     lines.append(
-                        f"  · R{attempt.round_idx} [{attempt.strategy}] {scope_text} kw={kw_text} re={pt_text} -> hit={attempt.chapter_hits}/{attempt.hits}"
+                        f"  · R{attempt.round_idx} [{attempt.strategy}] {scope_text} kw={kw_text} -> hit={attempt.chapter_hits}/{attempt.hits}"
                     )
 
         # 最近一次搜索命中列表（对标 grep 输出：命中行列表）
@@ -3183,9 +2991,8 @@ class ContentExplorer:
    - 作用：列出章节清单
 2) list_paragraphs(chapter_order, offset, limit, preview_len)
    - 作用：列出某章段落索引（仅预览）
-3) exact_search_paragraphs(keywords?, patterns?, match_mode, regex_mode, limit)
-   - 作用：关键词/正则匹配（Grep），返回候选段落
-   - patterns: 正则表达式列表；regex_mode: any/all
+3) exact_search_paragraphs(keywords?, match_mode, limit)
+   - 作用：关键词匹配（Grep），返回候选段落
 4) read_paragraph(chapter_order, paragraph_index, context_before, context_after)
    - 作用：读取指定段落原文
 5) read_paragraphs(items, context_before, context_after)
@@ -3223,7 +3030,7 @@ class ContentExplorer:
 - read_paragraph 必须提供 chapter_order + paragraph_index（可用 list_paragraphs 的 index/paragraph_index）。
 - read_paragraphs 可用两种模式：items 列表（chapter_order+paragraph_index）或分页模式（chapter_order/chapter_id + offset+limit）。
 - items 模式不要用 chapter_id/node_id 直接定位；分页模式可用 chapter_id。
-- exact_search_paragraphs 先用关键词（keywords）保证召回，再用短 regex（patterns）做收敛；每轮最多 1-2 条 regex。
+- exact_search_paragraphs 仅使用关键词（keywords）检索，不要传 patterns/regex 参数。
 - 禁止一次性并列长串抽象负向词（如“代价/限制/风险/误判/副作用…”）；必须先拆成 1-2 个可落地关键词再检索。
 - 不要搜索已搜索过的关键词或其变体（检查上方"搜索历史"中已搜过的内容）。
 - 若上方提示“上下文已覆盖”，则不要再次调用 read_paragraph/read_paragraphs 读取同一目标段落。
@@ -3412,15 +3219,7 @@ class ContentExplorer:
 
         elif tool_name == "exact_search_paragraphs":
             raw_keywords = params.get("keywords") or params.get("keyword") or params.get("query") or []
-            raw_patterns = params.get("patterns")
-            if raw_patterns is None:
-                raw_patterns = params.get("pattern")
-            if raw_patterns is None:
-                raw_patterns = params.get("regex")
             strategy_label = str(params.get("strategy") or "ai").strip().lower() or "ai"
-            regex_mode = str(params.get("regex_mode") or params.get("pattern_mode") or "any").strip().lower()
-            if regex_mode not in ("any", "all"):
-                regex_mode = "any"
             match_mode = str(params.get("match_mode") or params.get("mode") or "any").strip().lower()
             if match_mode not in ("any", "all", "phrase"):
                 match_mode = "any"
@@ -3460,9 +3259,6 @@ class ContentExplorer:
                 seen_kw.add(cleaned)
                 cleaned_keywords.append(cleaned)
             keywords = cleaned_keywords
-
-            requested_patterns = _extract_regex_patterns(raw_patterns)
-            valid_patterns, regex_diagnostics = _validate_regex_patterns(requested_patterns)
 
             def _coerce_int(value: Any) -> Optional[int]:
                 if isinstance(value, int):
@@ -3563,35 +3359,22 @@ class ContentExplorer:
                     continue
                 filtered_keywords.append(kw)
             keywords = filtered_keywords
-            query_terms = keywords[:3] or [f"re:{pattern}" for pattern in valid_patterns[:2]]
+            query_terms = keywords[:3]
             query = ",".join(query_terms) if query_terms else "exact_search"
 
-            if not keywords and not valid_patterns:
-                if blocked_keywords:
-                    result_data = {
-                        "success": False,
-                        "error": "关键词已被拦截，且无可用 regex",
-                        "blocked_keywords": blocked_keywords,
-                        "invalid_patterns": regex_diagnostics,
-                        "strategy": strategy_label,
-                        "match_mode": match_mode,
-                        "regex_mode": regex_mode
-                    }
-                else:
-                    result_data = {
-                        "success": False,
-                        "error": "缺少可执行的 keywords 或 patterns",
-                        "invalid_patterns": regex_diagnostics,
-                        "strategy": strategy_label,
-                        "match_mode": match_mode,
-                        "regex_mode": regex_mode
-                    }
+            if not keywords:
+                error_text = "关键词已被拦截" if blocked_keywords else "缺少可执行的 keywords"
+                result_data = {
+                    "success": False,
+                    "error": error_text,
+                    "blocked_keywords": blocked_keywords,
+                    "strategy": strategy_label,
+                    "match_mode": match_mode
+                }
                 self.state.add_query_attempt(QueryAttempt(
                     query=query,
                     keywords=list(keywords),
-                    patterns=list(valid_patterns),
                     match_mode=match_mode,
-                    regex_mode=regex_mode,
                     chapter_scope=current_scope,
                     round_idx=round_idx,
                     strategy=strategy_label,
@@ -3599,8 +3382,7 @@ class ContentExplorer:
                     chapter_hits=0,
                     worldview_hits=0,
                     blocked_keywords=len(blocked_keywords),
-                    invalid_patterns=len(regex_diagnostics),
-                    error=result_data.get("error", "")
+                    error=error_text
                 ))
             else:
                 for kw in keywords:
@@ -3614,9 +3396,8 @@ class ContentExplorer:
 
                 results: List[Dict[str, Any]] = []
                 effective_keywords = list(keywords)
-                effective_patterns = list(valid_patterns)
                 effective_match_mode = match_mode
-                effective_strategy = strategy_label
+                effective_strategy = "strict" if strategy_label == "ai" else f"{strategy_label}_strict"
                 search_attempt_layers: List[Dict[str, Any]] = []
 
                 worldview_matches = self._search_worldview_for_keywords(keywords) if keywords else []
@@ -3650,8 +3431,6 @@ class ContentExplorer:
                         work_id=self.work_id,
                         chapter_ranges=ranges_to_use or None
                     )
-                    if valid_patterns:
-                        use_vector = False
                     search_fn = (
                         vector_service.exact_search_paragraphs
                         if use_vector
@@ -3661,7 +3440,6 @@ class ContentExplorer:
                     async def _run_exact_search_layer(
                         layer_strategy: str,
                         layer_keywords: List[str],
-                        layer_patterns: List[str],
                         layer_match_mode: str
                     ) -> List[Dict[str, Any]]:
                         layer_results: List[Dict[str, Any]] = []
@@ -3672,8 +3450,6 @@ class ContentExplorer:
                                     keywords=layer_keywords,
                                     chapter_range=(start_order, end_order),
                                     match_mode=layer_match_mode,
-                                    patterns=layer_patterns,
-                                    regex_mode=regex_mode,
                                     limit=limit
                                 )
                                 layer_results.extend(part or [])
@@ -3683,8 +3459,6 @@ class ContentExplorer:
                                 keywords=layer_keywords,
                                 chapter_range=None,
                                 match_mode=layer_match_mode,
-                                patterns=layer_patterns,
-                                regex_mode=regex_mode,
                                 limit=limit
                             )
                             layer_results.extend(part or [])
@@ -3693,12 +3467,11 @@ class ContentExplorer:
                             item for item in layer_results
                             if isinstance(item, dict) and item.get("source") != "worldview"
                         ]
-                        layer_query_terms = layer_keywords[:3] or [f"re:{pattern}" for pattern in layer_patterns[:2]]
+                        layer_query_terms = layer_keywords[:3]
                         layer_query = ",".join(layer_query_terms) if layer_query_terms else "exact_search"
                         search_attempt_layers.append({
                             "strategy": layer_strategy,
                             "keywords": list(layer_keywords),
-                            "patterns": list(layer_patterns),
                             "match_mode": layer_match_mode,
                             "hits": len(layer_results),
                             "chapter_hits": len(layer_chapter_hits)
@@ -3706,9 +3479,7 @@ class ContentExplorer:
                         self.state.add_query_attempt(QueryAttempt(
                             query=layer_query,
                             keywords=list(layer_keywords),
-                            patterns=list(layer_patterns),
                             match_mode=layer_match_mode,
-                            regex_mode=regex_mode,
                             chapter_scope=current_scope,
                             round_idx=round_idx,
                             strategy=layer_strategy,
@@ -3716,46 +3487,36 @@ class ContentExplorer:
                             chapter_hits=len(layer_chapter_hits),
                             worldview_hits=0,
                             blocked_keywords=len(blocked_keywords),
-                            invalid_patterns=len(regex_diagnostics),
                             error=""
                         ))
                         return layer_results
 
-                    strict_strategy = "strict" if strategy_label == "ai" else f"{strategy_label}_strict"
-                    layered_plan: List[Tuple[str, List[str], List[str], str]] = [
-                        (strict_strategy, list(keywords), list(valid_patterns), match_mode)
-                    ]
-                    if keywords and valid_patterns:
-                        layered_plan.append(("kw_fallback", list(keywords), [], "any"))
-                        layered_plan.append(("regex_fallback", [], list(valid_patterns), match_mode))
+                    chapter_results = await _run_exact_search_layer(
+                        layer_strategy=effective_strategy,
+                        layer_keywords=keywords,
+                        layer_match_mode=match_mode
+                    )
+                    results.extend(chapter_results)
 
-                    chapter_results: List[Dict[str, Any]] = []
-                    for idx, (layer_strategy, layer_keywords, layer_patterns, layer_match_mode) in enumerate(layered_plan):
-                        layer_results = await _run_exact_search_layer(
-                            layer_strategy=layer_strategy,
-                            layer_keywords=layer_keywords,
-                            layer_patterns=layer_patterns,
-                            layer_match_mode=layer_match_mode
+                    chapter_hits = [
+                        item for item in chapter_results
+                        if isinstance(item, dict) and item.get("source") != "worldview"
+                    ]
+                    if not chapter_hits and match_mode != "any":
+                        fallback_strategy = "kw_fallback"
+                        fallback_results = await _run_exact_search_layer(
+                            layer_strategy=fallback_strategy,
+                            layer_keywords=keywords,
+                            layer_match_mode="any"
                         )
-                        layer_chapter_hits = [
-                            item for item in layer_results
+                        results.extend(fallback_results)
+                        fallback_chapter_hits = [
+                            item for item in fallback_results
                             if isinstance(item, dict) and item.get("source") != "worldview"
                         ]
-                        if layer_results:
-                            chapter_results.extend(layer_results)
-                        if layer_chapter_hits:
-                            effective_keywords = list(layer_keywords)
-                            effective_patterns = list(layer_patterns)
-                            effective_match_mode = layer_match_mode
-                            effective_strategy = layer_strategy
-                            break
-                        if idx < len(layered_plan) - 1:
-                            logger.info(
-                                "[ExploreTool] layer=%s 0命中，触发下一层回退",
-                                layer_strategy
-                            )
-
-                    results.extend(chapter_results)
+                        if fallback_chapter_hits:
+                            effective_match_mode = "any"
+                            effective_strategy = fallback_strategy
 
                     coverage_pool = list(effective_keywords)
                     matched_set = set()
@@ -3779,8 +3540,6 @@ class ContentExplorer:
                                             keywords=[kw],
                                             chapter_range=(start_order, end_order),
                                             match_mode="any",
-                                            patterns=[],
-                                            regex_mode=regex_mode,
                                             limit=supplement_limit
                                         ) or []
                                     )
@@ -3790,18 +3549,14 @@ class ContentExplorer:
                                     keywords=[kw],
                                     chapter_range=None,
                                     match_mode="any",
-                                    patterns=[],
-                                    regex_mode=regex_mode,
                                     limit=supplement_limit
                                 ) or []
                             if part:
                                 results.extend(part)
 
-                keywords = effective_keywords
-                valid_patterns = effective_patterns
                 match_mode = effective_match_mode
                 strategy_label = effective_strategy
-                query_terms = keywords[:3] or [f"re:{pattern}" for pattern in valid_patterns[:2]]
+                query_terms = keywords[:3]
                 query = ",".join(query_terms) if query_terms else "exact_search"
 
                 if param_ranges:
@@ -3974,8 +3729,6 @@ class ContentExplorer:
                 result_data = {
                     "success": True,
                     "keywords": keywords,
-                    "patterns": valid_patterns,
-                    "regex_mode": regex_mode,
                     "match_mode": match_mode,
                     "strategy": strategy_label,
                     "search_layers": search_attempt_layers,
@@ -3984,8 +3737,7 @@ class ContentExplorer:
                     "worldview_hits": worldview_hits_count,
                     "results": _preview_results(results),
                     "missing_keywords": missing_keywords,
-                    "blocked_keywords": blocked_keywords,
-                    "invalid_patterns": regex_diagnostics
+                    "blocked_keywords": blocked_keywords
                 }
 
                 chapters_in_results = list(set(
@@ -4006,7 +3758,7 @@ class ContentExplorer:
                 ))
 
                 logger.info(
-                    "[ExploreTool] done=%s success=%s hits=%s (chapter=%s, worldview=%s) strategy=%s keywords=%s patterns=%s blocked=%s",
+                    "[ExploreTool] done=%s success=%s hits=%s (chapter=%s, worldview=%s) strategy=%s keywords=%s blocked=%s",
                     tool_name,
                     True,
                     len(results),
@@ -4014,7 +3766,6 @@ class ContentExplorer:
                     worldview_hits_count,
                     strategy_label,
                     ",".join(keywords[:6]),
-                    ",".join(valid_patterns[:3]),
                     len(blocked_keywords)
                 )
 
@@ -4777,7 +4528,7 @@ async def explore_content(
         work_id: 作品ID（UUID格式，必需）
         target_task: 目标任务描述（如"续写第6章，需要了解主角性格和当前剧情"）
         search_keywords: 搜索关键词列表（由规划阶段直接提供，优先使用）
-        max_rounds: 最大探索轮次（默认10轮）
+        max_rounds: 最大探索轮次（默认100轮）
         max_tool_calls: 工具调用上限（仅 tool_loop 生效）
         max_read_paragraphs: 读取段落上限（可选，不传则不设全局上限）
         output_mode: 输出模式（evidence_only/full，默认 full；full 返回前端展示字段）

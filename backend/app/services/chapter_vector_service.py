@@ -483,8 +483,6 @@ class ChapterVectorService:
         keywords: Optional[List[str]] = None,
         chapter_range: Optional[tuple] = None,
         match_mode: str = "any",
-        patterns: Optional[List[str]] = None,
-        regex_mode: str = "any",
         limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
@@ -498,8 +496,6 @@ class ChapterVectorService:
                 - "any": 任一关键词匹配（OR）
                 - "all": 所有关键词都匹配（AND）
                 - "phrase": 第一个关键词作为精确短语匹配
-            patterns: 正则表达式列表（可选）
-            regex_mode: 正则匹配模式（any/all）
             limit: 返回结果数量上限
 
         Returns:
@@ -516,31 +512,9 @@ class ChapterVectorService:
                 for kw in (keywords or [])
                 if isinstance(kw, str) and kw.strip()
             ]
-            normalized_patterns: List[str] = []
-            seen_patterns = set()
-            for raw_pattern in patterns or []:
-                if not isinstance(raw_pattern, str):
-                    continue
-                cleaned_pattern = raw_pattern.strip()
-                if not cleaned_pattern or cleaned_pattern in seen_patterns:
-                    continue
-                seen_patterns.add(cleaned_pattern)
-                normalized_patterns.append(cleaned_pattern)
-
-            # regex 统一走正文扫描路径，避免 SQL 方言差异和漏召回
-            if normalized_patterns:
-                return await self.exact_search_paragraphs_from_content(
-                    work_id=work_id,
-                    keywords=[kw for kw, _ in kw_pairs],
-                    chapter_range=chapter_range,
-                    match_mode=match_mode,
-                    patterns=normalized_patterns,
-                    regex_mode=regex_mode,
-                    limit=limit
-                )
 
             if not kw_pairs:
-                logger.warning("[exact_search] keywords/patterns 都为空")
+                logger.warning("[exact_search] keywords 为空")
                 return []
             try:
                 limit_val = int(limit)
@@ -609,18 +583,14 @@ class ChapterVectorService:
                     "snippet": v.chunk_text[:200] + "..." if len(v.chunk_text) > 200 else v.chunk_text,
                     "node_id": v.node_id,
                     "matched_keywords": matched,
-                    "matched_patterns": [],
-                    "match_count": len(matched),
-                    "pattern_count": 0
+                    "match_count": len(matched)
                 })
 
             logger.info(
-                "[exact_search] work=%s, keywords=%s..., patterns=%s..., mode=%s, regex_mode=%s, range=%s, hits=%s",
+                "[exact_search] work=%s, keywords=%s..., mode=%s, range=%s, hits=%s",
                 work_id,
                 [kw for kw, _ in kw_pairs][:3],
-                normalized_patterns[:2],
                 match_mode,
-                regex_mode,
                 chapter_range,
                 len(results)
             )
@@ -637,8 +607,6 @@ class ChapterVectorService:
         keywords: Optional[List[str]] = None,
         chapter_range: Optional[tuple] = None,
         match_mode: str = "any",
-        patterns: Optional[List[str]] = None,
-        regex_mode: str = "any",
         limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
@@ -649,8 +617,6 @@ class ChapterVectorService:
             keywords: 关键词列表（可选）
             chapter_range: 章节范围 (min_order, max_order)，None 表示全部
             match_mode: 匹配模式（any/all/phrase）
-            patterns: 正则表达式列表（可选）
-            regex_mode: 正则匹配模式（any/all）
             limit: 返回结果数量上限
 
         Returns:
@@ -668,26 +634,8 @@ class ChapterVectorService:
                 for kw in (keywords or [])
                 if isinstance(kw, str) and kw.strip()
             ]
-            compiled_patterns: List[Tuple[str, Any]] = []
-            seen_patterns = set()
-            for raw_pattern in patterns or []:
-                if not isinstance(raw_pattern, str):
-                    continue
-                cleaned_pattern = raw_pattern.strip()
-                if not cleaned_pattern or cleaned_pattern in seen_patterns:
-                    continue
-                seen_patterns.add(cleaned_pattern)
-                try:
-                    compiled_patterns.append((cleaned_pattern, re.compile(cleaned_pattern, re.IGNORECASE)))
-                except re.error:
-                    logger.warning("[exact_search_content] 跳过无效 regex: %s", cleaned_pattern)
-                    continue
-
-            if regex_mode not in ("any", "all"):
-                regex_mode = "any"
-
-            if not kw_pairs and not compiled_patterns:
-                logger.warning("[exact_search_content] keywords/patterns 都为空")
+            if not kw_pairs:
+                logger.warning("[exact_search_content] keywords 为空")
                 return []
             try:
                 limit_val = int(limit)
@@ -744,14 +692,6 @@ class ChapterVectorService:
             results: List[Dict[str, Any]] = []
             keyword_list = [kw for kw, _ in kw_pairs]
 
-            def _match_regex(text: str) -> Tuple[bool, List[str]]:
-                if not compiled_patterns:
-                    return True, []
-                matched_patterns = [pattern for pattern, compiled in compiled_patterns if compiled.search(text)]
-                if regex_mode == "all":
-                    return len(matched_patterns) == len(compiled_patterns), matched_patterns
-                return bool(matched_patterns), matched_patterns
-
             for chapter in chapters:
                 if len(results) >= limit_val:
                     break
@@ -769,8 +709,7 @@ class ChapterVectorService:
                     else:
                         keyword_hit = any(kw_lower in content_lower for _, kw_lower in kw_pairs)
 
-                regex_hit, _ = _match_regex(content)
-                if not keyword_hit or not regex_hit:
+                if not keyword_hit:
                     continue
 
                 if len(content) > self.MAX_CONTENT_SCAN_LEN:
@@ -816,11 +755,10 @@ class ChapterVectorService:
                             matched_keywords = [kw for kw, kw_lower in kw_pairs if kw_lower in text_lower]
                             keyword_ok = bool(matched_keywords)
 
-                    regex_ok, matched_patterns = _match_regex(text)
-                    if not keyword_ok or not regex_ok:
+                    if not keyword_ok:
                         continue
 
-                    if not matched_keywords and not matched_patterns:
+                    if not matched_keywords:
                         continue
 
                     results.append({
@@ -832,31 +770,25 @@ class ChapterVectorService:
                         "snippet": text[:200] + "..." if len(text) > 200 else text,
                         "node_id": para.get("node_id"),
                         "matched_keywords": matched_keywords,
-                        "matched_patterns": matched_patterns,
-                        "match_count": len(matched_keywords),
-                        "pattern_count": len(matched_patterns)
+                        "match_count": len(matched_keywords)
                     })
 
                     if len(results) >= limit_val:
                         logger.info(
-                            "[exact_search_content] work=%s, keywords=%s..., patterns=%s..., mode=%s, regex_mode=%s, range=%s, hits=%s",
+                            "[exact_search_content] work=%s, keywords=%s..., mode=%s, range=%s, hits=%s",
                             work_id,
                             keyword_list[:3],
-                            [pattern for pattern, _ in compiled_patterns][:2],
                             match_mode,
-                            regex_mode,
                             chapter_range,
                             len(results)
                         )
                         return results
 
             logger.info(
-                "[exact_search_content] work=%s, keywords=%s..., patterns=%s..., mode=%s, regex_mode=%s, range=%s, hits=%s",
+                "[exact_search_content] work=%s, keywords=%s..., mode=%s, range=%s, hits=%s",
                 work_id,
                 keyword_list[:3],
-                [pattern for pattern, _ in compiled_patterns][:2],
                 match_mode,
-                regex_mode,
                 chapter_range,
                 len(results)
             )
@@ -865,4 +797,3 @@ class ChapterVectorService:
         except Exception as e:
             logger.error(f"[exact_search_content] 实时精确搜索失败: {e}", exc_info=True)
             return []
-

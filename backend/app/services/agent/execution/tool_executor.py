@@ -761,7 +761,7 @@ class ToolExecutor:
             params.setdefault("work_id", state.get("work_id", ""))
             params.setdefault("user_id", state.get("user_id", ""))
             # target_task 必须由 AI 提供，不设默认值
-            params.setdefault("max_rounds", 10)
+            params.setdefault("max_rounds", 100)
             params.setdefault("conversation_id", state.get("conversation_id", ""))
             allowed_keys = {
                 "work_id",
@@ -2088,7 +2088,7 @@ class ToolExecutor:
                     params = {
                         "work_id": tool_args.get("work_id", state.get("work_id", "")),
                         "target_task": tool_args.get("target_task", ""),
-                        "max_rounds": tool_args.get("max_rounds", 10),
+                        "max_rounds": tool_args.get("max_rounds", 100),
                         "user_id": tool_args.get("user_id", state.get("user_id", ""))
                     }
                 elif tool_name == "operate_apply":
@@ -2562,4 +2562,3 @@ class ToolExecutor:
         if policy in {"auto", "no_tool", "cache_only"}:
             return policy
         return "auto"
-
