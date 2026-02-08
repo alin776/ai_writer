@@ -25,7 +25,6 @@ import GlobalDragHandle from 'tiptap-extension-global-drag-handle';
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import EditorToolbar from './EditorToolbar';
-import BubbleMenu from './BubbleMenu';
 import AIMenu from './AIMenu';
 import AIRevisionBar, { RevisionData } from './AIRevisionBar'; // 🆕 AI 修订操作栏
 import { SlashCommand } from './SlashCommandExtension';
@@ -2380,9 +2379,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             )}
             <EditorContent editor={editor} className="editor-content-root" />
           </div>
-          {/* 气泡菜单 - 选中文本时显示 */}
-          <BubbleMenu editor={editor} onOpenInlineAI={handleOpenInlineAI} />
-          {/* AI 菜单 - 选中文本时显示 AI 操作 */}
+          {/* AI 菜单 - 选中文本时显示 Ask AI */}
           <AIMenu editor={editor} onOpenInlineAI={handleOpenInlineAI} />
 
           {/* 🆕 AI 修订操作栏 */}
