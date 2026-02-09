@@ -1,5 +1,16 @@
 # TODO
 
+#### 事件检索主链重构（进行中）
+
+- [x] 通读当前 Explore + OpenSearch 主链，确认“词法检索主导”与核心瓶颈位置
+- [ ] 设计并落地事件事实抽取器（无业务词典硬编码）：从段落抽取 actor/action/object/qualifiers/negation/timeline
+- [ ] 扩展 OpenSearch 索引映射与同步：写入 `event_facts` 结构化字段
+- [ ] 新增事件检索查询构建器：优先查 `event_facts`，词法 `chunk_text` 仅兜底
+- [ ] 接入 `search_paragraphs` 主链：默认事件检索优先，支持回退词法检索
+- [ ] 接入 Explore 执行层：传递结构化意图槽位并消费事件命中结果
+- [ ] 新增并通过单测（抽取器/查询构建/主链回退）
+- [ ] 在 todo.md 追加 review（改动清单、证据、剩余风险）
+
 #### Explore 核心问题主链修复（待确认）
 
 - [x] 复盘日志与主链执行路径，确认“AI 查询被探针覆盖”是机械回搜根因之一
