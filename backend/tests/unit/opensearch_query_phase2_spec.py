@@ -77,5 +77,11 @@ def test_build_query_all_mode_keeps_required_must() -> None:
     )
     bool_query = query.get("bool", {})
     must = bool_query.get("must") or []
-    phrase_count = sum(1 for item in must if isinstance(item, dict) and "match_phrase" in item)
-    assert phrase_count >= 2
+    bool_term_clauses = [
+        item
+        for item in must
+        if isinstance(item, dict)
+        and isinstance(item.get("bool"), dict)
+        and isinstance(item["bool"].get("should"), list)
+    ]
+    assert len(bool_term_clauses) >= 2

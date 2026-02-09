@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     OPENSEARCH_RUNTIME_SYNC_CHECK_ENABLED: bool = True
     OPENSEARCH_RUNTIME_SYNC_CHECK_INTERVAL_SECONDS: int = 180
     EXPLORE_INTENT_RETRIEVAL_V2: bool = True
+    # 探针对 AI 查询参数的介入模式：
+    # - suggest_only: 默认，仅在 AI 未提供有效结构化查询时才采用探针参数
+    # - force: 总是采用探针参数（旧行为，容易出现“机械改写查询”）
+    EXPLORE_PROBE_OVERRIDE_MODE: str = "suggest_only"
     
     # JWT 配置
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60

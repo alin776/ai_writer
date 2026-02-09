@@ -1485,7 +1485,7 @@ tool_policy: {tool_policy}
                 target_lines.append(title)
 
             if normalized_tool == "exact_search_paragraphs":
-                target_lines.append("先做严格关键词检索，0命中再回退宽松召回。")
+                target_lines.append("使用结构化检索参数收集可定位原文证据。")
             elif normalized_tool in {"read_paragraph", "read_paragraphs", "list_paragraphs"}:
                 target_lines.append("按段落读取并提取可定位原文证据。")
             else:

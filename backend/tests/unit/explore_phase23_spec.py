@@ -32,12 +32,19 @@ def test_exact_search_passes_phase2_options_to_vector_service() -> None:
 
 def test_exact_search_result_contains_filter_and_judge_metadata() -> None:
     text = _source_text()
-    assert "\"filter_stats\": filter_stats" in text
-    assert "\"judge\": {" in text
-    assert "\"must_have_coverage_ratio\"" in text
+    assert '"filter_stats": filter_stats' in text
+    assert '"judge": {' in text
+    assert '"must_have_coverage_ratio"' in text
 
 
 def test_planned_probe_does_not_clear_explicit_required_terms() -> None:
     text = _source_text()
-    assert "if \"terms_required\" in planned_payload:" in text
+    assert 'if "terms_required" in planned_payload:' in text
     assert "parsed_required = self._parse_search_term_values(planned_required)" in text
+
+
+def test_search_intent_no_longer_pollutes_keywords() -> None:
+    text = _source_text()
+    assert "keywords.extend(self._split_search_terms(search_intent_text))" not in text
+    assert "intent_hint_terms = self._parse_search_term_values(search_intent_text)" in text
+    assert "if not keywords and intent_hint_terms:" in text

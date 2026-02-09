@@ -6,6 +6,7 @@ This service provides keyword paragraph retrieval for Explore exact search.
 
 import asyncio
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -25,6 +26,11 @@ logger = logging.getLogger(__name__)
 
 OPENSEARCH_SEARCH_MAX_PAGES = 500
 OPENSEARCH_SEARCH_MAX_RESULTS = 5000
+SYMBOLIC_SCAN_TRIGGER_HITS = 6
+SYMBOLIC_SCAN_MAX_CANDIDATES = 1800
+SYMBOLIC_SCAN_MIN_SCORE = 0.34
+STRUCTURAL_CONNECTOR_PATTERN = re.compile(r"(?:关于|围绕|针对|有关|以及|并且|并|和|与|及|是否|的)")
+INSTRUCTION_PREFIX_PATTERN = re.compile(r"^(?:查找|寻找|检索|搜索|定位|确认|分析|核查|提取)")
 
 
 class OpenSearchChapterSearchService:
@@ -137,6 +143,116 @@ class OpenSearchChapterSearchService:
         if result <= 0:
             return int(default)
         return int(result)
+
+    @staticmethod
+    def _normalize_term(value: Any) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        text = text.strip("\"'“”‘’《》()[]{}")
+        text = re.sub(r"\s+", "", text)
+        return text[:48]
+
+    @staticmethod
+    def _term_signal_score(term: str) -> float:
+        value = str(term or "")
+        if not value:
+            return 0.0
+        length = len(value)
+        unique_ratio = len(set(value)) / max(length, 1)
+        cjk_count = len(re.findall(r"[\u4e00-\u9fff]", value))
+        latin_count = len(re.findall(r"[A-Za-z]", value))
+        digit_count = len(re.findall(r"\d", value))
+        script_mix = int(cjk_count > 0) + int(latin_count > 0) + int(digit_count > 0)
+        length_score = max(0.1, 1.0 - (abs(length - 5) * 0.08))
+        mix_bonus = 0.08 * max(0, script_mix - 1)
+        return (unique_ratio * 0.55) + (length_score * 0.45) + mix_bonus
+
+    @classmethod
+    def _derive_term_fragments(cls, value: str, max_chunks: int = 4) -> List[str]:
+        base = cls._normalize_term(value)
+        if not base:
+            return []
+
+        candidates: List[str] = [base]
+        candidates.extend(part for part in re.split(r"[，,。；;、/|｜]+", base) if part)
+        candidates.extend(part for part in STRUCTURAL_CONNECTOR_PATTERN.split(base) if part)
+        candidates.extend(re.findall(r"[\u4e00-\u9fffA-Za-z0-9]{2,24}", base))
+
+        scored: List[Tuple[float, str]] = []
+        seen = set()
+        for raw in candidates:
+            norm = cls._normalize_term(raw)
+            if len(norm) < 2:
+                continue
+            key = norm.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            score = cls._term_signal_score(norm)
+            if STRUCTURAL_CONNECTOR_PATTERN.search(norm):
+                score -= 0.22
+            if INSTRUCTION_PREFIX_PATTERN.match(norm):
+                score -= 0.28
+            if score <= 0:
+                continue
+            scored.append((score, norm))
+
+        scored.sort(key=lambda item: (-item[0], len(item[1]), item[1]))
+        return [item for _, item in scored[: max(1, int(max_chunks or 1))]]
+
+    @classmethod
+    def _expand_term_variants(cls, term: str) -> List[str]:
+        base = cls._normalize_term(term)
+        if not base:
+            return []
+        variants = cls._derive_term_fragments(base, max_chunks=8)
+        if not variants:
+            return [base]
+        return variants[:8]
+
+    @classmethod
+    def _build_term_clause(cls, term: str, *, boost: float = 1.0) -> Dict[str, Any]:
+        normalized = cls._normalize_term(term)
+        if not normalized:
+            return {}
+        phrase_boost = max(1.0, float(boost) * 1.8)
+        match_boost = max(0.8, float(boost))
+        return {
+            "bool": {
+                "should": [
+                    {
+                        "match_phrase": {
+                            "chunk_text": {
+                                "query": normalized,
+                                "boost": phrase_boost,
+                            }
+                        }
+                    },
+                    {
+                        "match": {
+                            "chunk_text": {
+                                "query": normalized,
+                                "operator": "and",
+                                "minimum_should_match": "66%",
+                                "boost": match_boost,
+                            }
+                        }
+                    },
+                ],
+                "minimum_should_match": 1,
+            }
+        }
+
+    @staticmethod
+    def _coerce_int(value: Any) -> Optional[int]:
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            text = value.strip()
+            if text.isdigit():
+                return int(text)
+        return None
 
     def _compute_retry_delay_seconds(self, retry_count: int) -> int:
         base_delay = self._coerce_positive_int(settings.OPENSEARCH_SYNC_RETRY_BASE_DELAY_SECONDS, 30)
@@ -980,6 +1096,38 @@ class OpenSearchChapterSearchService:
         should: List[Dict[str, Any]] = []
         must_not: List[Dict[str, Any]] = []
 
+        def _term_clause(term: str, boost: float = 1.0) -> Dict[str, Any]:
+            text = self._normalize_term(term) if self is not None else str(term or "").strip()
+            if not text:
+                return {}
+            phrase_boost = max(1.0, float(boost) * 1.8)
+            match_boost = max(0.8, float(boost))
+            return {
+                "bool": {
+                    "should": [
+                        {
+                            "match_phrase": {
+                                "chunk_text": {
+                                    "query": text,
+                                    "boost": phrase_boost,
+                                }
+                            }
+                        },
+                        {
+                            "match": {
+                                "chunk_text": {
+                                    "query": text,
+                                    "operator": "and",
+                                    "minimum_should_match": "66%",
+                                    "boost": match_boost,
+                                }
+                            }
+                        },
+                    ],
+                    "minimum_should_match": 1,
+                }
+            }
+
         if chapter_range:
             min_order, max_order = chapter_range
             range_body: Dict[str, Any] = {}
@@ -1001,36 +1149,29 @@ class OpenSearchChapterSearchService:
             all_terms = list(required_terms) + list(optional_terms)
 
         for term in excluded_terms:
-            must_not.append(
-                {
-                    "bool": {
-                        "should": [
-                            {"match_phrase": {"chunk_text": term}},
-                            {
-                                "match": {
-                                    "chunk_text": {
-                                        "query": term,
-                                        "operator": "and",
-                                    }
-                                }
-                            },
-                        ],
-                        "minimum_should_match": 1,
-                    }
-                }
-            )
+            clause = _term_clause(term, boost=1.0)
+            if clause:
+                must_not.append(clause)
 
         if match_mode == "phrase":
             phrase_term = required_terms[0] if required_terms else (all_terms[0] if all_terms else "")
             if phrase_term:
-                must.append({"match_phrase": {"chunk_text": phrase_term}})
+                clause = _term_clause(phrase_term, boost=1.6)
+                if clause:
+                    must.append(clause)
             for kw in optional_terms:
-                should.append({"match_phrase": {"chunk_text": {"query": kw, "boost": 1.4}}})
+                clause = _term_clause(kw, boost=1.2)
+                if clause:
+                    should.append(clause)
         elif match_mode == "all":
             for kw in required_terms:
-                must.append({"match_phrase": {"chunk_text": kw}})
+                clause = _term_clause(kw, boost=1.3)
+                if clause:
+                    must.append(clause)
             for kw in optional_terms:
-                should.append({"match_phrase": {"chunk_text": {"query": kw, "boost": 1.2}}})
+                clause = _term_clause(kw, boost=1.05)
+                if clause:
+                    should.append(clause)
         else:
             # recall 层：使用 match（宽松召回），并保留 phrase 提升分数以减少纯噪声
             recall_terms = required_terms or all_terms
@@ -1047,20 +1188,15 @@ class OpenSearchChapterSearchService:
                         }
                     }
                 )
-                recall_should.append(
-                    {
-                        "match_phrase": {
-                            "chunk_text": {
-                                "query": kw,
-                                "boost": 2.0,
-                            }
-                        }
-                    }
-                )
+                clause = _term_clause(kw, boost=1.2)
+                if clause:
+                    recall_should.append(clause)
             if recall_should:
                 must.append({"bool": {"should": recall_should, "minimum_should_match": 1}})
             for kw in optional_terms:
-                should.append({"match_phrase": {"chunk_text": {"query": kw, "boost": 1.2}}})
+                clause = _term_clause(kw, boost=1.0)
+                if clause:
+                    should.append(clause)
 
         proximity_window_val = 12
         if isinstance(proximity_window, int) and proximity_window > 0:
@@ -1091,6 +1227,285 @@ class OpenSearchChapterSearchService:
         if must_not:
             bool_query["must_not"] = must_not
         return {"bool": bool_query}
+
+    def _build_pair_variants(self, pairs: List[Tuple[str, str]]) -> List[Tuple[str, List[str]]]:
+        prepared: List[Tuple[str, List[str]]] = []
+        seen = set()
+        for raw, _ in pairs:
+            root = self._normalize_term(raw)
+            if not root:
+                continue
+            key = root.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            variants = [item.lower() for item in self._expand_term_variants(root) if item]
+            if not variants:
+                variants = [key]
+            prepared.append((root, variants))
+        return prepared
+
+    @staticmethod
+    def _match_terms(text_lower: str, term_variants: List[Tuple[str, List[str]]]) -> List[str]:
+        matched: List[str] = []
+        for root, variants in term_variants:
+            if any(variant and variant in text_lower for variant in variants):
+                matched.append(root)
+        return matched
+
+    @staticmethod
+    def _term_positions(text_lower: str, variants: List[str], max_positions: int = 3) -> List[int]:
+        positions: List[int] = []
+        for variant in variants:
+            if not variant:
+                continue
+            idx = text_lower.find(variant)
+            if idx >= 0:
+                positions.append(idx)
+            if len(positions) >= max_positions:
+                break
+        return positions
+
+    def _has_proximity_hit(
+        self,
+        text_lower: str,
+        left_variants: List[str],
+        right_variants: List[str],
+        max_window: int,
+    ) -> bool:
+        left_pos = self._term_positions(text_lower, left_variants)
+        right_pos = self._term_positions(text_lower, right_variants)
+        if not left_pos or not right_pos:
+            return False
+        return any(abs(lp - rp) <= max_window for lp in left_pos for rp in right_pos)
+
+    def _score_symbolic_candidate(
+        self,
+        *,
+        text_lower: str,
+        keyword_variants: List[Tuple[str, List[str]]],
+        required_variants: List[Tuple[str, List[str]]],
+        optional_variants: List[Tuple[str, List[str]]],
+        excluded_variants: List[Tuple[str, List[str]]],
+        proximity_variants: List[Tuple[str, List[str]]],
+        proximity_window: int,
+    ) -> Dict[str, Any]:
+        matched_excluded = self._match_terms(text_lower, excluded_variants)
+        if matched_excluded:
+            return {
+                "score": 0.0,
+                "excluded": True,
+                "matched_keywords": [],
+                "matched_required": [],
+                "matched_optional": [],
+            }
+
+        matched_keywords = self._match_terms(text_lower, keyword_variants)
+        matched_required = self._match_terms(text_lower, required_variants)
+        matched_optional = self._match_terms(text_lower, optional_variants)
+
+        required_ratio = (
+            len(matched_required) / len(required_variants)
+            if required_variants
+            else (1.0 if matched_keywords else 0.0)
+        )
+        optional_ratio = (
+            len(matched_optional) / len(optional_variants)
+            if optional_variants
+            else 0.0
+        )
+        keyword_ratio = (
+            len(matched_keywords) / len(keyword_variants)
+            if keyword_variants
+            else 0.0
+        )
+
+        proximity_bonus = 0.0
+        proximity_window_chars = max(8, min(int(proximity_window or 12) * 2, 120))
+        if len(proximity_variants) >= 2:
+            pair_limit = min(len(proximity_variants), 3)
+            for i in range(pair_limit):
+                for j in range(i + 1, pair_limit):
+                    if self._has_proximity_hit(
+                        text_lower,
+                        proximity_variants[i][1],
+                        proximity_variants[j][1],
+                        proximity_window_chars,
+                    ):
+                        proximity_bonus = 0.16
+                        break
+                if proximity_bonus > 0:
+                    break
+        elif len(required_variants) >= 2:
+            if self._has_proximity_hit(
+                text_lower,
+                required_variants[0][1],
+                required_variants[1][1],
+                proximity_window_chars,
+            ):
+                proximity_bonus = 0.1
+
+        score = (
+            (required_ratio * 0.62)
+            + (optional_ratio * 0.14)
+            + (keyword_ratio * 0.24)
+            + proximity_bonus
+        )
+        if required_variants and not matched_required:
+            score *= 0.25
+        return {
+            "score": float(score),
+            "excluded": False,
+            "matched_keywords": matched_keywords,
+            "matched_required": matched_required,
+            "matched_optional": matched_optional,
+        }
+
+    async def _scan_symbolic_candidates(
+        self,
+        *,
+        client: OpenSearch,
+        work_id: str,
+        chapter_range: Optional[Tuple[Optional[int], Optional[int]]],
+        target_total: int,
+        keyword_variants: List[Tuple[str, List[str]]],
+        required_variants: List[Tuple[str, List[str]]],
+        optional_variants: List[Tuple[str, List[str]]],
+        excluded_variants: List[Tuple[str, List[str]]],
+        proximity_variants: List[Tuple[str, List[str]]],
+        proximity_window: int,
+    ) -> List[Dict[str, Any]]:
+        must: List[Dict[str, Any]] = [{"term": {"work_id": str(work_id)}}]
+        if chapter_range:
+            min_order, max_order = chapter_range
+            range_body: Dict[str, Any] = {}
+            if min_order is not None:
+                range_body["gte"] = int(min_order)
+            if max_order is not None:
+                range_body["lte"] = int(max_order)
+            if range_body:
+                must.append({"range": {"chapter_order": range_body}})
+
+        scan_query: Dict[str, Any] = {"bool": {"must": must}}
+        page_size = min(max(int(target_total or 20), 80), 220)
+        scan_limit = min(
+            SYMBOLIC_SCAN_MAX_CANDIDATES,
+            max(int(target_total or 20) * 12, 400),
+        )
+        max_pages = max(6, min(OPENSEARCH_SEARCH_MAX_PAGES, 120))
+        search_after: Optional[List[Any]] = None
+        page_count = 0
+        scanned = 0
+        candidates: List[Dict[str, Any]] = []
+        seen_positions: set[Tuple[int, int]] = set()
+
+        while scanned < scan_limit and page_count < max_pages:
+            body: Dict[str, Any] = {
+                "size": page_size,
+                "query": scan_query,
+                "sort": [
+                    {"chapter_order": {"order": "asc"}},
+                    {"paragraph_index": {"order": "asc"}},
+                ],
+                "_source": [
+                    "chapter_id",
+                    "chapter_order",
+                    "chapter_title",
+                    "paragraph_index",
+                    "chunk_text",
+                    "node_id",
+                ],
+            }
+            if search_after:
+                body["search_after"] = search_after
+
+            resp = await asyncio.to_thread(
+                client.search,
+                index=self.index_name,
+                body=body,
+            )
+            hits = ((resp or {}).get("hits") or {}).get("hits") or []
+            if not hits:
+                break
+
+            page_count += 1
+            for hit in hits:
+                source = hit.get("_source") or {}
+                chapter_order = self._coerce_int(source.get("chapter_order"))
+                paragraph_index = self._coerce_int(source.get("paragraph_index"))
+                if chapter_order is None or paragraph_index is None:
+                    continue
+                key = (chapter_order, paragraph_index)
+                if key in seen_positions:
+                    continue
+                seen_positions.add(key)
+                scanned += 1
+                text = source.get("chunk_text") or ""
+                text_lower = str(text).lower()
+
+                judged = self._score_symbolic_candidate(
+                    text_lower=text_lower,
+                    keyword_variants=keyword_variants,
+                    required_variants=required_variants,
+                    optional_variants=optional_variants,
+                    excluded_variants=excluded_variants,
+                    proximity_variants=proximity_variants,
+                    proximity_window=proximity_window,
+                )
+                if judged.get("excluded"):
+                    continue
+                score = float(judged.get("score") or 0.0)
+                matched_required = judged.get("matched_required") or []
+                if score < SYMBOLIC_SCAN_MIN_SCORE and not matched_required:
+                    continue
+
+                matched_keywords = judged.get("matched_keywords") or []
+                matched_optional = judged.get("matched_optional") or []
+                candidates.append(
+                    {
+                        "chapter_id": source.get("chapter_id") or "",
+                        "chapter_order": chapter_order,
+                        "chapter_title": source.get("chapter_title") or "",
+                        "paragraph_index": paragraph_index,
+                        "text": text,
+                        "snippet": text[:200] + "..." if len(text) > 200 else text,
+                        "node_id": source.get("node_id") or "",
+                        "matched_keywords": matched_keywords,
+                        "matched_required_terms": matched_required,
+                        "matched_optional_terms": matched_optional,
+                        "matched_by_recall": not bool(matched_keywords),
+                        "match_count": len(matched_keywords),
+                        "weak_literal_match": not bool(matched_keywords),
+                        "symbolic_score": round(score, 4),
+                        "retrieval_mode": "scan_symbolic",
+                    }
+                )
+                if scanned >= scan_limit:
+                    break
+
+            last_sort = hits[-1].get("sort")
+            if not isinstance(last_sort, list) or not last_sort:
+                break
+            search_after = last_sort
+
+        candidates.sort(
+            key=lambda item: (
+                -float(item.get("symbolic_score") or 0.0),
+                int(item.get("chapter_order") or 0),
+                int(item.get("paragraph_index") or 0),
+            )
+        )
+        trimmed = candidates[: max(int(target_total or 20), 20)]
+        logger.info(
+            "[OpenSearchSearch] symbolic scan work=%s range=%s scanned=%s candidates=%s selected=%s pages=%s",
+            work_id,
+            chapter_range,
+            scanned,
+            len(candidates),
+            len(trimmed),
+            page_count,
+        )
+        return trimmed
 
     async def search_paragraphs(
         self,
@@ -1144,14 +1559,11 @@ class OpenSearchChapterSearchService:
         if mode not in ("any", "all", "phrase"):
             mode = "any"
 
-        def _coerce_int(value: Any) -> Optional[int]:
-            if isinstance(value, int):
-                return value
-            if isinstance(value, str):
-                text = value.strip()
-                if text.isdigit():
-                    return int(text)
-            return None
+        kw_variants = self._build_pair_variants(kw_pairs)
+        required_variants = self._build_pair_variants(required_pairs)
+        optional_variants = self._build_pair_variants(optional_pairs)
+        excluded_variants = self._build_pair_variants(excluded_pairs)
+        proximity_variants = self._build_pair_variants(proximity_pairs)
 
         try:
             await self.runtime_consistency_guard(str(work_id))
@@ -1188,15 +1600,30 @@ class OpenSearchChapterSearchService:
             logger.warning("[OpenSearchSearch] count failed, fallback estimate: %s", exc)
 
         if estimated_total is not None and estimated_total <= 0:
+            scan_seed_total = min(max(page_size * 2, 20), OPENSEARCH_SEARCH_MAX_RESULTS)
+            symbolic_only = await self._scan_symbolic_candidates(
+                client=client,
+                work_id=str(work_id),
+                chapter_range=chapter_range,
+                target_total=scan_seed_total,
+                keyword_variants=kw_variants,
+                required_variants=required_variants,
+                optional_variants=optional_variants,
+                excluded_variants=excluded_variants,
+                proximity_variants=proximity_variants,
+                proximity_window=int(proximity_window or 12),
+            )
             logger.info(
-                "[OpenSearchSearch] search work=%s mode=%s range=%s keywords=%s hits=0 pages=0 page_size=%s est_total=0 target_total=0 truncated=False dropped_locator=0 dropped_unmatched=0",
+                "[OpenSearchSearch] search work=%s mode=%s range=%s keywords=%s hits=%s pages=0 page_size=%s est_total=0 target_total=%s truncated=False dropped_locator=0 dropped_unmatched=0 dropped_excluded=0 weak_literal=0 stop_reason=zero_count_symbolic_scan",
                 work_id,
                 mode,
                 chapter_range,
                 [kw for kw, _ in kw_pairs][:3],
+                len(symbolic_only),
                 page_size,
+                scan_seed_total,
             )
-            return []
+            return symbolic_only
 
         if estimated_total is not None:
             target_total = min(max(estimated_total, page_size), OPENSEARCH_SEARCH_MAX_RESULTS)
@@ -1246,18 +1673,18 @@ class OpenSearchChapterSearchService:
             page_count += 1
             for hit in hits:
                 source = hit.get("_source") or {}
-                chapter_order = _coerce_int(source.get("chapter_order"))
-                paragraph_index = _coerce_int(source.get("paragraph_index"))
+                chapter_order = self._coerce_int(source.get("chapter_order"))
+                paragraph_index = self._coerce_int(source.get("paragraph_index"))
                 if chapter_order is None or paragraph_index is None:
                     dropped_missing_locator += 1
                     continue
 
                 text = source.get("chunk_text") or ""
                 text_lower = text.lower()
-                matched_keywords = [kw for kw, kw_lower in kw_pairs if kw_lower in text_lower]
-                matched_required = [kw for kw, kw_lower in required_pairs if kw_lower in text_lower]
-                matched_optional = [kw for kw, kw_lower in optional_pairs if kw_lower in text_lower]
-                matched_excluded = [kw for kw, kw_lower in excluded_pairs if kw_lower in text_lower]
+                matched_keywords = self._match_terms(text_lower, kw_variants)
+                matched_required = self._match_terms(text_lower, required_variants)
+                matched_optional = self._match_terms(text_lower, optional_variants)
+                matched_excluded = self._match_terms(text_lower, excluded_variants)
                 if matched_excluded:
                     dropped_excluded_terms += 1
                     continue
@@ -1290,6 +1717,7 @@ class OpenSearchChapterSearchService:
                         "matched_by_recall": matched_by_recall,
                         "match_count": len(matched_keywords),
                         "weak_literal_match": matched_by_recall and not matched_keywords,
+                        "retrieval_mode": "lexical_query",
                     }
                 )
                 if len(results) >= target_total:
@@ -1309,6 +1737,49 @@ class OpenSearchChapterSearchService:
             else:
                 paging_stop_reason = "loop_exit"
 
+        symbolic_added = 0
+        trigger_hits = max(1, min(SYMBOLIC_SCAN_TRIGGER_HITS, target_total))
+        if len(results) < trigger_hits:
+            symbolic_candidates = await self._scan_symbolic_candidates(
+                client=client,
+                work_id=str(work_id),
+                chapter_range=chapter_range,
+                target_total=target_total,
+                keyword_variants=kw_variants,
+                required_variants=required_variants,
+                optional_variants=optional_variants,
+                excluded_variants=excluded_variants,
+                proximity_variants=proximity_variants,
+                proximity_window=int(proximity_window or 12),
+            )
+            existing_positions = {
+                (
+                    int(item.get("chapter_order")),
+                    int(item.get("paragraph_index")),
+                )
+                for item in results
+                if isinstance(item, dict)
+                and isinstance(item.get("chapter_order"), int)
+                and isinstance(item.get("paragraph_index"), int)
+            }
+            for candidate in symbolic_candidates:
+                if not isinstance(candidate, dict):
+                    continue
+                chapter_order = candidate.get("chapter_order")
+                paragraph_index = candidate.get("paragraph_index")
+                if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+                    continue
+                key = (chapter_order, paragraph_index)
+                if key in existing_positions:
+                    continue
+                existing_positions.add(key)
+                results.append(candidate)
+                symbolic_added += 1
+                if len(results) >= target_total:
+                    break
+            if symbolic_added:
+                paging_stop_reason = f"{paging_stop_reason}+symbolic_scan"
+
         truncated = (
             len(results) >= target_total
             and (
@@ -1317,7 +1788,7 @@ class OpenSearchChapterSearchService:
             )
         )
         logger.info(
-            "[OpenSearchSearch] search work=%s mode=%s range=%s keywords=%s hits=%s pages=%s page_size=%s est_total=%s target_total=%s truncated=%s dropped_locator=%s dropped_unmatched=%s dropped_excluded=%s weak_literal=%s stop_reason=%s",
+            "[OpenSearchSearch] search work=%s mode=%s range=%s keywords=%s hits=%s pages=%s page_size=%s est_total=%s target_total=%s truncated=%s dropped_locator=%s dropped_unmatched=%s dropped_excluded=%s weak_literal=%s symbolic_added=%s stop_reason=%s",
             work_id,
             mode,
             chapter_range,
@@ -1332,6 +1803,7 @@ class OpenSearchChapterSearchService:
             dropped_unmatched_keywords,
             dropped_excluded_terms,
             weak_literal_matches,
+            symbolic_added,
             paging_stop_reason,
         )
         return results

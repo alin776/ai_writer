@@ -31,8 +31,8 @@ from app.services.agent.utils.intent_retrieval import (
     EvidenceJudge,
     IterationState,
     IntentSpec,
+    AdaptiveController,
 )
-from app.services.agent.utils.adaptive_controller import AdaptiveController
 from app.services.agent.utils.explore_artifact import (
     save_explore_artifact as _save_explore_artifact,
     load_explore_artifact as _load_explore_artifact,
@@ -54,7 +54,7 @@ TOOL_LOOP_MAX_CALLS_DEFAULT = 200
 TOOL_LOOP_MAX_READS_DEFAULT = 200
 TOOL_LOOP_RESULT_PREVIEW_LIMIT = 1200
 SEARCH_HIT_TEXT_LIMIT = 2000
-KEYWORD_READ_MAX_PER_TERM = 1
+KEYWORD_READ_MAX_PER_TERM = 2
 SEARCH_HIT_PREVIEW_LIMIT = 100
 SEARCH_HIT_TOTAL_CHAR_LIMIT = 20000
 SEARCH_HIT_MIN_ITEMS = 5
@@ -2216,6 +2216,11 @@ class ContentExplorer:
             self.step_id = 1
         self.state = ExploreState()
         self.intent_retrieval_v2 = bool(getattr(settings, "EXPLORE_INTENT_RETRIEVAL_V2", True))
+        self.intent_probe_override_mode = str(
+            getattr(settings, "EXPLORE_PROBE_OVERRIDE_MODE", "suggest_only")
+        ).strip().lower() or "suggest_only"
+        if self.intent_probe_override_mode not in {"suggest_only", "force"}:
+            self.intent_probe_override_mode = "suggest_only"
         self.intent_compiler = IntentCompiler()
         self.query_program_builder = QueryProgramBuilder()
         self.evidence_judge = EvidenceJudge()
@@ -2236,7 +2241,10 @@ class ContentExplorer:
         if self.force_global_search:
             logger.info("[ContentExplorer] force_global_search 启用：忽略章节范围")
         if self.intent_retrieval_v2:
-            logger.info("[ContentExplorer] 启用意图驱动词法检索 V2")
+            logger.info(
+                "[ContentExplorer] 启用意图驱动词法检索 V3 (probe_override_mode=%s)",
+                self.intent_probe_override_mode,
+            )
         if self.require_full_chapter:
             logger.info("[ContentExplorer] 任务要求完整章节原文")
         if self.forbid_full_chapter:
@@ -2528,14 +2536,11 @@ class ContentExplorer:
             for quote in quotes:
                 keywords.extend(self._split_search_terms(quote))
 
-        dedup_keywords: List[str] = []
-        seen = set()
-        for kw in keywords:
-            if not kw or kw in seen:
-                continue
-            seen.add(kw)
-            dedup_keywords.append(kw)
-        keywords = dedup_keywords[:6]
+        keywords = self.intent_compiler.sanitize_external_keywords(
+            keywords,
+            self.target_task or "",
+            limit=6,
+        )
 
         latest_terms_required = self._parse_search_term_values(latest_result.get("terms_required") if isinstance(latest_result, dict) else [])
         latest_terms_optional = self._parse_search_term_values(latest_result.get("terms_optional") if isinstance(latest_result, dict) else [])
@@ -2585,16 +2590,38 @@ class ContentExplorer:
     def _collect_recent_attempt_keywords(self, limit: int = 16) -> List[str]:
         if limit <= 0:
             return []
-        recent_attempts = self.state.get_recent_query_attempts(limit=limit)
+        recent_attempts = self.state.get_recent_query_attempts(limit=max(limit * 2, 12))
         keywords: List[str] = []
         seen = set()
+        fallback_pool: List[str] = []
         for attempt in recent_attempts:
-            for kw in attempt.keywords:
+            attempt_keywords = self.intent_compiler.sanitize_external_keywords(
+                list(attempt.keywords or []),
+                self.target_task or "",
+                limit=6,
+            )
+            if int(attempt.chapter_hits or 0) <= 0:
+                fallback_pool.extend(attempt_keywords[:2])
+                continue
+            for kw in attempt_keywords:
                 value = str(kw or "").strip()
                 if not value or value in seen:
                     continue
                 seen.add(value)
                 keywords.append(value)
+                if len(keywords) >= limit:
+                    return keywords
+        if keywords:
+            return keywords
+
+        for kw in fallback_pool:
+            value = str(kw or "").strip()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            keywords.append(value)
+            if len(keywords) >= limit:
+                break
         return keywords
 
     def _compile_intent_spec(
@@ -3380,7 +3407,7 @@ class ContentExplorer:
 2) list_paragraphs(chapter_order, offset, limit, preview_len)
    - 作用：列出某章段落索引（仅预览）
 3) exact_search_paragraphs(search_intent?, keywords?, terms_required?, terms_optional?, terms_excluded?, proximity_terms?, proximity_window?, match_mode, limit)
-   - 作用：词法检索（Grep），优先传 search_intent（本轮要验证的检索假设）
+   - 作用：词法检索（Grep），优先传结构化参数（keywords + terms_* + proximity_*）
 4) read_paragraph(chapter_order, paragraph_index, context_before, context_after)
    - 作用：读取指定段落原文
 5) read_paragraphs(items, context_before, context_after)
@@ -3418,8 +3445,8 @@ class ContentExplorer:
 - read_paragraph 必须提供 chapter_order + paragraph_index（可用 list_paragraphs 的 index/paragraph_index）。
 - read_paragraphs 可用两种模式：items 列表（chapter_order+paragraph_index）或分页模式（chapter_order/chapter_id + offset+limit）。
 - items 模式不要用 chapter_id/node_id 直接定位；分页模式可用 chapter_id。
-- exact_search_paragraphs 仅使用 search_intent/keywords 检索，不要传 patterns/regex 参数。
-- 优先给 search_intent（描述“要验证的关系/假设”），keywords 只给 1-3 个锚点词即可。
+- exact_search_paragraphs 使用 keywords + terms_required/terms_optional/terms_excluded + proximity_terms/proximity_window，不要传 patterns/regex 参数。
+- search_intent 仅用于描述本轮检索假设，不会自动回填为 must/optional 关键词。
 - 需要排除词时，用 terms_excluded；需要关系邻近时，用 proximity_terms + proximity_window。
 - 如果要区分硬约束与软约束：terms_required 放必须词，terms_optional 放可选词。
 - 禁止一次性并列长串抽象负向词（如“代价/限制/风险/误判/副作用…”）；必须先拆成 1-2 个可落地关键词再检索。
@@ -3646,8 +3673,6 @@ class ContentExplorer:
                     keywords.extend(_split_keywords(text))
             else:
                 keywords = []
-            if search_intent_text:
-                keywords.extend(self._split_search_terms(search_intent_text))
 
             cleaned_keywords = []
             seen_kw = set()
@@ -3659,12 +3684,23 @@ class ContentExplorer:
                     continue
                 seen_kw.add(cleaned)
                 cleaned_keywords.append(cleaned)
-            keywords = cleaned_keywords
+            keywords = self.intent_compiler.sanitize_external_keywords(
+                cleaned_keywords,
+                self.target_task or "",
+                limit=10,
+            )
 
             terms_required = self._parse_search_term_values(params.get("terms_required"))
             terms_optional = self._parse_search_term_values(params.get("terms_optional"))
             terms_excluded = self._parse_search_term_values(params.get("terms_excluded"))
             proximity_terms = self._parse_search_term_values(params.get("proximity_terms"))
+            intent_hint_terms = self._parse_search_term_values(search_intent_text) if search_intent_text else []
+            if not keywords and intent_hint_terms:
+                keywords = self.intent_compiler.sanitize_external_keywords(
+                    intent_hint_terms,
+                    self.target_task or "",
+                    limit=8,
+                )
             proximity_window = params.get("proximity_window")
             if isinstance(proximity_window, str) and proximity_window.strip().isdigit():
                 proximity_window = int(proximity_window.strip())
@@ -3676,7 +3712,7 @@ class ContentExplorer:
             elif requested_match_mode in ("fuzzy", "recall", "loose"):
                 match_mode = "any"
             else:
-                # 默认严格层：单词短语匹配，多词全量匹配；0命中时再回退 recall(any)
+                # 默认严格层：单词短语匹配，多词全量匹配（不自动回退 any）
                 match_mode = "all" if len(keywords) > 1 else "phrase"
 
             def _coerce_int(value: Any) -> Optional[int]:
@@ -3781,7 +3817,15 @@ class ContentExplorer:
             intent_spec: Optional[IntentSpec] = None
             query_program_info: Optional[Dict[str, Any]] = None
             probe_exhausted = False
+            probe_override_applied = False
             if self.intent_retrieval_v2:
+                ai_has_structured_query = bool(
+                    keywords
+                    or terms_required
+                    or terms_optional
+                    or terms_excluded
+                    or proximity_terms
+                )
                 planned_probe, intent_spec, query_program_info = self._plan_exact_search_probe(
                     manual_keywords=list(keywords),
                     requested_match_mode=requested_match_mode,
@@ -3791,39 +3835,86 @@ class ContentExplorer:
                 if planned_probe:
                     planned_payload = planned_probe.get("payload") if isinstance(planned_probe, dict) else {}
                     if isinstance(planned_payload, dict):
+                        apply_probe_as_primary = (
+                            self.intent_probe_override_mode == "force"
+                            or not ai_has_structured_query
+                        )
                         planned_keywords = planned_payload.get("keywords")
-                        if isinstance(planned_keywords, list):
-                            keywords = _normalize_search_keywords(planned_keywords)
+                        if apply_probe_as_primary and isinstance(planned_keywords, list):
+                            keywords = self.intent_compiler.sanitize_external_keywords(
+                                planned_keywords,
+                                self.target_task or "",
+                                limit=10,
+                            )
+                            probe_override_applied = True
                         planned_required = planned_payload.get("terms_required")
                         planned_optional = planned_payload.get("terms_optional")
                         planned_excluded = planned_payload.get("terms_excluded")
                         planned_proximity = planned_payload.get("proximity_terms")
-                        # 仅在 probe payload 明确提供对应字段时才覆盖，
-                        # 避免把 AI 已给出的 terms_required 等约束意外清空成 []。
-                        if "terms_required" in planned_payload:
-                            parsed_required = self._parse_search_term_values(planned_required)
+                        parsed_required = self._parse_search_term_values(planned_required)
+                        parsed_optional = self._parse_search_term_values(planned_optional)
+                        parsed_excluded = self._parse_search_term_values(planned_excluded)
+                        parsed_proximity = self._parse_search_term_values(planned_proximity)
+
+                        # 默认“建议模式”：不覆盖 AI 明确给出的结构化参数，只填缺口。
+                        # force 模式才执行旧行为（探针参数全量覆盖）。
+                        if apply_probe_as_primary:
                             if parsed_required:
                                 terms_required = parsed_required
-                        if "terms_optional" in planned_payload:
-                            parsed_optional = self._parse_search_term_values(planned_optional)
                             if parsed_optional:
                                 terms_optional = parsed_optional
-                        if "terms_excluded" in planned_payload:
-                            parsed_excluded = self._parse_search_term_values(planned_excluded)
                             if parsed_excluded:
                                 terms_excluded = parsed_excluded
-                        if "proximity_terms" in planned_payload:
-                            parsed_proximity = self._parse_search_term_values(planned_proximity)
                             if parsed_proximity:
                                 proximity_terms = parsed_proximity
+                            probe_override_applied = True
+                        else:
+                            if not keywords and isinstance(planned_keywords, list):
+                                keywords = self.intent_compiler.sanitize_external_keywords(
+                                    planned_keywords,
+                                    self.target_task or "",
+                                    limit=10,
+                                )
+                            if not terms_required and parsed_required:
+                                terms_required = parsed_required
+                            if not terms_optional and parsed_optional:
+                                terms_optional = parsed_optional
+                            if not terms_excluded and parsed_excluded:
+                                terms_excluded = parsed_excluded
+                            if not proximity_terms and parsed_proximity:
+                                proximity_terms = parsed_proximity
+
+                        # 兼容旧行为：仍保留以下判断块（不清空 AI 显式字段）
+                        if "terms_required" in planned_payload:
+                            if parsed_required:
+                                if apply_probe_as_primary or not terms_required:
+                                    terms_required = parsed_required
+                        if "terms_optional" in planned_payload:
+                            if parsed_optional:
+                                if apply_probe_as_primary or not terms_optional:
+                                    terms_optional = parsed_optional
+                        if "terms_excluded" in planned_payload:
+                            if parsed_excluded:
+                                if apply_probe_as_primary or not terms_excluded:
+                                    terms_excluded = parsed_excluded
+                        if "proximity_terms" in planned_payload:
+                            if parsed_proximity:
+                                if apply_probe_as_primary or not proximity_terms:
+                                    proximity_terms = parsed_proximity
                         planned_proximity_window = planned_payload.get("proximity_window")
-                        if isinstance(planned_proximity_window, int) and planned_proximity_window > 0:
+                        if (
+                            isinstance(planned_proximity_window, int)
+                            and planned_proximity_window > 0
+                            and (apply_probe_as_primary or "proximity_window" not in params)
+                        ):
                             proximity_window = planned_proximity_window
                         planned_mode = str(planned_payload.get("match_mode") or "").strip().lower()
-                        if planned_mode in ("any", "all", "phrase"):
+                        if planned_mode in ("any", "all", "phrase") and (
+                            apply_probe_as_primary or not requested_match_mode
+                        ):
                             match_mode = planned_mode
                         planned_strategy = str(planned_payload.get("strategy") or "").strip().lower()
-                        if planned_strategy:
+                        if planned_strategy and apply_probe_as_primary:
                             strategy_label = planned_strategy
                         planned_probe_signature = str(planned_payload.get("probe_signature") or "").strip()
                         planned_probe_hypothesis = str(planned_payload.get("probe_hypothesis") or "").strip()
@@ -3839,6 +3930,7 @@ class ContentExplorer:
                         if planned_probe_hypothesis:
                             params["probe_hypothesis"] = planned_probe_hypothesis
                         params["strategy"] = strategy_label
+                        params["probe_override_applied"] = probe_override_applied
                 else:
                     probe_exhausted = True
                     self.state.iteration_state.mark_failure("probe_exhausted")
@@ -3957,16 +4049,6 @@ class ContentExplorer:
                             "worldview_category": wv_item.get("category", ""),
                             "worldview_name": wv_item.get("name", "")
                         })
-
-                def _extract_matched_keywords(item: Dict[str, Any], pool: List[str]) -> List[str]:
-                    matched_list = item.get("matched_keywords") if isinstance(item, dict) else None
-                    if isinstance(matched_list, list) and matched_list:
-                        return [kw for kw in matched_list if kw in pool]
-                    text = item.get("text") or item.get("content") or item.get("snippet") or ""
-                    if not text:
-                        return []
-                    text_lower = text.lower()
-                    return [kw for kw in pool if kw.lower() in text_lower]
 
                 async with AsyncSessionLocal() as db:
                     vector_service = ChapterVectorService(db)
@@ -4089,71 +4171,6 @@ class ContentExplorer:
                     )
                     results.extend(chapter_results)
 
-                    chapter_hits = [
-                        item for item in chapter_results
-                        if isinstance(item, dict) and item.get("source") != "worldview"
-                    ]
-                    if not chapter_hits and match_mode != "any":
-                        fallback_strategy = "kw_fallback"
-                        fallback_results = await _run_exact_search_layer(
-                            layer_strategy=fallback_strategy,
-                            layer_keywords=active_query_keywords,
-                            layer_match_mode="any",
-                            layer_terms_required=terms_required,
-                            layer_terms_optional=terms_optional,
-                            layer_terms_excluded=terms_excluded,
-                            layer_proximity_terms=proximity_terms,
-                            layer_proximity_window=proximity_window,
-                        )
-                        results.extend(fallback_results)
-                        fallback_chapter_hits = [
-                            item for item in fallback_results
-                            if isinstance(item, dict) and item.get("source") != "worldview"
-                        ]
-                        if fallback_chapter_hits:
-                            effective_match_mode = "any"
-                            effective_strategy = fallback_strategy
-
-                    coverage_pool = list(effective_keywords)
-                    matched_set = set()
-                    for item in results:
-                        if not isinstance(item, dict) or item.get("source") == "worldview":
-                            continue
-                        for mk in _extract_matched_keywords(item, coverage_pool):
-                            matched_set.add(mk)
-                    missing_keywords = [kw for kw in coverage_pool if kw not in matched_set]
-                    if missing_keywords:
-                        supplement_limit = min(5, limit)
-                        for kw in missing_keywords:
-                            if not kw:
-                                continue
-                            part: List[Dict[str, Any]] = []
-                            if ranges_to_use:
-                                for start_order, end_order in ranges_to_use:
-                                    part.extend(
-                                        await search_fn(
-                                            work_id=self.work_id,
-                                            keywords=[kw],
-                                            chapter_range=(start_order, end_order),
-                                            match_mode="any",
-                                            limit=supplement_limit,
-                                            terms_required=[kw],
-                                            terms_excluded=terms_excluded,
-                                        ) or []
-                                    )
-                            else:
-                                part = await search_fn(
-                                    work_id=self.work_id,
-                                    keywords=[kw],
-                                    chapter_range=None,
-                                    match_mode="any",
-                                    limit=supplement_limit,
-                                    terms_required=[kw],
-                                    terms_excluded=terms_excluded,
-                                ) or []
-                            if part:
-                                results.extend(part)
-
                 match_mode = effective_match_mode
                 strategy_label = effective_strategy
                 query_terms = active_query_keywords[:3]
@@ -4264,6 +4281,16 @@ class ContentExplorer:
                     failure_reason = str(judge_summary.get("failure_reason") or "").strip()
                     if failure_reason:
                         self.state.iteration_state.mark_failure(failure_reason)
+
+                def _extract_matched_keywords(item: Dict[str, Any], pool: List[str]) -> List[str]:
+                    matched_list = item.get("matched_keywords") if isinstance(item, dict) else None
+                    if isinstance(matched_list, list) and matched_list:
+                        return [kw for kw in matched_list if kw in pool]
+                    text = item.get("text") or item.get("content") or item.get("snippet") or ""
+                    if not text:
+                        return []
+                    text_lower = text.lower()
+                    return [kw for kw in pool if kw.lower() in text_lower]
 
                 for item in results:
                     self.state.add_search_hit(
@@ -4457,6 +4484,7 @@ class ContentExplorer:
                     "failure_reason": judge_summary.get("failure_reason") or "",
                     "filter_stats": filter_stats,
                     "query_program_probes": len((query_program_info or {}).get("probes") or []),
+                    "probe_override_applied": probe_override_applied,
                     "must_have_coverage_set": sorted(self.state.iteration_state.covered_must_have_set),
                     "must_have_total": int(self.state.iteration_state.must_have_total or 0),
                     "must_have_coverage_ratio": self.state.iteration_state.novel_evidence_ratio,

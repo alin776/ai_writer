@@ -1,5 +1,40 @@
 # TODO
 
+#### Explore 核心问题主链修复（待确认）
+
+- [x] 复盘日志与主链执行路径，确认“AI 查询被探针覆盖”是机械回搜根因之一
+- [x] 改造 exact_search 主链：probe 默认仅建议/兜底，不再强制覆盖 AI 结构化查询
+- [x] 收紧关键词提取：去掉长词切片噪声，改为结构连接词切分 + 指令壳降权
+- [x] 修正关系锚点抽取：优先词位三元组关系，避免 action 被壳词污染
+- [x] 跑回归单测，确认主链稳定
+- [x] 在 todo.md 追加 review（核心结论 + 证据）
+
+#### review
+
+- 核心问题不是“某几个关键词规则写得不好”，而是**执行链路把 AI 的查询意图二次改写成程序探针意图**，导致查询越来越像模板化重排。
+- 已改为 `suggest_only`：只有 AI 没给出结构化查询时才用 probe 主导；AI 已给出 `keywords/terms_required/...` 时，probe 只补缺口不覆盖。`backend/app/services/agent/tools/explore_tools.py`
+- 关键词侧已去除“长词首尾切片”这类噪声放大器，减少 `查找关于...` / `...的描述` 混入检索主词。`backend/app/services/agent/utils/query_governor.py`、`backend/app/services/agent/utils/intent_retrieval.py`、`backend/app/services/search/opensearch_chapter_search_service.py`
+- 关系抽取改为“词位三元组优先”，显式修复了 `主角-吞噬-器灵` 被壳词关系覆盖的问题。`backend/app/services/agent/utils/intent_retrieval.py`
+- 回归结果：`test_query_governor_rules + intent_retrieval_spec + adaptive_controller_spec + opensearch_query_phase2_spec + explore_phase23_spec` 共 19 条，全部通过。
+
+#### Explore 检索硬编码清理（待确认）
+
+- [x] 盘点 Explore 主链硬编码入口（query_governor / intent_retrieval / opensearch 检索服务）
+- [x] 删除 `query_governor.py` 中内置词表与别名硬编码，改为无词典的结构化治理
+- [x] 删除 `intent_retrieval.py` 中动作/时序/风险/噪声词硬编码，改为无词典语义槽位抽取
+- [x] 删除 `opensearch_chapter_search_service.py` 中前后缀/别名硬编码，改为通用变体展开
+- [x] 跑单测验证主链未断（intent/adaptive/opensearch phase2/query_governor）
+- [x] 在 todo.md 追加 review（改动范围、兼容性影响、后续建议）
+
+#### review
+
+- Explore 主链三处硬编码入口已清理：
+  - `backend/app/services/agent/utils/query_governor.py`：删除默认 instruction/wide/function/alias 词典，改为结构化打分与锚定抑制（可选 env 仅作外部配置，不再内置业务词）。
+  - `backend/app/services/agent/utils/intent_retrieval.py`：删除动作/时序/风险/噪声前后缀/排除词/证据形态等固定词表，改为无词典抽取（基于结构切分、锚点关系与位置约束）。
+  - `backend/app/services/search/opensearch_chapter_search_service.py`：删除 `TERM_STRIP_PREFIXES/TERM_STRIP_SUFFIXES/TERM_ALIAS_VARIANTS` 与对应逻辑，改为通用片段展开。
+- 主链兼容性已验证：`backend/tests/unit/test_query_governor_rules.py`、`backend/tests/unit/intent_retrieval_spec.py`、`backend/tests/unit/adaptive_controller_spec.py`、`backend/tests/unit/opensearch_query_phase2_spec.py` 共 14 条用例通过。
+- 仍保留的“常量”只剩结构性参数（如正则分词、窗口、阈值、分页上限），不再包含“器灵/吞噬/代价”这类业务词典硬编码。
+
 #### 提取反AI检测规范库（待确认）
 
 - [x] 盘点 `article-writer/spec/presets/anti-ai-detection/` 下全部文件与内容范围
@@ -5098,9 +5133,81 @@ Phase 5：测试、灰度、回滚
 
 #### Explore 检索内核重构（先删旧逻辑）（待确认）
 
-- [ ] 盘点并删除旧链路：`IntentCompiler/QueryProgramBuilder/EvidenceJudge/AdaptiveController` 及 Explore 中对应接线
-- [ ] 新建统一重构模块：`intent_retrieval_v3.py`（意图槽位、查询程序、证据裁判、自适应改写）
-- [ ] Explore 接入 V3：`exact_search_paragraphs` 全量改走 V3，不再把 `search_intent` 拆词污染 `keywords`
-- [ ] OpenSearch 执行层保持 boolean/proximity/exclusion，仅接受结构化查询参数
-- [ ] 删除旧测试并补 V3 测试：去污染、换序防重、覆盖率裁判、失败改写
-- [ ] 运行验证（pytest + py_compile）并在 todo.md 追加 review（证据、结果、剩余风险）
+- [x] 盘点并删除旧链路：`IntentCompiler/QueryProgramBuilder/EvidenceJudge/AdaptiveController` 旧实现已移除，Explore 接线改为新实现
+- [x] 重构统一模块：`backend/app/services/agent/utils/intent_retrieval.py` 升级为 V3（意图槽位、查询程序、证据裁判、自适应改写）
+- [x] Explore 接入 V3：`exact_search_paragraphs` 改为“仅在关键词缺失时才回退 search_intent”，禁止 search_intent 直接污染 keywords
+- [x] OpenSearch 执行层保持 boolean/proximity/exclusion，仅接收结构化查询参数（沿用 Phase2）
+- [x] 删除旧测试并补 V3 测试：覆盖去污染、换序防重、关系判定、失败改写
+- [x] 运行验证（pytest + py_compile）并在 todo.md 追加 review（证据、结果、剩余风险）
+
+#### review
+
+- 旧逻辑清理：
+  - `backend/app/services/agent/utils/intent_retrieval.py` 已整体重写为 V3；旧的“任务整句拆词 + 固定词法探针”代码不再保留。
+  - `backend/app/services/agent/utils/adaptive_controller.py` 旧实现已删除，改为兼容壳并统一复用 `intent_retrieval.py` 内的 `AdaptiveController`。
+- V3 核心改造：
+  - 新增语义槽位：`entity_terms/action_terms/timeline_terms/risk_terms/relation_anchors`，检索计划由槽位驱动，不再依赖整句词面。
+  - 新增关系裁判：`EvidenceJudge` 支持 `relation_miss/timeline_miss`，并加入否定句识别（如“没有吞噬”不计关系命中）。
+  - 新增改写策略：`AdaptiveController` 支持 `adaptive_relation_focus/adaptive_timeline_focus/adaptive_coverage_focus/adaptive_recall_expand`。
+- Explore 接入与去污染：
+  - `backend/app/services/agent/tools/explore_tools.py` 删除 `search_intent -> keywords.extend(...)` 的污染路径；改为“仅当 keywords 缺失时才用 intent_hint_terms 兜底”。
+  - `keywords` 与补缺词统一经 `intent_compiler.sanitize_external_keywords` 过滤，避免“查找关于xxx”这类指令词入检索。
+  - 缺失关键词补搜改为“仅在无章节命中时触发，且最多 2 个高质量词”，减少单词来回补查。
+  - 每关键词优先读段上限由 `1` 提升到 `2`（`KEYWORD_READ_MAX_PER_TERM`），降低“搜到但读不到”的情况。
+- 测试与验证：
+  - `python3 -m py_compile backend/app/services/agent/utils/intent_retrieval.py backend/app/services/agent/utils/adaptive_controller.py backend/app/services/agent/tools/explore_tools.py backend/tests/unit/intent_retrieval_spec.py backend/tests/unit/adaptive_controller_spec.py backend/tests/unit/explore_phase23_spec.py` 通过。
+  - `cd backend && pytest -q tests/unit/intent_retrieval_spec.py tests/unit/adaptive_controller_spec.py tests/unit/explore_phase23_spec.py tests/unit/opensearch_query_phase2_spec.py`：15 passed。
+  - `cd backend && pytest -q tests/unit/intent_retrieval_spec.py tests/unit/adaptive_controller_spec.py tests/unit/opensearch_query_phase2_spec.py tests/unit/explore_phase23_spec.py tests/unit/opensearch_sync_phase4_spec.py`：19 passed。
+- 剩余风险：
+  - V3 仍基于词法执行层，虽然已引入“语义槽位 + 关系裁判”，但对极隐式表达（不出现动作词/对象词）仍可能漏召回。
+  - 若后续要进一步提升“理解式检索”，建议下一步落地事件索引层（结构化事件抽取 + 事件反查），不再只依赖 chunk_text 字面匹配。
+
+#### Explore 旧干扰链路彻底清理（待确认）
+
+- [x] 删除 Explore 决策提示中的“search_intent 优先”导向，改为结构化检索参数优先
+- [x] 删除 `search_intent -> terms_required/terms_optional` 回填逻辑，保留“仅在 keywords 缺失时才做轻量兜底”
+- [x] 删除 `all/phrase -> any` 自动回退（`kw_fallback`）链路
+- [x] 删除 `missing_keywords` 自动补搜链路，防止机械重搜
+- [x] 删除上游规划/执行层“先严格关键词检索，0命中再回退宽松召回”硬注入文案
+- [x] 跑回归测试并更新 review（含证据、结果、剩余风险）
+
+#### review
+
+- 证据与改动：
+  - 已改 Explore 决策提示：`exact_search_paragraphs` 的工具说明从“优先 search_intent”改为“优先结构化参数”。`backend/app/services/agent/tools/explore_tools.py`
+  - 已删 `search_intent` 回填硬约束：不再把 `intent_hint_terms` 自动塞进 `terms_required/terms_optional`，仅在缺少 `keywords` 时做轻量兜底。`backend/app/services/agent/tools/explore_tools.py`
+  - 已删自动回退：删除 `if not chapter_hits and match_mode != "any"` 下的 `kw_fallback` 分支。`backend/app/services/agent/tools/explore_tools.py`
+  - 已删自动补搜：删除 `missing_keywords` 补搜循环，避免同词反复重查。`backend/app/services/agent/tools/explore_tools.py`
+  - 已删上游硬注入文案：规划层与执行层不再注入“严格关键词检索，0命中再回退宽松召回”。`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/agent/execution/tool_executor.py`
+- 验证结果：
+  - `python3 -m py_compile backend/app/services/agent/tools/explore_tools.py backend/app/services/agent/planning/plan_generator.py backend/app/services/agent/execution/tool_executor.py`：通过
+  - `cd backend && pytest -q tests/unit/explore_phase23_spec.py tests/unit/intent_retrieval_spec.py tests/unit/opensearch_query_phase2_spec.py`：13 passed
+- 剩余风险：
+  - OpenSearch 执行层底层仍是 `chunk_text` 词法索引；本次清理解决的是“旧策略干扰主链”，不是“事件级语义索引”问题本身。
+
+#### Explore 核心重构V4（理解式检索主链）（待确认）
+
+- [x] OpenSearch 执行层重构为“双通道召回”：保留词法检索 + 新增符号扫描召回（低命中触发）
+- [x] OpenSearch 匹配逻辑改造：term 子句从纯 `match_phrase` 升级为 phrase+match 组合；关键词命中改为“变体匹配”而非纯字面
+- [x] QueryProgramBuilder 去僵化：probe 签名改为语义规范化签名，拦截“同义词换壳”重复探针
+- [x] Explore 最近关键词降噪：recent attempts 仅回流高信号关键词，避免历史噪声锁死 must/probe
+- [x] 补单元测试（Phase2 查询构造 + Intent probe 防重复）并跑回归
+- [x] 在 todo.md 追加 review（核心证据、改动、验证结果、剩余风险）
+
+#### review
+
+- 核心证据（改造前）：
+  - `OpenSearch` 主链在 `_build_query` 与结果判定中都以 `chunk_text` 字面匹配为中心，导致“词面没出现=召回不到”。`backend/app/services/search/opensearch_chapter_search_service.py`
+  - `Intent` 探针签名过去只按原词集合去重，容易出现“换壳词/提示词变体”被当成新探针。`backend/app/services/agent/utils/intent_retrieval.py`
+  - `Explore` 会把 recent attempts 全量回流到后续意图编译，历史噪声会持续污染后续 probe。`backend/app/services/agent/tools/explore_tools.py`
+- 本次核心改动：
+  - OpenSearch 新增“双通道召回”：当词法命中过低时，触发 `symbolic scan` 在章节范围内扫描候选并按“required/optional/keyword/proximity”打分回填。`backend/app/services/search/opensearch_chapter_search_service.py`
+  - OpenSearch term 子句升级为 phrase+match 组合；命中判定升级为“term 变体匹配”（前后缀清洗、分词片段、别名扩展），不再只看原词 `in chunk_text`。`backend/app/services/search/opensearch_chapter_search_service.py`
+  - QueryProgramBuilder 签名升级为语义规范化签名；新增语义重叠去重（Jaccard），拦截“同义换壳”探针。`backend/app/services/agent/utils/intent_retrieval.py`
+  - Explore 最近关键词回流改为高信号策略：优先回流有章节命中的 attempt 关键词，低命中词只做兜底。`backend/app/services/agent/tools/explore_tools.py`
+- 验证结果：
+  - `python3 -m py_compile backend/app/services/search/opensearch_chapter_search_service.py backend/app/services/agent/utils/intent_retrieval.py backend/app/services/agent/tools/explore_tools.py`：通过
+  - `cd backend && pytest -q tests/unit/opensearch_query_phase2_spec.py tests/unit/intent_retrieval_spec.py tests/unit/explore_phase23_spec.py`：14 passed
+  - `cd backend && pytest -q tests/unit/intent_retrieval_spec.py tests/unit/adaptive_controller_spec.py tests/unit/opensearch_query_phase2_spec.py tests/unit/explore_phase23_spec.py tests/unit/opensearch_sync_phase4_spec.py`：20 passed
+- 剩余风险：
+  - 仍属于“符号化理解 + 词法执行”的范式，尚未引入离线事件索引（事件三元组/章节事件图）；对极隐式表达仍可能漏召回。
