@@ -321,7 +321,30 @@ class OpenSearchChapterSearchService:
                 must.append({"match_phrase": {"chunk_text": kw}})
             return {"bool": {"must": must}}
 
-        should = [{"match_phrase": {"chunk_text": kw}} for kw in keywords]
+        # recall 层：使用 match（宽松召回），并保留 phrase 提升分数以减少纯噪声
+        should: List[Dict[str, Any]] = []
+        for kw in keywords:
+            should.append(
+                {
+                    "match": {
+                        "chunk_text": {
+                            "query": kw,
+                            "operator": "and",
+                            "minimum_should_match": "70%",
+                        }
+                    }
+                }
+            )
+            should.append(
+                {
+                    "match_phrase": {
+                        "chunk_text": {
+                            "query": kw,
+                            "boost": 2.0,
+                        }
+                    }
+                }
+            )
         must.append({"bool": {"should": should, "minimum_should_match": 1}})
         return {"bool": {"must": must}}
 
@@ -409,6 +432,7 @@ class OpenSearchChapterSearchService:
         seen_positions: set[Tuple[int, int]] = set()
         dropped_missing_locator = 0
         dropped_unmatched_keywords = 0
+        paging_stop_reason = "unknown"
         while len(results) < target_total and page_count < max_pages:
             body: Dict[str, Any] = {
                 "size": page_size,
@@ -436,6 +460,7 @@ class OpenSearchChapterSearchService:
             )
             hits = ((resp or {}).get("hits") or {}).get("hits") or []
             if not hits:
+                paging_stop_reason = "no_more_hits"
                 break
 
             page_count += 1
@@ -450,9 +475,15 @@ class OpenSearchChapterSearchService:
                 text = source.get("chunk_text") or ""
                 text_lower = text.lower()
                 matched_keywords = [kw for kw, kw_lower in kw_pairs if kw_lower in text_lower]
+                matched_by_recall = False
                 if not matched_keywords:
-                    dropped_unmatched_keywords += 1
-                    continue
+                    if mode == "any":
+                        # recall 层允许保留分词匹配命中，避免被“字面包含”二次过滤误杀。
+                        # 注意：不要伪造关键词归因，后续覆盖统计会走上层二次判断。
+                        matched_by_recall = True
+                    else:
+                        dropped_unmatched_keywords += 1
+                        continue
 
                 position_key = (chapter_order, paragraph_index)
                 if position_key in seen_positions:
@@ -469,6 +500,7 @@ class OpenSearchChapterSearchService:
                         "snippet": text[:200] + "..." if len(text) > 200 else text,
                         "node_id": source.get("node_id") or "",
                         "matched_keywords": matched_keywords,
+                        "matched_by_recall": matched_by_recall,
                         "match_count": len(matched_keywords),
                     }
                 )
@@ -477,8 +509,17 @@ class OpenSearchChapterSearchService:
 
             last_sort = hits[-1].get("sort")
             if not isinstance(last_sort, list) or not last_sort:
+                paging_stop_reason = "missing_search_after_sort"
                 break
             search_after = last_sort
+
+        if paging_stop_reason == "unknown":
+            if len(results) >= target_total:
+                paging_stop_reason = "target_total_reached"
+            elif page_count >= max_pages:
+                paging_stop_reason = "max_pages_reached"
+            else:
+                paging_stop_reason = "loop_exit"
 
         truncated = (
             len(results) >= target_total
@@ -488,7 +529,7 @@ class OpenSearchChapterSearchService:
             )
         )
         logger.info(
-            "[OpenSearchSearch] search work=%s mode=%s range=%s keywords=%s hits=%s pages=%s page_size=%s est_total=%s target_total=%s truncated=%s dropped_locator=%s dropped_unmatched=%s",
+            "[OpenSearchSearch] search work=%s mode=%s range=%s keywords=%s hits=%s pages=%s page_size=%s est_total=%s target_total=%s truncated=%s dropped_locator=%s dropped_unmatched=%s stop_reason=%s",
             work_id,
             mode,
             chapter_range,
@@ -501,5 +542,6 @@ class OpenSearchChapterSearchService:
             truncated,
             dropped_missing_locator,
             dropped_unmatched_keywords,
+            paging_stop_reason,
         )
         return results

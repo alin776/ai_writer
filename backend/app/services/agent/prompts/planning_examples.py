@@ -806,7 +806,7 @@ def get_operate_apply_examples() -> str:
 
 ⚠️⚠️⚠️ **极其重要 - operate_apply 不再自动定位！** ⚠️⚠️⚠️
 
-必须先用 locate_content 或 list_paragraphs/read_paragraphs 获取 node_id/paragraph_index。
+必须先用 locate_content 获取 node_id/paragraph_index（检索证据统一走 explore_content）。
 
 ✅ 正确流程：先定位 → smart_rewrite → operate_apply(operation="replace", paragraph_index=..., node_id=...)
 

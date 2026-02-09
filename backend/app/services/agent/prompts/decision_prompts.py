@@ -95,7 +95,7 @@ async def get_tool_decision_static_prompt() -> str:
 
 ⚠️ **operate_apply 定位规则**：
 - replace/insert 必须传 node_id 或 paragraph_index
-- 需要先用 locate_content 或 list_paragraphs/read_paragraphs 定位
+- 需要先用 locate_content 定位（检索证据统一走 explore_content）
 
 ⚠️ 【搜索兜底规则】：
 - 如果用户提供的文字**过于简短**（少于3个字）或是**通用描述**（如"这一章"、"这段话"）

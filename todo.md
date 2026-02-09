@@ -4489,3 +4489,70 @@
 #### review
 
 - [ ] 待完成：记录分阶段实施结果、指标对比（基线 vs 改造后）、残余风险与后续计划。
+
+#### 三大主线问题证据化排查（待确认）
+
+- [x] 核对日志关键点（`backend/logs/app.log:69164/69216/69302/69307`）并提取上下文证据
+- [x] 审阅 `backend/app/services/agent/tools/explore_tools.py`，验证状态机收敛与分页消费逻辑
+- [x] 审阅 `backend/app/services/search/opensearch_chapter_search_service.py`，验证 strict/recall 双层召回是否闭环
+- [x] 交叉比对日志与代码，输出“是否存在问题 + 核心根因 + 直白结论”
+
+#### review
+
+- 问题 1（状态机收敛）存在：日志出现同词簇在同范围内连续 0 命中反复检索（如 `backend/logs/app.log:70687`、`backend/logs/app.log:70702`、`backend/logs/app.log:70734`、`backend/logs/app.log:70751`）；代码层 `should_search()` 恒为 `True`（`backend/app/services/agent/tools/explore_tools.py:708`），且多关键词 0 命中默认不拦截（`backend/app/services/agent/tools/explore_tools.py:1087`），导致“换壳重试”容易发生。
+- 问题 2（双层召回）部分存在且实现不完整：当前仅有 `all/phrase -> any` 的回退（`backend/app/services/agent/tools/explore_tools.py:3560`），但 OpenSearch 的 `any` 仍是 `match_phrase` OR，不是宽松 `match` 召回（`backend/app/services/search/opensearch_chapter_search_service.py:324`）；因此“strict→recall”在语义上并未真正落地。
+- 问题 3（分页闭环）在历史运行中确实存在：`has_more=True` 连续出现且停机门槛反复拦截（`backend/logs/app.log:69164`、`backend/logs/app.log:69216`、`backend/logs/app.log:69302`、`backend/logs/app.log:69307`）。当前代码虽已去掉 `has_more/next_cursor` 对外契约，但规划层仍会生成依赖 `next_cursor` 的任务并失败（`backend/logs/app.log:70498`、`backend/logs/app.log:70500`、`backend/logs/app.log:70506`），属于接口契约错位。
+- 额外实锤：`exact_search_paragraphs` 不是独立可调工具，规划直接调用会报未知工具（`backend/logs/app.log:70492`、`backend/logs/app.log:70505`），进一步放大分页任务失效。
+- 验证结果：`pytest -q backend/tests/unit/test_explore_forced_rewrite_fallback.py -q` 失败 13 项，失败断言集中在 `has_more/next_cursor/query_session_id/recall_layer` 等旧契约缺失，说明“日志现象、测试预期、当前实现”三者存在版本与接口漂移。
+
+#### 三大主线修复落地（状态机/双层召回/分页闭环）（已完成）
+
+- [x] 明确并固化统一契约：计划层只输出 `explore_content`，禁止外部直接调用 `exact_search_paragraphs`
+- [x] 状态机收敛：引入“查询指纹（词簇+范围+召回层）”与 `no_progress_rounds` 硬停，避免同类 0 命中反复空转
+- [x] 双层召回落地：strict 层保持 `match_phrase`；recall 层改为 `match`，且仅在 strict=0 时触发
+- [x] 分页消费闭环：在执行侧明确“有下一页继续拉取，直到拿完/达上限/无新增”停止条件并输出 stop_reason
+- [x] 计划纠偏：对历史/幻觉工具名自动改写到可执行工具，避免 unknown_tool 直接失败
+- [x] 最小回归测试：覆盖“0 命中回退 recall”“禁止直调内部工具”“分页闭环停止条件”
+- [x] 在 todo.md 追加 review：列出改动文件、验证结果、剩余风险
+
+#### review
+
+- 状态机收敛已落地：`ExploreState` 新增查询指纹能力（`_build_attempt_fingerprint/count_zero_hit_fingerprint/has_recent_zero_hit_fingerprint`），`exact_search_paragraphs` 对同指纹连续 0 命中做拦截；`explore_tool_loop` 新增 `no_progress_rounds` 硬停，并将重复调用阈值改为常量 + 参数降噪。修改文件：`backend/app/services/agent/tools/explore_tools.py`
+- 双层召回已落地：`OpenSearch` 的 `any` 模式从 `match_phrase OR` 改为“`match` 召回 + `match_phrase` 提权”，并在 recall 模式下避免被“字面包含二次过滤”误杀。修改文件：`backend/app/services/search/opensearch_chapter_search_service.py`
+- 分页闭环与停止条件已显式化：检索循环增加 `paging_stop_reason`（如 `no_more_hits/max_pages_reached/target_total_reached`）并写入日志，保证“继续翻页直到明确停止条件”。修改文件：`backend/app/services/search/opensearch_chapter_search_service.py`
+- 契约纠偏已落地：
+  - 规划层新增内部工具自动改写：`exact_search_paragraphs/list_paragraphs/read_paragraphs/... -> explore_content`，并重建 `target_task/search_keywords`。
+  - 执行层新增兜底改写：即使规划漏网，`ToolExecutor` 也会把历史内部检索工具改写为 `explore_content`，避免 `unknown_tool`。
+  - 修改文件：`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/agent/execution/tool_executor.py`
+- 验证结果：
+  - `python3 -m py_compile backend/app/services/agent/tools/explore_tools.py backend/app/services/search/opensearch_chapter_search_service.py backend/app/services/agent/planning/plan_generator.py backend/app/services/agent/execution/tool_executor.py` 通过
+  - `cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py::test_plan_generator_internal_tool_contract_rewrite_guard_exists tests/unit/test_explore_forced_rewrite_fallback.py::test_tool_executor_legacy_explore_rewrite_guard_exists tests/unit/test_explore_forced_rewrite_fallback.py::test_opensearch_any_mode_match_recall_and_paging_stop_reason_guard_exists` 通过（3 passed）
+  - `cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py::test_forced_rewrite_uses_recent_attempt_keywords tests/unit/test_explore_forced_rewrite_fallback.py::test_forced_rewrite_keeps_chapter_scope` 通过（2 passed）
+- 残余风险：
+  - 当前新增回归测试为“源码级断言”而非端到端（测试环境缺少 `chromadb` 导致完整导入链不可用），后续建议在完整依赖环境补 E2E 回归。
+  - `test_explore_query_mode.py` 等历史测试仍与现实现存在断层，需单独清理旧契约断言。
+
+#### 三大主线二次深度 Review（已完成）
+
+- [x] 复跑定向验证：静态编译 + 指定单测，确认本轮补丁未破坏既有修复
+- [x] 深审状态机收敛实现：检查查询指纹、重复调用阈值、无进展硬停是否一致
+- [x] 深审双层召回实现：检查 strict/recall 的查询语义与命中过滤逻辑
+- [x] 深审契约闭环：检查规划层/执行层是否仍会输出或执行内部检索工具
+- [x] 补齐提示词契约：移除对 `list_paragraphs/read_paragraphs` 的显式引导，统一到 `explore_content + locate_content`
+- [x] 修复二次审计发现的新问题并回归验证
+
+#### review
+
+- 二次审计发现并修复了一个真实新问题：`ExploreState._build_attempt_fingerprint()` 在 AST 片段测试环境会因 `hashlib` 未注入而 `NameError`。已改为函数内局部导入，回归通过。修改文件：`backend/app/services/agent/tools/explore_tools.py`
+- 状态机阈值按“同指纹最多重试 1 次”收敛：`ZERO_HIT_SAME_FINGERPRINT_MAX_RETRIES` 调整为 `1`，第 2 次连续 0 命中即拦截，避免同词同范围继续空转。修改文件：`backend/app/services/agent/tools/explore_tools.py`
+- 规划层纠偏范围已收敛到“确实内部且高风险未知工具”集合（`list_chapters/list_paragraphs/exact_search_paragraphs/read_paragraphs`），避免误伤可正常执行的读取工具。修改文件：`backend/app/services/agent/planning/plan_generator.py`
+- 执行层兼容补齐：新增 `read_paragraph_tool -> read_paragraph` 映射，避免旧别名落到未知工具分支。修改文件：`backend/app/services/agent/execution/tool_executor.py`
+- recall 命中标记细化：`any` 模式下不再伪造 `matched_keywords`，改为 `matched_by_recall` 标识，减少错误关键词归因。修改文件：`backend/app/services/search/opensearch_chapter_search_service.py`
+- 提示词契约补齐：
+  - `planning_prompts/decision_prompts/planning_examples/tool_descriptions` 中移除“list_paragraphs/read_paragraphs 定位”引导，统一为“`locate_content` 定位，检索证据走 `explore_content`”。
+  - 修改文件：`backend/app/services/agent/prompts/planning_prompts.py`、`backend/app/services/agent/prompts/decision_prompts.py`、`backend/app/services/agent/prompts/planning_examples.py`、`backend/app/services/agent/prompts/tool_descriptions.py`
+- 二次验证结果：
+  - `python3 -m py_compile backend/app/services/agent/tools/explore_tools.py backend/app/services/search/opensearch_chapter_search_service.py backend/app/services/agent/planning/plan_generator.py backend/app/services/agent/execution/tool_executor.py backend/app/services/agent/prompts/planning_prompts.py backend/app/services/agent/prompts/decision_prompts.py backend/app/services/agent/prompts/planning_examples.py backend/app/services/agent/prompts/tool_descriptions.py` 通过
+  - `cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py::test_zero_hit_fingerprint_retry_count_guard tests/unit/test_explore_forced_rewrite_fallback.py::test_plan_generator_internal_tool_contract_rewrite_guard_exists tests/unit/test_explore_forced_rewrite_fallback.py::test_tool_executor_legacy_explore_rewrite_guard_exists tests/unit/test_explore_forced_rewrite_fallback.py::test_opensearch_any_mode_match_recall_and_paging_stop_reason_guard_exists tests/unit/test_explore_forced_rewrite_fallback.py::test_forced_rewrite_uses_recent_attempt_keywords tests/unit/test_explore_forced_rewrite_fallback.py::test_forced_rewrite_keeps_chapter_scope` 通过（6 passed）
+  - `cd backend && pytest -q tests/unit/test_query_governor_rules.py` 通过（3 passed）
+- 仍需注意：`tests/unit/test_explore_forced_rewrite_fallback.py` 全量仍包含大量旧契约断言（`has_more/next_cursor/query_session_id` 等）。本轮执行 `cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py` 结果为 `12 failed, 10 passed`，失败点主要是旧契约字符串断言，不是本轮新增功能回归，但说明历史测试基线与当前实现仍有漂移，需要后续专项清理。

@@ -39,6 +39,7 @@ TOOL_NAME_MAPPING = {
     "get_context_tool": "get_context",
     "read_chapter_tool": "read_chapter",
     "get_chapter_by_order_tool": "get_chapter_by_order",
+    "read_paragraph_tool": "read_paragraph",
     "search_analysis_fragments_tool": "search_content",
     "search_analysis_fragments": "search_content",
     "search_content": "search_content",
@@ -55,6 +56,18 @@ TOOL_NAME_MAPPING = {
     # 聚合工具（2026-01-12）
     "get_writing_context": "get_writing_context",
     "get_style_guidance_tool": "get_style_guidance",
+    # 历史内部检索别名（统一改写到 explore_content）
+    "exact_search_paragraphs_tool": "exact_search_paragraphs",
+    "list_paragraphs_tool": "list_paragraphs",
+    "list_chapters_tool": "list_chapters",
+    "read_paragraphs_tool": "read_paragraphs",
+}
+
+LEGACY_EXPLORE_TOOLS = {
+    "list_chapters",
+    "list_paragraphs",
+    "exact_search_paragraphs",
+    "read_paragraphs",
 }
 
 TOOL_CACHE_INVALIDATION_TOOLS = {
@@ -85,6 +98,83 @@ class ToolExecutor:
     def __init__(self):
         pass
 
+    @staticmethod
+    def _extract_search_keywords_from_legacy_args(tool_args: Dict[str, Any]) -> list[str]:
+        raw = tool_args.get("keywords")
+        if raw is None:
+            raw = tool_args.get("keyword")
+        if raw is None:
+            raw = tool_args.get("query")
+
+        chunks: list[str] = []
+        if isinstance(raw, list):
+            chunks.extend(str(item) for item in raw if str(item).strip())
+        elif isinstance(raw, str):
+            chunks.append(raw)
+        elif raw is not None:
+            chunks.append(str(raw))
+
+        keywords: list[str] = []
+        seen = set()
+        for chunk in chunks:
+            for part in re.split(r"[,\s，、;；|｜/]+", chunk):
+                kw = str(part).strip().strip("\"'“”‘’《》")
+                if not kw or kw in seen:
+                    continue
+                seen.add(kw)
+                keywords.append(kw)
+                if len(keywords) >= 8:
+                    return keywords
+        return keywords
+
+    def _rewrite_legacy_explore_call(self, tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
+        keywords = self._extract_search_keywords_from_legacy_args(tool_args)
+
+        target_lines = []
+        if tool_name == "exact_search_paragraphs":
+            target_lines.append("先做严格关键词检索，0命中再回退宽松召回。")
+        elif tool_name in {"read_paragraphs", "list_paragraphs"}:
+            target_lines.append("按段落读取并提取可定位原文证据。")
+        elif tool_name == "list_chapters":
+            target_lines.append("先收集章节范围，再提取相关原文证据。")
+        else:
+            target_lines.append("收集完成任务所需的原文证据。")
+
+        chapter_scope = (
+            tool_args.get("chapter_range")
+            or tool_args.get("chapter_ranges")
+            or tool_args.get("chapter_orders")
+            or tool_args.get("chapter_order")
+        )
+        if chapter_scope:
+            target_lines.append(f"章节范围：{chapter_scope}")
+        if keywords:
+            target_lines.append(f"关键词：{'、'.join(keywords[:8])}")
+
+        target_task = "\n".join(line for line in target_lines if line).strip()
+        if not target_task:
+            target_task = "收集完成任务所需的原文证据。"
+
+        rewritten: Dict[str, Any] = {"target_task": target_task}
+        if keywords:
+            rewritten["search_keywords"] = keywords[:8]
+        if tool_name in {"exact_search_paragraphs", "read_paragraphs"}:
+            rewritten["require_paragraph_index"] = True
+
+        for key in (
+            "max_rounds",
+            "max_tool_calls",
+            "max_read_paragraphs",
+            "output_mode",
+            "force_global_search",
+            "use_cache",
+            "force_refresh",
+        ):
+            if key in tool_args:
+                rewritten[key] = tool_args.get(key)
+
+        return rewritten
+
     async def call_tool(
         self,
         tool_name: str,
@@ -103,7 +193,15 @@ class ToolExecutor:
         """
         # 规范化工具名称
         tool_args = dict(tool_args or {})
-        normalized_name = TOOL_NAME_MAPPING.get(tool_name, tool_name)
+        requested_tool_name = str(tool_name or "").strip()
+        normalized_name = TOOL_NAME_MAPPING.get(requested_tool_name, requested_tool_name)
+        if normalized_name in LEGACY_EXPLORE_TOOLS:
+            logger.warning(
+                "[ToolExecutor] 检测到内部检索工具调用，自动改写为 explore_content: %s",
+                normalized_name,
+            )
+            tool_args = self._rewrite_legacy_explore_call(normalized_name, tool_args)
+            normalized_name = "explore_content"
         tool_policy = self._resolve_tool_policy(state)
 
         if tool_policy == "no_tool":

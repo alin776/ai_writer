@@ -52,7 +52,17 @@ SEARCH_HIT_MIN_ITEMS = 5
 LIST_PARAGRAPHS_PAGE_SIZE = 50
 ZERO_HIT_FORCE_REWRITE_THRESHOLD = 2
 ZERO_HIT_NON_EXISTENT_MIN_STRATEGIES = 3
+ZERO_HIT_SAME_FINGERPRINT_MAX_RETRIES = 1
 FORCED_REWRITE_MAX_ROUNDS = 2
+NO_PROGRESS_STOP_MIN_ROUNDS = 6
+TOOL_LOOP_REPEAT_SIGNATURE_THRESHOLD = 2
+TOOL_SIGNATURE_NOISE_PARAMS = {
+    "cursor",
+    "next_cursor",
+    "query_session_id",
+    "timestamp",
+    "request_id",
+}
 PER_CHAPTER_READ_CAP_RATIO = 0.2
 PER_CHAPTER_READ_CAP_MIN = 10
 PER_CHAPTER_READ_CAP_MAX = 30
@@ -590,6 +600,7 @@ class QueryAttempt:
     worldview_hits: int = 0
     blocked_keywords: int = 0
     error: str = ""
+    keyword_fingerprint: str = ""
     timestamp: datetime = field(default_factory=get_utc_now)
 
 
@@ -706,8 +717,22 @@ class ExploreState:
         return False
 
     def should_search(self, query: str) -> bool:
-        """判断是否应该执行搜索（去重/相似判断已禁用）"""
-        return True
+        """判断是否应该执行搜索（避免同查询短时间内重复空转）"""
+        normalized = ",".join(_normalize_search_keywords((query or "").split(",")))
+        if not normalized:
+            return False
+        if normalized not in self.searched_queries:
+            return True
+        # 同一 query 最近连续 0 命中时，要求换词/换范围
+        repeated_zero = 0
+        for attempt in reversed(self.query_attempts[-6:]):
+            if (attempt.query or "") != normalized:
+                continue
+            if int(attempt.chapter_hits or 0) == 0 and int(attempt.worldview_hits or 0) == 0:
+                repeated_zero += 1
+            else:
+                break
+        return repeated_zero <= 1
 
     def record_search(self, query: str):
         """记录已搜索的 query"""
@@ -975,6 +1000,78 @@ class ExploreState:
         self.query_attempts.append(attempt)
         if len(self.query_attempts) > 50:
             self.query_attempts = self.query_attempts[-50:]
+
+    @staticmethod
+    def _build_attempt_fingerprint(
+        keywords: List[str],
+        scope: Optional[Tuple[int, int]],
+        mode: str
+    ) -> str:
+        # 局部导入，兼容 AST 片段测试环境（测试会抽取方法体单独执行）
+        import hashlib as _hashlib
+
+        normalized_keywords = sorted({
+            str(kw).strip().lower()
+            for kw in (keywords or [])
+            if str(kw).strip()
+        })
+        scope_text = "global"
+        if isinstance(scope, tuple) and len(scope) == 2:
+            scope_text = f"{scope[0]}-{scope[1]}"
+        mode_text = (mode or "any").strip().lower()
+        raw = f"{','.join(normalized_keywords)}|{scope_text}|{mode_text}"
+        return _hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+    def count_zero_hit_fingerprint(
+        self,
+        keywords: List[str],
+        scope: Optional[Tuple[int, int]],
+        mode: str,
+        window: int = 12
+    ) -> int:
+        if window <= 0:
+            return 0
+        fingerprint = self._build_attempt_fingerprint(keywords, scope, mode)
+        attempts = self.query_attempts[-window:]
+        count = 0
+        for attempt in attempts:
+            attempt_fingerprint = attempt.keyword_fingerprint or self._build_attempt_fingerprint(
+                attempt.keywords,
+                attempt.chapter_scope,
+                attempt.match_mode,
+            )
+            if attempt_fingerprint != fingerprint:
+                continue
+            if int(attempt.chapter_hits or 0) != 0 or int(attempt.worldview_hits or 0) != 0:
+                continue
+            count += 1
+        return count
+
+    def has_recent_zero_hit_fingerprint(
+        self,
+        keywords: List[str],
+        scope: Optional[Tuple[int, int]],
+        strategy: str,
+        mode: str,
+        window: int = 8
+    ) -> bool:
+        if window <= 0:
+            return False
+        fingerprint = self._build_attempt_fingerprint(keywords, scope, mode)
+        for attempt in reversed(self.query_attempts[-window:]):
+            attempt_fingerprint = attempt.keyword_fingerprint or self._build_attempt_fingerprint(
+                attempt.keywords,
+                attempt.chapter_scope,
+                attempt.match_mode,
+            )
+            if attempt_fingerprint != fingerprint:
+                continue
+            if int(attempt.chapter_hits or 0) != 0 or int(attempt.worldview_hits or 0) != 0:
+                continue
+            if strategy and (attempt.strategy or "").strip().lower() != strategy.strip().lower():
+                continue
+            return True
+        return False
 
     def count_query_attempts(self) -> int:
         return len(self.query_attempts)
@@ -2548,12 +2645,13 @@ class ContentExplorer:
         consecutive_zero_hit_searches = 0
         forced_rewrite_used = 0
         prevented_stop_count = 0
+        no_progress_rounds = 0
 
         def _build_tool_signature(tool_call: ToolCall) -> str:
             tool_params = {
                 key: value
                 for key, value in (tool_call.params or {}).items()
-                if key != "work_id"
+                if key != "work_id" and key not in TOOL_SIGNATURE_NOISE_PARAMS
             }
             try:
                 params_digest = json.dumps(tool_params, ensure_ascii=False, sort_keys=True)
@@ -2728,6 +2826,7 @@ class ContentExplorer:
 
             before_evidences = len(self.state.evidences)
             before_paragraphs = len(self.state.paragraphs)
+            before_search_hits = len(self.state.search_hits)
 
             tool_call, result_preview, reads_used = await self._execute_tool_action(
                 decision.tool,
@@ -2742,6 +2841,7 @@ class ContentExplorer:
 
             new_evidences = len(self.state.evidences) - before_evidences
             new_paragraphs = len(self.state.paragraphs) - before_paragraphs
+            new_search_hits = len(self.state.search_hits) - before_search_hits
 
             round_data = ExploreRound(
                 round_idx=round_idx + 1,
@@ -2778,6 +2878,11 @@ class ContentExplorer:
                 if new_evidences > 0 or new_paragraphs > 0:
                     consecutive_zero_hit_searches = 0
 
+            if new_evidences > 0 or new_paragraphs > 0 or new_search_hits > 0:
+                no_progress_rounds = 0
+            else:
+                no_progress_rounds += 1
+
             current_signature = _build_tool_signature(tool_call)
             if current_signature and current_signature == last_tool_signature:
                 repeated_call_streak += 1
@@ -2785,7 +2890,7 @@ class ContentExplorer:
                 repeated_call_streak = 1 if current_signature else 0
             last_tool_signature = current_signature
 
-            if repeated_call_streak >= 3:
+            if repeated_call_streak >= TOOL_LOOP_REPEAT_SIGNATURE_THRESHOLD:
                 if tool_call.tool_name == "exact_search_paragraphs" and forced_rewrite_used < FORCED_REWRITE_MAX_ROUNDS:
                     forced_args = self._build_forced_rewrite_search_args()
                     if forced_args:
@@ -2795,7 +2900,11 @@ class ContentExplorer:
                         last_tool_result = "程序检测到重复查询，下一轮将强制改写参数"
                         logger.info("[ContentExplorer] 重复查询防打转触发改写: %s", forced_args)
                         continue
-                stop_reason = "连续3轮重复同一工具调用，停止探索"
+                stop_reason = f"连续{TOOL_LOOP_REPEAT_SIGNATURE_THRESHOLD}轮重复同一工具调用，停止探索"
+                break
+
+            if no_progress_rounds >= NO_PROGRESS_STOP_MIN_ROUNDS:
+                stop_reason = f"连续{NO_PROGRESS_STOP_MIN_ROUNDS}轮无新增信息，停止探索"
                 break
 
         if round_idx >= self.max_rounds and tool_calls_left > 0 and stop_reason == "达到工具调用上限":
@@ -3264,9 +3373,7 @@ class ContentExplorer:
         elif tool_name == "exact_search_paragraphs":
             raw_keywords = params.get("keywords") or params.get("keyword") or params.get("query") or []
             strategy_label = str(params.get("strategy") or "ai").strip().lower() or "ai"
-            match_mode = str(params.get("match_mode") or params.get("mode") or "any").strip().lower()
-            if match_mode not in ("any", "all", "phrase"):
-                match_mode = "any"
+            requested_match_mode = str(params.get("match_mode") or params.get("mode") or "").strip().lower()
 
             def _split_keywords(text: str) -> List[str]:
                 parts = [text]
@@ -3303,6 +3410,14 @@ class ContentExplorer:
                 seen_kw.add(cleaned)
                 cleaned_keywords.append(cleaned)
             keywords = cleaned_keywords
+
+            if requested_match_mode in ("any", "all", "phrase"):
+                match_mode = requested_match_mode
+            elif requested_match_mode in ("fuzzy", "recall", "loose"):
+                match_mode = "any"
+            else:
+                # 默认严格层：单词短语匹配，多词全量匹配；0命中时再回退 recall(any)
+                match_mode = "all" if len(keywords) > 1 else "phrase"
 
             def _coerce_int(value: Any) -> Optional[int]:
                 if isinstance(value, int):
@@ -3403,17 +3518,38 @@ class ContentExplorer:
                     continue
                 filtered_keywords.append(kw)
             keywords = filtered_keywords
+            keyword_fingerprint = self.state._build_attempt_fingerprint(keywords, current_scope, match_mode) if keywords else ""
+            blocked_by_same_fingerprint = False
+            if keywords and strategy_label != "forced_rewrite":
+                zero_hit_same_fingerprint = self.state.count_zero_hit_fingerprint(
+                    keywords=keywords,
+                    scope=current_scope,
+                    mode=match_mode,
+                )
+                if zero_hit_same_fingerprint > ZERO_HIT_SAME_FINGERPRINT_MAX_RETRIES:
+                    blocked_by_same_fingerprint = True
+                    blocked_keywords.append({
+                        "keyword": ",".join(keywords[:3]),
+                        "reason": (
+                            f"同查询指纹已连续0命中{zero_hit_same_fingerprint}次，"
+                            "请更换关键词或范围"
+                        )
+                    })
             query_terms = keywords[:3]
             query = ",".join(query_terms) if query_terms else "exact_search"
 
-            if not keywords:
-                error_text = "关键词已被拦截" if blocked_keywords else "缺少可执行的 keywords"
+            if not keywords or blocked_by_same_fingerprint:
+                if blocked_by_same_fingerprint:
+                    error_text = "同查询指纹连续0命中，已阻止重复搜索"
+                else:
+                    error_text = "关键词已被拦截" if blocked_keywords else "缺少可执行的 keywords"
                 result_data = {
                     "success": False,
                     "error": error_text,
                     "blocked_keywords": blocked_keywords,
                     "strategy": strategy_label,
-                    "match_mode": match_mode
+                    "match_mode": match_mode,
+                    "keyword_fingerprint": keyword_fingerprint,
                 }
                 self.state.add_query_attempt(QueryAttempt(
                     query=query,
@@ -3426,7 +3562,8 @@ class ContentExplorer:
                     chapter_hits=0,
                     worldview_hits=0,
                     blocked_keywords=len(blocked_keywords),
-                    error=error_text
+                    error=error_text,
+                    keyword_fingerprint=keyword_fingerprint,
                 ))
             else:
                 for kw in keywords:
@@ -3542,7 +3679,12 @@ class ContentExplorer:
                             chapter_hits=len(layer_chapter_hits),
                             worldview_hits=len(worldview_matches),
                             blocked_keywords=len(blocked_keywords),
-                            error=""
+                            error="",
+                            keyword_fingerprint=self.state._build_attempt_fingerprint(
+                                layer_keywords,
+                                current_scope,
+                                layer_match_mode,
+                            ),
                         ))
                         return normalized_layer_results
 

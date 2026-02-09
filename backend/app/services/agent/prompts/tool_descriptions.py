@@ -158,7 +158,7 @@ def _get_editor_tools_section() -> str:
   参数: chapter_id, user_intent, chapter_content, insert_context, evidence_context, word_count
   触发词: "插入"、"在...处添加"、"在...后面加"
   ⚠️ 如果用户想把插入内容写入编辑器 → 后续调用 operate_apply(operation="insert")
-  ⚠️ **定位规则**：先用 locate_content/list_paragraphs/read_paragraphs 获取 node_id/paragraph_index
+  ⚠️ **定位规则**：先用 locate_content 获取 node_id/paragraph_index（检索证据统一走 explore_content）
   ⚠️ insert_context 可用于风格参考，从 explore_content 返回的章节内容中获取
   ⚠️ 输出只允许单段内容，不要编号/版本列表
   ⚠️ 即使用户要求多版本/多候选，也只生成一条
@@ -205,7 +205,7 @@ def _get_editor_tools_section() -> str:
 
 - locate_content: ⚠️ **内部定位工具（不会被 operate_apply 自动调用）**
   参数: chapter_id, query, nodes_info(可选)
-  ⚠️ **重要：需要先调用 locate_content 或 list_paragraphs/read_paragraphs 获取 node_id/paragraph_index**
+  ⚠️ **重要：需要先调用 locate_content 获取 node_id/paragraph_index（检索证据统一走 explore_content）**
   ⚠️ 跨章节降级已禁用（allow_global_fallback=false）
   ⚠️ **唯一例外**：如果用户未指定章节，需要先用 explore_content 找到章节，再传给 operate_apply
 """

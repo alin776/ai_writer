@@ -220,7 +220,7 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 
 ⚠️ **operate_apply 不再自动定位**！
 - replace/insert 必须传 node_id 或 paragraph_index
-- 需要先用 locate_content 或 list_paragraphs/read_paragraphs 精确定位
+- 需要先用 locate_content 精确定位（检索证据统一走 explore_content）
 
 ⚠️ **参数引用规则**：后续工具参数只允许引用 explore_content 的 `evidences` / `locate_targets`
 （默认输出完整字段；如需精简，请显式传 output_mode="evidence_only"）

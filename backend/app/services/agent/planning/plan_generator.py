@@ -35,6 +35,19 @@ class PlanGenerator:
     EDIT_CONTENT_TOOLS = {"smart_rewrite", "smart_insert"}
     EDIT_OPERATION_TOOLS = {"operate_apply", "apply_chapter_edit"}
     EDIT_OPERATIONS = {"replace", "insert"}
+    INTERNAL_EXPLORE_TOOLS = {
+        "list_chapters",
+        "list_paragraphs",
+        "exact_search_paragraphs",
+        "read_paragraphs",
+    }
+    LEGACY_EXPLORE_TOOL_ALIASES = {
+        "exact_search_paragraphs_tool": "exact_search_paragraphs",
+        "read_paragraph_tool": "read_paragraph",
+        "read_paragraphs_tool": "read_paragraphs",
+        "list_paragraphs_tool": "list_paragraphs",
+        "list_chapters_tool": "list_chapters",
+    }
     FRESHNESS_KEYWORDS = (
         "重新", "最新", "更新", "再查", "再次", "再搜", "再探索", "重新探索",
         "重新搜索", "重做", "不要复用", "忽略历史", "不使用历史", "不要用历史"
@@ -1418,6 +1431,109 @@ tool_policy: {tool_policy}
             return normalized
         return []
 
+    @staticmethod
+    def _extract_internal_keywords(params: Dict[str, Any]) -> List[str]:
+        raw = params.get("keywords")
+        if raw is None:
+            raw = params.get("keyword")
+        if raw is None:
+            raw = params.get("query")
+
+        chunks: List[str] = []
+        if isinstance(raw, list):
+            chunks.extend(str(item) for item in raw if str(item).strip())
+        elif isinstance(raw, str):
+            chunks.append(raw)
+        elif raw is not None:
+            chunks.append(str(raw))
+
+        keywords: List[str] = []
+        seen = set()
+        for chunk in chunks:
+            for part in re.split(r"[,\s，、;；|｜/]+", chunk):
+                kw = str(part).strip().strip("\"'“”‘’《》")
+                if not kw or kw in seen:
+                    continue
+                seen.add(kw)
+                keywords.append(kw)
+                if len(keywords) >= 8:
+                    return keywords
+        return keywords
+
+    def _rewrite_internal_explore_tasks(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not tasks:
+            return tasks
+
+        for task in tasks:
+            tool_raw = str(task.get("tool") or "").strip()
+            normalized_tool = self.LEGACY_EXPLORE_TOOL_ALIASES.get(tool_raw, tool_raw)
+            if normalized_tool not in self.INTERNAL_EXPLORE_TOOLS:
+                continue
+
+            params = task.get("params") or {}
+            keywords = self._extract_internal_keywords(params)
+
+            target_lines: List[str] = []
+            desc = str(task.get("description") or "").strip()
+            title = str(task.get("title") or "").strip()
+            explicit_target_task = str(params.get("target_task") or "").strip()
+            if explicit_target_task:
+                target_lines.append(explicit_target_task)
+            elif desc:
+                target_lines.append(desc)
+            elif title:
+                target_lines.append(title)
+
+            if normalized_tool == "exact_search_paragraphs":
+                target_lines.append("先做严格关键词检索，0命中再回退宽松召回。")
+            elif normalized_tool in {"read_paragraph", "read_paragraphs", "list_paragraphs"}:
+                target_lines.append("按段落读取并提取可定位原文证据。")
+            else:
+                target_lines.append("收集完成任务所需的原文证据。")
+
+            chapter_scope = (
+                params.get("chapter_range")
+                or params.get("chapter_ranges")
+                or params.get("chapter_orders")
+                or params.get("chapter_order")
+            )
+            if chapter_scope:
+                target_lines.append(f"章节范围：{chapter_scope}")
+            if keywords:
+                target_lines.append(f"关键词：{'、'.join(keywords[:8])}")
+
+            target_task = "\n".join(line for line in target_lines if line).strip()
+            if not target_task:
+                target_task = "收集完成任务所需的原文证据。"
+
+            rewritten_params: Dict[str, Any] = {"target_task": target_task}
+            if keywords:
+                rewritten_params["search_keywords"] = keywords[:8]
+            if normalized_tool in {"exact_search_paragraphs", "read_paragraph", "read_paragraphs"}:
+                rewritten_params["require_paragraph_index"] = True
+
+            for key in (
+                "max_rounds",
+                "max_tool_calls",
+                "max_read_paragraphs",
+                "output_mode",
+                "force_global_search",
+                "use_cache",
+                "force_refresh",
+            ):
+                if key in params:
+                    rewritten_params[key] = params.get(key)
+
+            task["tool"] = "explore_content"
+            task["params"] = rewritten_params
+            logger.warning(
+                "[Planning] 内部检索工具已纠偏为 explore_content: %s -> explore_content (task_id=%s)",
+                tool_raw,
+                task.get("task_id"),
+            )
+
+        return tasks
+
     def _validate_and_fix_plan(self, plan_data: Dict[str, Any], message: str) -> Dict[str, Any]:
         """
         验证规划并自动修复问题
@@ -1437,6 +1553,9 @@ tool_policy: {tool_policy}
         tasks = plan_data.get("tasks", [])
         if not tasks:
             return plan_data
+
+        # 验证0: 统一检索契约（内部工具全部收敛到 explore_content）
+        tasks = self._rewrite_internal_explore_tasks(tasks)
 
         # 验证1: 人物查询必须先搜索
         tasks = self._validate_search_before_read(tasks, message)
