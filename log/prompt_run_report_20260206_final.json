@@ -1,0 +1,75 @@
+{
+  "started_at": "2026-02-06 22:17:22",
+  "base": "http://127.0.0.1:8000",
+  "prompt_file": "D:\\Java\\claude-code-skill\\todo.md",
+  "work_id": "41ccb5c8-53fe-49ac-91e4-2930a88b49e8",
+  "max_seconds_per_prompt": 220,
+  "login_status": 200,
+  "login_ok": true,
+  "prompt_count": 5,
+  "prompts_preview": [
+    "读取第1-3章作为上下文，只改写第2章整章内容（保留章名），强化“修行压力递进 + 异常征兆埋点 + 人物关系张力”。\n\n  【硬约束】\n  1) 只允许修改第2章，严禁改动第1章和第3章任何原文。\n  2) 禁止新增世界观设定（门派体系、境界规则、历史背景）与新角色身份。\n  3) 保留第2章原有事件顺序，不允许重排",
+    "【目标】\n  【硬约束】\n  1) 必须先通过 list_paragraphs/read_paragraphs 产出准确 paragraph_index 与 node_id。\n  2) 若候选超过1处，必须先给出候选清单（最多3条，含 chapter_order/paragraph_index/node_id/原句摘要",
+    "【流程要求】\n1) 先在第2章搜索“紧张/压迫/发冷/异样”相关上下文，输出3个候选定位（含 paragraph_index/node_id/10-20字摘要）。\n  3) 使用 smart_rewrite 生成替换文本，再 operate_apply(replace) 写回。\n  4) 替换后做一致性复核：\n  - ",
+    "【目标】\n  执行“缺失目标硬停测试”：尝试在第1章定位并改写“完全不存在的锚点短语：九曜天门·逆命刻印”。\n\n  2) 连续无新增命中后应主动停止，不得耗尽上限才停。\n  3) 若无法定位，必须返回结构化失败：\n  status=missing_prerequisite\n  missing=locate_target",
+    "【目标】\n  执行“混合任务链路测试”：\n  A. 先整章重写第3章（偏风格重塑，不改核心事件）\n  B. 再在第3章中精确插入一段伏笔（只插一处）\n  C. 最后对插入点所在段再做一次微调替换（只改同一定位点）\n\n  【硬约束】\n  1) A步骤可走章节级流程；B/C步骤必须走严格定位流程（必须有 paragraph"
+  ],
+  "results": [
+    {
+      "index": 1,
+      "status": "failed",
+      "duration_sec": 0.11,
+      "error": "worker_exited_without_result",
+      "event_counts": {},
+      "approval_request_count": 0,
+      "revision_event_count": 0,
+      "content_preview": "",
+      "prompt_preview": "读取第1-3章作为上下文，只改写第2章整章内容（保留章名），强化“修行压力递进 + 异常征兆埋点 + 人物关系张力”。\n\n  【硬约束】\n  1) 只允许修改第2章，严禁改动第1章和第3章任何原文。\n  2) 禁止新增世界观设定（门派体系、境界规则、历史背景）与新角色身份。\n  3) 保留第2章原有事件顺序，不允许重排成倒叙。\n  4) 全文禁止HTML标签、禁止项目符号、禁止“作为AI”类元话术。\n  5) 语言风格要更“紧、硬、冷”"
+    },
+    {
+      "index": 2,
+      "status": "failed",
+      "duration_sec": 0.08,
+      "error": "worker_exited_without_result",
+      "event_counts": {},
+      "approval_request_count": 0,
+      "revision_event_count": 0,
+      "content_preview": "",
+      "prompt_preview": "【目标】\n  【硬约束】\n  1) 必须先通过 list_paragraphs/read_paragraphs 产出准确 paragraph_index 与 node_id。\n  2) 若候选超过1处，必须先给出候选清单（最多3条，含 chapter_order/paragraph_index/node_id/原句摘要），再默认选择第1处继续。\n  3) 插入内容不得改变原句字面，不得删除前后段落。\n  4) 插入内容不得引入新设定，只"
+    },
+    {
+      "index": 3,
+      "status": "failed",
+      "duration_sec": 0.07,
+      "error": "worker_exited_without_result",
+      "event_counts": {},
+      "approval_request_count": 0,
+      "revision_event_count": 0,
+      "content_preview": "",
+      "prompt_preview": "【流程要求】\n1) 先在第2章搜索“紧张/压迫/发冷/异样”相关上下文，输出3个候选定位（含 paragraph_index/node_id/10-20字摘要）。\n  3) 使用 smart_rewrite 生成替换文本，再 operate_apply(replace) 写回。\n  4) 替换后做一致性复核：\n  - 人称是否漂移\n  - 时态是否漂移\n\n  【硬约束】\n  1) 严禁多处替换。\n  2) 严禁把“替换句”和“定位提示句"
+    },
+    {
+      "index": 4,
+      "status": "failed",
+      "duration_sec": 0.07,
+      "error": "worker_exited_without_result",
+      "event_counts": {},
+      "approval_request_count": 0,
+      "revision_event_count": 0,
+      "content_preview": "",
+      "prompt_preview": "【目标】\n  执行“缺失目标硬停测试”：尝试在第1章定位并改写“完全不存在的锚点短语：九曜天门·逆命刻印”。\n\n  2) 连续无新增命中后应主动停止，不得耗尽上限才停。\n  3) 若无法定位，必须返回结构化失败：\n  status=missing_prerequisite\n  missing=locate_targets（或location）\n  message=明确说明未找到可定位段落\n  4) 禁止继续执行 smart_rewrit"
+    },
+    {
+      "index": 5,
+      "status": "failed",
+      "duration_sec": 0.09,
+      "error": "worker_exited_without_result",
+      "event_counts": {},
+      "approval_request_count": 0,
+      "revision_event_count": 0,
+      "content_preview": "",
+      "prompt_preview": "【目标】\n  执行“混合任务链路测试”：\n  A. 先整章重写第3章（偏风格重塑，不改核心事件）\n  B. 再在第3章中精确插入一段伏笔（只插一处）\n  C. 最后对插入点所在段再做一次微调替换（只改同一定位点）\n\n  【硬约束】\n  1) A步骤可走章节级流程；B/C步骤必须走严格定位流程（必须有 paragraph_index/node_id）。\n  2) B和C必须复用同一 source_locator，不允许漂移到其他段。\n  "
+    }
+  ],
+  "finished_at": "2026-02-06 22:17:28"
+}

@@ -1,0 +1,22 @@
+{
+  "started_at": "2026-02-06 22:43:09",
+  "duration_sec": 255.8,
+  "status": "timeout",
+  "error": "timeout>240s",
+  "http_status": 200,
+  "work_id": "41ccb5c8-53fe-49ac-91e4-2930a88b49e8",
+  "conversation_id": "e81daf1e-68ad-4941-9ec1-d66a1e55a888",
+  "event_counts": {
+    "start": 1,
+    "stream_start": 1,
+    "plan": 1,
+    "agent_header": 1,
+    "step_start": 1,
+    "task_start": 1,
+    "task_progress": 1,
+    "explore_round": 10
+  },
+  "approval_request_count": 0,
+  "revision_event_count": 0,
+  "content_preview": ""
+}

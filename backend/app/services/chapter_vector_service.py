@@ -171,9 +171,17 @@ class ChapterVectorService:
             if len(text_list) == 0:
                 logger.warning(f"Skip vectorizing (no valid paragraphs): {chapter_title}")
                 await self.db.commit()
+                search_service = OpenSearchChapterSearchService(self.db)
                 try:
-                    search_service = OpenSearchChapterSearchService(self.db)
                     await search_service.delete_chapter_vectors(str(chapter_id))
+                    await search_service.mark_chapter_sync_success(
+                        str(chapter_id),
+                        work_id=str(work_id),
+                        chapter_order=chapter_order,
+                        operation="delete",
+                        db_vector_count=0,
+                        index_vector_count=0,
+                    )
                 except Exception as sync_error:
                     logger.error(
                         "OpenSearch delete after empty vectorizing failed: chapter_id=%s error=%s",
@@ -181,6 +189,22 @@ class ChapterVectorService:
                         sync_error,
                         exc_info=True,
                     )
+                    try:
+                        await search_service.mark_chapter_sync_failure(
+                            str(chapter_id),
+                            work_id=str(work_id),
+                            chapter_order=chapter_order,
+                            operation="delete",
+                            error_message=str(sync_error),
+                            db_vector_count=0,
+                        )
+                    except Exception as status_error:
+                        logger.warning(
+                            "OpenSearch sync status update failed after delete error: chapter_id=%s error=%s",
+                            chapter_id,
+                            status_error,
+                            exc_info=True,
+                        )
                 return 0
 
             # 3) encode
@@ -213,9 +237,17 @@ class ChapterVectorService:
             self.db.add_all(vectors)
             await self.db.commit()
 
+            search_service = OpenSearchChapterSearchService(self.db)
             try:
-                search_service = OpenSearchChapterSearchService(self.db)
-                await search_service.upsert_chapter_vectors(str(chapter_id))
+                indexed_count = await search_service.upsert_chapter_vectors(str(chapter_id))
+                await search_service.mark_chapter_sync_success(
+                    str(chapter_id),
+                    work_id=str(work_id),
+                    chapter_order=chapter_order,
+                    operation="upsert",
+                    db_vector_count=len(text_list),
+                    index_vector_count=int(indexed_count or 0),
+                )
             except Exception as sync_error:
                 logger.error(
                     "OpenSearch upsert failed: chapter_id=%s error=%s",
@@ -223,6 +255,22 @@ class ChapterVectorService:
                     sync_error,
                     exc_info=True,
                 )
+                try:
+                    await search_service.mark_chapter_sync_failure(
+                        str(chapter_id),
+                        work_id=str(work_id),
+                        chapter_order=chapter_order,
+                        operation="upsert",
+                        error_message=str(sync_error),
+                        db_vector_count=len(text_list),
+                    )
+                except Exception as status_error:
+                    logger.warning(
+                        "OpenSearch sync status update failed after upsert error: chapter_id=%s error=%s",
+                        chapter_id,
+                        status_error,
+                        exc_info=True,
+                    )
 
             logger.debug(f"Stored chapter vectors: {chapter_title} ({len(text_list)} paragraphs)")
             return len(text_list)
@@ -324,9 +372,15 @@ class ChapterVectorService:
             result = await self.db.execute(stmt)
             await self.db.commit()
 
+            search_service = OpenSearchChapterSearchService(self.db)
             try:
-                search_service = OpenSearchChapterSearchService(self.db)
                 await search_service.delete_chapter_vectors(str(chapter_id))
+                await search_service.mark_chapter_sync_success(
+                    str(chapter_id),
+                    operation="delete",
+                    db_vector_count=0,
+                    index_vector_count=0,
+                )
             except Exception as sync_error:
                 logger.error(
                     "OpenSearch delete failed: chapter_id=%s error=%s",
@@ -334,6 +388,20 @@ class ChapterVectorService:
                     sync_error,
                     exc_info=True,
                 )
+                try:
+                    await search_service.mark_chapter_sync_failure(
+                        str(chapter_id),
+                        operation="delete",
+                        error_message=str(sync_error),
+                        db_vector_count=0,
+                    )
+                except Exception as status_error:
+                    logger.warning(
+                        "OpenSearch sync status update failed after delete error: chapter_id=%s error=%s",
+                        chapter_id,
+                        status_error,
+                        exc_info=True,
+                    )
 
             deleted_count = result.rowcount
             logger.info(f"删除章节 {chapter_id} 的 {deleted_count} 条向量记录")
@@ -392,7 +460,12 @@ class ChapterVectorService:
         keywords: Optional[List[str]] = None,
         chapter_range: Optional[Tuple[Optional[int], Optional[int]]] = None,
         match_mode: str = "any",
-        limit: int = 100
+        limit: int = 100,
+        terms_required: Optional[List[str]] = None,
+        terms_optional: Optional[List[str]] = None,
+        terms_excluded: Optional[List[str]] = None,
+        proximity_terms: Optional[List[str]] = None,
+        proximity_window: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """精确搜索（OpenSearch 实现）。"""
         try:
@@ -403,6 +476,11 @@ class ChapterVectorService:
                 chapter_range=chapter_range,
                 match_mode=match_mode,
                 limit=limit,
+                terms_required=terms_required,
+                terms_optional=terms_optional,
+                terms_excluded=terms_excluded,
+                proximity_terms=proximity_terms,
+                proximity_window=proximity_window,
             )
         except Exception as e:
             logger.error(f"[exact_search_opensearch] 精确搜索失败: {e}", exc_info=True)

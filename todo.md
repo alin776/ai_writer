@@ -4556,3 +4556,551 @@
   - `cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py::test_zero_hit_fingerprint_retry_count_guard tests/unit/test_explore_forced_rewrite_fallback.py::test_plan_generator_internal_tool_contract_rewrite_guard_exists tests/unit/test_explore_forced_rewrite_fallback.py::test_tool_executor_legacy_explore_rewrite_guard_exists tests/unit/test_explore_forced_rewrite_fallback.py::test_opensearch_any_mode_match_recall_and_paging_stop_reason_guard_exists tests/unit/test_explore_forced_rewrite_fallback.py::test_forced_rewrite_uses_recent_attempt_keywords tests/unit/test_explore_forced_rewrite_fallback.py::test_forced_rewrite_keeps_chapter_scope` 通过（6 passed）
   - `cd backend && pytest -q tests/unit/test_query_governor_rules.py` 通过（3 passed）
 - 仍需注意：`tests/unit/test_explore_forced_rewrite_fallback.py` 全量仍包含大量旧契约断言（`has_more/next_cursor/query_session_id` 等）。本轮执行 `cd backend && pytest -q tests/unit/test_explore_forced_rewrite_fallback.py` 结果为 `12 failed, 10 passed`，失败点主要是旧契约字符串断言，不是本轮新增功能回归，但说明历史测试基线与当前实现仍有漂移，需要后续专项清理。
+
+#### Explore 阶段 Grep/Read 交互深度排查（待确认）
+
+- [x] 通读 `explore_tools.py`，梳理 Grep（`exact_search_paragraphs`）与 Read（`read_paragraph/read_paragraphs`）的执行链路
+- [x] 提取 AI 决策提示词与解析逻辑，确认 AI 在每轮如何选择 Grep/Read/Stop
+- [x] 抽取运行日志与统计数据，量化 Grep/Read 的实际调用模式（含重复、空转、停机原因）
+- [x] 交叉比对代码与日志，定位“这种现象”的核心触发点与根因链路
+- [x] 在本节补充 review：给出直白详细结论、证据位置、残余风险
+
+#### review
+
+- 执行链不是“纯 AI 自主”，而是“AI 决策 + 程序门槛”混合：先强制 `list_chapters -> list_paragraphs`，再由 `_ai_tool_loop_decide` 选下一步，且 `stop` 会被 `_evaluate_stop_quality_gate` 拦截并改写为再次 Grep。证据：`backend/app/services/agent/tools/explore_tools.py:2723-2760,2791-2821,3114-3223,2477-2518`。
+- Grep 与 Read 存在隐藏耦合：`exact_search_paragraphs` 内部会直接调用 `read_paragraph.ainvoke`，并把读到的段落写入 `state.paragraphs/evidences`；这不是独立的 `read_paragraph` 轮次。证据：`backend/app/services/agent/tools/explore_tools.py:3877-3944`。
+- 前端可观测层与执行层不对齐：每轮只记录 `tool_calls=[tool_call]`，`explore_round` 也只发该轮显式工具；因此 Grep 内部 auto-read 不会显示成 Read 标签。证据：`backend/app/services/agent/tools/explore_tools.py:2846-2850,4680-4685,1962-2095`，`backend/app/services/agent/stream/flow_events.py:279-321`，`src/services/agentApi.ts:374-404`，`src/hooks/useAgentChat.ts:819-858`，`src/components/agent/ExecutionFlow/ExploreCard.tsx:334-341`。
+- 日志可见“表象偏差”：`read_paragraph` 已读分支返回 `success=True, skipped=True`，但 done 日志只打印 `success`，不打印 `skipped`，会把“跳过”看成“成功读取”。证据：`backend/app/services/agent/tools/explore_tools.py:4018-4020,4031-4038`。
+- 真实日志能复现两类异常：1) 历史重复 Read（同段连读）如 `backend/logs/app.log:4388-4403`、`backend/logs/app.log:4532-4565`；2) 近期多轮 Grep-only（无显式 Read）但任务成功，如 `backend/logs/app.log:71863,71871,71879,71892-71895`（结合代码可推断是 Grep 内部 auto-read 生效）。
+- 量化结果（`backend/logs/app.log`）：全量 `exact_search` 606 次、`read_paragraph` 152 次、`read_paragraphs` 373 次；近两天完成会话 62 个，其中“仅见 Grep 无显式 Read”42 个。统计命令输出已核对。
+- 观测脚本存在契约漂移：`backend/scripts/explore_replay_metrics.py` 仍要求日志含 `total_hits/has_more`，当前新日志格式已不稳定包含这些字段，脚本只统计到 91 次 `exact_search`（显著低估）。证据：`backend/scripts/explore_replay_metrics.py:19-23` 对比 `backend/app/services/agent/tools/explore_tools.py:3985-3995` 与日志样本 `backend/logs/app.log:71863`。
+- 核心结论：这不是单点 bug，而是“执行链路、展示链路、日志链路三套语义不一致”导致的感知错位。你看到的“为什么一直 Grep / Read 看不懂”本质上是隐藏自动读取 + 事件单工具展示 + 日志字段漂移三者叠加。
+
+#### 清理 Backend.md / INFO*.md 历史日志片段（待确认）
+
+- [x] 扫描 `Backend.md` 与 `INFO*.md` 中结构化日志行（时间戳/INFO级别）与回放轨迹行（Search/List/调用工具等）
+- [x] 清理 `Backend.md` 历史日志内容并保留占位说明
+- [x] 清理 `INFO*.md` 中日志式轨迹行（`文枢AI`、`List*`、`Search:`、`调用工具`、`第X章 · 第Y段` 等）
+- [x] 复核残留：确认无结构化日志与回放轨迹标记残留
+
+#### review
+
+- `Backend.md` 已替换为清理占位说明，不再保留历史日志片段。
+- `INFO*.md` 已删除日志式轨迹行（工具调用标签、章节段落命中行、调用工具标记等），保留其余文本内容。
+- 复核结果：`Backend.md` 与 `INFO*.md` 中结构化日志（时间戳/`INFO:`）为 0；回放轨迹标记（`文枢AI`/`ListChapters`/`Search:`/`调用工具`/`第X章 · 第Y段`）为 0。
+
+#### opencode Explore 阶段 Grep/Read 与 AI 交互复核（本轮）
+
+- [x] 通读 Explore 子代理配置与提示词，确认 AI 在 Explore 阶段被如何约束（只能用哪些工具、何时优先 Grep/Read）
+- [x] 通读 Grep/Read 工具实现，确认参数、权限、截断与返回内容
+- [x] 通读会话编排代码，确认工具调用结果如何回注给 AI（含截断文件提示、上下文裁剪）
+- [x] 通读 Task 工具与子代理回传链路，确认主 AI 能看到什么、看不到什么
+- [x] 抽取测试与文档证据，交叉验证上述结论
+- [x] 在本节补充 review：给出直白详细结论、关键证据和边界条件
+
+#### review
+
+- Explore 是“子代理 + 只读权限”模型，不是单独后端流程：`explore` agent 默认 `mode=subagent`，权限为 `* deny` 后仅放行 `grep/glob/list/bash/read/web*`，因此 Edit/Write 被硬禁止。证据：`opencode/packages/opencode/src/agent/agent.ts:125`、`opencode/packages/opencode/src/agent/agent.ts:130`、`opencode/packages/opencode/src/agent/agent.ts:138`、`opencode/packages/opencode/test/agent/agent.test.ts:61`。
+- Explore 提示词对 Grep/Read 是明确分工：`Grep` 用于 regex 搜索，`Read` 用于已知路径读取；另外提示词要求不改系统状态。证据：`opencode/packages/opencode/src/agent/prompt/explore.txt:10`、`opencode/packages/opencode/src/agent/prompt/explore.txt:11`、`opencode/packages/opencode/src/agent/prompt/explore.txt:16`。
+- Plan 阶段里的 “Explore phase” 是硬注入系统提醒：Phase 1 明确要求只用 explore 子代理，且可并行最多 3 个。证据：`opencode/packages/opencode/src/session/prompt.ts:1263`、`opencode/packages/opencode/src/session/prompt.ts:1267`。
+- Grep/Read 与 AI 的真实交互是标准 tool-call 回路：LLM 发 tool-call，`SessionProcessor` 把结果写成 tool-result，再进入下一轮模型上下文。证据：`opencode/packages/opencode/src/session/processor.ts:126`、`opencode/packages/opencode/src/session/processor.ts:172`、`opencode/packages/opencode/src/session/prompt.ts:596`、`opencode/packages/opencode/src/session/prompt.ts:603`。
+- Grep/Read 的输出限制是“工具内截断”而非外层统一截断：`grep` 最多 100 条并提示 truncated；`read` 默认 2000 行且 50KB 上限，支持 offset/limit；二者都回传 `metadata.truncated`，因此不会再被 `Tool.define` 二次截断。证据：`opencode/packages/opencode/src/tool/grep.ts:107`、`opencode/packages/opencode/src/tool/grep.ts:135`、`opencode/packages/opencode/src/tool/read.ts:12`、`opencode/packages/opencode/src/tool/read.ts:14`、`opencode/packages/opencode/src/tool/read.ts:121`、`opencode/packages/opencode/src/tool/tool.ts:69`。
+- 当输出太大时，系统会引导“继续用 Explore 的 Grep/Read 分段查”，这是框架设计，不是临时行为。证据：`opencode/packages/opencode/src/tool/truncation.ts:97`、`opencode/packages/opencode/test/tool/truncation.test.ts:95`。
+- 你最关心的“主 AI 到底看到什么”：Task 调子代理后，主 AI 只拿到子代理最后一段文本 + `session_id` 元数据，不会自动拿到子代理里每次 Grep/Read 的原始输出。证据：`opencode/packages/opencode/src/tool/task.ts:164`、`opencode/packages/opencode/src/tool/task.ts:176`、`opencode/packages/opencode/src/tool/task.ts:178`、`opencode/packages/opencode/src/tool/task.txt:20`。
+- 额外边界：历史过长时会触发 compaction，把旧工具输出清空为占位文案，后续 AI 看到的是 `[Old tool result content cleared]`。证据：`opencode/packages/opencode/src/session/compaction.ts:84`、`opencode/packages/opencode/src/session/message-v2.ts:544`。
+- 本地动态验证受限：当前环境缺少 `bun`，无法执行 opencode 单测（`bun: command not found`），本轮结论基于源码与现有测试代码交叉取证。
+
+#### opencode Grep 正则来源机制深挖（本轮）
+
+- [x] 通读 Grep 工具定义，确认 `pattern` 参数如何进入执行链
+- [x] 通读会话编排与 LLM 调用，确认正则由谁产出、何时产出
+- [x] 通读消息转换逻辑，确认 AI 生成下一条正则时可见哪些上下文
+- [x] 通读系统/自定义提示注入链，确认 regex 生成依据
+- [x] 检查插件钩子是否可改写工具参数，确认“默认路径 vs 可变路径”
+- [x] 汇总结论与边界条件并写入 review
+
+#### review
+
+- `Grep` 不会自己生成正则；`pattern` 来自模型工具调用参数。工具层只声明 `pattern: string` 并原样传给 `rg --regexp`。证据：`opencode/packages/opencode/src/tool/grep.ts:15`、`opencode/packages/opencode/src/tool/grep.ts:46`、`opencode/packages/opencode/src/tool/grep.ts:47`。
+- 正则由 LLM 在推理时“现写现给”：`resolveTools` 把 grep 的 description+JSON schema 暴露给模型，模型返回 tool-call input，`SessionProcessor` 拿到该 input 执行。证据：`opencode/packages/opencode/src/session/prompt.ts:696`、`opencode/packages/opencode/src/session/prompt.ts:700`、`opencode/packages/opencode/src/session/processor.ts:126`。
+- 写 regex 的“基础材料”包含四类：用户问题、系统提示、自定义规则文件（AGENTS/CLAUDE/config.instructions）、历史工具结果。证据：`opencode/packages/opencode/src/session/prompt.ts:603`、`opencode/packages/opencode/src/session/llm.ts:74`、`opencode/packages/opencode/src/session/system.ts:90`、`opencode/packages/opencode/src/session/system.ts:142`、`opencode/packages/opencode/src/session/message-v2.ts:554`、`opencode/packages/opencode/src/session/message-v2.ts:559`。
+- 在 Explore 子代理场景里，regex 还受“子任务 prompt”约束：主 AI 通过 Task 把探索目标文本传给 explore 子代理，子代理据此写正则。证据：`opencode/packages/opencode/src/tool/task.ts:145`、`opencode/packages/opencode/src/tool/task.ts:147`。
+- Grep 提示词明确教模型“用 regex 搜索”，并给了 regex 示例，因此 pattern 形态主要受提示词+上下文驱动，而非硬编码模板。证据：`opencode/packages/opencode/src/tool/grep.txt:3`、`opencode/packages/opencode/src/agent/prompt/explore.txt:10`。
+- 默认情况下参数不会被二次改写；但插件可在 `tool.execute.before` 修改 `args`，这属于可变路径。当前仓库未发现内置插件对 grep 参数做改写实现。证据：`opencode/packages/plugin/src/index.ts:184`、`opencode/packages/opencode/src/session/prompt.ts:703`、`opencode/packages/web/src/content/docs/plugins.mdx:93`。
+- 纠错机制是“模型重试”而不是“regex编译器自动修复”：若工具入参类型不合法会抛 schema 错误，模型下一轮重写；若同工具同入参重复 3 次会触发 doom_loop 审批。证据：`opencode/packages/opencode/src/tool/tool.ts:57`、`opencode/packages/opencode/src/session/processor.ts:144`、`opencode/packages/opencode/src/session/processor.ts:159`。
+
+#### opencode Grep 正则形态与匹配对象（本轮）
+
+- [x] 通读 Grep 执行参数，确认 regex 在 ripgrep 中的实际运行方式
+- [x] 抽取官方文档/提示词/测试中的 regex 示例，归纳“常见长相”
+- [x] 在当前代码库跑样例 regex，验证各类模式分别匹配什么
+- [x] 补充语义边界（大小写、多行、look-around）与当前实现的影响
+- [x] 在本节补充 review：直白结论 + 证据位置
+
+#### review
+
+- 正则“长相”以代码检索为主，常见四类：
+  - 关键词并列：`UserProfile|updateProfile|editUser`（任一关键词命中）。
+  - 结构模式：`function\\s+\\w+`（函数声明形态）。
+  - 精确符号：`Session\\.updatePart`（点号转义为字面点）。
+  - 行首锚点：`^\\s*export\\s+`（导出声明）。
+  证据：`opencode/packages/opencode/src/tool/grep.txt:3`、`opencode/packages/opencode/src/session/prompt/gemini.txt:135`、`opencode/packages/opencode/src/tool/batch.txt:6`。
+- `Grep` 的 pattern 直接进入 `rg --regexp`，不会做二次模板化，因此“匹配什么”完全取决于给定 regex。证据：`opencode/packages/opencode/src/tool/grep.ts:46`、`opencode/packages/opencode/src/tool/grep.ts:47`。
+- 在当前仓库实测匹配结果：
+  - `function\\s+\\w+` 命中 `config/markdown.ts` 等函数定义行。
+  - `Session\\.updatePart` 命中 `session/processor.ts`、`session/compaction.ts` 等调用点。
+  - `^\\s*export\\s+` + `--glob *.ts` 命中 `src/tool/*.ts` 的导出行。
+  - `(?i)explore` 命中 `explore`/`Explore` 混合大小写位置。
+  证据：本轮终端实测输出（命令：`rg -n ...`，已记录于会话执行结果）。
+- 语义边界（由当前实现决定）：
+  - 大小写：默认区分大小写（未传 `-i`/`-S`），可在 pattern 里用 `(?i)` 局部忽略大小写。
+  - 多行：默认单行匹配（未传 `-U`），pattern 不能跨行。
+  - look-around：默认引擎不支持（未启用 `--pcre2`），如 `(?<=...)` 会报错。
+  证据：`opencode/packages/opencode/src/tool/grep.ts:40`、`opencode/packages/opencode/src/tool/grep.ts:47`；`rg --help`（`--engine`/`--multiline`/`--case-sensitive`段）；本轮实测 `(?<=Session\\.)updatePart` 报错。
+- 一个实现细节要注意：当前 `grep.ts` 把 `exitCode=2 且无输出` 统一当作 “No files found”，因此“无效正则”有机会被误呈现为“没命中”。证据：`opencode/packages/opencode/src/tool/grep.ts:66`、`opencode/packages/opencode/src/tool/grep.ts:70`，以及本轮 `rg` 实测 `look-around`/非法字符类返回 `exit 2`。
+
+#### Explore 阶段 Grep/Read 与 AI 交互深度复核（本轮待确认）
+
+- [x] 全面定位 Explore 阶段中 Grep/Read 的代码入口（提示词、工具实现、执行编排、事件流）
+- [x] 梳理 Grep/Read 与 AI 的完整交互回路（AI 看到什么、调用什么、工具结果如何回注）
+- [x] 对照日志/测试/文档抽取可核验证据，确认是否存在“看起来像 Grep、实际带 Read”等隐式链路
+- [x] 整理直白详细结论与风险边界，并在本节补充 review
+
+#### review
+
+- 主 AI 默认不该直接调 `exact_search_paragraphs/read_paragraph/read_paragraphs`，规划层和执行层都会把这些内部检索工具纠偏/改写成 `explore_content`。证据：`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/agent/execution/tool_executor.py`、`backend/app/services/agent/prompts/tool_descriptions.py`。
+- Explore 子循环里，AI 的决策是“文本 JSON 协议”而不是函数调用协议：每轮 `call_ai` 输出 `{"action","tool","args"}`，代码再手动执行工具。证据：`backend/app/services/agent/tools/explore_tools.py`。
+- `Grep`（`exact_search_paragraphs`）并不只是搜：它在命中后会内部自动 `read_paragraph.ainvoke` 读原文并写入 evidences，所以会出现“只看到 Search 标签，但实际上发生了 Read”。证据：`backend/app/services/agent/tools/explore_tools.py`。
+- 前端轮次标签按“单轮显式工具”渲染，每轮只记录 `tool_calls=[tool_call]`；因此 Grep 内部 auto-read 不会额外显示成 Read 标签。证据：`backend/app/services/agent/tools/explore_tools.py`、`backend/app/services/agent/execution/parallel_executor.py`、`src/services/agentApi.ts`、`src/hooks/useAgentChat.ts`、`src/components/agent/ExecutionFlow/ExploreCard.tsx`。
+- Explore 结果会落到共享状态 `last_explore_result`，后续 `smart_*` 从其中提取 `evidences/locate_targets` 拼成 `evidence_context` 再喂给 AI 生成。证据：`backend/app/services/agent/execution/parallel_executor.py`、`backend/app/services/agent/execution/tool_executor.py`。
+- 当前运行日志文件为空（`backend/logs/app.log` 及轮转文件均 0 字节），本轮无法做“最新调用统计复盘”，结论基于源码链路交叉取证。
+
+#### Explore 阶段 Grep 关键词来源深挖（本轮）
+
+- [x] 追踪 `explore_content -> ContentExplorer -> exact_search_paragraphs` 的关键词传递链
+- [x] 核对 AI 决策提示词，确认关键词由哪些上下文驱动生成
+- [x] 核对程序化兜底（0 命中强制改写）如何生成关键词
+- [x] 核对规划层/执行层 `search_keywords` 注入与 legacy 改写路径
+- [x] 核对关键词清洗、去重、拦截规则，并在本节补充 review
+
+#### review
+
+- `Grep` 最终执行用的关键词来自 `exact_search_paragraphs` 入参：优先读 `keywords`，其次 `keyword`，再其次 `query`。证据：`backend/app/services/agent/tools/explore_tools.py:3374`。
+- 这些入参在常规轮次主要由 Explore 子循环里的 AI 生成：AI 每轮根据 `target_task + 当前状态摘要` 产出 JSON 决策（含 `tool/args`）。证据：`backend/app/services/agent/tools/explore_tools.py:3114`、`backend/app/services/agent/tools/explore_tools.py:3152`、`backend/app/services/agent/tools/explore_tools.py:3191`。
+- AI 的“当前状态摘要”明确包含已搜历史、最近策略、命中列表、已读段落，提示词还要求“不要重复搜已搜关键词”。所以关键词不是随机的，是被历史状态强约束生成。证据：`backend/app/services/agent/tools/explore_tools.py:2940`、`backend/app/services/agent/tools/explore_tools.py:2963`、`backend/app/services/agent/tools/explore_tools.py:2987`、`backend/app/services/agent/tools/explore_tools.py:3179`、`backend/app/services/agent/tools/explore_tools.py:3180`。
+- 0 命中或停机被拒时，程序会绕过 AI 直接构造 Grep 关键词：优先最近一次 query 的关键词；没有则用 `search_keywords`；再没有则从 `target_task` 引号内容拆词。证据：`backend/app/services/agent/tools/explore_tools.py:2421`、`backend/app/services/agent/tools/explore_tools.py:2429`、`backend/app/services/agent/tools/explore_tools.py:2433`、`backend/app/services/agent/tools/explore_tools.py:2436`、`backend/app/services/agent/tools/explore_tools.py:2762`、`backend/app/services/agent/tools/explore_tools.py:2800`、`backend/app/services/agent/tools/explore_tools.py:2894`。
+- 规划层会给 `explore_content` 注入 `search_keywords`（例如补缺失项、legacy 工具纠偏），执行层也会把旧工具参数里的 `keywords/query` 抽出来改写为 `search_keywords`。证据：`backend/app/services/agent/planning/plan_generator.py:750`、`backend/app/services/agent/planning/plan_generator.py:1435`、`backend/app/services/agent/planning/plan_generator.py:1511`、`backend/app/services/agent/execution/tool_executor.py:102`、`backend/app/services/agent/execution/tool_executor.py:131`、`backend/app/services/agent/execution/tool_executor.py:160`。
+- `search_keywords` 在 Explore 中是“种子词，不是唯一来源”：构造器注释写明“仅作辅助，不作为唯一检索来源”。证据：`backend/app/services/agent/tools/explore_tools.py:2150`、`backend/app/services/agent/tools/explore_tools.py:2154`。
+- 真正落地到检索前还会二次清洗：分隔符拆分、去引号、去重、默认匹配模式推断，并做“历史 0 命中同指纹拦截/同范围拦截”。证据：`backend/app/services/agent/tools/explore_tools.py:3378`、`backend/app/services/agent/tools/explore_tools.py:3402`、`backend/app/services/agent/tools/explore_tools.py:3419`、`backend/app/services/agent/tools/explore_tools.py:3515`、`backend/app/services/agent/tools/explore_tools.py:3524`、`backend/app/services/agent/tools/explore_tools.py:1167`。
+- 额外边界：`planning_prompts.py` 虽要求“必须提供 search_keywords”，但这是提示词约束，不是硬校验；代码层并不会因为缺少该字段直接拒绝。证据：`backend/app/services/agent/prompts/planning_prompts.py:308`、`backend/app/services/agent/execution/tool_executor.py:857`。
+- 额外边界：`query_governor.govern_search_keywords` 与 `DecisionHook` 当前未发现接入主执行链（仓库内仅定义，未被调用），因此不属于当前 Grep 关键词实际来源。证据：`backend/app/services/agent/utils/query_governor.py:294`、`backend/app/services/agent/execution/decision_hook.py:20`（全仓 `rg` 未找到调用点）。
+
+#### Explore 关键词“死板/换序重复”根因复盘（本轮）
+
+- [x] 复核关键词去重与指纹逻辑，确认是否把 `[你好,我好]` 与 `[我好,你好]` 视为同类查询
+- [x] 复核重复搜索拦截阈值与触发条件，确认为什么仍会出现换序重搜
+- [x] 复核 `should_search/searched_queries` 实际是否参与执行链
+- [x] 复核关键词治理模块是否真实接入主链路
+- [x] 运行最小验证（定向 pytest + 小脚本）并在本节补充 review
+
+#### review
+
+- 你的直觉是对的：当前实现确实可能出现“关键词很死板 + 仅换顺序再搜一次”的行为。根因不是单点，而是多处策略叠加。
+- 指纹层把 `[你好,我好]` 与 `[我好,你好]` 视为同一查询（关键词会 `sorted(lower(...))`），但拦截条件是 `> ZERO_HIT_SAME_FINGERPRINT_MAX_RETRIES` 且阈值=1，所以会放行一次重复后才拦截。证据：`backend/app/services/agent/tools/explore_tools.py:55`、`backend/app/services/agent/tools/explore_tools.py:1013`、`backend/app/services/agent/tools/explore_tools.py:3529`。
+- 调用签名防打转是按原始 JSON 参数比较，列表顺序不同会被当成不同签名，因此 `[A,B]` 与 `[B,A]` 不会触发“同签名重复”保护。证据：`backend/app/services/agent/tools/explore_tools.py:2657`、`backend/app/services/agent/tools/explore_tools.py:2886`（本轮用 `json.dumps` 小脚本验证了顺序差异）。
+- 关键词组合查询的拦截偏保守：`should_block_search` 对“多关键词且0命中”的记录会 `continue`，避免误伤，但副作用是换序/拆分更容易再次执行。证据：`backend/app/services/agent/tools/explore_tools.py:1184`。
+- `searched_queries/should_search` 这条防重链目前基本没实效：`should_search` 在文件内只有定义没有调用；`record_search` 记录的是单个关键词，不是组合 query。证据：`backend/app/services/agent/tools/explore_tools.py:719`、`backend/app/services/agent/tools/explore_tools.py:3570`（全文件检索 `should_search(` 仅定义处命中）。
+- 关键词治理模块目前未接主链：`govern_search_keywords` 与 `DecisionHook` 都仅定义，未检索到调用点，所以“过滤指令词/泛词/别名扩展”未在实际 Explore 搜索前生效。证据：`backend/app/services/agent/utils/query_governor.py:294`、`backend/app/services/agent/execution/decision_hook.py:20`（仓库 `rg` 无调用）。
+- 实证补充：定向单测 `pytest -q backend/tests/unit/test_explore_query_mode.py -k should_search_not_always_true` 失败，显示测试仍期待旧逻辑 `_is_query_similar`，说明这一块治理代码与当前实现存在漂移。证据：本轮命令输出（AssertionError 指向 `backend/tests/unit/test_explore_query_mode.py:289`）。
+
+#### 候选文件 Read 上下文核验（本轮）
+
+- [x] 对候选文件逐个 Read：`tool/grep.ts`、`tool/read.ts`、`agent/prompt/explore.txt`
+- [x] 对调度链逐个 Read：`session/processor.ts`、`session/prompt.ts`、`session/llm.ts`、`session/message-v2.ts`
+- [x] 核验 `grep -> read` 是否存在硬编码自动串联
+- [x] 核验“唯一性/去重”是否由程序保证
+- [x] 提炼证据化结论并准备向用户直白说明
+
+#### review
+
+- `grep` 工具层只做正则检索与结果格式化，不会自动触发 `read`：实现中仅调用 `rg --regexp` 并返回命中集合；未见调用 `ReadTool` 的代码路径。证据：`opencode/packages/opencode/src/tool/grep.ts`。
+- `read` 是独立工具，需单独 tool-call 触发；其职责是读取指定路径并返回带行号文本。证据：`opencode/packages/opencode/src/tool/read.ts`。
+- Explore 提示词层面是“分工建议”而非强制流水线：`Use Grep...`、`Use Read when you know the specific file path...`。证据：`opencode/packages/opencode/src/agent/prompt/explore.txt`。
+- 会话编排层没有 `if grep then read` 硬规则：`SessionProcessor` 统一处理任意 `tool-call/tool-result`，不含 Grep/Read 特判。证据：`opencode/packages/opencode/src/session/processor.ts`。
+- 工具调用参数（含 grep pattern）来自模型输出，并可被插件钩子改写；因此“正则来源”是：任务上下文 + 系统/自定义规则 + 历史结果 +（可选）插件改写。证据：`opencode/packages/opencode/src/session/prompt.ts`、`opencode/packages/opencode/src/session/llm.ts`、`opencode/packages/opencode/src/session/system.ts`、`opencode/packages/plugin/src/index.ts`。
+- “唯一性”当前无法由该 Grep 方案严格保证：实现未做显式去重，且使用 `--follow`、最多保留 100 条并截断，可能出现语义重复或遗漏。证据：`opencode/packages/opencode/src/tool/grep.ts`。
+
+#### Read 调用时机与依据深挖（本轮）
+
+- [x] 通读 `explore_tools.py` 主循环，定位 Read 触发入口与停机门槛
+- [x] 通读 `exact_search_paragraphs/read_paragraph/read_paragraphs` 三个执行分支，提取触发条件
+- [x] 通读 `tool_executor.py/plan_generator.py`，确认外层是否会直接调用内部 Read 工具
+- [x] 通读检索底层 `chapter_vector_service.py/opensearch_chapter_search_service.py`，确认候选命中的可定位条件
+- [x] 补充证据化结论：什么时候会读原文、依据是什么、哪些是 AI 决策、哪些是程序硬规则
+
+#### review
+
+- 外层规划/执行默认不会直接调 `read_paragraph*`；内部检索工具会被改写为 `explore_content`，Read 由 `explore_content` 内部循环触发。证据：`backend/app/services/agent/planning/plan_generator.py`、`backend/app/services/agent/execution/tool_executor.py`。
+- Read 的第一条主路径是 **Grep 后自动读**：`exact_search_paragraphs` 命中后会在同一工具分支内部循环调用 `read_paragraph.ainvoke`，并写入 `paragraphs/evidences`。证据：`backend/app/services/agent/tools/explore_tools.py:3877`、`backend/app/services/agent/tools/explore_tools.py:3898`、`backend/app/services/agent/tools/explore_tools.py:3928`。
+- 这条自动读是“选择性”而不是必读：仅当命中具备 `chapter_order+paragraph_index`、未读过、在章节范围内、读取预算未耗尽时才会读。证据：`backend/app/services/agent/tools/explore_tools.py:3877`、`backend/app/services/agent/tools/explore_tools.py:3893`、`backend/app/services/agent/tools/explore_tools.py:3895`、`backend/app/services/agent/tools/explore_tools.py:3945`。
+- Read 的第二条路径是 **AI 显式决策**：LLM 输出 `tool=read_paragraph/read_paragraphs`，执行器按参数读取；若段落已读则跳过。证据：`backend/app/services/agent/tools/explore_tools.py:3114`、`backend/app/services/agent/tools/explore_tools.py:3174`、`backend/app/services/agent/tools/explore_tools.py:3997`、`backend/app/services/agent/tools/explore_tools.py:4018`、`backend/app/services/agent/tools/explore_tools.py:4120`。
+- 程序有“必须先读原文再停”的硬门槛：存在可定位候选命中但没有任何读段记录时，`stop` 会被拒绝。证据：`backend/app/services/agent/tools/explore_tools.py:2477`、`backend/app/services/agent/tools/explore_tools.py:2485`。
+- 决策依据不是单一关键词，而是“任务 + 状态摘要”：摘要里明确喂给 AI 搜索历史、最近查询策略、命中列表、已收集证据、已读段落、上下文覆盖，AI据此决定是否继续 Read。证据：`backend/app/services/agent/tools/explore_tools.py:2940`、`backend/app/services/agent/tools/explore_tools.py:2964`、`backend/app/services/agent/tools/explore_tools.py:2987`、`backend/app/services/agent/tools/explore_tools.py:3053`、`backend/app/services/agent/tools/explore_tools.py:3075`、`backend/app/services/agent/tools/explore_tools.py:3150`。
+- 程序化兜底也会影响“何时读”：连续 0 命中或停机被拒会强制改写检索参数继续搜，再进入候选读取流程。证据：`backend/app/services/agent/tools/explore_tools.py:2762`、`backend/app/services/agent/tools/explore_tools.py:2792`、`backend/app/services/agent/tools/explore_tools.py:2800`、`backend/app/services/agent/tools/explore_tools.py:2421`。
+- 当前这套 `exact_search_paragraphs` 不是 regex grep，而是关键词匹配（phrase/all/any）。证据：`backend/app/services/agent/tools/explore_tools.py:3178`、`backend/app/services/chapter_vector_service.py:389`、`backend/app/services/search/opensearch_chapter_search_service.py:315`、`backend/app/services/search/opensearch_chapter_search_service.py:324`。
+
+#### Explore 关键词反复与低命中：核心问题归因（本轮）
+
+- [x] 深挖检索后端实现（OpenSearch 查询构造、match_mode、二次过滤）确认“搜不到”的技术触发点
+- [x] 深挖范围/定位过滤链路，确认是否存在“命中后被过滤掉”的结构性损耗
+- [x] 深挖索引一致性链路，确认是否存在“关键词正确但索引不新/不全”的系统风险
+- [x] 按“关键词匹配特性 vs 项目设计问题”分类总结，并在本节补充 review
+
+#### review
+
+- 结论：这不是“仅仅关键词匹配”的问题，而是“关键词匹配机制 + 项目执行设计”叠加导致。前者决定召回天花板，后者决定是否反复空转。
+- 匹配机制层（关键词特性）的问题：
+  - Explore 明确禁用了语义检索，只允许关键词检索，所以对词面高度依赖。证据：`backend/app/services/agent/tools/explore_tools.py:3147`。
+  - 多关键词默认是严格 `all`（单关键词是 `phrase`），先天更容易 0 命中；只有在无章节命中时才回退 `any`。证据：`backend/app/services/agent/tools/explore_tools.py:3420`、`backend/app/services/agent/tools/explore_tools.py:3702`。
+  - OpenSearch 检索后还有二次关键词字面过滤（`matched_keywords`），在非 `any` 模式会继续丢弃结果。证据：`backend/app/services/search/opensearch_chapter_search_service.py:477`、`backend/app/services/search/opensearch_chapter_search_service.py:485`。
+- 执行设计层（项目实现）的问题：
+  - 反复搜索拦截标准不一致：指纹层把换序视为同一查询，但阈值允许先重复一次；签名层又把换序视为不同调用。证据：`backend/app/services/agent/tools/explore_tools.py:1013`、`backend/app/services/agent/tools/explore_tools.py:3529`、`backend/app/services/agent/tools/explore_tools.py:2657`、`backend/app/services/agent/tools/explore_tools.py:2886`。
+  - 关键词历史治理链断层：`should_search` 仅定义未接入执行路径，`_is_query_similar` 也未被调用。证据：`backend/app/services/agent/tools/explore_tools.py:719`、`backend/app/services/agent/tools/explore_tools.py:686`（全文件检索仅定义命中）。
+  - 已写好的关键词治理器未接主链：`govern_search_keywords` 仅定义和单测存在，主流程无调用。证据：`backend/app/services/agent/utils/query_governor.py:294`（全仓 `rg` 未检到业务调用）。
+  - 范围与定位过滤会进一步吃掉命中：先按章节范围过滤，再丢掉无 `chapter_order/paragraph_index` 的结果。证据：`backend/app/services/agent/tools/explore_tools.py:3498`、`backend/app/services/agent/tools/explore_tools.py:3767`、`backend/app/services/agent/tools/explore_tools.py:3770`。
+  - 索引一致性风险会放大“搜不到”错觉：启动时默认不重建索引；章节 upsert 失败仅记录日志不抛错，流程仍返回成功。证据：`backend/app/core/config.py:35`、`backend/app/main.py:89`、`backend/app/services/chapter_vector_service.py:216`、`backend/app/services/chapter_vector_service.py:219`。
+
+#### opencode：Read 调用时机与依据（纠偏复核）
+
+- [x] 通读 opencode 的 `grep/read` 工具实现，确认是否存在硬编码 grep→read
+- [x] 通读 opencode 会话编排链（processor/prompt/llm/message），确认 Read 的真实触发点
+- [x] 核验 explore 提示词与系统规则注入，确认模型“何时读原文”的决策依据
+- [x] 核验写入工具约束（是否强制先 Read）
+- [x] 在本节补充 review：给出仅基于 opencode 的证据结论
+
+#### review
+
+- `grep` 在 opencode 中不会自动调用 `read`：`grep.ts` 只负责调用 `rg` 并返回命中；全文件未出现 `grep -> ReadTool` 串联实现。证据：`opencode/packages/opencode/src/tool/grep.ts`、`opencode/packages/opencode/src/session/prompt.ts:1002`（全仓仅此一处 `ReadTool.init`）。
+- 在 Explore 子代理里，`Read` 何时调用主要由模型决定：提示词写的是“已知路径时用 Read”，属于策略指导，不是程序强制链路。证据：`opencode/packages/opencode/src/agent/prompt/explore.txt:10`、`opencode/packages/opencode/src/agent/prompt/explore.txt:11`。
+- 模型作出是否 `Read` 的依据来自上下文拼装：agent/system/custom 规则 + 历史消息（含工具输入输出）一起喂给 LLM。证据：`opencode/packages/opencode/src/session/prompt.ts:596`、`opencode/packages/opencode/src/session/prompt.ts:601`、`opencode/packages/opencode/src/session/prompt.ts:603`、`opencode/packages/opencode/src/session/llm.ts:69`、`opencode/packages/opencode/src/session/system.ts:90`、`opencode/packages/opencode/src/session/message-v2.ts:554`。
+- opencode 里有一个“非模型决策”的 Read 自动触发分支：当用户消息包含 `file://` 且 `text/plain` 文件 part 时，`session/prompt.ts` 会在消息预处理阶段直接执行 `ReadTool` 并把结果注入消息。证据：`opencode/packages/opencode/src/session/prompt.ts:840`、`opencode/packages/opencode/src/session/prompt.ts:943`、`opencode/packages/opencode/src/session/prompt.ts:954`、`opencode/packages/opencode/src/session/prompt.ts:1002`、`opencode/packages/opencode/src/session/prompt.ts:1014`。
+- 若进入写入路径（非 Explore），对“已存在文件”是强制先 Read：`WriteTool` 会调用 `FileTime.assert`，未读会报错。证据：`opencode/packages/opencode/src/tool/write.txt:5`、`opencode/packages/opencode/src/tool/write.ts:31`、`opencode/packages/opencode/src/file/time.ts:55`、`opencode/packages/opencode/src/file/time.ts:61`。
+- 额外边界：主代理通过 `Task` 调子代理时，主代理通常只拿到子代理最终文本+元数据，不会天然拿到每次 Grep/Read 全部原始输出，因此你在上层看到的“何时 Read”可能不完整。证据：`opencode/packages/opencode/src/tool/task.ts:176`、`opencode/packages/opencode/src/tool/task.ts:178`。
+
+#### Explore 检索系统重构：理解驱动词法检索（完整落地方案 / 禁用语义检索）
+
+- [x] 明确重构目标与验收标准（以“理解后检索”为核心）
+- [x] 设计端到端新架构（意图编译 -> 查询程序 -> 多通道词法检索 -> 证据裁判 -> 自适应控制）
+- [x] 输出完整实施蓝图（模块、文件、数据结构、流程、测试、灰度、回滚）
+- [x] 形成可直接排期执行的阶段性待办清单
+
+#### review
+
+##### 一、目标定义（What）
+
+- 目标不是“提高关键词数量”，而是把“理解用户意图”从隐式过程改为显式对象，并驱动后续检索。
+- 全程不使用 `search_content` 语义检索；仅使用可解释、可控的词法检索（OpenSearch + 规则）。
+- 彻底消除换序重搜空转（例如 `[A,B]` 与 `[B,A]`）。
+- 让每一轮检索都能回答三个问题：
+  - 这轮在验证什么假设？
+  - 这轮新增了什么信息？
+  - 下一轮为什么必须这样改？
+
+##### 二、验收标准（Definition of Done）
+
+- 线上指标：
+  - `重复查询率`（同语义意图下，仅换序/微变体的重复）< 2%
+  - `首两轮有效命中率`（命中且被证据裁判判定相关）> 70%
+  - `空转停止率`（连续无信息增量仍继续搜索）< 5%
+  - `定位可用率`（命中含 `chapter_order + paragraph_index`）> 95%
+- 质量指标：
+  - 人工抽样 200 条任务，“理解正确 + 证据可用”通过率 > 85%
+- 工程指标：
+  - 所有新增核心逻辑有单元测试 + 集成测试 + 回归用例
+  - 提供灰度开关、观测面板、失败回滚路径
+
+##### 三、核心架构（How）
+
+新链路：
+
+`用户请求 -> IntentCompiler -> QueryProgramBuilder -> LexicalProbeExecutor -> EvidenceJudge -> AdaptiveController -> StopController`
+
+说明：
+- IntentCompiler 负责“理解你意思”，不直接产最终关键词数组。
+- QueryProgramBuilder 负责把意图编译成“可执行查询程序”（多探针），而非单一关键词。
+- LexicalProbeExecutor 执行多通道词法探针（短语、关系、邻近、别名扩展、排除词）。
+- EvidenceJudge 负责判定“命中是否真回答了用户意图”。
+- AdaptiveController 根据失败原因改写下一轮探针（不是换序重搜）。
+- StopController 基于“证据覆盖率 + 信息增量”停机。
+
+##### 四、核心数据结构（必须新增）
+
+1. `IntentSpec`
+- 字段：
+  - `goal`: 用户要解决的核心问题
+  - `must_have`: 必须满足的证据要素列表
+  - `nice_to_have`: 可选补充要素
+  - `constraints`: 章节/时间/角色/语体等约束
+  - `exclusions`: 排除条件
+  - `evidence_shape`: 期望证据形态（段落/对话/动作描写等）
+  - `stop_rule`: 何时可判定足够
+
+2. `QueryProgram`
+- 字段：
+  - `intent_id`
+  - `probes`: 探针数组（每个探针独立目标）
+  - `budget`: 轮次预算、每轮预算
+  - `novelty_rule`: 新信息约束
+
+3. `ProbeSpec`
+- 字段：
+  - `probe_id`
+  - `type`: `phrase` | `boolean` | `proximity` | `alias_expand` | `exclude_filter`
+  - `terms_required`
+  - `terms_optional`
+  - `terms_excluded`
+  - `chapter_scope`
+  - `match_mode`
+  - `hypothesis`（本探针验证的假设）
+
+4. `EvidenceCard`
+- 字段：
+  - `location`（chapter/paragraph/node）
+  - `text`
+  - `matched_terms`
+  - `judge_score`
+  - `judge_reason`
+  - `covers_must_have`
+
+5. `IterationState`
+- 字段：
+  - `seen_probe_signatures`
+  - `failed_reason_histogram`
+  - `novel_evidence_ratio`
+  - `covered_must_have_set`
+
+##### 五、查询程序生成规则（避免“死板关键词数组”）
+
+1. 探针分层
+- Layer-1 精准探针：短语、关键关系、强约束
+- Layer-2 召回探针：可选词 + 邻近匹配
+- Layer-3 扩展探针：别名/称呼/事件变体
+
+2. 反空转约束
+- 同一 `ProbeSpec` 语义签名禁止再次执行（签名归一化后比较，不受词顺序影响）
+- 下一轮必须满足至少一条：
+  - 新增锚点词
+  - 新增排除词
+  - 新增关系约束
+  - 放宽/收紧范围（有理由）
+
+3. 失败原因驱动改写
+- `lexical_miss`: 词面未命中 -> 同义称呼扩展 + 事件动词替换
+- `scope_miss`: 范围错误 -> 自动扩/缩章节范围
+- `locator_drop`: 命中被定位过滤 -> 先补 list_paragraphs，再回查
+- `semantic_mismatch`（由裁判判定）: 命中文本不回答问题 -> 强化 must_have 约束
+
+##### 六、检索执行层重构（仍然词法，不用向量）
+
+1. OpenSearch 查询能力增强
+- `phrase`: 保留
+- `boolean`: 必选词 + 可选词 + 排除词
+- `proximity`: 使用邻近查询（或等价 slop 方案）提升“关系命中”
+- `alias_expand`: 别名小集合扩展（受预算控制）
+
+2. 二次过滤改造
+- 现状：非 `any` 模式会继续按字面过滤，容易二次误杀
+- 改造：
+  - 保留原过滤结果
+  - 同时输出“被过滤原因”
+  - 交由 EvidenceJudge 判定是否应救回
+
+3. 范围过滤改造
+- 现状：范围与定位过滤串联，容易造成“看似无结果”
+- 改造：
+  - 过滤前后都记录计数
+  - 若定位过滤掉比例过高，触发自动补全定位元数据流程
+
+##### 七、证据裁判器（实现“理解后判断”）
+
+- 输入：候选段落 + IntentSpec.must_have
+- 输出：`judge_score + covers_must_have + reason`
+- 规则：
+  - 至少覆盖一个 must_have 才进入下一步
+  - 覆盖率持续不增长时触发停机或策略切换
+- 说明：
+  - 这里可以用 LLM 进行“判定”，但不是用向量召回
+  - 即：LLM 只做判分和解释，不负责找文本
+
+##### 八、停机逻辑重写（从“轮次”变为“覆盖率”）
+
+满足以下任一停止：
+- `must_have` 覆盖率 >= 阈值（例如 80%）
+- 连续 2 轮 `novel_evidence_ratio` < 阈值
+- 已耗尽探针预算且无可执行新探针
+
+禁止停止：
+- 仍有未验证 must_have，且存在可生成新探针
+
+##### 九、索引一致性与数据新鲜度（必须做）
+
+- 章节向量/索引更新失败不能只写日志，需进入重试队列并暴露状态。
+- 增加 `index_sync_status`（按 work/chapter 记录版本、时间、状态）。
+- Explore 执行前进行轻量一致性检查：
+  - 若章节版本 > 索引版本，先触发增量同步再检索。
+
+##### 十、观测与审计（必须做）
+
+新增日志与指标：
+- `probe_signature`
+- `probe_hypothesis`
+- `drop_reason_counts`（scope/locator/unmatched）
+- `novel_evidence_ratio`
+- `must_have_coverage`
+- `stop_reason_code`
+
+新增可视化：
+- 每轮展示“为什么搜这轮”与“为何进入下一轮”
+- 明确展示“被过滤掉多少、因为什么”
+
+##### 十一、实施阶段与改造文件（完整排期）
+
+Phase 0：契约与数据结构
+- [x] 新增 `IntentSpec/QueryProgram/ProbeSpec/EvidenceCard/IterationState` 数据模型
+- [x] 新增 schema 校验与序列化
+- 目标文件：
+  - [x] `backend/app/services/agent/tools/explore_tools.py`
+  - [x] `backend/app/services/agent/utils/`（新增 `intent_retrieval.py`）
+
+Phase 1：意图编译器 + 查询程序构建器
+- [x] 实现 IntentCompiler（从 `target_task` 提取 must_have/constraints/exclusions）
+- [x] 实现 QueryProgramBuilder（分层 probes 生成）
+- [x] 接入 `explore_tool_loop` 相关执行链路（`exact_search_paragraphs` 执行前改为“意图 -> probe”）
+- 目标文件：
+  - [x] `backend/app/services/agent/tools/explore_tools.py`
+  - [ ] `backend/app/services/agent/prompts/`（新增意图编译提示）
+
+Phase 2：词法执行器重构
+- [x] 扩展 OpenSearch 查询构造（boolean/proximity/exclusion）
+- [x] 输出过滤前后统计与 dropped reasons
+- [x] 保留兼容 `phrase/all/any`
+- 目标文件：
+  - [x] `backend/app/services/search/opensearch_chapter_search_service.py`
+  - [x] `backend/app/services/chapter_vector_service.py`
+
+Phase 3：证据裁判器 + 自适应控制器
+- [x] 新增 EvidenceJudge（must_have 覆盖判定）
+- [x] 新增 AdaptiveController（失败原因 -> 下一轮 probe 改写）
+- [x] 强制“禁止换序重复探针”
+- 目标文件：
+  - [x] `backend/app/services/agent/tools/explore_tools.py`
+  - [x] `backend/app/services/agent/utils/`（新增 `adaptive_controller.py`）
+
+Phase 4：一致性保障
+- [x] 建立索引同步状态检查
+- [x] upsert 失败重试与告警
+- [x] 启动检查与运行期增量校验
+- 目标文件：
+  - [x] `backend/app/services/chapter_vector_service.py`
+  - [x] `backend/app/services/search/opensearch_chapter_search_service.py`
+  - [x] `backend/app/main.py`
+  - [x] `backend/app/core/config.py`
+
+Phase 5：测试、灰度、回滚
+- [x] 单元测试：探针签名、防重、覆盖率判定、Phase2 查询构造、AdaptiveController
+- [ ] 集成测试：典型场景 200+ 用例
+- [x] 灰度开关：`EXPLORE_INTENT_RETRIEVAL_V2`
+- [x] 回滚开关：一键切回旧链路
+- 目标文件：
+  - [x] `backend/tests/unit/`
+  - [ ] `backend/tests/integration/`
+  - [x] `backend/app/core/config.py`
+
+##### 十二、测试用例矩阵（必须覆盖）
+
+- [x] 换序重复：`[A,B]` 后 `[B,A]` 必须拦截
+- [ ] 低质量词：指令词/泛词必须被治理
+- [x] 关系检索：同词面不同语义，裁判器应识别无关命中
+- [ ] 范围误杀：命中过滤后触发自动补定位
+- [ ] 索引滞后：模拟 upsert 失败，系统能告警且降级
+- [ ] 停机正确性：覆盖率足够时停机，不足时继续
+
+##### 十三、灰度与回滚策略
+
+- [ ] 灰度阶段 A：5% 流量，监控重复查询率与有效命中率
+- [ ] 灰度阶段 B：25% 流量，监控失败原因分布
+- [ ] 全量阶段：100% 流量
+- [ ] 任一阶段触发告警阈值，自动回滚旧链路
+
+##### 十四、这是“完整方案”而非补丁的判定标准
+
+满足以下全部才算完成：
+- [x] 不再依赖“单一关键词数组 + 反复改顺序”
+- [x] 有结构化意图对象、查询程序对象、证据裁判对象
+- [ ] 有可观测指标与审计日志
+- [x] 有灰度与回滚
+- [x] 有系统化测试与通过记录
+
+#### review（执行进度）
+
+- 已落地文件：
+  - `backend/app/models/opensearch_sync_status.py`
+  - `backend/app/services/agent/utils/intent_retrieval.py`
+  - `backend/app/services/agent/utils/adaptive_controller.py`
+  - `backend/app/services/search/opensearch_chapter_search_service.py`
+  - `backend/app/services/chapter_vector_service.py`
+  - `backend/app/services/agent/tools/explore_tools.py`
+  - `backend/app/main.py`
+  - `backend/app/core/config.py`
+  - `backend/tests/unit/intent_retrieval_spec.py`
+  - `backend/tests/unit/adaptive_controller_spec.py`
+  - `backend/tests/unit/opensearch_query_phase2_spec.py`
+  - `backend/tests/unit/explore_phase23_spec.py`
+  - `backend/tests/unit/opensearch_sync_phase4_spec.py`
+- 本次核心改动：
+  - 新增结构化对象：`IntentSpec/QueryProgram/ProbeSpec/EvidenceCard/IterationState`。
+  - `exact_search_paragraphs` 改为先“意图编译 -> QueryProgram -> Probe 选择”，再执行词法检索。
+  - 增加 probe 签名防重，关键词换序会被归一化，避免 `[A,B]` 和 `[B,A]` 空转。
+  - 新增 EvidenceJudge，将命中是否覆盖 `must_have` 显式打分并回写覆盖状态。
+  - 新增 AdaptiveController，基于失败原因（lexical_miss/semantic_mismatch/locator_drop 等）生成下一轮改写参数。
+  - OpenSearch 检索支持 `terms_required/terms_optional/terms_excluded/proximity_terms/proximity_window`，并保留 `phrase/all/any` 兼容。
+  - exact_search 输出新增过滤统计 `filter_stats` 与弱字面命中统计，用于定位“看似无结果”的原因。
+  - 结果与状态新增可观测字段：`intent_id/probe_signature/probe_hypothesis/judge/must_have_coverage`。
+  - 增加运行开关 `EXPLORE_INTENT_RETRIEVAL_V2`，支持回退。
+  - 新增 `opensearch_sync_statuses` 同步状态模型，按章节记录 `sync_status/retry_count/next_retry_at/last_error`。
+  - OpenSearch 服务新增重试队列处理与一致性审计：`process_retry_queue/audit_work_consistency/audit_all_works/runtime_consistency_guard`。
+  - 向量写入链路新增成功/失败状态回写：`store_chapter_vector/delete_chapter_vectors` 在 OpenSearch 同步后写入状态，失败自动入队重试并记录告警。
+  - 启动流程新增一致性检查：应用启动时可执行“重试队列处理 + work/chapter 审计”并输出统计日志。
+- 验证结果：
+  - `pytest -q tests/unit/intent_retrieval_spec.py tests/unit/adaptive_controller_spec.py tests/unit/opensearch_query_phase2_spec.py tests/unit/explore_phase23_spec.py tests/unit/opensearch_sync_phase4_spec.py`：16 passed
+  - `python3 -m py_compile ...`：通过
+- 仍待完成（下一阶段）：
+  - 端到端集成测试与灰度指标面板。
+
+#### Explore 6轮0命中日志排查与修复（待确认）
+
+- [x] 读取 `backend/logs/app.log`，定位“主角第一次吞噬器灵”本次探索链路
+- [x] 对比 DB 与 OpenSearch 实际数据，确认是否存在“有数据但搜不到”
+- [x] 修复 `exact_search_paragraphs` 参数合并逻辑，避免 `terms_required` 被 probe 覆盖为空
+- [x] 补回归测试并执行验证
+
+#### review
+
+- 日志证据已确认：本次请求在 `2026-02-09 21:11:23 ~ 21:12:09` 执行，`explore_content` 共 6 轮，核心检索被锁定在 `chapter_range=(1,1)`，且 OpenSearch 检索关键词包含整句（如“主角第一次吞噬器灵”）并持续 0 命中。证据：`backend/logs/app.log`（含 `[ExploreTool] call=exact_search_paragraphs` 与 `[OpenSearchSearch] ... hits=0`）。
+- 数据侧已排除“无数据”原因：DB 向量表该作品共 `523` 条，OpenSearch 该作品也共 `523` 条；chapter 1 文档充足。数据库中“吞噬/器灵”均有命中（`吞噬` 在第1章 30 条，`器灵` 在第1章 36 条）。说明不是素材或索引缺失。
+- 根因在代码参数合并：`explore_tools.py` 中 planned probe payload 会无条件覆盖 `terms_required/terms_optional/terms_excluded/proximity_terms`；当 payload 未提供这些字段时，原本 AI 明确给出的 `terms_required=["吞噬","器灵"]` 会被清空为 `[]`，后续检索退化为“整句关键词”，导致 0 命中。
+- 已修复：仅当 planned payload 明确提供对应字段且解析后非空时，才覆盖现有约束词；否则保留已有 `terms_required` 等参数。修改文件：`backend/app/services/agent/tools/explore_tools.py`。
+- 回归测试：新增断言防回归（planned payload 不应清空显式 required terms）。修改文件：`backend/tests/unit/explore_phase23_spec.py`。
+- 验证通过：
+  - `python3 -m py_compile backend/app/services/agent/tools/explore_tools.py backend/tests/unit/explore_phase23_spec.py` 通过
+  - `pytest -q tests/unit/explore_phase23_spec.py tests/unit/opensearch_query_phase2_spec.py`：6 passed
+  - `pytest -q tests/unit/intent_retrieval_spec.py tests/unit/adaptive_controller_spec.py tests/unit/opensearch_query_phase2_spec.py tests/unit/explore_phase23_spec.py tests/unit/opensearch_sync_phase4_spec.py`：17 passed
+
+#### Explore 检索内核重构（先删旧逻辑）（待确认）
+
+- [ ] 盘点并删除旧链路：`IntentCompiler/QueryProgramBuilder/EvidenceJudge/AdaptiveController` 及 Explore 中对应接线
+- [ ] 新建统一重构模块：`intent_retrieval_v3.py`（意图槽位、查询程序、证据裁判、自适应改写）
+- [ ] Explore 接入 V3：`exact_search_paragraphs` 全量改走 V3，不再把 `search_intent` 拆词污染 `keywords`
+- [ ] OpenSearch 执行层保持 boolean/proximity/exclusion，仅接受结构化查询参数
+- [ ] 删除旧测试并补 V3 测试：去污染、换序防重、覆盖率裁判、失败改写
+- [ ] 运行验证（pytest + py_compile）并在 todo.md 追加 review（证据、结果、剩余风险）

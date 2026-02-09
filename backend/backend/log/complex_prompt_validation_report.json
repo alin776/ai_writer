@@ -1,0 +1,88 @@
+{
+  "summary": {
+    "base_url": "http://localhost:8000",
+    "work_id": "9a4ba144-44cf-4947-9746-7a55fe3426c2",
+    "chapter_id": "",
+    "strict": true,
+    "tool_policy": "auto",
+    "total_cases": 5,
+    "passed_cases": 0,
+    "failed_cases": 5,
+    "overall_pass": false
+  },
+  "results": [
+    {
+      "case_id": "P1",
+      "title": "器灵等阶悖论自洽性",
+      "passed": false,
+      "errors": [
+        "search_keywords 数量不在 8~12（当前 0）",
+        "缺少“支持自洽”栏",
+        "缺少“仍未解释的断点”栏",
+        "缺少三选一结论（自洽/不自洽/证据不足）",
+        "缺少置信度数值",
+        "证据定位不足（章节/段落号引用少于3处）"
+      ],
+      "output_preview": "很抱歉，我未能成功执行您的任务。\n\n根据任务执行结果，用于分析原文的工具 `direct_output` 报告了错误：`未知工具: direct_output`。这意味着我无法访问或处理《一夕千悟，从杂役弟子开始》的原文内容，因此无法进行检索、分析或生成任何证据链和结论。\n\n由于工具执行失败，我无法提供您所要求的检索计划、证据链、分析以及关于“牛尾刀器灵等阶悖论”是否自洽的结论。\n\n请检查工具配置或提供可用的工具，以便我能继续执行此任务。",
+      "output_chars": 221,
+      "conversation_id": "46fd14cd-4c52-473e-84db-551de1e0e8e2",
+      "raw_event_count": 18,
+      "request_error": null
+    },
+    {
+      "case_id": "P2",
+      "title": "擦刀到千悟因果线",
+      "passed": false,
+      "errors": [
+        "search_keywords 少于10个（当前 1）",
+        "缺少关键节点：刀不顺手",
+        "时间线证据定位不足（章节/段落号引用少于5处）"
+      ],
+      "output_preview": "作为小说事实审计员，我已对“段融从擦刀到一夕千悟”的因果时间线进行了追踪和分析。\n\n## 1. search_keywords\n- 段融\n- 赵穆\n- 擦刀\n- 器灵\n- 吞噬器灵\n- 一夕千悟\n- 牛尾刀\n- 五虎群羊刀\n- 浑圆桩\n- 内息\n- 杂役弟子\n- 未入阶\n\n## 2. 因果时间线追踪 (T1~Tn)\n\n### T1: 赵穆让段融擦刀\n- **事件**: 赵穆将自己的兵刃牛尾刀交给段融擦拭。\n- **触发原因**: 作为杂役弟子的段融需要承担擦刀的工作，赵穆将自...",
+      "output_chars": 2909,
+      "conversation_id": "5dd8f780-ec02-4684-bcf9-cd932bf0116b",
+      "raw_event_count": 56,
+      "request_error": null
+    },
+    {
+      "case_id": "P3",
+      "title": "三人同段全量命中",
+      "passed": false,
+      "errors": [
+        "缺少“第X页/共Y页”分页标记",
+        "缺少字段：总命中数"
+      ],
+      "output_preview": "根据您的任务要求，以下是本次“全量命中验证”的执行结果：\n\nsearch_keywords: [\"孔斌\", \"李充\", \"张征\"]\n\n无命中。\n\n本次检索使用了关键词组合：[\"孔斌\", \"李充\", \"张征\"]。\n\n**执行结果分析：**\n\n在全书中检索同时包含“孔斌”、“李充”、“张征”三个关键词的段落时，工具返回了错误信息：\n`{\"error\": \"tool_failed\", \"message\": \"探索未产出可定位段落（缺少 paragraph_index/node_id...",
+      "output_chars": 475,
+      "conversation_id": "9906aa1b-aa62-4a5c-b1e6-1eebb246238a",
+      "raw_event_count": 20,
+      "request_error": null
+    },
+    {
+      "case_id": "P4",
+      "title": "器灵结构化抽取一致性",
+      "passed": false,
+      "errors": [
+        "请求异常: timed out"
+      ],
+      "output_preview": "",
+      "output_chars": 0,
+      "conversation_id": null,
+      "raw_event_count": 0,
+      "request_error": null
+    },
+    {
+      "case_id": "P5",
+      "title": "命题A反向事实校验",
+      "passed": false,
+      "errors": [
+        "请求异常: timed out"
+      ],
+      "output_preview": "",
+      "output_chars": 0,
+      "conversation_id": null,
+      "raw_event_count": 0,
+      "request_error": null
+    }
+  ]
+}

@@ -10,6 +10,7 @@ from app.models.ai_guidelines import AIGuidelines
 from app.models.novel_analysis import NovelAnalysis, AnalysisStatus, AnalysisStage
 from app.models.novel_analysis_vector import NovelAnalysisVector
 from app.models.novel_chapter_vector import NovelChapterVector
+from app.models.opensearch_sync_status import OpenSearchSyncStatus, OpenSearchSyncStatusEnum
 from app.models.relationship import EntityRelationship
 from app.models.timeline_event import TimelineEvent
 from app.models.glossary_term import GlossaryTerm
@@ -95,6 +96,8 @@ __all__ = [
     "AnalysisStage",
     "NovelAnalysisVector",
     "NovelChapterVector",
+    "OpenSearchSyncStatus",
+    "OpenSearchSyncStatusEnum",
     "EntityRelationship",
     "TimelineEvent",
     "GlossaryTerm",

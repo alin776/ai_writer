@@ -22,8 +22,17 @@ from datetime import datetime
 from langchain_core.tools import tool
 from .tool_registry import register_as_tool
 from app.utils.datetime_utils import get_utc_now
+from app.core.config import settings
 from app.services.agent.utils.tool_context import get_stream_event_handler, get_explore_step_id
 from app.services.agent.utils.performance import MemoryCache
+from app.services.agent.utils.intent_retrieval import (
+    IntentCompiler,
+    QueryProgramBuilder,
+    EvidenceJudge,
+    IterationState,
+    IntentSpec,
+)
+from app.services.agent.utils.adaptive_controller import AdaptiveController
 from app.services.agent.utils.explore_artifact import (
     save_explore_artifact as _save_explore_artifact,
     load_explore_artifact as _load_explore_artifact,
@@ -63,6 +72,8 @@ TOOL_SIGNATURE_NOISE_PARAMS = {
     "timestamp",
     "request_id",
 }
+INTENT_RETRIEVAL_MAX_PROBES = 8
+INTENT_JUDGE_CARD_PREVIEW = 8
 PER_CHAPTER_READ_CAP_RATIO = 0.2
 PER_CHAPTER_READ_CAP_MIN = 10
 PER_CHAPTER_READ_CAP_MAX = 30
@@ -601,6 +612,10 @@ class QueryAttempt:
     blocked_keywords: int = 0
     error: str = ""
     keyword_fingerprint: str = ""
+    intent_id: str = ""
+    probe_signature: str = ""
+    probe_hypothesis: str = ""
+    failure_reason: str = ""
     timestamp: datetime = field(default_factory=get_utc_now)
 
 
@@ -680,6 +695,15 @@ class ExploreState:
 
     query_attempts: List['QueryAttempt'] = field(default_factory=list)
     # 每轮 exact_search 查询参数与命中情况（用于程序化防打转）
+
+    iteration_state: IterationState = field(default_factory=IterationState)
+    # 探针执行状态（签名防重、失败分布、must-have 覆盖率）
+
+    latest_intent_spec: Dict[str, Any] = field(default_factory=dict)
+    # 最近一次编译出的意图对象
+
+    latest_query_program: Dict[str, Any] = field(default_factory=dict)
+    # 最近一次生成的查询程序（用于可观测）
 
     # ========== 去重方法 ==========
 
@@ -1368,6 +1392,7 @@ def _decorate_cached_payload(payload: Dict[str, Any], cache_key: str) -> Dict[st
 
 
 def _clone_explore_state(state: ExploreState) -> ExploreState:
+    source_iteration_state = getattr(state, "iteration_state", None)
     return ExploreState(
         evidences=[],
         search_hits=[],
@@ -1385,6 +1410,9 @@ def _clone_explore_state(state: ExploreState) -> ExploreState:
         rounds=[],
         search_history=list(state.search_history),  # 保留搜索历史
         query_attempts=list(state.query_attempts),
+        iteration_state=source_iteration_state.clone() if isinstance(source_iteration_state, IterationState) else IterationState(),
+        latest_intent_spec=dict(getattr(state, "latest_intent_spec", {}) or {}),
+        latest_query_program=dict(getattr(state, "latest_query_program", {}) or {}),
     )
 
 
@@ -1409,6 +1437,13 @@ def _merge_explore_states(base: ExploreState, incoming: ExploreState) -> Explore
     merged.query_attempts.extend(incoming.query_attempts)
     if len(merged.query_attempts) > 50:
         merged.query_attempts = merged.query_attempts[-50:]
+    merged.iteration_state.merge_from(getattr(incoming, "iteration_state", None))
+    incoming_intent = getattr(incoming, "latest_intent_spec", None)
+    incoming_program = getattr(incoming, "latest_query_program", None)
+    if incoming_intent:
+        merged.latest_intent_spec = dict(incoming_intent)
+    if incoming_program:
+        merged.latest_query_program = dict(incoming_program)
     return merged
 
 def build_context_for_task(result: ExploreResult) -> str:
@@ -2180,6 +2215,11 @@ class ContentExplorer:
         else:
             self.step_id = 1
         self.state = ExploreState()
+        self.intent_retrieval_v2 = bool(getattr(settings, "EXPLORE_INTENT_RETRIEVAL_V2", True))
+        self.intent_compiler = IntentCompiler()
+        self.query_program_builder = QueryProgramBuilder()
+        self.evidence_judge = EvidenceJudge()
+        self.adaptive_controller = AdaptiveController()
         self.start_time = get_utc_now()
         self.chapter_list_cache: Optional[List[Dict[str, Any]]] = None
         self.paragraph_node_id_cache: Dict[int, Dict[str, int]] = {}
@@ -2195,6 +2235,8 @@ class ContentExplorer:
             logger.info("[ContentExplorer] 章节范围锁定: %s", _format_scope_ranges(self.chapter_scopes_raw))
         if self.force_global_search:
             logger.info("[ContentExplorer] force_global_search 启用：忽略章节范围")
+        if self.intent_retrieval_v2:
+            logger.info("[ContentExplorer] 启用意图驱动词法检索 V2")
         if self.require_full_chapter:
             logger.info("[ContentExplorer] 任务要求完整章节原文")
         if self.forbid_full_chapter:
@@ -2418,10 +2460,59 @@ class ContentExplorer:
             terms.append(value)
         return terms
 
+    def _parse_search_term_values(self, raw: Any) -> List[str]:
+        terms: List[str] = []
+        if isinstance(raw, str):
+            terms.extend(self._split_search_terms(raw))
+        elif isinstance(raw, list):
+            for item in raw:
+                terms.extend(self._split_search_terms(str(item)))
+        elif raw is not None:
+            terms.extend(self._split_search_terms(str(raw)))
+        deduped: List[str] = []
+        seen = set()
+        for term in terms:
+            value = str(term).strip().strip("\"'“”‘’《》")
+            if not value:
+                continue
+            key = value.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(value)
+        return deduped
+
+    def _get_latest_exact_search_result(self) -> Dict[str, Any]:
+        for round_data in reversed(self.state.rounds):
+            for call in reversed(round_data.tool_calls):
+                if call.tool_name != "exact_search_paragraphs":
+                    continue
+                if isinstance(call.result, dict):
+                    return call.result
+        return {}
+
     def _build_forced_rewrite_search_args(self) -> Optional[Dict[str, Any]]:
         """构造程序强制放宽查询参数（关键词模式），避免 0 命中空转。"""
         recent_attempts = self.state.get_recent_query_attempts(limit=5)
         latest_attempt = recent_attempts[-1] if recent_attempts else None
+
+        latest_result = self._get_latest_exact_search_result()
+        failure_reason = ""
+        if isinstance(latest_result, dict):
+            adaptive_overrides = latest_result.get("adaptive_overrides")
+            if isinstance(adaptive_overrides, dict) and adaptive_overrides.get("keywords"):
+                logger.info(
+                    "[ContentExplorer] reuse adaptive overrides from latest result: strategy=%s",
+                    adaptive_overrides.get("strategy")
+                )
+                return dict(adaptive_overrides)
+            judge = latest_result.get("judge")
+            if isinstance(judge, dict):
+                failure_reason = str(judge.get("failure_reason") or "").strip()
+            if not failure_reason:
+                failure_reason = str(latest_result.get("failure_reason") or "").strip()
+            if not failure_reason and not latest_result.get("success"):
+                failure_reason = str(latest_result.get("error") or "").strip() or "lexical_miss"
 
         keywords: List[str] = []
         chapter_scope = None
@@ -2446,6 +2537,37 @@ class ContentExplorer:
             dedup_keywords.append(kw)
         keywords = dedup_keywords[:6]
 
+        latest_terms_required = self._parse_search_term_values(latest_result.get("terms_required") if isinstance(latest_result, dict) else [])
+        latest_terms_optional = self._parse_search_term_values(latest_result.get("terms_optional") if isinstance(latest_result, dict) else [])
+        latest_terms_excluded = self._parse_search_term_values(latest_result.get("terms_excluded") if isinstance(latest_result, dict) else [])
+        latest_proximity_terms = self._parse_search_term_values(latest_result.get("proximity_terms") if isinstance(latest_result, dict) else [])
+        if not latest_proximity_terms and len(keywords) >= 2:
+            latest_proximity_terms = keywords[:2]
+
+        if self.intent_retrieval_v2 and (keywords or self.state.latest_intent_spec):
+            adaptive_rewrite = self.adaptive_controller.build_rewrite(
+                failure_reason=failure_reason or "lexical_miss",
+                target_task=self.target_task or "",
+                intent_spec=self.state.latest_intent_spec if isinstance(self.state.latest_intent_spec, dict) else {},
+                iteration_state=self.state.iteration_state.to_dict(),
+                latest_keywords=keywords,
+                latest_terms_required=latest_terms_required,
+                latest_terms_optional=latest_terms_optional,
+                latest_terms_excluded=latest_terms_excluded,
+                latest_proximity_terms=latest_proximity_terms,
+                latest_scope=chapter_scope,
+                seed_keywords=self.search_keywords or [],
+            )
+            if adaptive_rewrite:
+                adaptive_args = adaptive_rewrite.to_search_args()
+                logger.info(
+                    "[ContentExplorer] adaptive rewrite generated: strategy=%s reason=%s keywords=%s",
+                    adaptive_args.get("strategy"),
+                    adaptive_args.get("adaptive_reason"),
+                    adaptive_args.get("keywords"),
+                )
+                return adaptive_args
+
         if not keywords:
             return None
 
@@ -2454,10 +2576,86 @@ class ContentExplorer:
             "match_mode": "any",
             "limit": 100,
             "strategy": "forced_rewrite",
+            "search_intent": "放宽关键词约束，确认是否存在相关段落",
         }
         if chapter_scope and isinstance(chapter_scope, tuple):
             args["chapter_range"] = [chapter_scope[0], chapter_scope[1]]
         return args
+
+    def _collect_recent_attempt_keywords(self, limit: int = 16) -> List[str]:
+        if limit <= 0:
+            return []
+        recent_attempts = self.state.get_recent_query_attempts(limit=limit)
+        keywords: List[str] = []
+        seen = set()
+        for attempt in recent_attempts:
+            for kw in attempt.keywords:
+                value = str(kw or "").strip()
+                if not value or value in seen:
+                    continue
+                seen.add(value)
+                keywords.append(value)
+        return keywords
+
+    def _compile_intent_spec(
+        self,
+        manual_keywords: List[str],
+        current_scope: Optional[Tuple[int, int]]
+    ) -> IntentSpec:
+        scope = current_scope
+        if scope is None and self.chapter_scopes:
+            min_order = min(item[0] for item in self.chapter_scopes)
+            max_order = max(item[1] for item in self.chapter_scopes)
+            scope = (min_order, max_order)
+        seed_keywords = []
+        seed_keywords.extend(self.search_keywords or [])
+        seed_keywords.extend(manual_keywords or [])
+        recent_keywords = self._collect_recent_attempt_keywords(limit=20)
+        intent_spec = self.intent_compiler.compile(
+            target_task=self.target_task or "",
+            seed_keywords=seed_keywords,
+            recent_keywords=recent_keywords,
+            chapter_scope=scope
+        )
+        self.state.latest_intent_spec = intent_spec.to_dict()
+        return intent_spec
+
+    def _plan_exact_search_probe(
+        self,
+        manual_keywords: List[str],
+        requested_match_mode: str,
+        current_scope: Optional[Tuple[int, int]],
+        limit: int
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[IntentSpec], Optional[Dict[str, Any]]]:
+        if not self.intent_retrieval_v2:
+            return None, None, None
+
+        intent_spec = self._compile_intent_spec(
+            manual_keywords=manual_keywords,
+            current_scope=current_scope
+        )
+        query_program = self.query_program_builder.build(
+            intent=intent_spec,
+            manual_keywords=manual_keywords,
+            requested_match_mode=requested_match_mode,
+            chapter_scope=current_scope,
+            iteration_state=self.state.iteration_state,
+            max_probes=INTENT_RETRIEVAL_MAX_PROBES,
+        )
+        query_program_dict = query_program.to_dict()
+        self.state.latest_query_program = query_program_dict
+        probe = self.query_program_builder.pick_next_probe(
+            program=query_program,
+            iteration_state=self.state.iteration_state
+        )
+        if probe is None:
+            return None, intent_spec, query_program_dict
+
+        payload = self.query_program_builder.probe_to_search_payload(
+            probe=probe,
+            limit=limit
+        )
+        return {"probe": probe, "payload": payload}, intent_spec, query_program_dict
 
     def _has_unread_locatable_search_hits(self) -> bool:
         """是否存在“可定位且未读取”的章节候选命中。"""
@@ -2653,6 +2851,27 @@ class ContentExplorer:
                 for key, value in (tool_call.params or {}).items()
                 if key != "work_id" and key not in TOOL_SIGNATURE_NOISE_PARAMS
             }
+            if isinstance(tool_params.get("keywords"), list):
+                normalized = _normalize_search_keywords([str(v) for v in tool_params.get("keywords") or []])
+                tool_params["keywords"] = normalized
+            for term_key in ("terms_required", "terms_optional", "terms_excluded", "proximity_terms"):
+                if isinstance(tool_params.get(term_key), list):
+                    normalized_terms = _normalize_search_keywords([str(v) for v in tool_params.get(term_key) or []])
+                    tool_params[term_key] = normalized_terms
+            if isinstance(tool_params.get("chapter_ranges"), list):
+                ranges = []
+                for item in tool_params.get("chapter_ranges") or []:
+                    if isinstance(item, (list, tuple)) and len(item) >= 2:
+                        try:
+                            start = int(item[0])
+                            end = int(item[1])
+                        except Exception:
+                            continue
+                        if start > end:
+                            start, end = end, start
+                        ranges.append((start, end))
+                if ranges:
+                    tool_params["chapter_ranges"] = sorted(ranges)
             try:
                 params_digest = json.dumps(tool_params, ensure_ascii=False, sort_keys=True)
             except Exception:
@@ -2975,14 +3194,38 @@ class ContentExplorer:
             for attempt in recent_attempts:
                 scope_text = "全书" if attempt.chapter_scope is None else f"第{attempt.chapter_scope[0]}-{attempt.chapter_scope[1]}章"
                 kw_text = ",".join(attempt.keywords[:4]) if attempt.keywords else "-"
+                probe_text = attempt.probe_signature[:8] if attempt.probe_signature else "-"
                 if attempt.error:
                     lines.append(
-                        f"  · R{attempt.round_idx} [{attempt.strategy}] {scope_text} kw={kw_text} -> error:{attempt.error}"
+                        f"  · R{attempt.round_idx} [{attempt.strategy}] {scope_text} kw={kw_text} probe={probe_text} -> error:{attempt.error}"
                     )
                 else:
                     lines.append(
-                        f"  · R{attempt.round_idx} [{attempt.strategy}] {scope_text} kw={kw_text} -> hit={attempt.chapter_hits}/{attempt.hits}"
+                        f"  · R{attempt.round_idx} [{attempt.strategy}] {scope_text} kw={kw_text} probe={probe_text} -> hit={attempt.chapter_hits}/{attempt.hits}"
                     )
+
+        if self.intent_retrieval_v2 and self.state.latest_intent_spec:
+            intent_goal = (self.state.latest_intent_spec.get("goal") or "").strip()
+            must_have = self.state.latest_intent_spec.get("must_have") or []
+            if intent_goal:
+                lines.append(f"- 当前检索意图：{_truncate_text(intent_goal, 120)}")
+            if must_have:
+                lines.append(f"- must_have 目标：{', '.join(must_have[:6])}")
+            covered = sorted(self.state.iteration_state.covered_must_have_set)
+            total_must_have = int(self.state.iteration_state.must_have_total or len(must_have) or 0)
+            if total_must_have > 0:
+                ratio = len(covered) / total_must_have
+                lines.append(
+                    f"- must_have 覆盖：{len(covered)}/{total_must_have} ({ratio:.0%})"
+                )
+            if covered:
+                lines.append(f"- 已覆盖要素：{', '.join(covered[:8])}")
+            if self.state.iteration_state.failed_reason_histogram:
+                failure_parts = [
+                    f"{key}:{value}"
+                    for key, value in sorted(self.state.iteration_state.failed_reason_histogram.items())
+                ]
+                lines.append(f"- 失败原因分布：{'; '.join(failure_parts)}")
 
         # 最近一次搜索命中列表（对标 grep 输出：命中行列表）
         if self.state.search_hits:
@@ -3136,8 +3379,8 @@ class ContentExplorer:
    - 作用：列出章节清单
 2) list_paragraphs(chapter_order, offset, limit, preview_len)
    - 作用：列出某章段落索引（仅预览）
-3) exact_search_paragraphs(keywords?, match_mode, limit)
-   - 作用：关键词匹配（Grep），返回候选段落
+3) exact_search_paragraphs(search_intent?, keywords?, terms_required?, terms_optional?, terms_excluded?, proximity_terms?, proximity_window?, match_mode, limit)
+   - 作用：词法检索（Grep），优先传 search_intent（本轮要验证的检索假设）
 4) read_paragraph(chapter_order, paragraph_index, context_before, context_after)
    - 作用：读取指定段落原文
 5) read_paragraphs(items, context_before, context_after)
@@ -3175,9 +3418,13 @@ class ContentExplorer:
 - read_paragraph 必须提供 chapter_order + paragraph_index（可用 list_paragraphs 的 index/paragraph_index）。
 - read_paragraphs 可用两种模式：items 列表（chapter_order+paragraph_index）或分页模式（chapter_order/chapter_id + offset+limit）。
 - items 模式不要用 chapter_id/node_id 直接定位；分页模式可用 chapter_id。
-- exact_search_paragraphs 仅使用关键词（keywords）检索，不要传 patterns/regex 参数。
+- exact_search_paragraphs 仅使用 search_intent/keywords 检索，不要传 patterns/regex 参数。
+- 优先给 search_intent（描述“要验证的关系/假设”），keywords 只给 1-3 个锚点词即可。
+- 需要排除词时，用 terms_excluded；需要关系邻近时，用 proximity_terms + proximity_window。
+- 如果要区分硬约束与软约束：terms_required 放必须词，terms_optional 放可选词。
 - 禁止一次性并列长串抽象负向词（如“代价/限制/风险/误判/副作用…”）；必须先拆成 1-2 个可落地关键词再检索。
 - 不要搜索已搜索过的关键词或其变体（检查上方"搜索历史"中已搜过的内容）。
+- 不要仅交换关键词顺序制造“新查询”（如 [A,B] 与 [B,A] 视为同一查询）。
 - 若上方提示“上下文已覆盖”，则不要再次调用 read_paragraph/read_paragraphs 读取同一目标段落。
 
 何时应选择 action="stop"：
@@ -3374,6 +3621,7 @@ class ContentExplorer:
             raw_keywords = params.get("keywords") or params.get("keyword") or params.get("query") or []
             strategy_label = str(params.get("strategy") or "ai").strip().lower() or "ai"
             requested_match_mode = str(params.get("match_mode") or params.get("mode") or "").strip().lower()
+            search_intent_text = str(params.get("search_intent") or params.get("intent") or "").strip()
 
             def _split_keywords(text: str) -> List[str]:
                 parts = [text]
@@ -3398,6 +3646,8 @@ class ContentExplorer:
                     keywords.extend(_split_keywords(text))
             else:
                 keywords = []
+            if search_intent_text:
+                keywords.extend(self._split_search_terms(search_intent_text))
 
             cleaned_keywords = []
             seen_kw = set()
@@ -3410,6 +3660,16 @@ class ContentExplorer:
                 seen_kw.add(cleaned)
                 cleaned_keywords.append(cleaned)
             keywords = cleaned_keywords
+
+            terms_required = self._parse_search_term_values(params.get("terms_required"))
+            terms_optional = self._parse_search_term_values(params.get("terms_optional"))
+            terms_excluded = self._parse_search_term_values(params.get("terms_excluded"))
+            proximity_terms = self._parse_search_term_values(params.get("proximity_terms"))
+            proximity_window = params.get("proximity_window")
+            if isinstance(proximity_window, str) and proximity_window.strip().isdigit():
+                proximity_window = int(proximity_window.strip())
+            if not isinstance(proximity_window, int) or proximity_window <= 0:
+                proximity_window = 12
 
             if requested_match_mode in ("any", "all", "phrase"):
                 match_mode = requested_match_mode
@@ -3509,6 +3769,80 @@ class ContentExplorer:
                 max_order = max(s[1] for s in ranges_to_use)
                 current_scope = (min_order, max_order)
 
+            limit = params.get("limit") or 50
+            if not isinstance(limit, int):
+                try:
+                    limit = int(limit)
+                except Exception:
+                    limit = 50
+
+            planned_probe_signature = ""
+            planned_probe_hypothesis = ""
+            intent_spec: Optional[IntentSpec] = None
+            query_program_info: Optional[Dict[str, Any]] = None
+            probe_exhausted = False
+            if self.intent_retrieval_v2:
+                planned_probe, intent_spec, query_program_info = self._plan_exact_search_probe(
+                    manual_keywords=list(keywords),
+                    requested_match_mode=requested_match_mode,
+                    current_scope=current_scope,
+                    limit=limit
+                )
+                if planned_probe:
+                    planned_payload = planned_probe.get("payload") if isinstance(planned_probe, dict) else {}
+                    if isinstance(planned_payload, dict):
+                        planned_keywords = planned_payload.get("keywords")
+                        if isinstance(planned_keywords, list):
+                            keywords = _normalize_search_keywords(planned_keywords)
+                        planned_required = planned_payload.get("terms_required")
+                        planned_optional = planned_payload.get("terms_optional")
+                        planned_excluded = planned_payload.get("terms_excluded")
+                        planned_proximity = planned_payload.get("proximity_terms")
+                        # 仅在 probe payload 明确提供对应字段时才覆盖，
+                        # 避免把 AI 已给出的 terms_required 等约束意外清空成 []。
+                        if "terms_required" in planned_payload:
+                            parsed_required = self._parse_search_term_values(planned_required)
+                            if parsed_required:
+                                terms_required = parsed_required
+                        if "terms_optional" in planned_payload:
+                            parsed_optional = self._parse_search_term_values(planned_optional)
+                            if parsed_optional:
+                                terms_optional = parsed_optional
+                        if "terms_excluded" in planned_payload:
+                            parsed_excluded = self._parse_search_term_values(planned_excluded)
+                            if parsed_excluded:
+                                terms_excluded = parsed_excluded
+                        if "proximity_terms" in planned_payload:
+                            parsed_proximity = self._parse_search_term_values(planned_proximity)
+                            if parsed_proximity:
+                                proximity_terms = parsed_proximity
+                        planned_proximity_window = planned_payload.get("proximity_window")
+                        if isinstance(planned_proximity_window, int) and planned_proximity_window > 0:
+                            proximity_window = planned_proximity_window
+                        planned_mode = str(planned_payload.get("match_mode") or "").strip().lower()
+                        if planned_mode in ("any", "all", "phrase"):
+                            match_mode = planned_mode
+                        planned_strategy = str(planned_payload.get("strategy") or "").strip().lower()
+                        if planned_strategy:
+                            strategy_label = planned_strategy
+                        planned_probe_signature = str(planned_payload.get("probe_signature") or "").strip()
+                        planned_probe_hypothesis = str(planned_payload.get("probe_hypothesis") or "").strip()
+                        params["keywords"] = list(keywords)
+                        params["terms_required"] = list(terms_required)
+                        params["terms_optional"] = list(terms_optional)
+                        params["terms_excluded"] = list(terms_excluded)
+                        params["proximity_terms"] = list(proximity_terms)
+                        params["proximity_window"] = proximity_window
+                        params["match_mode"] = match_mode
+                        if planned_probe_signature:
+                            params["probe_signature"] = planned_probe_signature
+                        if planned_probe_hypothesis:
+                            params["probe_hypothesis"] = planned_probe_hypothesis
+                        params["strategy"] = strategy_label
+                else:
+                    probe_exhausted = True
+                    self.state.iteration_state.mark_failure("probe_exhausted")
+
             blocked_keywords: List[Dict[str, str]] = []
             filtered_keywords: List[str] = []
             for kw in keywords:
@@ -3518,29 +3852,39 @@ class ContentExplorer:
                     continue
                 filtered_keywords.append(kw)
             keywords = filtered_keywords
-            keyword_fingerprint = self.state._build_attempt_fingerprint(keywords, current_scope, match_mode) if keywords else ""
+            if not terms_required:
+                terms_required = list(keywords[:2])
+            if not terms_optional and len(keywords) > len(terms_required):
+                terms_optional = [kw for kw in keywords if kw not in terms_required][:3]
+            if not proximity_terms and len(terms_required) >= 2:
+                proximity_terms = terms_required[:2]
+            fingerprint_terms = keywords or terms_required or terms_optional or proximity_terms
+            keyword_fingerprint = self.state._build_attempt_fingerprint(fingerprint_terms, current_scope, match_mode) if fingerprint_terms else ""
             blocked_by_same_fingerprint = False
-            if keywords and strategy_label != "forced_rewrite":
+            if fingerprint_terms and strategy_label != "forced_rewrite" and not probe_exhausted:
                 zero_hit_same_fingerprint = self.state.count_zero_hit_fingerprint(
-                    keywords=keywords,
+                    keywords=fingerprint_terms,
                     scope=current_scope,
                     mode=match_mode,
                 )
                 if zero_hit_same_fingerprint > ZERO_HIT_SAME_FINGERPRINT_MAX_RETRIES:
                     blocked_by_same_fingerprint = True
                     blocked_keywords.append({
-                        "keyword": ",".join(keywords[:3]),
+                        "keyword": ",".join(fingerprint_terms[:3]),
                         "reason": (
                             f"同查询指纹已连续0命中{zero_hit_same_fingerprint}次，"
                             "请更换关键词或范围"
                         )
                     })
-            query_terms = keywords[:3]
+            active_query_keywords = keywords or terms_required or terms_optional or proximity_terms
+            query_terms = active_query_keywords[:3]
             query = ",".join(query_terms) if query_terms else "exact_search"
 
-            if not keywords or blocked_by_same_fingerprint:
+            if not active_query_keywords or blocked_by_same_fingerprint or probe_exhausted:
                 if blocked_by_same_fingerprint:
                     error_text = "同查询指纹连续0命中，已阻止重复搜索"
+                elif probe_exhausted:
+                    error_text = "查询程序无可执行新探针"
                 else:
                     error_text = "关键词已被拦截" if blocked_keywords else "缺少可执行的 keywords"
                 result_data = {
@@ -3550,10 +3894,26 @@ class ContentExplorer:
                     "strategy": strategy_label,
                     "match_mode": match_mode,
                     "keyword_fingerprint": keyword_fingerprint,
+                    "keywords": list(active_query_keywords),
+                    "terms_required": list(terms_required),
+                    "terms_optional": list(terms_optional),
+                    "terms_excluded": list(terms_excluded),
+                    "proximity_terms": list(proximity_terms),
+                    "proximity_window": proximity_window,
+                    "probe_signature": planned_probe_signature,
+                    "probe_hypothesis": planned_probe_hypothesis,
+                    "intent_id": intent_spec.intent_id if isinstance(intent_spec, IntentSpec) else "",
+                    "query_program_probes": len((query_program_info or {}).get("probes") or []),
                 }
+                if planned_probe_signature:
+                    self.state.iteration_state.mark_probe(planned_probe_signature)
+                if blocked_by_same_fingerprint:
+                    self.state.iteration_state.mark_failure("duplicate_fingerprint")
+                elif not active_query_keywords:
+                    self.state.iteration_state.mark_failure("no_keywords")
                 self.state.add_query_attempt(QueryAttempt(
                     query=query,
-                    keywords=list(keywords),
+                    keywords=list(active_query_keywords),
                     match_mode=match_mode,
                     chapter_scope=current_scope,
                     round_idx=round_idx,
@@ -3564,24 +3924,26 @@ class ContentExplorer:
                     blocked_keywords=len(blocked_keywords),
                     error=error_text,
                     keyword_fingerprint=keyword_fingerprint,
+                    intent_id=intent_spec.intent_id if isinstance(intent_spec, IntentSpec) else "",
+                    probe_signature=planned_probe_signature,
+                    probe_hypothesis=planned_probe_hypothesis,
+                    failure_reason="probe_exhausted" if probe_exhausted else (
+                        "duplicate_fingerprint" if blocked_by_same_fingerprint else "no_keywords"
+                    ),
                 ))
             else:
-                for kw in keywords:
+                if planned_probe_signature:
+                    self.state.iteration_state.mark_probe(planned_probe_signature)
+                for kw in active_query_keywords:
                     self.state.record_search(kw)
-                limit = params.get("limit") or 50
-                if not isinstance(limit, int):
-                    try:
-                        limit = int(limit)
-                    except Exception:
-                        limit = 50
 
                 results: List[Dict[str, Any]] = []
-                effective_keywords = list(keywords)
+                effective_keywords = list(active_query_keywords)
                 effective_match_mode = match_mode
                 effective_strategy = "strict" if strategy_label == "ai" else f"{strategy_label}_strict"
                 search_attempt_layers: List[Dict[str, Any]] = []
 
-                worldview_matches = self._search_worldview_for_keywords(keywords) if keywords else []
+                worldview_matches = self._search_worldview_for_keywords(active_query_keywords) if active_query_keywords else []
                 if worldview_matches:
                     logger.info(f"[ContentExplorer] 世界观匹配: {len(worldview_matches)} 条")
                     for wv_item in worldview_matches:
@@ -3613,7 +3975,12 @@ class ContentExplorer:
                     async def _run_exact_search_layer(
                         layer_strategy: str,
                         layer_keywords: List[str],
-                        layer_match_mode: str
+                        layer_match_mode: str,
+                        layer_terms_required: Optional[List[str]] = None,
+                        layer_terms_optional: Optional[List[str]] = None,
+                        layer_terms_excluded: Optional[List[str]] = None,
+                        layer_proximity_terms: Optional[List[str]] = None,
+                        layer_proximity_window: Optional[int] = None,
                     ) -> List[Dict[str, Any]]:
                         layer_results: List[Dict[str, Any]] = []
                         if ranges_to_use:
@@ -3623,7 +3990,12 @@ class ContentExplorer:
                                     keywords=layer_keywords,
                                     chapter_range=(start_order, end_order),
                                     match_mode=layer_match_mode,
-                                    limit=limit
+                                    limit=limit,
+                                    terms_required=layer_terms_required,
+                                    terms_optional=layer_terms_optional,
+                                    terms_excluded=layer_terms_excluded,
+                                    proximity_terms=layer_proximity_terms,
+                                    proximity_window=layer_proximity_window,
                                 )
                                 layer_results.extend(part or [])
                         else:
@@ -3632,7 +4004,12 @@ class ContentExplorer:
                                 keywords=layer_keywords,
                                 chapter_range=None,
                                 match_mode=layer_match_mode,
-                                limit=limit
+                                limit=limit,
+                                terms_required=layer_terms_required,
+                                terms_optional=layer_terms_optional,
+                                terms_excluded=layer_terms_excluded,
+                                proximity_terms=layer_proximity_terms,
+                                proximity_window=layer_proximity_window,
                             )
                             layer_results.extend(part or [])
 
@@ -3663,10 +4040,17 @@ class ContentExplorer:
                         search_attempt_layers.append({
                             "strategy": layer_strategy,
                             "keywords": list(layer_keywords),
+                            "terms_required": list(layer_terms_required or []),
+                            "terms_optional": list(layer_terms_optional or []),
+                            "terms_excluded": list(layer_terms_excluded or []),
+                            "proximity_terms": list(layer_proximity_terms or []),
+                            "proximity_window": layer_proximity_window,
                             "match_mode": layer_match_mode,
                             "hits": len(normalized_layer_results),
                             "chapter_hits": len(layer_chapter_hits),
                             "dropped_missing_locator": dropped_missing_locator,
+                            "intent_id": intent_spec.intent_id if isinstance(intent_spec, IntentSpec) else "",
+                            "probe_signature": planned_probe_signature,
                         })
                         self.state.add_query_attempt(QueryAttempt(
                             query=layer_query,
@@ -3681,17 +4065,27 @@ class ContentExplorer:
                             blocked_keywords=len(blocked_keywords),
                             error="",
                             keyword_fingerprint=self.state._build_attempt_fingerprint(
-                                layer_keywords,
+                                (layer_keywords or [])
+                                + (layer_terms_required or [])
+                                + (layer_terms_optional or []),
                                 current_scope,
                                 layer_match_mode,
                             ),
+                            intent_id=intent_spec.intent_id if isinstance(intent_spec, IntentSpec) else "",
+                            probe_signature=planned_probe_signature,
+                            probe_hypothesis=planned_probe_hypothesis,
                         ))
                         return normalized_layer_results
 
                     chapter_results = await _run_exact_search_layer(
                         layer_strategy=effective_strategy,
-                        layer_keywords=keywords,
-                        layer_match_mode=match_mode
+                        layer_keywords=active_query_keywords,
+                        layer_match_mode=match_mode,
+                        layer_terms_required=terms_required,
+                        layer_terms_optional=terms_optional,
+                        layer_terms_excluded=terms_excluded,
+                        layer_proximity_terms=proximity_terms,
+                        layer_proximity_window=proximity_window,
                     )
                     results.extend(chapter_results)
 
@@ -3703,8 +4097,13 @@ class ContentExplorer:
                         fallback_strategy = "kw_fallback"
                         fallback_results = await _run_exact_search_layer(
                             layer_strategy=fallback_strategy,
-                            layer_keywords=keywords,
-                            layer_match_mode="any"
+                            layer_keywords=active_query_keywords,
+                            layer_match_mode="any",
+                            layer_terms_required=terms_required,
+                            layer_terms_optional=terms_optional,
+                            layer_terms_excluded=terms_excluded,
+                            layer_proximity_terms=proximity_terms,
+                            layer_proximity_window=proximity_window,
                         )
                         results.extend(fallback_results)
                         fallback_chapter_hits = [
@@ -3737,7 +4136,9 @@ class ContentExplorer:
                                             keywords=[kw],
                                             chapter_range=(start_order, end_order),
                                             match_mode="any",
-                                            limit=supplement_limit
+                                            limit=supplement_limit,
+                                            terms_required=[kw],
+                                            terms_excluded=terms_excluded,
                                         ) or []
                                     )
                             else:
@@ -3746,30 +4147,50 @@ class ContentExplorer:
                                     keywords=[kw],
                                     chapter_range=None,
                                     match_mode="any",
-                                    limit=supplement_limit
+                                    limit=supplement_limit,
+                                    terms_required=[kw],
+                                    terms_excluded=terms_excluded,
                                 ) or []
                             if part:
                                 results.extend(part)
 
                 match_mode = effective_match_mode
                 strategy_label = effective_strategy
-                query_terms = keywords[:3]
+                query_terms = active_query_keywords[:3]
                 query = ",".join(query_terms) if query_terms else "exact_search"
 
+                filter_stats: Dict[str, int] = {
+                    "before_scope_filter": len(results),
+                    "dropped_scope": 0,
+                    "before_locator_filter": 0,
+                    "dropped_locator": 0,
+                    "weak_literal_hits": 0,
+                }
+                filter_stats["weak_literal_hits"] = sum(
+                    1
+                    for item in results
+                    if isinstance(item, dict) and bool(item.get("weak_literal_match"))
+                )
+
                 if param_ranges:
+                    before_param_filter = len(results)
                     results = [
                         r for r in results
                         if isinstance(r, dict)
                         and isinstance(r.get("chapter_order"), int)
                         and any(start <= r.get("chapter_order") <= end for start, end in param_ranges)
                     ]
+                    filter_stats["dropped_scope"] += max(0, before_param_filter - len(results))
 
                 if self.chapter_scopes:
+                    before_scope_filter = len(results)
                     results = self._filter_results_in_scope(results)
+                    filter_stats["dropped_scope"] += max(0, before_scope_filter - len(results))
 
                 # 定位契约兜底：仅允许可定位命中进入后续读取流程
                 locator_filtered_results: List[Dict[str, Any]] = []
                 dropped_locator_results = 0
+                filter_stats["before_locator_filter"] = len(results)
                 for item in results:
                     if not isinstance(item, dict):
                         continue
@@ -3793,6 +4214,7 @@ class ContentExplorer:
                         "[ExploreTool] exact_search locator filter dropped=%s",
                         dropped_locator_results
                     )
+                filter_stats["dropped_locator"] = dropped_locator_results
                 results = locator_filtered_results
 
                 merged = {}
@@ -3817,6 +4239,32 @@ class ContentExplorer:
                         merged[key] = item
                 results = list(merged.values())
 
+                judge_summary: Dict[str, Any] = {
+                    "cards": [],
+                    "covered_terms": [],
+                    "coverage_ratio": 0.0,
+                    "failure_reason": "",
+                    "avg_score": 0.0,
+                }
+                if isinstance(intent_spec, IntentSpec):
+                    chapter_results_for_judge = [
+                        item for item in results
+                        if isinstance(item, dict) and item.get("source") != "worldview"
+                    ]
+                    judge_summary = self.evidence_judge.judge(
+                        results=chapter_results_for_judge,
+                        intent=intent_spec,
+                        active_keywords=active_query_keywords,
+                    )
+                    covered_terms = judge_summary.get("covered_terms") or []
+                    self.state.iteration_state.update_coverage(
+                        covered_terms=covered_terms,
+                        total_must_have=len(intent_spec.must_have),
+                    )
+                    failure_reason = str(judge_summary.get("failure_reason") or "").strip()
+                    if failure_reason:
+                        self.state.iteration_state.mark_failure(failure_reason)
+
                 for item in results:
                     self.state.add_search_hit(
                         item,
@@ -3826,12 +4274,12 @@ class ContentExplorer:
                     )
 
                 ordered_results = results
-                if results and keywords:
-                    keyword_hits: Dict[str, List[Dict[str, Any]]] = {kw: [] for kw in keywords}
+                if results and active_query_keywords:
+                    keyword_hits: Dict[str, List[Dict[str, Any]]] = {kw: [] for kw in active_query_keywords}
                     for item in results:
                         if not isinstance(item, dict) or item.get("source") == "worldview":
                             continue
-                        for mk in _extract_matched_keywords(item, keywords):
+                        for mk in _extract_matched_keywords(item, active_query_keywords):
                             keyword_hits.setdefault(mk, []).append(item)
                     position_map: Dict[Tuple[int, int], Dict[str, Any]] = {}
                     for item in results:
@@ -3910,9 +4358,9 @@ class ContentExplorer:
                                 chapter_info = await self._get_chapter_info_by_order(chapter_order)
                                 chapter_id = chapter_info.get("chapter_id") or chapter_info.get("id") or ""
                                 chapter_title = read_data.get("chapter_title") or chapter_info.get("title") or ""
-                                if target_text and keywords:
+                                if target_text and active_query_keywords:
                                     text_lower = target_text.lower()
-                                    for kw in keywords:
+                                    for kw in active_query_keywords:
                                         if kw and kw.lower() in text_lower:
                                             read_keyword_hits.add(kw)
                                 paragraph_data = {
@@ -3949,21 +4397,72 @@ class ContentExplorer:
 
                 chapter_hits = [r for r in results if r.get("source") != "worldview"]
                 worldview_hits_count = len(worldview_matches) if worldview_matches else 0
-                missing_keywords = [kw for kw in keywords if kw not in read_keyword_hits] if keywords else []
+                missing_keywords = [kw for kw in active_query_keywords if kw not in read_keyword_hits] if active_query_keywords else []
+                failure_reason_text = str(judge_summary.get("failure_reason") or "").strip()
+                adaptive_overrides: Dict[str, Any] = {}
+                if self.intent_retrieval_v2 and (failure_reason_text or not chapter_hits):
+                    adaptive_rewrite = self.adaptive_controller.build_rewrite(
+                        failure_reason=failure_reason_text or "lexical_miss",
+                        target_task=self.target_task or "",
+                        intent_spec=self.state.latest_intent_spec if isinstance(self.state.latest_intent_spec, dict) else {},
+                        iteration_state=self.state.iteration_state.to_dict(),
+                        latest_keywords=active_query_keywords,
+                        latest_terms_required=terms_required,
+                        latest_terms_optional=terms_optional,
+                        latest_terms_excluded=terms_excluded,
+                        latest_proximity_terms=proximity_terms,
+                        latest_scope=current_scope,
+                        seed_keywords=self.search_keywords or [],
+                    )
+                    if adaptive_rewrite:
+                        adaptive_overrides = adaptive_rewrite.to_search_args()
+                if failure_reason_text:
+                    for attempt in reversed(self.state.query_attempts):
+                        if attempt.round_idx != round_idx:
+                            continue
+                        if not attempt.failure_reason:
+                            attempt.failure_reason = failure_reason_text
+                        if not attempt.probe_signature and planned_probe_signature:
+                            attempt.probe_signature = planned_probe_signature
+                        if not attempt.probe_hypothesis and planned_probe_hypothesis:
+                            attempt.probe_hypothesis = planned_probe_hypothesis
 
                 result_data = {
                     "success": True,
-                    "keywords": keywords,
+                    "keywords": list(active_query_keywords),
+                    "terms_required": list(terms_required),
+                    "terms_optional": list(terms_optional),
+                    "terms_excluded": list(terms_excluded),
+                    "proximity_terms": list(proximity_terms),
+                    "proximity_window": proximity_window,
                     "match_mode": match_mode,
                     "strategy": strategy_label,
+                    "intent_id": intent_spec.intent_id if isinstance(intent_spec, IntentSpec) else "",
+                    "probe_signature": planned_probe_signature,
+                    "probe_hypothesis": planned_probe_hypothesis,
                     "search_layers": search_attempt_layers,
                     "hits": len(results),
                     "chapter_hits": len(chapter_hits),
                     "worldview_hits": worldview_hits_count,
                     "results": _preview_results(results),
                     "missing_keywords": missing_keywords,
-                    "blocked_keywords": blocked_keywords
+                    "blocked_keywords": blocked_keywords,
+                    "judge": {
+                        "coverage_ratio": judge_summary.get("coverage_ratio"),
+                        "covered_terms": judge_summary.get("covered_terms"),
+                        "failure_reason": judge_summary.get("failure_reason"),
+                        "avg_score": judge_summary.get("avg_score"),
+                        "cards": (judge_summary.get("cards") or [])[:INTENT_JUDGE_CARD_PREVIEW],
+                    },
+                    "failure_reason": judge_summary.get("failure_reason") or "",
+                    "filter_stats": filter_stats,
+                    "query_program_probes": len((query_program_info or {}).get("probes") or []),
+                    "must_have_coverage_set": sorted(self.state.iteration_state.covered_must_have_set),
+                    "must_have_total": int(self.state.iteration_state.must_have_total or 0),
+                    "must_have_coverage_ratio": self.state.iteration_state.novel_evidence_ratio,
                 }
+                if adaptive_overrides:
+                    result_data["adaptive_overrides"] = adaptive_overrides
 
                 chapters_in_results = list(set(
                     r.get("chapter_order") for r in results
@@ -3983,15 +4482,17 @@ class ContentExplorer:
                 ))
 
                 logger.info(
-                    "[ExploreTool] done=%s success=%s hits=%s (chapter=%s, worldview=%s) strategy=%s keywords=%s blocked=%s",
+                    "[ExploreTool] done=%s success=%s hits=%s (chapter=%s, worldview=%s) strategy=%s probe=%s keywords=%s blocked=%s coverage=%.2f",
                     tool_name,
                     True,
                     len(results),
                     len(chapter_hits),
                     worldview_hits_count,
                     strategy_label,
+                    planned_probe_signature,
                     ",".join(keywords[:6]),
-                    len(blocked_keywords)
+                    len(blocked_keywords),
+                    float(self.state.iteration_state.novel_evidence_ratio or 0.0)
                 )
 
         elif tool_name == "read_paragraph":
@@ -5006,6 +5507,10 @@ async def explore_content(
                     "worldview": worldview_dict,
                     "analysis": result.analysis,
                     "stats": result.stats,
+                    "intent_retrieval_v2": explorer.intent_retrieval_v2,
+                    "intent_state": explorer.state.iteration_state.to_dict(),
+                    "intent_spec": explorer.state.latest_intent_spec,
+                    "query_program": explorer.state.latest_query_program,
                     "frontend_display": frontend_display
                 }
                 await _attach_artifact(result_payload)
@@ -5029,7 +5534,11 @@ async def explore_content(
             result_payload = {
                 "success": True,
                 "evidences": evidences_output,
-                "locate_targets": locate_targets
+                "locate_targets": locate_targets,
+                "intent_retrieval_v2": explorer.intent_retrieval_v2,
+                "intent_state": explorer.state.iteration_state.to_dict(),
+                "intent_spec": explorer.state.latest_intent_spec,
+                "query_program": explorer.state.latest_query_program,
             }
             await _attach_artifact(result_payload)
             if use_cache and cache_key:
@@ -5175,7 +5684,11 @@ async def explore_content(
             "chapters": chapters_list,
             "results": chapters_list,
             "worldview": worldview_dict,
-            "events_emitted": events_emitted
+            "events_emitted": events_emitted,
+            "intent_retrieval_v2": explorer.intent_retrieval_v2,
+            "intent_state": explorer.state.iteration_state.to_dict(),
+            "intent_spec": explorer.state.latest_intent_spec,
+            "query_program": explorer.state.latest_query_program,
         }
         await _attach_artifact(result_payload)
         if use_cache and cache_key:

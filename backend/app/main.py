@@ -13,6 +13,9 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
+# 确保启动时加载全部模型，init_db(create_all) 才能感知新增表结构。
+import app.models  # noqa: F401
+
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.core.redis import redis_client
@@ -129,6 +132,40 @@ async def lifespan(app: FastAPI):
             logger.info("[STARTUP] ✅ OpenSearch 段落索引重建完成")
         except Exception as e:
             logger.warning(f"[STARTUP] ⚠️ OpenSearch 段落索引重建失败: {e}")
+
+    # 启动一致性校验：处理重试队列并审计 work/chapter 的索引同步状态
+    if settings.OPENSEARCH_SYNC_AUDIT_ON_STARTUP:
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.services.search.opensearch_chapter_search_service import OpenSearchChapterSearchService
+
+            work_limit_raw = int(settings.OPENSEARCH_SYNC_AUDIT_WORK_LIMIT or 0)
+            chapter_limit_raw = int(settings.OPENSEARCH_SYNC_AUDIT_CHAPTER_LIMIT_PER_WORK or 0)
+            work_limit = work_limit_raw if work_limit_raw > 0 else None
+            chapter_limit = chapter_limit_raw if chapter_limit_raw > 0 else None
+
+            logger.info("[STARTUP] 开始 OpenSearch 同步一致性检查...")
+            async with AsyncSessionLocal() as db:
+                search_service = OpenSearchChapterSearchService(db)
+                summary = await search_service.audit_all_works(
+                    work_limit=work_limit,
+                    chapter_limit_per_work=chapter_limit,
+                )
+            logger.info(
+                "[STARTUP] ✅ OpenSearch 同步一致性检查完成: works_checked=%s/%s chapters=%s synced=%s desynced=%s failed=%s deleted=%s retry_processed=%s retry_failed=%s exhausted=%s",
+                summary.get("works_checked", 0),
+                summary.get("works_total", 0),
+                summary.get("chapters_checked", 0),
+                (summary.get("status_totals") or {}).get("synced", 0),
+                (summary.get("status_totals") or {}).get("desynced", 0),
+                (summary.get("status_totals") or {}).get("failed", 0),
+                (summary.get("status_totals") or {}).get("deleted", 0),
+                ((summary.get("retry") or {}).get("processed", 0)),
+                ((summary.get("retry") or {}).get("failed", 0)),
+                ((summary.get("retry") or {}).get("exhausted", 0)),
+            )
+        except Exception as e:
+            logger.warning(f"[STARTUP] ⚠️ OpenSearch 同步一致性检查失败: {e}")
 
     # 初始化官方频道
     try:
