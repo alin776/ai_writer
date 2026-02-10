@@ -5222,3 +5222,86 @@ Phase 5：测试、灰度、回滚
   - `cd backend && pytest -q tests/unit/intent_retrieval_spec.py tests/unit/adaptive_controller_spec.py tests/unit/opensearch_query_phase2_spec.py tests/unit/explore_phase23_spec.py tests/unit/opensearch_sync_phase4_spec.py`：20 passed
 - 剩余风险：
   - 仍属于“符号化理解 + 词法执行”的范式，尚未引入离线事件索引（事件三元组/章节事件图）；对极隐式表达仍可能漏召回。
+
+#### 检索链路根因深挖（2026-02-10，已完成）
+
+- [x] 梳理检索主链（规划层 → 执行层 → Explore 内部搜索层 → OpenSearch/Hybrid）并画出“检索目标语义”传递路径
+- [x] 逐条核对你提出的 11 个现象，在代码中定位对应机制与触发条件（含 stop/fallback/rank/retry）
+- [x] 收集证据（精确到文件+行号），区分“已经修复/部分修复/仍存在”三类
+- [x] 深挖核心矛盾：为什么系统仍会表现成“关键词驱动”而非“意图驱动”
+- [x] 输出直白结论：按“现象 → 代码证据 → 根因 → 影响”给出详细说明
+- [x] 在 todo.md 添加 review，记录关键证据、结论与建议的最小改造方向
+
+
+#### review（检索链路根因深挖）
+
+- 结论分层：
+  - 已修复：无（11条里没有可判定为“彻底解决”的项）。
+  - 部分修复：#1 #3 #4 #5 #9。
+  - 仍存在：#2 #6 #7 #8 #10 #11。
+- 核心根因（主结论）：
+  - 系统已经补了“意图层”（`IntentCompiler/QueryProgramBuilder/EvidenceJudge`），但执行层仍是“词法参数层”（`keywords/terms_*`）驱动，语义在落地时被压扁，导致行为上仍像关键词系统。
+  - 这不是单点 bug，而是链路契约问题：规划层产 `search_keywords`，执行层传 `keywords`，检索层吃 `chunk_text` 匹配；中间没有“结构化意图对象”作为唯一主输入。
+- 关键证据（摘要）：
+  - 规划层强制 `explore_content.params.search_keywords`：`backend/app/services/agent/prompts/planning_prompts.py:308-325`。
+  - 规划/执行都把内部检索改写成 `target_task + search_keywords`：
+    - `backend/app/services/agent/planning/plan_generator.py:1463-1533`
+    - `backend/app/services/agent/execution/tool_executor.py:130-176,198-204`
+  - 意图探针最终仍输出词法 payload（`keywords/terms_required/...`）：`backend/app/services/agent/utils/intent_retrieval.py:942-966`。
+  - Explore 执行时核心输入仍是关键词与 terms：`backend/app/services/agent/tools/explore_tools.py:3647-3716,4069-4095`。
+  - OpenSearch 查询直接打 `chunk_text` 的 `match_phrase/match`：`backend/app/services/search/opensearch_chapter_search_service.py:1083-1229`。
+  - 排序目标偏“顺序”非“回答价值”：`backend/app/services/search/opensearch_chapter_search_service.py:1647-1650`（按章节/段落升序）。
+  - 停机/回退仍偏启发式：`backend/app/services/agent/tools/explore_tools.py:62-67,2967-3055,3139-3154`。
+  - 证据质量控制有改进但不彻底：
+    - 仅 `paragraph/read_paragraph` 入 evidence：`backend/app/services/agent/tools/explore_tools.py:903-918`
+    - 但弱字面命中仍保留到候选：`backend/app/services/search/opensearch_chapter_search_service.py:1692-1721`
+  - 可观测性存在断层：
+    - `query_attempts` 仅保留最近 50 条：`backend/app/services/agent/tools/explore_tools.py:1024-1026`
+    - 旧搜索记录被压缩：`backend/app/services/agent/tools/explore_tools.py:1129-1144`
+    - 最终输出不带完整 `query_attempts/search_history`：`backend/app/services/agent/tools/explore_tools.py:5699-5720`
+    - 统计脚本与现有日志字段已漂移：
+      - 期待 `total_hits/has_more`：`backend/scripts/explore_replay_metrics.py:19-22`
+      - 实际日志不再输出这些字段：`backend/app/services/agent/tools/explore_tools.py:4512-4523`
+  - 测试覆盖偏“结构/字符串存在性”，不足以约束“理解意图质量”：
+    - `backend/tests/unit/explore_phase23_spec.py:13-50`
+    - `backend/tests/unit/opensearch_query_phase2_spec.py:11-87`
+- 最小改造方向（不大改架构）：
+  - 先定义统一检索契约 `RetrievalIntent`（entity/action/relation/constraints/stop_rule），规划层与执行层只传这一对象；`search_keywords` 仅保留为 fallback 字段。
+  - OpenSearch 增加“任务证据分”排序通道（judge score 或 must_have coverage priors），避免默认按章节顺序吞掉高价值命中。
+  - 将 `missing_keywords` 从“仅回传元数据”改为“下一轮强制 gap 驱动输入”，并把 `should_search()` 真正接入主循环。
+  - 把 `query_attempts/search_history/search_layers` 纳入最终 artifact，补齐“为何这么搜/为何停机”的可追溯性。
+
+#### 检索主链重构（非补丁，2026-02-10，已完成）
+
+- [x] 设计并落地统一检索契约 `RetrievalIntent`（语义槽位、关系约束、时序约束、证据形状、停机规则）
+- [x] 规划层重构：移除 `explore_content` 对 `search_keywords` 的硬要求，改为输出 `retrieval_intent`
+- [x] 执行层重构：移除 legacy 调用中的关键词抽取主链，统一改写为 `target_task + retrieval_intent`
+- [x] Explore 入口重构：`explore_content` 以 `retrieval_intent` 为主输入，`search_keywords` 仅保留兼容 fallback
+- [x] QueryProgram 重构：探针仅从 `RetrievalIntent` 生成，不再直接消费上游关键词数组
+- [x] 多轮控制重构：改为“证据裁判 -> 信息缺口 -> 下一探针”的缺口驱动循环，削弱/移除 forced_rewrite 主导路径
+- [x] 排序目标重构：OpenSearch 结果排序从“章节顺序优先”改为“回答任务价值优先（coverage/relation/constraint）”
+- [x] 可观测性重构：输出完整决策轨迹（intent/probe/judge/gap/stop）到结果与 artifact
+- [x] 测试重构：新增端到端质量约束测试（同义改写、关系命中、时序命中、停机可信）
+- [x] 在 todo.md 增加 review（重构范围、行为变化、风险、回滚点）
+
+
+#### review（检索主链重构，非补丁）
+
+- 重构范围：
+  - 统一检索契约：在 `backend/app/services/agent/utils/intent_retrieval.py` 新增 `RetrievalIntent`，并补 `from_dict/from_intent_spec/to_intent_spec` 与 `IntentCompiler.resolve_retrieval_intent()`。
+  - 规划层主输出改造：`backend/app/services/agent/prompts/planning_prompts.py` 把 explore 参数规则改成 `retrieval_intent` 为主；`backend/app/services/agent/planning/plan_generator.py` 自动为 explore 任务构建 `retrieval_intent`，`search_keywords` 降级为兼容 fallback。
+  - 执行层改造：`backend/app/services/agent/execution/tool_executor.py` 的 legacy 改写输出改为 `target_task + retrieval_intent`，且 explore 参数白名单增加 `retrieval_intent`。
+  - 补救链路改造：`backend/app/services/agent/execution/decision_hook.py` 的 remedy 任务改为携带 `retrieval_intent`。
+  - Explore 主链改造：`backend/app/services/agent/tools/explore_tools.py` 入口新增 `retrieval_intent` 参数；`ContentExplorer` 初始化优先解析结构化意图；每轮将 judge 结果写入 `intent_gap_history`，并把 gap 回流到后续意图编译，形成“证据裁判 -> 信息缺口 -> 下一探针”。
+  - 排序目标改造：`backend/app/services/search/opensearch_chapter_search_service.py` 新增 `answerability_score`（must/keyword/optional/locator/weak-hit 综合），结果最终按回答价值排序。
+  - 可观测性改造：Explore 结果新增 `retrieval_intent`、`intent_gap_history`、`query_attempts`、`search_history`，可直接回看“为什么这么搜、为什么没命中、为什么停机”。
+- 行为变化（核心）：
+  - 主契约已从“关键词数组”切换到“结构化检索意图”；关键词字段仍在，但仅作兼容与回退。
+  - 探针生成不再依赖上游字面关键词；同义换壳重复探针继续由签名+语义去重拦截。
+  - OpenSearch 不再默认把章节顺序当主排序目标，而是优先返回最可能回答当前任务的问题证据。
+- 验证结果：
+  - `python3 -m py_compile backend/app/services/agent/utils/intent_retrieval.py backend/app/services/agent/planning/plan_generator.py backend/app/services/agent/execution/tool_executor.py backend/app/services/agent/execution/decision_hook.py backend/app/services/agent/tools/explore_tools.py backend/app/services/search/opensearch_chapter_search_service.py`：通过
+  - `cd backend && pytest -q tests/unit/intent_retrieval_spec.py tests/unit/adaptive_controller_spec.py tests/unit/opensearch_query_phase2_spec.py tests/unit/explore_phase23_spec.py tests/unit/opensearch_sync_phase4_spec.py tests/unit/opensearch_answerability_spec.py tests/unit/plan_generator_retrieval_intent_spec.py tests/unit/tool_executor_retrieval_intent_spec.py tests/unit/decision_hook_retrieval_intent_spec.py`：31 passed
+- 风险与回滚点：
+  - 风险：底层执行仍包含词法通道（OpenSearch text query），但已由结构化意图主导 query program 与排序目标；如果后续要彻底“事实对象检索”，下一步需引入独立事件索引（entity-relation-event graph）。
+  - 回滚点：可按文件粒度回滚（planning/execution/explore/opensearch 四层独立），其中 `RetrievalIntent` 与 `search_keywords` 兼容共存，支持渐进回退。

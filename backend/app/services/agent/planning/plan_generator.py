@@ -747,6 +747,22 @@ tool_policy: {tool_policy}
                 params["target_task"] = f"{target_task}\n{note}"
             else:
                 params["target_task"] = note
+
+            scope_tuple = self._extract_scope_tuple_from_params(params)
+            existing_intent = params.get("retrieval_intent") if isinstance(params.get("retrieval_intent"), dict) else None
+            retrieval_intent = self._build_retrieval_intent_payload(
+                target_task=params["target_task"],
+                keywords=missing[:8],
+                scope=scope_tuple,
+                existing=existing_intent,
+            )
+            if missing:
+                must_have = list(retrieval_intent.get("must_have") or [])
+                retrieval_intent["must_have"] = list(dict.fromkeys((missing[:6] + must_have)))[:10]
+                nice_to_have = list(retrieval_intent.get("nice_to_have") or [])
+                retrieval_intent["nice_to_have"] = [item for item in nice_to_have if item not in retrieval_intent["must_have"]][:10]
+            params["retrieval_intent"] = retrieval_intent
+            # 兼容字段：fallback 用。
             params["search_keywords"] = missing[:8]
             task["params"] = params
         return tasks
@@ -1433,13 +1449,26 @@ tool_policy: {tool_policy}
 
     @staticmethod
     def _extract_internal_keywords(params: Dict[str, Any]) -> List[str]:
+        intent = params.get("retrieval_intent") if isinstance(params, dict) else None
+        if isinstance(intent, dict):
+            intent_values: List[str] = []
+            for key in ("must_have", "entities", "actions", "source_keywords", "timeline", "risks"):
+                raw_value = intent.get(key)
+                if isinstance(raw_value, list):
+                    intent_values.extend(str(item) for item in raw_value if str(item).strip())
+            if intent_values:
+                chunks = intent_values
+            else:
+                chunks = []
+        else:
+            chunks = []
+
         raw = params.get("keywords")
         if raw is None:
             raw = params.get("keyword")
         if raw is None:
             raw = params.get("query")
 
-        chunks: List[str] = []
         if isinstance(raw, list):
             chunks.extend(str(item) for item in raw if str(item).strip())
         elif isinstance(raw, str):
@@ -1460,6 +1489,101 @@ tool_policy: {tool_policy}
                     return keywords
         return keywords
 
+    @staticmethod
+    def _extract_scope_tuple_from_params(params: Dict[str, Any]) -> Optional[Tuple[int, int]]:
+        if not isinstance(params, dict):
+            return None
+
+        def _coerce(value: Any) -> Optional[int]:
+            if isinstance(value, int):
+                return value
+            if isinstance(value, str):
+                text = value.strip()
+                if text.isdigit():
+                    return int(text)
+            return None
+
+        raw_range = params.get("chapter_range")
+        if isinstance(raw_range, (list, tuple)) and len(raw_range) >= 2:
+            start = _coerce(raw_range[0])
+            end = _coerce(raw_range[1])
+            if isinstance(start, int) and isinstance(end, int):
+                return (min(start, end), max(start, end))
+
+        raw_ranges = params.get("chapter_ranges")
+        if isinstance(raw_ranges, list) and raw_ranges:
+            starts: List[int] = []
+            ends: List[int] = []
+            for item in raw_ranges:
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    start = _coerce(item[0])
+                    end = _coerce(item[1])
+                    if isinstance(start, int) and isinstance(end, int):
+                        starts.append(min(start, end))
+                        ends.append(max(start, end))
+            if starts and ends:
+                return (min(starts), max(ends))
+
+        raw_orders = params.get("chapter_orders") or params.get("chapter_order")
+        numbers: List[int] = []
+        if isinstance(raw_orders, (list, tuple, set)):
+            for item in raw_orders:
+                num = _coerce(item)
+                if isinstance(num, int):
+                    numbers.append(num)
+        elif isinstance(raw_orders, str):
+            numbers.extend(int(n) for n in re.findall(r"\d+", raw_orders))
+        else:
+            num = _coerce(raw_orders)
+            if isinstance(num, int):
+                numbers.append(num)
+        if numbers:
+            return (min(numbers), max(numbers))
+        return None
+
+    def _build_retrieval_intent_payload(
+        self,
+        *,
+        target_task: str,
+        keywords: List[str],
+        scope: Optional[Tuple[int, int]],
+        existing: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        from app.services.agent.utils.intent_retrieval import IntentCompiler
+
+        compiler = IntentCompiler()
+        compiled = compiler.compile_retrieval_intent(
+            target_task=target_task or "",
+            seed_keywords=keywords or [],
+            recent_keywords=[],
+            chapter_scope=scope,
+        )
+        payload = compiled.to_dict()
+
+        if isinstance(existing, dict) and existing:
+            # 用户/模型已给出的结构化意图优先，编译结果只补缺口。
+            for key, value in existing.items():
+                if value is None:
+                    continue
+                if isinstance(value, list) and value:
+                    payload[key] = value
+                elif isinstance(value, dict) and value:
+                    merged = dict(payload.get(key) or {})
+                    merged.update(value)
+                    payload[key] = merged
+                elif value not in ("", []):
+                    payload[key] = value
+
+        if not payload.get("must_have"):
+            payload["must_have"] = keywords[:4]
+        if keywords:
+            payload["source_keywords"] = list(dict.fromkeys(keywords[:10]))
+        if scope:
+            constraints = dict(payload.get("constraints") or {})
+            constraints["chapter_scope"] = [scope[0], scope[1]]
+            payload["constraints"] = constraints
+        return payload
+
     def _rewrite_internal_explore_tasks(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not tasks:
             return tasks
@@ -1467,7 +1591,8 @@ tool_policy: {tool_policy}
         for task in tasks:
             tool_raw = str(task.get("tool") or "").strip()
             normalized_tool = self.LEGACY_EXPLORE_TOOL_ALIASES.get(tool_raw, tool_raw)
-            if normalized_tool not in self.INTERNAL_EXPLORE_TOOLS:
+            is_native_explore = normalized_tool == "explore_content"
+            if normalized_tool not in self.INTERNAL_EXPLORE_TOOLS and not is_native_explore:
                 continue
 
             params = task.get("params") or {}
@@ -1506,8 +1631,20 @@ tool_policy: {tool_policy}
             if not target_task:
                 target_task = "收集完成任务所需的原文证据。"
 
-            rewritten_params: Dict[str, Any] = {"target_task": target_task}
+            scope_tuple = self._extract_scope_tuple_from_params(params)
+            retrieval_intent = self._build_retrieval_intent_payload(
+                target_task=target_task,
+                keywords=keywords,
+                scope=scope_tuple,
+                existing=params.get("retrieval_intent") if isinstance(params.get("retrieval_intent"), dict) else None,
+            )
+
+            rewritten_params: Dict[str, Any] = {
+                "target_task": target_task,
+                "retrieval_intent": retrieval_intent,
+            }
             if keywords:
+                # 兼容字段：仅作为 fallback，不再是主契约。
                 rewritten_params["search_keywords"] = keywords[:8]
             if normalized_tool in {"exact_search_paragraphs", "read_paragraph", "read_paragraphs"}:
                 rewritten_params["require_paragraph_index"] = True
@@ -1526,11 +1663,12 @@ tool_policy: {tool_policy}
 
             task["tool"] = "explore_content"
             task["params"] = rewritten_params
-            logger.warning(
-                "[Planning] 内部检索工具已纠偏为 explore_content: %s -> explore_content (task_id=%s)",
-                tool_raw,
-                task.get("task_id"),
-            )
+            if not is_native_explore:
+                logger.warning(
+                    "[Planning] 内部检索工具已纠偏为 explore_content: %s -> explore_content (task_id=%s)",
+                    tool_raw,
+                    task.get("task_id"),
+                )
 
         return tasks
 

@@ -67,12 +67,19 @@ class DecisionHook:
         if missing_keywords:
             search_keywords = list({*search_keywords, *[kw for kw in missing_keywords if isinstance(kw, str)]})
 
+        retrieval_intent = self._build_retrieval_intent(
+            target_task=hint or "补充定位证据，产出可定位段落",
+            seed_keywords=search_keywords,
+            missing_keywords=[kw for kw in missing_keywords if isinstance(kw, str)],
+        )
+
         remedy = {
             "title": "补充定位证据",
             "description": f"补充定位证据：{hint or '定位目标段落'}",
             "tool": "explore_content",
             "params": {
                 "target_task": hint or "补充定位证据，产出可定位段落",
+                "retrieval_intent": retrieval_intent,
                 "search_keywords": search_keywords or None,
                 "require_paragraph_index": True,
                 "output_mode": "full",
@@ -88,6 +95,27 @@ class DecisionHook:
             )
         logger.info("[DecisionHook] 触发补救任务: %s", tasks)
         return DecisionOutcome(tasks=tasks)
+
+    @staticmethod
+    def _build_retrieval_intent(
+        target_task: str,
+        seed_keywords: List[str],
+        missing_keywords: List[str],
+    ) -> Dict[str, Any]:
+        from app.services.agent.utils.intent_retrieval import IntentCompiler
+
+        compiler = IntentCompiler()
+        intent = compiler.compile_retrieval_intent(
+            target_task=target_task or "补充定位证据",
+            seed_keywords=seed_keywords or [],
+            recent_keywords=missing_keywords or [],
+            chapter_scope=None,
+        )
+        payload = intent.to_dict()
+        if missing_keywords:
+            must_have = list(payload.get("must_have") or [])
+            payload["must_have"] = list(dict.fromkeys((missing_keywords[:6] + must_have)))[:10]
+        return payload
 
     @staticmethod
     def _extract_payload(result: Dict[str, Any]) -> Dict[str, Any]:

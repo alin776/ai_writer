@@ -48,3 +48,18 @@ def test_search_intent_no_longer_pollutes_keywords() -> None:
     assert "keywords.extend(self._split_search_terms(search_intent_text))" not in text
     assert "intent_hint_terms = self._parse_search_term_values(search_intent_text)" in text
     assert "if not keywords and intent_hint_terms:" in text
+
+
+def test_explore_prefers_retrieval_intent_contract() -> None:
+    text = _source_text()
+    assert 'retrieval_intent: Optional[Dict[str, Any]] = None' in text
+    assert 'normalized_retrieval_intent = _normalize_retrieval_intent_payload(retrieval_intent)' in text
+    assert 'retrieval_intent=normalized_retrieval_intent' in text
+
+
+def test_explore_outputs_gap_and_trace_observability() -> None:
+    text = _source_text()
+    assert '"retrieval_intent": explorer.state.latest_retrieval_intent' in text
+    assert '"intent_gap_history": explorer.state.intent_gap_history[-30:]' in text
+    assert '"query_attempts": [' in text
+    assert '"search_history": [' in text

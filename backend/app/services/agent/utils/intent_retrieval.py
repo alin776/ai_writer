@@ -64,6 +64,154 @@ class RelationAnchor:
         }
 
 
+def _coerce_relation_anchor(raw: Any) -> Optional[RelationAnchor]:
+    if isinstance(raw, RelationAnchor):
+        return raw
+    if not isinstance(raw, dict):
+        return None
+    left = _normalize_term(raw.get("left"))
+    action = _normalize_term(raw.get("action"))
+    right = _normalize_term(raw.get("right"))
+    window_raw = raw.get("window")
+    try:
+        window = int(window_raw)
+    except Exception:
+        window = 18
+    window = max(6, min(window, 50))
+    if not left or not action:
+        return None
+    return RelationAnchor(left=left, action=action, right=right, window=window)
+
+
+@dataclass
+class RetrievalIntent:
+    """统一检索契约：规划/执行/检索层共享的数据结构。"""
+
+    intent_id: str
+    goal: str
+    entities: List[str] = field(default_factory=list)
+    actions: List[str] = field(default_factory=list)
+    relations: List[RelationAnchor] = field(default_factory=list)
+    timeline: List[str] = field(default_factory=list)
+    risks: List[str] = field(default_factory=list)
+    must_have: List[str] = field(default_factory=list)
+    nice_to_have: List[str] = field(default_factory=list)
+    exclusions: List[str] = field(default_factory=list)
+    constraints: Dict[str, Any] = field(default_factory=dict)
+    evidence_shape: str = "paragraph"
+    stop_rule: Dict[str, Any] = field(default_factory=dict)
+    source_keywords: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "intent_id": self.intent_id,
+            "goal": self.goal,
+            "entities": list(self.entities),
+            "actions": list(self.actions),
+            "relations": [item.to_dict() for item in self.relations],
+            "timeline": list(self.timeline),
+            "risks": list(self.risks),
+            "must_have": list(self.must_have),
+            "nice_to_have": list(self.nice_to_have),
+            "exclusions": list(self.exclusions),
+            "constraints": dict(self.constraints),
+            "evidence_shape": self.evidence_shape,
+            "stop_rule": dict(self.stop_rule),
+            "source_keywords": list(self.source_keywords),
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Optional[Dict[str, Any]]) -> Optional["RetrievalIntent"]:
+        if not isinstance(payload, dict):
+            return None
+        goal = str(payload.get("goal") or payload.get("target_task") or "").strip()
+        if not goal:
+            return None
+        raw_relations = payload.get("relations") or payload.get("relation_anchors") or []
+        relations: List[RelationAnchor] = []
+        if isinstance(raw_relations, list):
+            for item in raw_relations:
+                relation = _coerce_relation_anchor(item)
+                if relation is None:
+                    continue
+                relations.append(relation)
+                if len(relations) >= 4:
+                    break
+
+        return cls(
+            intent_id=str(payload.get("intent_id") or "").strip(),
+            goal=goal,
+            entities=_dedupe_keep_order(payload.get("entities") or payload.get("entity_terms") or [], limit=10),
+            actions=_dedupe_keep_order(payload.get("actions") or payload.get("action_terms") or [], limit=10),
+            relations=relations,
+            timeline=_dedupe_keep_order(payload.get("timeline") or payload.get("timeline_terms") or [], limit=8),
+            risks=_dedupe_keep_order(payload.get("risks") or payload.get("risk_terms") or [], limit=8),
+            must_have=_dedupe_keep_order(payload.get("must_have") or [], limit=10),
+            nice_to_have=_dedupe_keep_order(payload.get("nice_to_have") or [], limit=12),
+            exclusions=_dedupe_keep_order(payload.get("exclusions") or [], limit=8),
+            constraints=dict(payload.get("constraints") or {}),
+            evidence_shape=str(payload.get("evidence_shape") or "paragraph") or "paragraph",
+            stop_rule=dict(payload.get("stop_rule") or {}),
+            source_keywords=_dedupe_keep_order(payload.get("source_keywords") or payload.get("keywords") or [], limit=12),
+        )
+
+    @classmethod
+    def from_intent_spec(cls, intent: "IntentSpec") -> "RetrievalIntent":
+        return cls(
+            intent_id=intent.intent_id,
+            goal=intent.goal,
+            entities=list(intent.entity_terms),
+            actions=list(intent.action_terms),
+            relations=list(intent.relation_anchors),
+            timeline=list(intent.timeline_terms),
+            risks=list(intent.risk_terms),
+            must_have=list(intent.must_have),
+            nice_to_have=list(intent.nice_to_have),
+            exclusions=list(intent.exclusions),
+            constraints=dict(intent.constraints),
+            evidence_shape=intent.evidence_shape,
+            stop_rule=dict(intent.stop_rule),
+            source_keywords=list(intent.source_keywords),
+        )
+
+    def to_intent_spec(self) -> "IntentSpec":
+        scope = _safe_scope_tuple((self.constraints or {}).get("chapter_scope"))
+        constraints = dict(self.constraints or {})
+        if scope:
+            constraints["chapter_scope"] = [scope[0], scope[1]]
+        relation_anchors = [item for item in self.relations if isinstance(item, RelationAnchor)]
+        intent_id = str(self.intent_id or "").strip()
+        if not intent_id:
+            relation_sign = ",".join("/".join(item.terms()) for item in relation_anchors)
+            digest_payload = "|".join(
+                [
+                    self.goal[:300],
+                    ",".join(self.must_have),
+                    ",".join(self.exclusions),
+                    str(scope or ""),
+                    relation_sign,
+                ]
+            )
+            intent_id = hashlib.sha1(digest_payload.encode("utf-8")).hexdigest()[:16]
+
+        return IntentSpec(
+            intent_id=intent_id,
+            goal=self.goal[:500],
+            must_have=_dedupe_keep_order(self.must_have, limit=10),
+            nice_to_have=_dedupe_keep_order(self.nice_to_have, limit=12),
+            constraints=constraints,
+            exclusions=_dedupe_keep_order(self.exclusions, limit=8),
+            evidence_shape=str(self.evidence_shape or "paragraph") or "paragraph",
+            stop_rule=dict(self.stop_rule or {}),
+            source_keywords=_dedupe_keep_order(self.source_keywords, limit=12),
+            entity_terms=_dedupe_keep_order(self.entities, limit=10),
+            action_terms=_dedupe_keep_order(self.actions, limit=10),
+            timeline_terms=_dedupe_keep_order(self.timeline, limit=8),
+            risk_terms=_dedupe_keep_order(self.risks, limit=8),
+            relation_anchors=relation_anchors,
+        )
+
+
 @dataclass
 class IntentSpec:
     intent_id: str
@@ -436,6 +584,107 @@ class IntentCompiler:
         normalized = _dedupe_keep_order((governed.get("keywords") or []) + structural_backfill, limit=24)
         filtered = [item for item in normalized if _is_quality_term(item) and not _is_instruction_shell(item)]
         return _dedupe_keep_order(filtered or normalized, limit=max(limit, 1))
+
+    def compile_retrieval_intent(
+        self,
+        target_task: str,
+        seed_keywords: Optional[Sequence[str]] = None,
+        recent_keywords: Optional[Sequence[str]] = None,
+        chapter_scope: Optional[Tuple[int, int]] = None,
+    ) -> RetrievalIntent:
+        spec = self.compile(
+            target_task=target_task,
+            seed_keywords=seed_keywords,
+            recent_keywords=recent_keywords,
+            chapter_scope=chapter_scope,
+        )
+        return RetrievalIntent.from_intent_spec(spec)
+
+    def resolve_retrieval_intent(
+        self,
+        *,
+        target_task: str,
+        retrieval_intent: Optional[Dict[str, Any]],
+        seed_keywords: Optional[Sequence[str]] = None,
+        recent_keywords: Optional[Sequence[str]] = None,
+        chapter_scope: Optional[Tuple[int, int]] = None,
+    ) -> RetrievalIntent:
+        compiled = self.compile_retrieval_intent(
+            target_task=target_task,
+            seed_keywords=seed_keywords,
+            recent_keywords=recent_keywords,
+            chapter_scope=chapter_scope,
+        )
+        external = RetrievalIntent.from_dict(retrieval_intent)
+        if external is None:
+            return compiled
+        return self._merge_retrieval_intent(compiled, external)
+
+    def compile_from_retrieval_intent(
+        self,
+        *,
+        target_task: str,
+        retrieval_intent: Optional[Dict[str, Any]],
+        seed_keywords: Optional[Sequence[str]] = None,
+        recent_keywords: Optional[Sequence[str]] = None,
+        chapter_scope: Optional[Tuple[int, int]] = None,
+    ) -> IntentSpec:
+        resolved = self.resolve_retrieval_intent(
+            target_task=target_task,
+            retrieval_intent=retrieval_intent,
+            seed_keywords=seed_keywords,
+            recent_keywords=recent_keywords,
+            chapter_scope=chapter_scope,
+        )
+        return resolved.to_intent_spec()
+
+    @staticmethod
+    def _merge_retrieval_intent(base: RetrievalIntent, override: RetrievalIntent) -> RetrievalIntent:
+        merged_goal = str(override.goal or "").strip() or base.goal
+        merged_constraints = dict(base.constraints or {})
+        merged_constraints.update(dict(override.constraints or {}))
+        merged_stop_rule = dict(base.stop_rule or {})
+        merged_stop_rule.update(dict(override.stop_rule or {}))
+
+        merged_relations: List[RelationAnchor] = []
+        seen_relation = set()
+        for item in list(override.relations) + list(base.relations):
+            if not isinstance(item, RelationAnchor):
+                continue
+            sign = "|".join(item.terms()).lower()
+            if sign in seen_relation:
+                continue
+            seen_relation.add(sign)
+            merged_relations.append(item)
+            if len(merged_relations) >= 4:
+                break
+
+        merged = RetrievalIntent(
+            intent_id=str(override.intent_id or "").strip() or base.intent_id,
+            goal=merged_goal,
+            entities=_dedupe_keep_order(list(override.entities) + list(base.entities), limit=10),
+            actions=_dedupe_keep_order(list(override.actions) + list(base.actions), limit=10),
+            relations=merged_relations,
+            timeline=_dedupe_keep_order(list(override.timeline) + list(base.timeline), limit=8),
+            risks=_dedupe_keep_order(list(override.risks) + list(base.risks), limit=8),
+            must_have=_dedupe_keep_order(list(override.must_have) + list(base.must_have), limit=10),
+            nice_to_have=_dedupe_keep_order(list(override.nice_to_have) + list(base.nice_to_have), limit=12),
+            exclusions=_dedupe_keep_order(list(override.exclusions) + list(base.exclusions), limit=8),
+            constraints=merged_constraints,
+            evidence_shape=str(override.evidence_shape or base.evidence_shape or "paragraph") or "paragraph",
+            stop_rule=merged_stop_rule,
+            source_keywords=_dedupe_keep_order(
+                list(override.source_keywords) + list(base.source_keywords),
+                limit=12,
+            ),
+        )
+
+        if not merged.must_have:
+            merged.must_have = _dedupe_keep_order(
+                merged.entities + merged.actions + [term for rel in merged.relations for term in rel.terms()],
+                limit=8,
+            )
+        return merged
 
     def compile(
         self,
@@ -1325,6 +1574,7 @@ class AdaptiveController:
 
 __all__ = [
     "RelationAnchor",
+    "RetrievalIntent",
     "IntentSpec",
     "ProbeSpec",
     "QueryProgram",

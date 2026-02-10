@@ -31,6 +31,7 @@ from app.services.agent.utils.intent_retrieval import (
     EvidenceJudge,
     IterationState,
     IntentSpec,
+    RetrievalIntent,
     AdaptiveController,
 )
 from app.services.agent.utils.explore_artifact import (
@@ -702,8 +703,14 @@ class ExploreState:
     latest_intent_spec: Dict[str, Any] = field(default_factory=dict)
     # 最近一次编译出的意图对象
 
+    latest_retrieval_intent: Dict[str, Any] = field(default_factory=dict)
+    # 最近一次统一检索契约（主输入）
+
     latest_query_program: Dict[str, Any] = field(default_factory=dict)
     # 最近一次生成的查询程序（用于可观测）
+
+    intent_gap_history: List[Dict[str, Any]] = field(default_factory=list)
+    # 每轮信息缺口（用于下一轮 probe 驱动）
 
     # ========== 去重方法 ==========
 
@@ -1286,12 +1293,29 @@ def _scopes_cache_key(scopes: List[Tuple[int, int]]) -> str:
     return ",".join(f"{start}-{end}" for start, end in scopes)
 
 
+def _normalize_retrieval_intent_payload(retrieval_intent: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not isinstance(retrieval_intent, dict):
+        return {}
+    try:
+        payload = json.loads(json.dumps(retrieval_intent, ensure_ascii=False))
+    except Exception:
+        payload = dict(retrieval_intent)
+    # 消除 key 顺序、空值差异，避免缓存误 miss。
+    cleaned: Dict[str, Any] = {}
+    for key, value in payload.items():
+        if value in (None, "", [], {}):
+            continue
+        cleaned[str(key)] = value
+    return cleaned
+
+
 def _build_explore_shared_key(
     work_id: str,
     user_id: Optional[str],
     conversation_id: Optional[str],
     chapter_scopes: List[Tuple[int, int]],
-    target_task: Optional[str] = None
+    target_task: Optional[str] = None,
+    retrieval_intent: Optional[Dict[str, Any]] = None,
 ) -> str:
     work_id = str(work_id or "").strip()
     if not work_id:
@@ -1301,7 +1325,13 @@ def _build_explore_shared_key(
     scope_part = _scopes_cache_key(chapter_scopes)
     task_text = (target_task or "").strip()
     task_part = hashlib.sha1(task_text.encode("utf-8")).hexdigest()[:8] if task_text else "none"
-    return f"{work_id}:{user_part}:{convo_part}:{scope_part}:{task_part}"
+    intent_part = "none"
+    intent_payload = _normalize_retrieval_intent_payload(retrieval_intent)
+    if intent_payload:
+        intent_part = hashlib.sha1(
+            json.dumps(intent_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:8]
+    return f"{work_id}:{user_part}:{convo_part}:{scope_part}:{task_part}:{intent_part}"
 
 
 def _normalize_search_keywords(keywords: Optional[List[str]]) -> List[str]:
@@ -1322,6 +1352,7 @@ def _build_explore_result_cache_key(
     user_id: Optional[str],
     chapter_scopes: List[Tuple[int, int]],
     target_task: str,
+    retrieval_intent: Optional[Dict[str, Any]],
     search_keywords: Optional[List[str]],
     output_mode: str,
     require_paragraph_index: Optional[bool] = None,
@@ -1334,6 +1365,7 @@ def _build_explore_result_cache_key(
     scope_part = _scopes_cache_key(chapter_scopes)
     payload = {
         "task": (target_task or "").strip(),
+        "retrieval_intent": _normalize_retrieval_intent_payload(retrieval_intent),
         "keywords": _normalize_search_keywords(search_keywords),
         "output_mode": (output_mode or "").strip().lower(),
         "require_paragraph_index": bool(require_paragraph_index) if require_paragraph_index is not None else None,
@@ -1412,7 +1444,9 @@ def _clone_explore_state(state: ExploreState) -> ExploreState:
         query_attempts=list(state.query_attempts),
         iteration_state=source_iteration_state.clone() if isinstance(source_iteration_state, IterationState) else IterationState(),
         latest_intent_spec=dict(getattr(state, "latest_intent_spec", {}) or {}),
+        latest_retrieval_intent=dict(getattr(state, "latest_retrieval_intent", {}) or {}),
         latest_query_program=dict(getattr(state, "latest_query_program", {}) or {}),
+        intent_gap_history=list(getattr(state, "intent_gap_history", []) or []),
     )
 
 
@@ -1439,11 +1473,19 @@ def _merge_explore_states(base: ExploreState, incoming: ExploreState) -> Explore
         merged.query_attempts = merged.query_attempts[-50:]
     merged.iteration_state.merge_from(getattr(incoming, "iteration_state", None))
     incoming_intent = getattr(incoming, "latest_intent_spec", None)
+    incoming_retrieval_intent = getattr(incoming, "latest_retrieval_intent", None)
     incoming_program = getattr(incoming, "latest_query_program", None)
+    incoming_gap_history = getattr(incoming, "intent_gap_history", None)
     if incoming_intent:
         merged.latest_intent_spec = dict(incoming_intent)
+    if incoming_retrieval_intent:
+        merged.latest_retrieval_intent = dict(incoming_retrieval_intent)
     if incoming_program:
         merged.latest_query_program = dict(incoming_program)
+    if isinstance(incoming_gap_history, list) and incoming_gap_history:
+        merged.intent_gap_history.extend(incoming_gap_history)
+        if len(merged.intent_gap_history) > 120:
+            merged.intent_gap_history = merged.intent_gap_history[-120:]
     return merged
 
 def build_context_for_task(result: ExploreResult) -> str:
@@ -2166,6 +2208,7 @@ class ContentExplorer:
         max_rounds: int = 200,
         emit_callback: Optional[Callable[[dict], Awaitable[None]]] = None,
         step_id: Optional[int] = None,
+        retrieval_intent: Optional[Dict[str, Any]] = None,
         search_keywords: Optional[List[str]] = None,
         max_tool_calls: Optional[int] = None,
         max_read_paragraphs: Optional[int] = None,
@@ -2182,6 +2225,7 @@ class ContentExplorer:
             max_rounds: 最大探索轮次（安全上限，AI 会自主决定何时停止）
             emit_callback: 事件发射回调
             step_id: 步骤ID
+            retrieval_intent: 统一检索契约（主输入）
             search_keywords: 规划层提供的可选种子词（仅作辅助，不作为唯一检索来源）
         """
         self.work_id = work_id
@@ -2225,6 +2269,46 @@ class ContentExplorer:
         self.query_program_builder = QueryProgramBuilder()
         self.evidence_judge = EvidenceJudge()
         self.adaptive_controller = AdaptiveController()
+
+        scope_hint: Optional[Tuple[int, int]] = None
+        if self.chapter_scopes:
+            scope_hint = (
+                min(item[0] for item in self.chapter_scopes),
+                max(item[1] for item in self.chapter_scopes),
+            )
+        resolved_intent = self.intent_compiler.resolve_retrieval_intent(
+            target_task=self.target_task or "",
+            retrieval_intent=retrieval_intent if isinstance(retrieval_intent, dict) else None,
+            seed_keywords=self.search_keywords or [],
+            recent_keywords=[],
+            chapter_scope=scope_hint,
+        )
+        self.retrieval_intent = resolved_intent.to_dict()
+        self.state.latest_retrieval_intent = dict(self.retrieval_intent)
+        if not self.target_task:
+            self.target_task = resolved_intent.goal
+        if not self.search_keywords:
+            fallback_seed = (
+                self.retrieval_intent.get("source_keywords")
+                or self.retrieval_intent.get("must_have")
+                or []
+            )
+            if isinstance(fallback_seed, list):
+                self.search_keywords = _normalize_search_keywords([str(item) for item in fallback_seed])
+
+        intent_constraints = self.retrieval_intent.get("constraints") if isinstance(self.retrieval_intent, dict) else {}
+        raw_scope = intent_constraints.get("chapter_scope") if isinstance(intent_constraints, dict) else None
+        if not self.force_global_search and not self.chapter_scopes and isinstance(raw_scope, (list, tuple)) and len(raw_scope) >= 2:
+            try:
+                start = int(raw_scope[0])
+                end = int(raw_scope[1])
+                if start > end:
+                    start, end = end, start
+                self.chapter_scopes_raw = [(start, end)]
+                self.chapter_scopes = list(self.chapter_scopes_raw)
+            except Exception:
+                pass
+
         self.start_time = get_utc_now()
         self.chapter_list_cache: Optional[List[Dict[str, Any]]] = None
         self.paragraph_node_id_cache: Dict[int, Dict[str, int]] = {}
@@ -2531,6 +2615,16 @@ class ContentExplorer:
         if not keywords:
             keywords.extend(_normalize_search_keywords(self.search_keywords))
 
+        if not keywords and isinstance(self.retrieval_intent, dict):
+            fallback = (
+                self.retrieval_intent.get("source_keywords")
+                or self.retrieval_intent.get("must_have")
+                or self.retrieval_intent.get("entities")
+                or []
+            )
+            if isinstance(fallback, list):
+                keywords.extend(_normalize_search_keywords([str(item) for item in fallback if str(item).strip()]))
+
         if not keywords:
             quotes = _extract_target_quotes(self.target_task or "")
             for quote in quotes:
@@ -2624,6 +2718,29 @@ class ContentExplorer:
                 break
         return keywords
 
+    def _collect_gap_keywords(self, limit: int = 12) -> List[str]:
+        if limit <= 0:
+            return []
+        history = getattr(self.state, "intent_gap_history", [])
+        if not isinstance(history, list) or not history:
+            return []
+        collected: List[str] = []
+        seen = set()
+        for item in reversed(history[-8:]):
+            if not isinstance(item, dict):
+                continue
+            missing_terms = item.get("missing_terms") or []
+            if isinstance(missing_terms, list):
+                for term in missing_terms:
+                    value = str(term or "").strip()
+                    if not value or value in seen:
+                        continue
+                    seen.add(value)
+                    collected.append(value)
+                    if len(collected) >= limit:
+                        return collected
+        return collected
+
     def _compile_intent_spec(
         self,
         manual_keywords: List[str],
@@ -2634,16 +2751,40 @@ class ContentExplorer:
             min_order = min(item[0] for item in self.chapter_scopes)
             max_order = max(item[1] for item in self.chapter_scopes)
             scope = (min_order, max_order)
-        seed_keywords = []
+        if scope is None:
+            constraints = self.retrieval_intent.get("constraints") if isinstance(self.retrieval_intent, dict) else {}
+            raw_scope = constraints.get("chapter_scope") if isinstance(constraints, dict) else None
+            if isinstance(raw_scope, (list, tuple)) and len(raw_scope) >= 2:
+                try:
+                    start = int(raw_scope[0])
+                    end = int(raw_scope[1])
+                    if start > end:
+                        start, end = end, start
+                    scope = (start, end)
+                except Exception:
+                    pass
+
+        seed_keywords: List[str] = []
+        if isinstance(self.retrieval_intent, dict):
+            source_keywords = self.retrieval_intent.get("source_keywords") or []
+            if isinstance(source_keywords, list):
+                seed_keywords.extend(str(item) for item in source_keywords if str(item).strip())
         seed_keywords.extend(self.search_keywords or [])
         seed_keywords.extend(manual_keywords or [])
+
+        gap_keywords = self._collect_gap_keywords(limit=16)
         recent_keywords = self._collect_recent_attempt_keywords(limit=20)
-        intent_spec = self.intent_compiler.compile(
+        merged_recent = list(dict.fromkeys(gap_keywords + recent_keywords))
+        resolved_intent = self.intent_compiler.resolve_retrieval_intent(
             target_task=self.target_task or "",
+            retrieval_intent=self.retrieval_intent if isinstance(self.retrieval_intent, dict) else None,
             seed_keywords=seed_keywords,
-            recent_keywords=recent_keywords,
-            chapter_scope=scope
+            recent_keywords=merged_recent,
+            chapter_scope=scope,
         )
+        self.retrieval_intent = resolved_intent.to_dict()
+        self.state.latest_retrieval_intent = dict(self.retrieval_intent)
+        intent_spec = resolved_intent.to_intent_spec()
         self.state.latest_intent_spec = intent_spec.to_dict()
         return intent_spec
 
@@ -2741,6 +2882,71 @@ class ContentExplorer:
                 return False, f"不存在结论证据不足（{scope_label}0命中策略不足）"
 
         return True, ""
+
+    def _has_open_intent_gap(self) -> bool:
+        history = getattr(self.state, "intent_gap_history", [])
+        if not isinstance(history, list) or not history:
+            return False
+        latest = history[-1]
+        if not isinstance(latest, dict):
+            return False
+        missing_terms = latest.get("missing_terms") or []
+        if not isinstance(missing_terms, list):
+            return False
+        return any(str(item or "").strip() for item in missing_terms)
+
+    def _record_intent_gap(
+        self,
+        *,
+        round_idx: int,
+        intent_spec: Optional[IntentSpec],
+        judge_summary: Dict[str, Any],
+        missing_keywords: List[str],
+    ) -> None:
+        if not isinstance(intent_spec, IntentSpec):
+            return
+
+        covered_terms = judge_summary.get("covered_terms") or []
+        covered_set = {
+            str(item or "").strip().lower().replace(" ", "")
+            for item in covered_terms
+            if str(item or "").strip()
+        }
+
+        missing_terms: List[str] = []
+        seen = set()
+        for term in intent_spec.must_have:
+            value = str(term or "").strip()
+            if not value:
+                continue
+            key = value.lower().replace(" ", "")
+            if key in covered_set or key in seen:
+                continue
+            seen.add(key)
+            missing_terms.append(value)
+
+        for term in missing_keywords or []:
+            value = str(term or "").strip()
+            if not value:
+                continue
+            key = value.lower().replace(" ", "")
+            if key in seen:
+                continue
+            seen.add(key)
+            missing_terms.append(value)
+
+        gap_entry = {
+            "round_idx": int(round_idx),
+            "intent_id": intent_spec.intent_id,
+            "failure_reason": str(judge_summary.get("failure_reason") or "").strip(),
+            "coverage_ratio": float(judge_summary.get("coverage_ratio") or 0.0),
+            "covered_terms": [str(item) for item in covered_terms if str(item or "").strip()],
+            "missing_terms": missing_terms[:12],
+            "next_probe_hint": missing_terms[:3],
+        }
+        self.state.intent_gap_history.append(gap_entry)
+        if len(self.state.intent_gap_history) > 120:
+            self.state.intent_gap_history = self.state.intent_gap_history[-120:]
 
     async def _ensure_scope_context(self) -> Tuple[str, int]:
         await self._ensure_scope_mapping()
@@ -3150,6 +3356,17 @@ class ContentExplorer:
                 break
 
             if no_progress_rounds >= NO_PROGRESS_STOP_MIN_ROUNDS:
+                has_open_gap = self._has_open_intent_gap()
+                if has_open_gap and forced_rewrite_used < FORCED_REWRITE_MAX_ROUNDS:
+                    no_progress_rounds = 0
+                    consecutive_zero_hit_searches = ZERO_HIT_FORCE_REWRITE_THRESHOLD
+                    last_tool_result = "连续无进展但仍有信息缺口，下一轮触发缺口驱动改写检索"
+                    logger.info("[ContentExplorer] no-progress but gap-open, schedule forced rewrite")
+                    continue
+                if has_open_gap and tool_calls_left > 1:
+                    no_progress_rounds = max(0, NO_PROGRESS_STOP_MIN_ROUNDS - 2)
+                    last_tool_result = "仍存在信息缺口，继续下一轮探针"
+                    continue
                 stop_reason = f"连续{NO_PROGRESS_STOP_MIN_ROUNDS}轮无新增信息，停止探索"
                 break
 
@@ -3231,13 +3448,28 @@ class ContentExplorer:
                         f"  · R{attempt.round_idx} [{attempt.strategy}] {scope_text} kw={kw_text} probe={probe_text} -> hit={attempt.chapter_hits}/{attempt.hits}"
                     )
 
-        if self.intent_retrieval_v2 and self.state.latest_intent_spec:
-            intent_goal = (self.state.latest_intent_spec.get("goal") or "").strip()
+        if self.intent_retrieval_v2 and (self.state.latest_retrieval_intent or self.state.latest_intent_spec):
+            active_intent = self.state.latest_retrieval_intent or self.state.latest_intent_spec
+            intent_goal = (active_intent.get("goal") or "").strip()
             must_have = self.state.latest_intent_spec.get("must_have") or []
+            if not must_have:
+                must_have = active_intent.get("must_have") or []
             if intent_goal:
                 lines.append(f"- 当前检索意图：{_truncate_text(intent_goal, 120)}")
             if must_have:
                 lines.append(f"- must_have 目标：{', '.join(must_have[:6])}")
+            relations = active_intent.get("relations") or active_intent.get("relation_anchors") or []
+            if isinstance(relations, list) and relations:
+                relation_preview = []
+                for item in relations[:3]:
+                    if not isinstance(item, dict):
+                        continue
+                    left = str(item.get("left") or "").strip()
+                    action = str(item.get("action") or "").strip()
+                    right = str(item.get("right") or "").strip()
+                    relation_preview.append("/".join(part for part in (left, action, right) if part))
+                if relation_preview:
+                    lines.append(f"- 关系约束：{'; '.join(relation_preview)}")
             covered = sorted(self.state.iteration_state.covered_must_have_set)
             total_must_have = int(self.state.iteration_state.must_have_total or len(must_have) or 0)
             if total_must_have > 0:
@@ -3253,6 +3485,11 @@ class ContentExplorer:
                     for key, value in sorted(self.state.iteration_state.failed_reason_histogram.items())
                 ]
                 lines.append(f"- 失败原因分布：{'; '.join(failure_parts)}")
+            if self.state.intent_gap_history:
+                latest_gap = self.state.intent_gap_history[-1]
+                gap_terms = latest_gap.get("missing_terms") or []
+                if isinstance(gap_terms, list) and gap_terms:
+                    lines.append(f"- 当前信息缺口：{', '.join(gap_terms[:6])}")
 
         # 最近一次搜索命中列表（对标 grep 输出：命中行列表）
         if self.state.search_hits:
@@ -4425,6 +4662,12 @@ class ContentExplorer:
                 chapter_hits = [r for r in results if r.get("source") != "worldview"]
                 worldview_hits_count = len(worldview_matches) if worldview_matches else 0
                 missing_keywords = [kw for kw in active_query_keywords if kw not in read_keyword_hits] if active_query_keywords else []
+                self._record_intent_gap(
+                    round_idx=round_idx,
+                    intent_spec=intent_spec,
+                    judge_summary=judge_summary,
+                    missing_keywords=missing_keywords,
+                )
                 failure_reason_text = str(judge_summary.get("failure_reason") or "").strip()
                 adaptive_overrides: Dict[str, Any] = {}
                 if self.intent_retrieval_v2 and (failure_reason_text or not chapter_hits):
@@ -5264,6 +5507,7 @@ class ContentExplorer:
 async def explore_content(
     work_id: str,
     target_task: str,
+    retrieval_intent: Optional[Dict[str, Any]] = None,
     search_keywords: Optional[List[str]] = None,
     max_rounds: int = 200,
     max_tool_calls: Optional[int] = None,
@@ -5281,7 +5525,8 @@ async def explore_content(
     Args:
         work_id: 作品ID（UUID格式，必需）
         target_task: 目标任务描述（如"续写第6章，需要了解主角性格和当前剧情"）
-        search_keywords: 搜索关键词列表（由规划阶段直接提供，优先使用）
+        retrieval_intent: 结构化检索意图（主输入，包含实体/关系/约束/停机规则）
+        search_keywords: 搜索关键词列表（兼容字段，仅 fallback 使用）
         max_rounds: 最大探索轮次（默认100轮）
         max_tool_calls: 工具调用上限（仅 tool_loop 生效）
         max_read_paragraphs: 读取段落上限（可选，不传则不设全局上限）
@@ -5297,8 +5542,15 @@ async def explore_content(
         JSON格式的探索结果
     """
     logger.info(f"[explore_content] 开始: work_id={work_id}, target={target_task[:50]}...")
+    normalized_retrieval_intent = _normalize_retrieval_intent_payload(retrieval_intent)
+    if normalized_retrieval_intent:
+        logger.info(
+            "[explore_content] 规划传入 retrieval_intent: goal=%s must_have=%s",
+            str(normalized_retrieval_intent.get("goal") or "")[:80],
+            (normalized_retrieval_intent.get("must_have") or [])[:6],
+        )
     if search_keywords:
-        logger.info(f"[explore_content] 规划传入关键词: {search_keywords[:10]}")
+        logger.info(f"[explore_content] 规划传入关键词(兼容字段): {search_keywords[:10]}")
     output_mode_norm = (output_mode or "evidence_only").strip().lower()
     evidence_only_output = output_mode_norm in ("evidence", "evidence_only", "minimal")
     use_cache = bool(use_cache)
@@ -5325,6 +5577,7 @@ async def explore_content(
                 "output_mode": output_mode_norm,
                 "force_global_search": force_global_search,
                 "require_paragraph_index": bool(require_paragraph_index) if require_paragraph_index is not None else None,
+                "retrieval_intent": normalized_retrieval_intent,
                 "search_keywords": search_keywords or []
             }
             artifact_info = await _save_explore_artifact(
@@ -5385,6 +5638,7 @@ async def explore_content(
             user_id=user_id,
             chapter_scopes=chapter_scopes,
             target_task=target_task_for_explorer,
+            retrieval_intent=normalized_retrieval_intent,
             search_keywords=search_keywords,
             output_mode=output_mode_norm,
             require_paragraph_index=require_paragraph_index,
@@ -5401,7 +5655,8 @@ async def explore_content(
         user_id,
         conversation_id,
         chapter_scopes,
-        target_task_for_explorer
+        target_task_for_explorer,
+        normalized_retrieval_intent,
     )
     shared_state = None
     if shared_cache_key:
@@ -5415,6 +5670,7 @@ async def explore_content(
             max_rounds=max_rounds,
             emit_callback=emit_callback,
             step_id=step_id_value,
+            retrieval_intent=normalized_retrieval_intent,
             search_keywords=search_keywords,
             max_tool_calls=max_tool_calls,
             max_read_paragraphs=max_read_paragraphs,
@@ -5424,6 +5680,9 @@ async def explore_content(
         )
     if shared_state:
         explorer.state = _clone_explore_state(shared_state)
+        if normalized_retrieval_intent:
+            explorer.state.latest_retrieval_intent = dict(normalized_retrieval_intent)
+            explorer.retrieval_intent = dict(normalized_retrieval_intent)
         logger.info(
             "[explore_content] 复用共享状态: searched=%s, read_paragraphs=%s, read_chapters=%s",
             len(explorer.state.searched_queries),
@@ -5435,6 +5694,13 @@ async def explore_content(
         result = await explorer.explore_tool_loop()
         # 仅对“已读取原文”的候选做唯一性选择；低置信时保留多候选供确认
         selection_keywords = _normalize_keywords(search_keywords)
+        if not selection_keywords and isinstance(explorer.state.latest_retrieval_intent, dict):
+            fallback_keywords: List[str] = []
+            for key in ("must_have", "source_keywords", "entities", "actions"):
+                values = explorer.state.latest_retrieval_intent.get(key)
+                if isinstance(values, list):
+                    fallback_keywords.extend(str(item) for item in values if str(item).strip())
+            selection_keywords = _normalize_keywords(fallback_keywords)
         for attempt in explorer.state.get_recent_query_attempts(limit=20):
             for kw in attempt.keywords:
                 if kw and kw not in selection_keywords:
@@ -5715,8 +5981,41 @@ async def explore_content(
             "events_emitted": events_emitted,
             "intent_retrieval_v2": explorer.intent_retrieval_v2,
             "intent_state": explorer.state.iteration_state.to_dict(),
+            "retrieval_intent": explorer.state.latest_retrieval_intent or normalized_retrieval_intent,
             "intent_spec": explorer.state.latest_intent_spec,
             "query_program": explorer.state.latest_query_program,
+            "intent_gap_history": explorer.state.intent_gap_history[-30:],
+            "query_attempts": [
+                {
+                    "round_idx": int(attempt.round_idx),
+                    "strategy": attempt.strategy,
+                    "query": attempt.query,
+                    "keywords": list(attempt.keywords or []),
+                    "chapter_scope": list(attempt.chapter_scope) if attempt.chapter_scope else None,
+                    "hits": int(attempt.hits or 0),
+                    "chapter_hits": int(attempt.chapter_hits or 0),
+                    "worldview_hits": int(attempt.worldview_hits or 0),
+                    "probe_signature": attempt.probe_signature,
+                    "probe_hypothesis": attempt.probe_hypothesis,
+                    "failure_reason": attempt.failure_reason,
+                    "error": attempt.error,
+                }
+                for attempt in explorer.state.get_recent_query_attempts(limit=30)
+            ],
+            "search_history": [
+                {
+                    "round_idx": int(record.round_idx),
+                    "query": record.query,
+                    "hits_count": int(record.hits_count),
+                    "hits_summary": record.hits_summary,
+                    "chapters_covered": list(record.chapters_covered or []),
+                    "chapter_scope": list(record.chapter_scope) if record.chapter_scope else None,
+                    "worldview_hits": int(record.worldview_hits or 0),
+                    "compacted": bool(record.compacted),
+                    "exhausted": bool(record.exhausted),
+                }
+                for record in explorer.state.search_history[-30:]
+            ],
         }
         await _attach_artifact(result_payload)
         if use_cache and cache_key:

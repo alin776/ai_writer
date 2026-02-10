@@ -1780,6 +1780,48 @@ class OpenSearchChapterSearchService:
             if symbolic_added:
                 paging_stop_reason = f"{paging_stop_reason}+symbolic_scan"
 
+        required_total = max(1, len(required_pairs))
+        optional_total = max(1, len(optional_pairs))
+        keyword_total = max(1, len(kw_pairs))
+        scored_results: List[Dict[str, Any]] = []
+        for idx, item in enumerate(results):
+            if not isinstance(item, dict):
+                continue
+            req_hits = len(item.get("matched_required_terms") or [])
+            opt_hits = len(item.get("matched_optional_terms") or [])
+            kw_hits = len(item.get("matched_keywords") or [])
+            weak_literal = bool(item.get("weak_literal_match"))
+            retrieval_mode = str(item.get("retrieval_mode") or "lexical_query")
+            symbolic_score = float(item.get("symbolic_score") or 0.0)
+            req_ratio = req_hits / required_total if required_total else 0.0
+            opt_ratio = opt_hits / optional_total if optional_total else 0.0
+            kw_ratio = kw_hits / keyword_total if keyword_total else 0.0
+
+            answerability = (req_ratio * 0.56) + (kw_ratio * 0.18) + (opt_ratio * 0.12)
+            if retrieval_mode == "scan_symbolic":
+                answerability += min(0.2, symbolic_score * 0.22)
+            if isinstance(item.get("chapter_order"), int) and isinstance(item.get("paragraph_index"), int):
+                answerability += 0.08
+            if weak_literal:
+                answerability -= 0.12
+            if req_hits > 0:
+                answerability += 0.06
+
+            item["answerability_score"] = round(float(answerability), 4)
+            item["answerability_rank"] = idx + 1
+            scored_results.append(item)
+
+        scored_results.sort(
+            key=lambda item: (
+                -float(item.get("answerability_score") or 0.0),
+                -len(item.get("matched_required_terms") or []),
+                -len(item.get("matched_keywords") or []),
+                int(item.get("chapter_order") or 0),
+                int(item.get("paragraph_index") or 0),
+            )
+        )
+        results = scored_results
+
         truncated = (
             len(results) >= target_total
             and (
@@ -1787,8 +1829,14 @@ class OpenSearchChapterSearchService:
                 or page_count >= max_pages
             )
         )
+        top_answerability = 0.0
+        if results:
+            try:
+                top_answerability = float((results[0] or {}).get("answerability_score") or 0.0)
+            except Exception:
+                top_answerability = 0.0
         logger.info(
-            "[OpenSearchSearch] search work=%s mode=%s range=%s keywords=%s hits=%s pages=%s page_size=%s est_total=%s target_total=%s truncated=%s dropped_locator=%s dropped_unmatched=%s dropped_excluded=%s weak_literal=%s symbolic_added=%s stop_reason=%s",
+            "[OpenSearchSearch] search work=%s mode=%s range=%s keywords=%s hits=%s pages=%s page_size=%s est_total=%s target_total=%s truncated=%s dropped_locator=%s dropped_unmatched=%s dropped_excluded=%s weak_literal=%s symbolic_added=%s top_answerability=%.4f stop_reason=%s",
             work_id,
             mode,
             chapter_range,
@@ -1804,6 +1852,7 @@ class OpenSearchChapterSearchService:
             dropped_excluded_terms,
             weak_literal_matches,
             symbolic_added,
+            top_answerability,
             paging_stop_reason,
         )
         return results

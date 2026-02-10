@@ -305,30 +305,48 @@ def _get_output_format() -> str:
 
 ⚠️ **【explore_content 专用参数规则】** ⚠️
 
-当使用 explore_content 工具时，**必须**在 params 中提供 search_keywords 数组：
+当使用 explore_content 工具时，**必须**在 params 中提供 `retrieval_intent`（结构化检索意图），
+不要只给关键词数组。
 
 ```json
 {
   "tool": "explore_content",
   "params": {
-    "target_task": "简洁的任务描述",
-    "search_keywords": ["关键词1", "关键词2", "关键词3"]
+    "target_task": "简洁任务描述",
+    "retrieval_intent": {
+      "goal": "要确认的事实/事件",
+      "entities": ["人/地/物"],
+      "actions": ["行为/关系动作"],
+      "relations": [
+        {"left": "主体", "action": "关系", "right": "客体", "window": 18}
+      ],
+      "constraints": {"chapter_scope": [1, 5]},
+      "must_have": ["必须命中的事实锚点"],
+      "nice_to_have": ["可选补充锚点"]
+    }
   }
 }
 ```
 
-**search_keywords 规则**：
-- 必须是数组格式，包含 2-10 个关键词
-- 只填写**实际要搜索的内容关键词**（如人名、地名、概念、事件）
-- 禁止填写指令性词语（如"精确"、"段落"、"章节"、"提取"、"检索"）
-- 关键词应从用户请求中提取，而非从任务描述模板中提取
-- 若用户明确要求“重新读取/刷新/重新探索/忽略缓存/最新内容”，在 params 中加入 `force_refresh: true`（可选同时设置 `use_cache: false`）
+`retrieval_intent` 规则：
+- `goal` 写清“要确认什么事实”，不要写工具指令
+- `entities/actions/relations` 用于表达语义关系，不是词面堆砌
+- `must_have` 写“缺了就不能回答”的事实锚点
+- `constraints` 里可写 `chapter_scope`、时序约束等
+- `search_keywords` 仅作兼容兜底，可选；不能替代 `retrieval_intent`
+- 若用户明确要求“重新读取/刷新/重新探索/忽略缓存/最新内容”，可加 `force_refresh: true`
 
 ✅ 正确示例：
 ```json
 {
-  "target_task": "检索吞噬机制规则",
-  "search_keywords": ["器灵等阶", "吞噬要求", "吞噬效果", "精神力等级"]
+  "target_task": "确认主角第一次吞噬器灵是否有代价",
+  "retrieval_intent": {
+    "goal": "确认首次吞噬事件及其代价",
+    "entities": ["主角", "器灵"],
+    "actions": ["吞噬", "代价"],
+    "relations": [{"left": "主角", "action": "吞噬", "right": "器灵", "window": 18}],
+    "must_have": ["第一次", "吞噬", "代价"]
+  }
 }
 ```
 
@@ -336,7 +354,7 @@ def _get_output_format() -> str:
 ```json
 {
   "target_task": "精确检索并提取所有关于吞噬机制的段落...",
-  "search_keywords": ["精确检索", "段落", "提取", "章节"]
+  "retrieval_intent": {"goal": "精确检索段落提取章节"}
 }
 ```
 

@@ -168,3 +168,41 @@ def test_evidence_judge_reports_coverage_for_relation_hit() -> None:
     assert summary["coverage_ratio"] > 0
     assert summary["covered_terms"]
     assert summary["relation_hits"] >= 1
+
+
+def test_retrieval_intent_roundtrip_preserves_semantic_slots() -> None:
+    compiler = IntentCompiler()
+    intent = compiler.compile_retrieval_intent(
+        target_task="确认主角第一次吞噬器灵是否有代价",
+        seed_keywords=["主角", "吞噬", "器灵", "代价"],
+        recent_keywords=["第一次"],
+        chapter_scope=(2, 8),
+    )
+    intent_dict = intent.to_dict()
+    restored = intent_retrieval_module.RetrievalIntent.from_dict(intent_dict)
+    assert restored is not None
+    spec = restored.to_intent_spec()
+    assert spec.must_have
+    assert spec.constraints.get("chapter_scope") == [2, 8]
+    assert spec.relation_anchors
+
+
+def test_resolve_retrieval_intent_prefers_structured_override() -> None:
+    compiler = IntentCompiler()
+    resolved = compiler.resolve_retrieval_intent(
+        target_task="检索吞噬事件",
+        retrieval_intent={
+            "goal": "确认主角吞噬器灵是否存在代价",
+            "entities": ["主角", "器灵"],
+            "actions": ["吞噬", "代价"],
+            "must_have": ["吞噬", "代价"],
+            "constraints": {"chapter_scope": [1, 6]},
+        },
+        seed_keywords=["吞噬"],
+        recent_keywords=["代价"],
+        chapter_scope=(1, 6),
+    )
+    payload = resolved.to_dict()
+    assert payload["goal"].startswith("确认主角吞噬器灵")
+    assert "代价" in payload.get("must_have", [])
+    assert payload.get("constraints", {}).get("chapter_scope") == [1, 6]

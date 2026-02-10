@@ -100,13 +100,19 @@ class ToolExecutor:
 
     @staticmethod
     def _extract_search_keywords_from_legacy_args(tool_args: Dict[str, Any]) -> list[str]:
+        intent = tool_args.get("retrieval_intent") if isinstance(tool_args, dict) else None
+        chunks: list[str] = []
+        if isinstance(intent, dict):
+            for key in ("must_have", "entities", "actions", "source_keywords", "timeline", "risks"):
+                values = intent.get(key)
+                if isinstance(values, list):
+                    chunks.extend(str(item) for item in values if str(item).strip())
+
         raw = tool_args.get("keywords")
         if raw is None:
             raw = tool_args.get("keyword")
         if raw is None:
             raw = tool_args.get("query")
-
-        chunks: list[str] = []
         if isinstance(raw, list):
             chunks.extend(str(item) for item in raw if str(item).strip())
         elif isinstance(raw, str):
@@ -126,6 +132,79 @@ class ToolExecutor:
                 if len(keywords) >= 8:
                     return keywords
         return keywords
+
+    @staticmethod
+    def _extract_scope_tuple_from_legacy_args(tool_args: Dict[str, Any]) -> Optional[Tuple[int, int]]:
+        def _coerce(value: Any) -> Optional[int]:
+            if isinstance(value, int):
+                return value
+            if isinstance(value, str):
+                text = value.strip()
+                if text.isdigit():
+                    return int(text)
+            return None
+
+        raw_range = tool_args.get("chapter_range")
+        if isinstance(raw_range, (list, tuple)) and len(raw_range) >= 2:
+            start = _coerce(raw_range[0])
+            end = _coerce(raw_range[1])
+            if isinstance(start, int) and isinstance(end, int):
+                return (min(start, end), max(start, end))
+
+        raw_ranges = tool_args.get("chapter_ranges")
+        if isinstance(raw_ranges, list):
+            starts: list[int] = []
+            ends: list[int] = []
+            for item in raw_ranges:
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    start = _coerce(item[0])
+                    end = _coerce(item[1])
+                    if isinstance(start, int) and isinstance(end, int):
+                        starts.append(min(start, end))
+                        ends.append(max(start, end))
+            if starts and ends:
+                return (min(starts), max(ends))
+
+        raw_orders = tool_args.get("chapter_orders") or tool_args.get("chapter_order")
+        values: list[int] = []
+        if isinstance(raw_orders, (list, tuple, set)):
+            for item in raw_orders:
+                num = _coerce(item)
+                if isinstance(num, int):
+                    values.append(num)
+        elif isinstance(raw_orders, str):
+            values.extend(int(n) for n in re.findall(r"\d+", raw_orders))
+        else:
+            num = _coerce(raw_orders)
+            if isinstance(num, int):
+                values.append(num)
+        if values:
+            return (min(values), max(values))
+        return None
+
+    @staticmethod
+    def _build_retrieval_intent_payload(
+        target_task: str,
+        keywords: list[str],
+        scope: Optional[Tuple[int, int]],
+    ) -> Dict[str, Any]:
+        from app.services.agent.utils.intent_retrieval import IntentCompiler
+
+        compiler = IntentCompiler()
+        intent = compiler.compile_retrieval_intent(
+            target_task=target_task or "",
+            seed_keywords=keywords or [],
+            recent_keywords=[],
+            chapter_scope=scope,
+        )
+        payload = intent.to_dict()
+        if keywords:
+            payload["source_keywords"] = list(dict.fromkeys(keywords[:10]))
+        if scope:
+            constraints = dict(payload.get("constraints") or {})
+            constraints["chapter_scope"] = [scope[0], scope[1]]
+            payload["constraints"] = constraints
+        return payload
 
     def _rewrite_legacy_explore_call(self, tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
         keywords = self._extract_search_keywords_from_legacy_args(tool_args)
@@ -155,8 +234,19 @@ class ToolExecutor:
         if not target_task:
             target_task = "收集完成任务所需的原文证据。"
 
-        rewritten: Dict[str, Any] = {"target_task": target_task}
+        scope_tuple = self._extract_scope_tuple_from_legacy_args(tool_args)
+        retrieval_intent = self._build_retrieval_intent_payload(
+            target_task=target_task,
+            keywords=keywords,
+            scope=scope_tuple,
+        )
+
+        rewritten: Dict[str, Any] = {
+            "target_task": target_task,
+            "retrieval_intent": retrieval_intent,
+        }
         if keywords:
+            # 兼容字段：fallback 用。
             rewritten["search_keywords"] = keywords[:8]
         if tool_name in {"exact_search_paragraphs", "read_paragraphs"}:
             rewritten["require_paragraph_index"] = True
@@ -864,12 +954,14 @@ class ToolExecutor:
             allowed_keys = {
                 "work_id",
                 "target_task",
+                "retrieval_intent",
                 "search_keywords",
                 "max_rounds",
                 "max_tool_calls",
                 "max_read_paragraphs",
                 "output_mode",
                 "require_paragraph_index",
+                "force_global_search",
                 "user_id",
                 "conversation_id",
                 "use_cache",
@@ -2186,9 +2278,23 @@ class ToolExecutor:
                     params = {
                         "work_id": tool_args.get("work_id", state.get("work_id", "")),
                         "target_task": tool_args.get("target_task", ""),
+                        "retrieval_intent": tool_args.get("retrieval_intent"),
+                        "search_keywords": tool_args.get("search_keywords"),
                         "max_rounds": tool_args.get("max_rounds", 100),
+                        "max_tool_calls": tool_args.get("max_tool_calls"),
+                        "max_read_paragraphs": tool_args.get("max_read_paragraphs"),
+                        "output_mode": tool_args.get("output_mode", "full"),
+                        "require_paragraph_index": tool_args.get("require_paragraph_index"),
+                        "force_global_search": tool_args.get("force_global_search"),
                         "user_id": tool_args.get("user_id", state.get("user_id", ""))
                     }
+                    conversation_id = tool_args.get("conversation_id", state.get("conversation_id", ""))
+                    if conversation_id:
+                        params["conversation_id"] = conversation_id
+                    if "use_cache" in tool_args:
+                        params["use_cache"] = tool_args.get("use_cache")
+                    if "force_refresh" in tool_args:
+                        params["force_refresh"] = tool_args.get("force_refresh")
                 elif tool_name == "operate_apply":
                     context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
                     state_chapter_id = state.get("chapter_id")
