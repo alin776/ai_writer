@@ -38,11 +38,9 @@ class PlanGenerator:
     INTERNAL_EXPLORE_TOOLS = {
         "list_chapters",
         "list_paragraphs",
-        "exact_search_paragraphs",
         "read_paragraphs",
     }
     LEGACY_EXPLORE_TOOL_ALIASES = {
-        "exact_search_paragraphs_tool": "exact_search_paragraphs",
         "read_paragraph_tool": "read_paragraph",
         "read_paragraphs_tool": "read_paragraphs",
         "list_paragraphs_tool": "list_paragraphs",
@@ -756,14 +754,7 @@ tool_policy: {tool_policy}
                 scope=scope_tuple,
                 existing=existing_intent,
             )
-            if missing:
-                must_have = list(retrieval_intent.get("must_have") or [])
-                retrieval_intent["must_have"] = list(dict.fromkeys((missing[:6] + must_have)))[:10]
-                nice_to_have = list(retrieval_intent.get("nice_to_have") or [])
-                retrieval_intent["nice_to_have"] = [item for item in nice_to_have if item not in retrieval_intent["must_have"]][:10]
             params["retrieval_intent"] = retrieval_intent
-            # 兼容字段：fallback 用。
-            params["search_keywords"] = missing[:8]
             task["params"] = params
         return tasks
 
@@ -1452,7 +1443,7 @@ tool_policy: {tool_policy}
         intent = params.get("retrieval_intent") if isinstance(params, dict) else None
         if isinstance(intent, dict):
             intent_values: List[str] = []
-            for key in ("must_have", "entities", "actions", "source_keywords", "timeline", "risks"):
+            for key in ("entities", "actions", "timeline", "risks"):
                 raw_value = intent.get(key)
                 if isinstance(raw_value, list):
                     intent_values.extend(str(item) for item in raw_value if str(item).strip())
@@ -1549,19 +1540,12 @@ tool_policy: {tool_policy}
         scope: Optional[Tuple[int, int]],
         existing: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        from app.services.agent.utils.intent_retrieval import IntentCompiler
-
-        compiler = IntentCompiler()
-        compiled = compiler.compile_retrieval_intent(
-            target_task=target_task or "",
-            seed_keywords=keywords or [],
-            recent_keywords=[],
-            chapter_scope=scope,
-        )
-        payload = compiled.to_dict()
+        payload: Dict[str, Any] = {
+            "goal": target_task or "",
+            "entities": list(dict.fromkeys((keywords or [])[:8])),
+        }
 
         if isinstance(existing, dict) and existing:
-            # 用户/模型已给出的结构化意图优先，编译结果只补缺口。
             for key, value in existing.items():
                 if value is None:
                     continue
@@ -1574,10 +1558,6 @@ tool_policy: {tool_policy}
                 elif value not in ("", []):
                     payload[key] = value
 
-        if not payload.get("must_have"):
-            payload["must_have"] = keywords[:4]
-        if keywords:
-            payload["source_keywords"] = list(dict.fromkeys(keywords[:10]))
         if scope:
             constraints = dict(payload.get("constraints") or {})
             constraints["chapter_scope"] = [scope[0], scope[1]]
@@ -1609,9 +1589,7 @@ tool_policy: {tool_policy}
             elif title:
                 target_lines.append(title)
 
-            if normalized_tool == "exact_search_paragraphs":
-                target_lines.append("使用结构化检索参数收集可定位原文证据。")
-            elif normalized_tool in {"read_paragraph", "read_paragraphs", "list_paragraphs"}:
+            if normalized_tool in {"read_paragraph", "read_paragraphs", "list_paragraphs"}:
                 target_lines.append("按段落读取并提取可定位原文证据。")
             else:
                 target_lines.append("收集完成任务所需的原文证据。")
@@ -1643,10 +1621,7 @@ tool_policy: {tool_policy}
                 "target_task": target_task,
                 "retrieval_intent": retrieval_intent,
             }
-            if keywords:
-                # 兼容字段：仅作为 fallback，不再是主契约。
-                rewritten_params["search_keywords"] = keywords[:8]
-            if normalized_tool in {"exact_search_paragraphs", "read_paragraph", "read_paragraphs"}:
+            if normalized_tool in {"read_paragraph", "read_paragraphs"}:
                 rewritten_params["require_paragraph_index"] = True
 
             for key in (

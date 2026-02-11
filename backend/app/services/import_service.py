@@ -405,7 +405,10 @@ class ImportService:
                         "content": content,
                     }
                 )
-        
+
+        # 异步插入 LightRAG（不阻塞导入流程）
+        await self._insert_chapters_to_lightrag(created_chapters, created_contents)
+
         logger.info(f"导入完成: 作品ID={work.id}, 章节={chapters_created}, 人物={characters_created}")
 
         import_context = self._build_import_context(created_chapters)
@@ -564,7 +567,10 @@ class ImportService:
                         "content": content,
                     }
                 )
-        
+
+        # 异步插入 LightRAG（不阻塞导入流程）
+        await self._insert_chapters_to_lightrag(created_chapters, created_contents)
+
         logger.info(f"文本导入完成: 作品ID={work.id}, 章节={chapters_created}")
 
         import_context = self._build_import_context(created_chapters, preface_text=preface_text)
@@ -742,6 +748,34 @@ class ImportService:
             cleaned.append(stripped)
 
         return '\n'.join(cleaned).strip()
+
+    async def _insert_chapters_to_lightrag(
+        self,
+        chapters: List[Chapter],
+        contents: List[str],
+    ) -> None:
+        """将导入的章节异步插入 LightRAG，file_source=chapter_{chapter_id}。"""
+        try:
+            from app.services.agent.retrieval.fact_retrieval_gateway import get_gateway
+            gateway = get_gateway()
+        except Exception as exc:
+            logger.warning("[ImportService] LightRAG gateway 初始化失败: %s", exc)
+            return
+
+        for chapter, content in zip(chapters, contents):
+            if not content or len(content.strip()) < 100:
+                continue
+            try:
+                file_source = f"chapter_{chapter.id}"
+                await gateway.insert_document(
+                    text=content,
+                    file_source=file_source,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[ImportService] LightRAG 插入失败: chapter_id=%s error=%s",
+                    chapter.id, exc,
+                )
 
     def _build_import_context(self, chapters: List[Chapter], preface_text: Optional[str] = None) -> Dict[str, Any]:
         """构建导入上下文（用于世界观解析）"""

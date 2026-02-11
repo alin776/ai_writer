@@ -16,7 +16,11 @@ def test_plan_generator_builds_retrieval_intent_for_explore_tasks() -> None:
     assert '"retrieval_intent": retrieval_intent' in text
 
 
-def test_plan_generator_keeps_search_keywords_as_fallback_only() -> None:
+def test_plan_generator_no_keyword_matching() -> None:
+    """plan_generator 不再构建 must_have/source_keywords。"""
     text = _source_text()
-    assert "# 兼容字段：fallback 用。" in text or "兼容字段：fallback" in text
-    assert 'rewritten_params["search_keywords"] = keywords[:8]' in text
+    assert "IntentCompiler" not in text
+    assert "intent_retrieval" not in text
+    # retrieval_intent 只含 goal + entities
+    assert '"goal":' in text
+    assert '"entities":' in text

@@ -17,9 +17,6 @@ def _get_new_aggregated_tools_section() -> str:
   参数:
     - work_id: 作品ID（必需）
     - target_task: 目标任务描述（必需，描述需要什么信息）
-    - max_rounds: 最大探索轮数（默认100，简单任务1轮即返回）
-    - max_tool_calls: 工具调用上限（仅 tool_loop 生效）
-    - max_read_paragraphs: 读取段落上限（仅 tool_loop 生效）
   返回: {
     evidences,        # 证据原文列表（只读结果）
     locate_targets    # 定位目标（chapter_id + query + node_id 等）
@@ -46,14 +43,15 @@ def _get_new_aggregated_tools_section() -> str:
     - 批量读取章节 → explore_content(target_task="读取第1-5章内容")
 
   ⚠️ **工作原理**（你不需要关心，explore_content 自动处理）:
-    - 简单查询 → 首轮即返回
-    - 复杂查询 → 自动多轮探索
-    - LLM 自行决定停止或达到安全上限
+    - AI 将你的任务拆解为 1-4 个搜索查询
+    - 并行执行检索，合并去重
+    - 自动检查覆盖度，不足时补充查询
+    - 通常 10-30 秒内返回结果
 
   ⚠️ **禁止直接使用以下工具**（这些是内部工具）:
     - ❌ list_chapters（已整合到 explore_content）
     - ❌ list_paragraphs（已整合到 explore_content）
-    - ❌ exact_search_paragraphs（已整合到 explore_content）
+    - ❌ retrieve_facts（由 explore_content 自动调用）
     - ❌ read_paragraph/read_paragraphs（已整合到 explore_content）
 
 ---
@@ -98,7 +96,7 @@ def _get_retrieval_tools_section() -> str:
 
 - list_chapters: ❌ 内部工具（由 explore_content 自动调用）
 - list_paragraphs: ❌ 内部工具（由 explore_content 自动调用）
-- exact_search_paragraphs: ❌ 内部工具（由 explore_content 自动调用）
+- retrieve_facts: ❌ 内部工具（由 explore_content 自动调用）
 - read_paragraph / read_paragraphs: ❌ 内部工具（由 explore_content 自动调用）
 
 ✅ **正确做法**：使用 explore_content(target_task="你的查询需求")

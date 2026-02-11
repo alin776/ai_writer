@@ -213,7 +213,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[STARTUP] Embedding模型预加载失败: {e}")
         logger.warning("[STARTUP] 首次向量化时将自动加载模型")
-    logger.info("[STARTUP] P0性能优化已暂时禁用（诊断模式）")
+
+    # 预加载 SentenceTransformer（VectorMemoryStore 单例，避免首次请求 12s 阻塞）
+    try:
+        from app.services.context.vector_memory_store import get_vector_memory_store
+        logger.info("[STARTUP] 开始预加载 SentenceTransformer 模型...")
+        get_vector_memory_store()
+        logger.info("[STARTUP] ✅ SentenceTransformer 模型预加载完成")
+    except Exception as e:
+        logger.warning(f"[STARTUP] SentenceTransformer 预加载失败: {e}")
 
     logger.info("[STARTUP] 应用启动完成")
 

@@ -102,19 +102,10 @@ class DecisionHook:
         seed_keywords: List[str],
         missing_keywords: List[str],
     ) -> Dict[str, Any]:
-        from app.services.agent.utils.intent_retrieval import IntentCompiler
-
-        compiler = IntentCompiler()
-        intent = compiler.compile_retrieval_intent(
-            target_task=target_task or "补充定位证据",
-            seed_keywords=seed_keywords or [],
-            recent_keywords=missing_keywords or [],
-            chapter_scope=None,
-        )
-        payload = intent.to_dict()
-        if missing_keywords:
-            must_have = list(payload.get("must_have") or [])
-            payload["must_have"] = list(dict.fromkeys((missing_keywords[:6] + must_have)))[:10]
+        payload: Dict[str, Any] = {
+            "goal": target_task or "补充定位证据",
+            "entities": list(dict.fromkeys((seed_keywords or [])[:6] + (missing_keywords or [])[:4]))[:8],
+        }
         return payload
 
     @staticmethod

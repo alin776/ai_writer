@@ -48,6 +48,20 @@ class Settings(BaseSettings):
     # - suggest_only: 默认，仅在 AI 未提供有效结构化查询时才采用探针参数
     # - force: 总是采用探针参数（旧行为，容易出现“机械改写查询”）
     EXPLORE_PROBE_OVERRIDE_MODE: str = "suggest_only"
+
+    # 事实检索后端配置（固定为 LightRAG）
+    FACT_RETRIEVAL_BACKEND: str = "lightrag"
+
+    # LightRAG 外部检索配置
+    LIGHTRAG_BASE_URL: str = "http://127.0.0.1:9621"
+    LIGHTRAG_QUERY_PATH: str = "/query"
+    LIGHTRAG_INSERT_PATH: str = "/documents/text"
+    LIGHTRAG_API_KEY: Optional[str] = None
+    LIGHTRAG_TIMEOUT_SECONDS: int = 300
+    LIGHTRAG_MODE: str = "hybrid"
+    LIGHTRAG_TOP_K: int = 20
+    LIGHTRAG_MAX_RETRIES: int = 3
+    LIGHTRAG_RETRY_DELAY: float = 2.0
     
     # JWT 配置
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
@@ -362,6 +376,8 @@ class Settings(BaseSettings):
 
     # ==================== 模型智能选择配置（P0优化）====================
     MODEL_SELECTION_ENABLED: bool = True  # 启用ModelSelector智能选择
+
+    # ==================== Explore V6 配置 ====================
 
     model_config = ConfigDict(
         env_file=".env",

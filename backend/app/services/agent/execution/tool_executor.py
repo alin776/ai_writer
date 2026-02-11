@@ -57,17 +57,12 @@ TOOL_NAME_MAPPING = {
     "get_writing_context": "get_writing_context",
     "get_style_guidance_tool": "get_style_guidance",
     # 历史内部检索别名（统一改写到 explore_content）
-    "exact_search_paragraphs_tool": "exact_search_paragraphs",
-    "list_paragraphs_tool": "list_paragraphs",
-    "list_chapters_tool": "list_chapters",
-    "read_paragraphs_tool": "read_paragraphs",
-}
-
-LEGACY_EXPLORE_TOOLS = {
-    "list_chapters",
-    "list_paragraphs",
-    "exact_search_paragraphs",
-    "read_paragraphs",
+    "list_paragraphs_tool": "explore_content",
+    "list_chapters_tool": "explore_content",
+    "read_paragraphs_tool": "explore_content",
+    "list_paragraphs": "explore_content",
+    "list_chapters": "explore_content",
+    "read_paragraphs": "explore_content",
 }
 
 TOOL_CACHE_INVALIDATION_TOOLS = {
@@ -98,173 +93,6 @@ class ToolExecutor:
     def __init__(self):
         pass
 
-    @staticmethod
-    def _extract_search_keywords_from_legacy_args(tool_args: Dict[str, Any]) -> list[str]:
-        intent = tool_args.get("retrieval_intent") if isinstance(tool_args, dict) else None
-        chunks: list[str] = []
-        if isinstance(intent, dict):
-            for key in ("must_have", "entities", "actions", "source_keywords", "timeline", "risks"):
-                values = intent.get(key)
-                if isinstance(values, list):
-                    chunks.extend(str(item) for item in values if str(item).strip())
-
-        raw = tool_args.get("keywords")
-        if raw is None:
-            raw = tool_args.get("keyword")
-        if raw is None:
-            raw = tool_args.get("query")
-        if isinstance(raw, list):
-            chunks.extend(str(item) for item in raw if str(item).strip())
-        elif isinstance(raw, str):
-            chunks.append(raw)
-        elif raw is not None:
-            chunks.append(str(raw))
-
-        keywords: list[str] = []
-        seen = set()
-        for chunk in chunks:
-            for part in re.split(r"[,\s，、;；|｜/]+", chunk):
-                kw = str(part).strip().strip("\"'“”‘’《》")
-                if not kw or kw in seen:
-                    continue
-                seen.add(kw)
-                keywords.append(kw)
-                if len(keywords) >= 8:
-                    return keywords
-        return keywords
-
-    @staticmethod
-    def _extract_scope_tuple_from_legacy_args(tool_args: Dict[str, Any]) -> Optional[Tuple[int, int]]:
-        def _coerce(value: Any) -> Optional[int]:
-            if isinstance(value, int):
-                return value
-            if isinstance(value, str):
-                text = value.strip()
-                if text.isdigit():
-                    return int(text)
-            return None
-
-        raw_range = tool_args.get("chapter_range")
-        if isinstance(raw_range, (list, tuple)) and len(raw_range) >= 2:
-            start = _coerce(raw_range[0])
-            end = _coerce(raw_range[1])
-            if isinstance(start, int) and isinstance(end, int):
-                return (min(start, end), max(start, end))
-
-        raw_ranges = tool_args.get("chapter_ranges")
-        if isinstance(raw_ranges, list):
-            starts: list[int] = []
-            ends: list[int] = []
-            for item in raw_ranges:
-                if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    start = _coerce(item[0])
-                    end = _coerce(item[1])
-                    if isinstance(start, int) and isinstance(end, int):
-                        starts.append(min(start, end))
-                        ends.append(max(start, end))
-            if starts and ends:
-                return (min(starts), max(ends))
-
-        raw_orders = tool_args.get("chapter_orders") or tool_args.get("chapter_order")
-        values: list[int] = []
-        if isinstance(raw_orders, (list, tuple, set)):
-            for item in raw_orders:
-                num = _coerce(item)
-                if isinstance(num, int):
-                    values.append(num)
-        elif isinstance(raw_orders, str):
-            values.extend(int(n) for n in re.findall(r"\d+", raw_orders))
-        else:
-            num = _coerce(raw_orders)
-            if isinstance(num, int):
-                values.append(num)
-        if values:
-            return (min(values), max(values))
-        return None
-
-    @staticmethod
-    def _build_retrieval_intent_payload(
-        target_task: str,
-        keywords: list[str],
-        scope: Optional[Tuple[int, int]],
-    ) -> Dict[str, Any]:
-        from app.services.agent.utils.intent_retrieval import IntentCompiler
-
-        compiler = IntentCompiler()
-        intent = compiler.compile_retrieval_intent(
-            target_task=target_task or "",
-            seed_keywords=keywords or [],
-            recent_keywords=[],
-            chapter_scope=scope,
-        )
-        payload = intent.to_dict()
-        if keywords:
-            payload["source_keywords"] = list(dict.fromkeys(keywords[:10]))
-        if scope:
-            constraints = dict(payload.get("constraints") or {})
-            constraints["chapter_scope"] = [scope[0], scope[1]]
-            payload["constraints"] = constraints
-        return payload
-
-    def _rewrite_legacy_explore_call(self, tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
-        keywords = self._extract_search_keywords_from_legacy_args(tool_args)
-
-        target_lines = []
-        if tool_name == "exact_search_paragraphs":
-            target_lines.append("使用结构化检索参数收集可定位原文证据。")
-        elif tool_name in {"read_paragraphs", "list_paragraphs"}:
-            target_lines.append("按段落读取并提取可定位原文证据。")
-        elif tool_name == "list_chapters":
-            target_lines.append("先收集章节范围，再提取相关原文证据。")
-        else:
-            target_lines.append("收集完成任务所需的原文证据。")
-
-        chapter_scope = (
-            tool_args.get("chapter_range")
-            or tool_args.get("chapter_ranges")
-            or tool_args.get("chapter_orders")
-            or tool_args.get("chapter_order")
-        )
-        if chapter_scope:
-            target_lines.append(f"章节范围：{chapter_scope}")
-        if keywords:
-            target_lines.append(f"关键词：{'、'.join(keywords[:8])}")
-
-        target_task = "\n".join(line for line in target_lines if line).strip()
-        if not target_task:
-            target_task = "收集完成任务所需的原文证据。"
-
-        scope_tuple = self._extract_scope_tuple_from_legacy_args(tool_args)
-        retrieval_intent = self._build_retrieval_intent_payload(
-            target_task=target_task,
-            keywords=keywords,
-            scope=scope_tuple,
-        )
-
-        rewritten: Dict[str, Any] = {
-            "target_task": target_task,
-            "retrieval_intent": retrieval_intent,
-        }
-        if keywords:
-            # 兼容字段：fallback 用。
-            rewritten["search_keywords"] = keywords[:8]
-        if tool_name in {"exact_search_paragraphs", "read_paragraphs"}:
-            rewritten["require_paragraph_index"] = True
-
-        for key in (
-            "max_rounds",
-            "max_tool_calls",
-            "max_read_paragraphs",
-            "output_mode",
-            "force_global_search",
-            "use_cache",
-            "force_refresh",
-        ):
-            if key in tool_args:
-                rewritten[key] = tool_args.get(key)
-
-        return rewritten
-
     async def call_tool(
         self,
         tool_name: str,
@@ -285,13 +113,6 @@ class ToolExecutor:
         tool_args = dict(tool_args or {})
         requested_tool_name = str(tool_name or "").strip()
         normalized_name = TOOL_NAME_MAPPING.get(requested_tool_name, requested_tool_name)
-        if normalized_name in LEGACY_EXPLORE_TOOLS:
-            logger.warning(
-                "[ToolExecutor] 检测到内部检索工具调用，自动改写为 explore_content: %s",
-                normalized_name,
-            )
-            tool_args = self._rewrite_legacy_explore_call(normalized_name, tool_args)
-            normalized_name = "explore_content"
         tool_policy = self._resolve_tool_policy(state)
 
         if tool_policy == "no_tool":
@@ -465,13 +286,32 @@ class ToolExecutor:
                         step_id = None
                 if isinstance(step_id, int):
                     step_token = set_explore_step_id(step_id)
-            try:
-                result = await registry.call_tool(normalized_name, params)
-            finally:
-                if step_token is not None:
-                    reset_explore_step_id(step_token)
-                if stream_token is not None:
-                    reset_stream_event_handler(stream_token)
+
+            # ---- Explore V6 快速路径 ----
+            if normalized_name == "explore_content":
+                try:
+                    from app.services.agent.tools.explore_v6 import ExploreV6
+                    v6 = ExploreV6(
+                        work_id=params.get("work_id", ""),
+                        target_task=params.get("target_task", ""),
+                        retrieval_intent=params.get("retrieval_intent"),
+                        user_id=params.get("user_id", ""),
+                    )
+                    result = await v6.run()
+                    logger.info("[ToolExecutor] explore_content 使用 V6 完成")
+                finally:
+                    if step_token is not None:
+                        reset_explore_step_id(step_token)
+                    if stream_token is not None:
+                        reset_stream_event_handler(stream_token)
+            else:
+                try:
+                    result = await registry.call_tool(normalized_name, params)
+                finally:
+                    if step_token is not None:
+                        reset_explore_step_id(step_token)
+                    if stream_token is not None:
+                        reset_stream_event_handler(stream_token)
 
             # 🔧 处理返回值为 JSON 字符串的情况（如 locate_content、@tool 装饰器返回值）
             if isinstance(result, str):
@@ -955,7 +795,6 @@ class ToolExecutor:
                 "work_id",
                 "target_task",
                 "retrieval_intent",
-                "search_keywords",
                 "max_rounds",
                 "max_tool_calls",
                 "max_read_paragraphs",
@@ -2279,7 +2118,6 @@ class ToolExecutor:
                         "work_id": tool_args.get("work_id", state.get("work_id", "")),
                         "target_task": tool_args.get("target_task", ""),
                         "retrieval_intent": tool_args.get("retrieval_intent"),
-                        "search_keywords": tool_args.get("search_keywords"),
                         "max_rounds": tool_args.get("max_rounds", 100),
                         "max_tool_calls": tool_args.get("max_tool_calls"),
                         "max_read_paragraphs": tool_args.get("max_read_paragraphs"),
