@@ -41,7 +41,6 @@ FULL_CONTENT_TOOLS = {
     # === 检索/定位类工具 ===
     "search_analysis_fragments_tool": 4000,
     "search_analysis_fragments": 4000,  # 兼容不带 _tool 后缀
-    "search_content": 2000,
     "locate_content": 4000,  # 定位工具返回段落文本+锚点
     "read_paragraph": 3000,  # 读取段落完整内容
     # === 探索类工具 - 返回大量证据 ===

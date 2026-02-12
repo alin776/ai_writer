@@ -804,70 +804,6 @@ async def search_analysis_fragments_tool(
 
 
 @tool
-async def search_content(
-    work_id: str,
-    query: str,
-    top_k: int = 10,
-    chapter_id: str = "",
-    look_ahead: int = 0
-) -> str:
-    """搜索多个相关位置（返回位置 + 片段）
-
-    Args:
-        work_id: 作品ID（UUID格式，必需）
-        query: 查询文本（必需）
-        top_k: 返回前K个最相关结果
-        chapter_id: 当前章节ID（可选，用于时序窗口）
-        look_ahead: 允许向后看的章节数（默认0表示不限制）
-
-    Returns:
-        位置 + 片段 JSON
-    """
-    # 复用旧检索实现，统一返回片段字段
-    result_str = await search_analysis_fragments_tool.ainvoke({
-        "work_id": work_id,
-        "query": query,
-        "top_k": top_k,
-        "chapter_id": chapter_id,
-        "include_current": True,
-        "look_ahead": look_ahead,
-        "max_content_length": 200
-    })
-
-    try:
-        result = json.loads(result_str) if isinstance(result_str, str) else result_str
-        if not isinstance(result, dict) or "results" not in result:
-            return result_str
-
-        formatted_results = []
-        for i, item in enumerate(result.get("results", [])):
-            content = item.get("content", "") if isinstance(item, dict) else ""
-            snippet = item.get("snippet", "") if isinstance(item, dict) else ""
-            if not snippet:
-                snippet = content[:200] + "..." if len(content) > 200 else content
-            formatted_results.append({
-                "rank": i + 1,
-                "chapter_id": item.get("chapter_id"),
-                "chapter_order": item.get("chapter_order"),
-                "chapter_title": item.get("chapter_title"),
-                "paragraph_index": item.get("paragraph_index"),
-                "node_id": item.get("node_id"),
-                "snippet": snippet,
-                "similarity": item.get("similarity", 0),
-                "source": item.get("source", "hybrid")
-            })
-
-        return json.dumps({
-            "work_id": result.get("work_id", work_id),
-            "query": result.get("query", query),
-            "total_results": len(formatted_results),
-            "results": formatted_results
-        }, ensure_ascii=False, indent=2)
-    except Exception:
-        return result_str
-
-
-@tool
 async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
     """[DEPRECATED] 获取上下文工具 - 请使用 get_writing_context 代替
 
@@ -2869,6 +2805,7 @@ async def read_paragraphs(
 # 导入编辑器工具
 from app.services.agent.tools.editor_tools import (
     smart_continue,
+    smart_create,
     smart_rewrite,
     smart_insert,
     apply_chapter_edit
@@ -2893,12 +2830,13 @@ from app.services.agent.tools.explore_v6 import explore_content, load_explore_ar
 
 LANGGRAPH_TOOLS = [
     # 统一信息获取入口（2026-01-18 更新）
-    explore_content,  # 深度探索 - 替代 search_content 和 get_writing_context
+    explore_content,  # 深度探索 - 替代旧检索与读取组合链路
     load_explore_artifact,  # 读取已保存的探索结果
     # 分析工具
     analyze_content,
     # 创作工具
     smart_continue,
+    smart_create,
     smart_rewrite,
     smart_insert,
     show_emotion_tool,
@@ -2909,7 +2847,6 @@ LANGGRAPH_TOOLS = [
     delete_chapter,
     update_chapter_content,
     # 内部工具（不暴露给 AI 规划器，但保留以供 explore_content 内部调用）
-    # search_content,      # 内部工具
     # get_writing_context, # 内部工具
     # read_paragraph,      # 内部工具
 ]
@@ -2930,7 +2867,6 @@ __all__ = [
     # 章节工具
     "read_chapter_tool",
     "get_chapter_by_order_tool",
-    "search_content",
     "search_analysis_fragments_tool",
     "get_context_tool",
     # 世界观工具
@@ -2950,7 +2886,6 @@ __all__ = [
     "get_context_tool_st",
     "read_chapter_tool_st",
     "get_chapter_by_order_tool_st",
-    "search_content_tool_st",
     "search_analysis_fragments_tool_st",
     "get_worldview_summary_tool_st",
 ]
@@ -3179,62 +3114,7 @@ search_analysis_fragments_tool_st = StandardTool(
 )
 
 
-# ==================== 5. SearchContentTool StandardTool ====================
-
-class SearchContentInput(ToolInput):
-    """搜索内容工具输入"""
-    work_id: str = Field(..., description="作品ID（必需）")
-    query: str = Field(..., description="查询文本（必需）")
-    top_k: int = Field(default=10, description="返回前K个最相关结果", ge=1, le=50)
-    chapter_id: str = Field(default="", description="当前章节ID（可选）")
-    look_ahead: int = Field(default=0, description="允许向后看的章节数（0表示不限制）", ge=0)
-
-
-class SearchContentOutput(ToolOutput):
-    """搜索内容工具输出"""
-    pass
-
-
-async def search_content_executor(input_data: SearchContentInput) -> SearchContentOutput:
-    """搜索内容执行器（包装 @tool 版本）"""
-    try:
-        result_str = await search_content.ainvoke({
-            "work_id": input_data.work_id,
-            "query": input_data.query,
-            "top_k": input_data.top_k,
-            "chapter_id": input_data.chapter_id,
-            "look_ahead": input_data.look_ahead
-        })
-
-        return SearchContentOutput(
-            success=True,
-            message="搜索成功",
-            data={"results": result_str},
-            metadata={"tool": "search_content", "query": input_data.query}
-        )
-    except Exception as e:
-        logger.error(f"search_content_executor 失败: {e}")
-        return SearchContentOutput(
-            success=False,
-            message=f"搜索失败: {str(e)}",
-            data=None,
-            metadata={"error": str(e)}
-        )
-
-
-search_content_tool_st = StandardTool(
-    name="search_content",
-    description="搜索多个相关位置，返回位置+片段（snippet）",
-    category=ToolCategory.UTILITY,
-    input_schema=SearchContentInput,
-    output_schema=SearchContentOutput,
-    executor=search_content_executor,
-    tags=["chapter", "search", "snippet"],
-    version="1.0.0"
-)
-
-
-# ==================== 6. GetWorldviewSummaryTool StandardTool ====================
+# ==================== 5. GetWorldviewSummaryTool StandardTool ====================
 
 class GetWorldviewSummaryInput(ToolInput):
     """获取世界观摘要工具输入"""

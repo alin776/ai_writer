@@ -31,7 +31,9 @@ class EvidenceStore:
                 if not isinstance(item, dict):
                     continue
                 chapter_id = item.get("chapter_id") or ""
-                if chapter_id:
+                paragraph_index = item.get("paragraph_index")
+                node_id = item.get("node_id") or ""
+                if chapter_id and (paragraph_index is not None or node_id):
                     return True
             return False
         return value is not None

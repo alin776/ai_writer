@@ -16,7 +16,6 @@ interface StepCardProps extends StepFlowData {
   onAcceptRevision?: (selectedVersion?: number) => void;
   onDiscardRevision?: () => void;
   onUndoRevision?: () => void;
-  onRedoRevision?: () => void;
   onJumpRevision?: () => void;
 }
 
@@ -32,7 +31,6 @@ export function StepCard({
   onAcceptRevision,
   onDiscardRevision,
   onUndoRevision,
-  onRedoRevision,
   onJumpRevision
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -113,7 +111,6 @@ export function StepCard({
                 onAccept={onAcceptRevision}
                 onDiscard={onDiscardRevision}
                 onUndo={onUndoRevision}
-                onRedo={onRedoRevision}
                 onJump={onJumpRevision}
               />
             </div>

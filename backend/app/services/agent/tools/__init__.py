@@ -98,6 +98,7 @@ from .advanced_tools import (
 from .editor_tools import (
     apply_chapter_edit,
     smart_continue,
+    smart_create,
     smart_rewrite,
     rewrite_chapter_content,
     smart_insert,
@@ -105,6 +106,7 @@ from .editor_tools import (
     smart_rewrite_tool,
     rewrite_chapter_content_tool,
     smart_continue_tool,
+    smart_create_tool,
     smart_insert_tool,
     apply_chapter_edit_tool
 )
@@ -149,7 +151,6 @@ def _get_langgraph_tools():
         get_context_tool_st,
         read_chapter_tool_st,
         get_chapter_by_order_tool_st,
-        search_content_tool_st,
         search_analysis_fragments_tool_st,
         get_worldview_summary_tool_st,
         get_worldview_pack_tool_st,
@@ -161,7 +162,6 @@ def _get_langgraph_tools():
         'get_context_tool_st': get_context_tool_st,
         'read_chapter_tool_st': read_chapter_tool_st,
         'get_chapter_by_order_tool_st': get_chapter_by_order_tool_st,
-        'search_content_tool_st': search_content_tool_st,
         'search_analysis_fragments_tool_st': search_analysis_fragments_tool_st,
         'get_worldview_summary_tool_st': get_worldview_summary_tool_st,
         'get_worldview_pack_tool_st': get_worldview_pack_tool_st,
@@ -173,7 +173,7 @@ def _get_langgraph_tools():
 # 使用 __getattr__ 实现延迟导入
 def __getattr__(name):
     if name in ['get_context_tool_st', 'read_chapter_tool_st', 'get_chapter_by_order_tool_st',
-                'search_content_tool_st', 'search_analysis_fragments_tool_st',
+                'search_analysis_fragments_tool_st',
                 'get_worldview_summary_tool_st', 'get_worldview_pack_tool_st',
                 'get_worldview_node_tool_st', 'get_worldview_tree_tool_st',
                 'get_writing_context_tool_st']:
@@ -253,6 +253,7 @@ __all__ = [
     # ==================== 编辑器工具 ====================
     "apply_chapter_edit",
     "smart_continue",
+    "smart_create",
     "smart_rewrite",
     "rewrite_chapter_content",
     "smart_insert",
@@ -260,6 +261,7 @@ __all__ = [
     "smart_rewrite_tool",
     "rewrite_chapter_content_tool",
     "smart_continue_tool",
+    "smart_create_tool",
     "smart_insert_tool",
     "apply_chapter_edit_tool",
 
@@ -298,7 +300,6 @@ __all__ = [
     "get_context_tool_st",
     "read_chapter_tool_st",
     "get_chapter_by_order_tool_st",
-    "search_content_tool_st",
     "search_analysis_fragments_tool_st",
     "get_worldview_summary_tool_st",
     "get_worldview_pack_tool_st",
@@ -329,6 +330,7 @@ def _register_standard_tools():
     registry.register_standard_tool(smart_rewrite_tool)
     registry.register_standard_tool(rewrite_chapter_content_tool)
     registry.register_standard_tool(smart_continue_tool)
+    registry.register_standard_tool(smart_create_tool)
     registry.register_standard_tool(smart_insert_tool)
     registry.register_standard_tool(apply_chapter_edit_tool)
 
@@ -338,7 +340,6 @@ def _register_standard_tools():
             get_context_tool_st,
             read_chapter_tool_st,
             get_chapter_by_order_tool_st,
-            search_content_tool_st,
             search_analysis_fragments_tool_st,
             get_worldview_summary_tool_st,
             get_worldview_pack_tool_st,
@@ -349,7 +350,6 @@ def _register_standard_tools():
         registry.register_standard_tool(get_context_tool_st)
         registry.register_standard_tool(read_chapter_tool_st)
         registry.register_standard_tool(get_chapter_by_order_tool_st)
-        registry.register_standard_tool(search_content_tool_st)
         registry.register_standard_tool(search_analysis_fragments_tool_st)
 
         # 世界观工具

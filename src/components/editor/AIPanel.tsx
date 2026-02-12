@@ -1944,10 +1944,6 @@ ${selectionContext.selected_text}
                           console.log('[AIPanel] RevisionCard undo:', { itemId });
                           undoRevision(itemId);
                         }}
-                        onRedoRevision={(itemId) => {
-                          console.log('[AIPanel] RevisionCard redo:', { itemId });
-                          redoRevision(itemId);
-                        }}
                         // v7.3: 批量操作回调
                         onAcceptAllRevisions={(itemIds) => {
                           console.log('[AIPanel] Accept all revisions:', itemIds);

@@ -109,7 +109,7 @@ def _get_editor_tools_section() -> str:
 【编辑器工具 - 修改内容时优先使用】
 
 ⚠️ **核心规则：创作类 vs 操作类**
-- 创作类工具（smart_continue, smart_insert, smart_rewrite）：只生成内容，不写入编辑器
+- 创作类工具（smart_continue, smart_create, smart_insert, smart_rewrite）：只生成内容，不写入编辑器
 - 操作类工具（operate_apply）：将内容写入编辑器
 
 🆕 **推荐：使用 operate_apply 统一入口**
@@ -122,6 +122,7 @@ def _get_editor_tools_section() -> str:
 
 ⚠️ **创作类工具 → 操作类工具的推荐对应关系**
 - smart_continue → operate_apply(operation="append")
+- smart_create → operate_apply(operation="create")
 - smart_insert → operate_apply(operation="insert")
 - smart_rewrite → operate_apply(operation="replace")（段落级改写）
 - rewrite_chapter_content → operate_apply(operation="content")（整章改写）
@@ -150,7 +151,14 @@ def _get_editor_tools_section() -> str:
 - smart_continue: 智能续写（只生成内容）
   参数: chapter_id, chapter_content, user_requirement, evidence_context, word_count
   触发词: "续写"、"继续写"、"往后写"
+  ⚠️ 只用于续写已存在的章节。如果目标章节不存在 → 用 smart_create
   ⚠️ 如果用户想把续写内容写入编辑器 → 后续调用 operate_apply(operation="append")
+
+- smart_create: 创作新章节（只生成内容）
+  参数: work_id, title, user_requirement, evidence_context, word_count
+  触发词: "新建章节"、"创建新章节"、"写一个新章节"、"新建第X章"
+  ⚠️ 与 smart_continue 的区别：smart_continue 是续写现有章节，smart_create 是创作全新章节
+  ⚠️ 如果用户想把内容写入编辑器 → 后续调用 operate_apply(operation="create", work_id=..., title=...)
 
 - smart_insert: 智能插入（只生成内容）
   参数: chapter_id, user_intent, chapter_content, insert_context, evidence_context, word_count

@@ -372,11 +372,11 @@ TOOL_ICONS = {
     "get_context_tool": "BookOpen",
     # 检索类
     "search_analysis_fragments_tool": "Search",
-    "search_content": "Search",
     "search_memory_tool": "Search",
     "search_knowledge_advanced": "Search",
     # 写作类
     "smart_continue": "PenTool",
+    "smart_create": "PenTool",
     "expand_text": "Maximize2",
     # 编辑类
     "smart_rewrite": "Edit3",

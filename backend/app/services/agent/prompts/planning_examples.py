@@ -202,8 +202,8 @@ def get_creation_request_examples() -> str:
   },
   "user_intent": "创作第一章（用户已确认参数）",
   "tasks": [
-    {"task_id": 1, "description": "创作第一章", "tool": "smart_continue", "params": {"chapter_id": "$CHAPTER_ID$", "chapter_content": "", "user_requirement": "创作第一章，3000字，激昂风格，重点介绍主角", "word_count": 3000}, "depends_on": []},
-    {"task_id": 2, "description": "应用到编辑器", "tool": "operate_apply", "params": {"operation": "append", "chapter_id": "$CHAPTER_ID$", "content": {"$ref": {"task_id": 1, "path": "content"}}}, "depends_on": [1]}
+    {"task_id": 1, "description": "创作第一章", "tool": "smart_create", "params": {"work_id": "$WORK_ID$", "title": "第一章", "user_requirement": "创作第一章，3000字，激昂风格，重点介绍主角", "word_count": 3000}, "depends_on": []},
+    {"task_id": 2, "description": "应用到编辑器", "tool": "operate_apply", "params": {"operation": "create", "work_id": "$WORK_ID$", "title": {"$ref": {"task_id": 1, "path": "data.title"}}, "content": {"$ref": {"task_id": 1, "path": "data.content"}}}, "depends_on": [1]}
   ]
 }
 
@@ -478,7 +478,7 @@ explore_content 会自动判断任务复杂度：
 - 复杂任务 → 自动多轮探索
 
 ⚠️ **不要再使用以下工具**（这些是 explore_content 内部调用的）:
-- ❌ search_content
+- ❌ 旧检索工具
 - ❌ get_chapter_by_order
 
 ---
@@ -758,10 +758,11 @@ def get_editor_workflow_examples() -> str:
     return """【编辑器工作流示例】⚠️ 创作类工具 + 操作类工具的正确用法
 
 ⚠️ 核心规则：
-- 创作类工具（smart_continue, smart_insert, smart_rewrite）只生成内容，不写入编辑器
+- 创作类工具（smart_continue, smart_create, smart_insert, smart_rewrite）只生成内容，不写入编辑器
 - 操作类工具 operate_apply 负责将内容写入编辑器
 - **创作类 → 操作类的对应关系**：
   - smart_continue → operate_apply(operation="append")
+  - smart_create → operate_apply(operation="create")
   - smart_insert → operate_apply(operation="insert")
   - smart_rewrite → operate_apply(operation="replace")
 
@@ -817,7 +818,7 @@ def get_operate_apply_examples() -> str:
 | replace | 改写 | smart_rewrite 后替换指定段落（需精确定位） |
 | insert | 插入 | smart_insert 后在指定位置插入（需精确定位） |
 | content | 整章替换 | 重写整章内容 |
-| create | 创建章节 | 写新章节（需要 work_id 和 title） |
+| create | 创建章节 | smart_create 后写新章节（需要 work_id 和 title） |
 | title | 修改标题 | 改进章节标题 |
 
 ---
@@ -934,31 +935,34 @@ def get_operate_apply_examples() -> str:
 ⚠️ operation="content" 会整章替换（映射到 replace_all），无需定位
 
 ---
-【场景5：创建新章节 - 使用 operate_apply(create)】
+【场景5：创建新章节 - 使用 smart_create + operate_apply(create)】
 
 用户: "帮我写一个新章节，主角开始修炼"
 {
   "thinking": {
     "step1_output": "用户要创建新章节并写内容",
     "step2_material": "需要世界观和前文",
-    "step3_process": "获取上下文 → smart_continue 生成 → operate_apply(create) 创建章节"
+    "step3_process": "获取上下文 → smart_create 生成新章节 → operate_apply(create) 创建章节"
   },
   "user_intent": "创建新章节",
   "tasks": [
     {"task_id": 1, "description": "获取创作上下文", "tool": "explore_content", "params": {"target_task": "创建新章节准备，获取最新章节和世界观"}, "depends_on": []},
-    {"task_id": 2, "description": "创作章节内容", "tool": "smart_continue", "params": {
-      "chapter_content": {"$ref": {"task_id": 1, "path": "evidences[0].text"}},
+    {"task_id": 2, "description": "创作新章节内容", "tool": "smart_create", "params": {
+      "work_id": "$WORK_ID$",
+      "title": "修炼初始",
       "user_requirement": "写主角开始修炼的章节",
+      "evidence_context": {"$ref": {"task_id": 1, "path": "context_for_task"}},
       "word_count": 3000
     }, "depends_on": [1]},
     {"task_id": 3, "description": "创建新章节", "tool": "operate_apply", "params": {
       "operation": "create",
-      "work_id": "$WORK_ID$",
-      "title": "修炼初始",
-      "content": {"$ref": {"task_id": 2, "path": "content"}}
+      "work_id": {"$ref": {"task_id": 2, "path": "data.work_id"}},
+      "title": {"$ref": {"task_id": 2, "path": "data.title"}},
+      "content": {"$ref": {"task_id": 2, "path": "data.content"}}
     }, "depends_on": [2]}
   ]
 }
+⚠️ 新建章节必须用 smart_create（不是 smart_continue），确保 explore 走 _run_create（LightRAG KG 推理）
 ⚠️ operation="create" 需要 work_id 和 title
 
 ---
@@ -997,7 +1001,7 @@ explore_content 会自动判断任务复杂度：
 - 复杂任务 → 自动多轮探索
 
 ⚠️ **不要再使用以下工具**（这些是 explore_content 内部调用的）:
-- ❌ search_content
+- ❌ 旧检索工具
 - ❌ get_chapter_by_order
 
 ✅ **统一使用 explore_content**

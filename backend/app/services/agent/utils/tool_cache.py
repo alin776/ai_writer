@@ -25,7 +25,6 @@ CACHEABLE_TOOLS = {
     "get_writing_context",
     "get_worldview_pack",
     "locate_content",
-    "search_content",
     "search_analysis_fragments",
     "read_paragraph",  # 2026-01-17: 段落精确读取缓存
 }
@@ -42,7 +41,6 @@ TOOL_ALIASES = {
 TOOL_TTL_SECONDS = {
     "get_worldview_pack": 10 * 60,
     "locate_content": 5 * 60,
-    "search_content": 2 * 60,
     "search_analysis_fragments": 2 * 60,
     "read_paragraph": 10 * 60,  # 2026-01-17: 段落缓存10分钟（内容稳定）
 }

@@ -1082,7 +1082,7 @@ class WritingAgentGraph:
                                 ))
 
                         # 检索工具
-                        elif tool_name in ["search_analysis_fragments_tool", "search_content"]:
+                        elif tool_name == "search_analysis_fragments_tool":
                             data = json_module.loads(result_str) if isinstance(result_str, str) else result_str
                             items = []
                             # 实际返回格式是 results 字段
@@ -1197,7 +1197,7 @@ class WritingAgentGraph:
                 knowledge_docs_for_response = context.get("knowledge_docs") if context else None
 
                 # v6.3: 判断 is_applicable
-                CONTENT_GENERATION_TOOLS = {'smart_continue', 'smart_rewrite', 'smart_insert'}
+                CONTENT_GENERATION_TOOLS = {'smart_continue', 'smart_create', 'smart_rewrite', 'smart_insert'}
                 is_applicable = False
 
                 for result in task_results:
@@ -1492,7 +1492,7 @@ class WritingAgentGraph:
                 for task in output_tasks
             )
             has_writing = any(
-                task.get("tool") in {"smart_continue", "smart_rewrite", "smart_insert"}
+                task.get("tool") in {"smart_continue", "smart_create", "smart_rewrite", "smart_insert"}
                 for task in output_tasks
             )
 

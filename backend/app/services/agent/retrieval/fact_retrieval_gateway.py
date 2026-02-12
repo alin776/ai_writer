@@ -38,6 +38,7 @@ class FactRetrievalGateway:
     lightrag_top_k: int = 20
     lightrag_max_retries: int = 0
     lightrag_retry_delay: float = 0.0
+    lightrag_enable_rerank: bool = True
 
     def __post_init__(self) -> None:
         self.lightrag_base_url = (
@@ -91,6 +92,10 @@ class FactRetrievalGateway:
                 self.lightrag_retry_delay = 2.0
         self.lightrag_retry_delay = max(0.1, min(float(self.lightrag_retry_delay), 60.0))
 
+        # rerank 开关
+        raw_rerank = os.getenv("LIGHTRAG_ENABLE_RERANK", "true")
+        self.lightrag_enable_rerank = raw_rerank.lower().strip() in ("true", "1", "yes")
+
     # ------------------------------------------------------------------
     # 查询
     # ------------------------------------------------------------------
@@ -101,15 +106,21 @@ class FactRetrievalGateway:
         *,
         top_k: int = 20,
         mode: str = "",
+        only_need_context: bool = True,
     ) -> List[Dict[str, Any]]:
-        """直连 LightRAG 查询。返回含 chapter_id 的 chunk 列表。"""
+        """直连 LightRAG 查询。返回含 chapter_id 的 chunk 列表。
+
+        Args:
+            only_need_context: True 跳过内部 LLM（快），False 启用 KG 推理（慢但含实体关系）。
+        """
         endpoint = self._resolve_endpoint(self.lightrag_query_path)
         payload: Dict[str, Any] = {
             "query": query,
             "mode": mode or self.lightrag_mode or "hybrid",
             "top_k": max(5, min(int(top_k), 200)),
-            "only_need_context": True,
+            "only_need_context": only_need_context,
             "include_references": True,
+            "enable_rerank": self.lightrag_enable_rerank,
         }
         raw = await self._request_lightrag(endpoint=endpoint, payload=payload)
 

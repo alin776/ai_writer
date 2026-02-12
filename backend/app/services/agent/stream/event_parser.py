@@ -66,11 +66,11 @@ class EventParser:
         "get_context_tool": {"icon": "BookOpen", "title": "获取上下文"},
         # ========== 检索类 ==========
         "search_analysis_fragments_tool": {"icon": "Search", "title": "检索设定"},
-        "search_content": {"icon": "Search", "title": "检索内容"},
         "search_memory_tool": {"icon": "Search", "title": "搜索记忆"},
         "search_knowledge_advanced": {"icon": "Search", "title": "高级知识检索"},
         # ========== 写作类 ==========
         "smart_continue": {"icon": "PenTool", "title": "智能续写"},
+        "smart_create": {"icon": "PenTool", "title": "智能创作"},
         "expand_text": {"icon": "Maximize2", "title": "扩写内容"},
         # ========== 编辑类 ==========
         "smart_rewrite": {"icon": "Edit3", "title": "智能改写"},
@@ -97,8 +97,8 @@ class EventParser:
     TOOL_DISPLAY_NAMES = {
         "get_chapter_by_order_tool": "读取章节",
         "smart_continue": "智能续写",
+        "smart_create": "智能创作",
         "search_analysis_fragments_tool": "检索设定",
-        "search_content": "检索内容",
         "search_memory_tool": "搜索记忆",
         "add_todo_tool": "添加待办",
         "get_work_details_tool": "获取作品信息",
@@ -152,7 +152,7 @@ class EventParser:
                 return f"第{chapter}章"
             return ""
         # 检索类
-        elif tool_name in ["search_analysis_fragments_tool", "search_content"]:
+        elif tool_name == "search_analysis_fragments_tool":
             query = args.get("query", "")
             return query[:30] if query else "检索中..."
         elif tool_name == "search_memory_tool":
@@ -165,6 +165,9 @@ class EventParser:
         elif tool_name == "smart_continue":
             words = args.get("target_words") or args.get("word_count", 500)
             return f"目标{words}字"
+        elif tool_name == "smart_create":
+            words = args.get("word_count", 2000)
+            return f"创作新章节，目标{words}字"
         elif tool_name == "expand_text":
             return "扩写中..."
         # 编辑类
@@ -339,12 +342,6 @@ class EventParser:
             if query and len(query) <= 20:
                 return f"🔍 正在检索「{query}」相关设定..."
             return "🔍 正在检索设定..."
-        elif tool_name == "search_content":
-            query = tool_args.get("query", "")
-            if query and len(query) <= 20:
-                return f"🔍 正在检索「{query}」相关内容..."
-            return "🔍 正在检索内容..."
-
         elif tool_name == "search_memory_tool":
             query = tool_args.get("query", "")
             if query and len(query) <= 20:

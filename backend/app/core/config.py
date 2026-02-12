@@ -62,7 +62,11 @@ class Settings(BaseSettings):
     LIGHTRAG_TOP_K: int = 20
     LIGHTRAG_MAX_RETRIES: int = 3
     LIGHTRAG_RETRY_DELAY: float = 2.0
-    
+    LIGHTRAG_ENABLE_RERANK: bool = True
+
+    # Reranker 服务配置（bge-reranker，Explore 段落精确定位）
+    RERANKER_BASE_URL: str = "http://localhost:7997"
+
     # JWT 配置
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -189,8 +193,8 @@ class Settings(BaseSettings):
 
     # 工具缓存配置
     TOOL_CACHE_ENABLED: bool = True  # 是否启用工具结果缓存
-    TOOL_CACHE_WHITELIST: str = "get_writing_context,locate_content,search_content,search_analysis_fragments"
-    TOOL_CACHE_TTL_MINUTES: str = "locate_content=5,search_content=2,search_analysis_fragments=2"
+    TOOL_CACHE_WHITELIST: str = "get_writing_context,locate_content,search_analysis_fragments"
+    TOOL_CACHE_TTL_MINUTES: str = "locate_content=5,search_analysis_fragments=2"
     TOOL_CACHE_GWC_TTL_MINUTES: str = "default=3,chapter=5,rag=2,worldview=30,work=10,style=30"
 
     # 质量循环配置

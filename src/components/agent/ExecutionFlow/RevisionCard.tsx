@@ -4,14 +4,13 @@
  */
 
 import { useState } from 'react';
-import { FilePen, Check, X, ChevronDown, ChevronUp, Redo2 } from 'lucide-react';
+import { FilePen, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import type { RevisionFlowData } from '@/types/agent';
 
 interface RevisionCardProps extends RevisionFlowData {
   onAccept?: (selectedVersion?: number) => void;
   onDiscard?: () => void;
   onUndo?: () => void;   // v7.2: 撤销回调
-  onRedo?: () => void;   // v7.2: 重做回调
   onJump?: () => void;
 }
 
@@ -25,7 +24,6 @@ export function RevisionCard({
   versions,
   onAccept,
   onDiscard,
-  onRedo,
   onJump
 }: RevisionCardProps) {
   // v7.1: 已处理的修订默认收起，pending 状态默认展开
@@ -218,21 +216,11 @@ export function RevisionCard({
               </span>
             </div>
           ) : (
-            // v7.2: 已弃用状态 - 显示重做按钮（create/rename 类型不支持重做）
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1 text-[12px] text-gray-500">
                 <X size={12} />
                 修订已弃用
               </span>
-              {onRedo && revisionType !== 'create' && revisionType !== 'rename' && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRedo(); }}
-                  className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
-                >
-                  <Redo2 size={10} />
-                  重做
-                </button>
-              )}
             </div>
           )}
         </div>

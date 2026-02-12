@@ -749,12 +749,30 @@ class ImportService:
 
         return '\n'.join(cleaned).strip()
 
+    @staticmethod
+    def _html_to_plain_text(html_content: str) -> str:
+        """将 HTML 章节内容转为纯文本（每个 <p> 一行），供 LightRAG 索引。"""
+        if not html_content or '<p' not in html_content:
+            return html_content or ""
+        import re
+        block_pattern = r'<(p|h[1-6]|blockquote|pre|li)[^>]*>(.*?)</\1>'
+        matches = re.findall(block_pattern, html_content, re.DOTALL | re.IGNORECASE)
+        lines = []
+        for _tag, inner_html in matches:
+            text = re.sub(r'<[^>]+>', '', inner_html).strip()
+            if text:
+                lines.append(text)
+        return "\n".join(lines) if lines else html_content
+
     async def _insert_chapters_to_lightrag(
         self,
         chapters: List[Chapter],
         contents: List[str],
     ) -> None:
-        """将导入的章节异步插入 LightRAG，file_source=chapter_{chapter_id}。"""
+        """将导入的章节异步插入 LightRAG，file_source=chapter_{chapter_id}。
+
+        插入前将 HTML 转为纯文本，确保 LightRAG 存储和返回的 chunk 是干净文本。
+        """
         try:
             from app.services.agent.retrieval.fact_retrieval_gateway import get_gateway
             gateway = get_gateway()
@@ -766,9 +784,10 @@ class ImportService:
             if not content or len(content.strip()) < 100:
                 continue
             try:
+                plain_text = self._html_to_plain_text(content)
                 file_source = f"chapter_{chapter.id}"
                 await gateway.insert_document(
-                    text=content,
+                    text=plain_text,
                     file_source=file_source,
                 )
             except Exception as exc:
@@ -913,4 +932,5 @@ class ImportService:
             if stripped_line:  # 只处理非空行
                 html_paragraphs.append(f'<p>{stripped_line}</p>')
 
-        return ''.join(html_paragraphs)
+        from app.utils.html_block_ids import ensure_block_ids
+        return ensure_block_ids(''.join(html_paragraphs))

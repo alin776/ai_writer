@@ -81,6 +81,42 @@ services:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
 
+  # LightRAG 知识检索
+  lightrag:
+    image: ghcr.io/hkuds/lightrag:latest
+    container_name: lightrag
+    restart: unless-stopped
+    ports:
+      - "9621:9621"
+    volumes:
+      - lightrag_data:/app/data/rag_storage
+    environment:
+      - HOST=0.0.0.0
+      - PORT=9621
+      - WORKSPACE=ai_writer_e2e_fullbook_v1
+      # LLM（与后端共用同一个 Gemini 代理）
+      - LLM_BINDING=openai
+      - LLM_MODEL=gemini-2.5-pro
+      - LLM_BINDING_HOST=${OPENAI_BASE_URL:-https://204992.xyz:8443/v1}
+      - LLM_BINDING_API_KEY=${OPENAI_API_KEY}
+      # Embedding（使用 Ollama bge-m3）
+      - EMBEDDING_BINDING=ollama
+      - EMBEDDING_MODEL=bge-m3:latest
+      - EMBEDDING_DIM=1024
+      - EMBEDDING_BINDING_HOST=http://host.docker.internal:11434
+      - EMBEDDING_FUNC_MAX_ASYNC=1
+      - EMBEDDING_BATCH_NUM=1
+      - EMBEDDING_TIMEOUT=120
+      # Rerank（暂不启用，本地无 GPU 无法运行 reranker）
+      - RERANK_BINDING=null
+      # 性能参数
+      - MAX_ASYNC=2
+      - MAX_PARALLEL_INSERT=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - novelaide_network
+
   # Scheduler 独立进程，避免多实例重复跑定时任务
   scheduler:
     build: .
@@ -111,6 +147,7 @@ volumes:
   postgres_data:
   redis_data:
   opensearch_data:
+  lightrag_data:
 
 networks:
   novelaide_network:

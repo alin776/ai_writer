@@ -17,10 +17,10 @@ from typing import Dict, List, Optional, Tuple
 
 
 SEARCH_DONE_RE = re.compile(
-    r"done=exact_search_paragraphs.*?hits=(?P<hits>\d+).*?keywords=(?P<keywords>[^ ]+).*?"
+    r"done=search_analysis_fragments.*?hits=(?P<hits>\d+).*?keywords=(?P<keywords>[^ ]+).*?"
     r"total_hits=(?P<total_hits>\d+).*?has_more=(?P<has_more>True|False)"
 )
-PENDING_PAGE_RE = re.compile(r"exact_search pending-page blocked")
+PENDING_PAGE_RE = re.compile(r"search_analysis_fragments pending-page blocked")
 LOOP_DONE_RE = re.compile(r"探索完成\(工具循环\): (?P<rounds>\d+)轮")
 
 

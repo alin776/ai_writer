@@ -15,7 +15,7 @@ from .tool_descriptions import (
 )
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.41.0"  # 2026-01-26: smart_rewrite 单结果输出，移除 base_version
+PROMPT_VERSION = "v2.42.0"  # 2026-02-13: smart_continue 目标章节不存在时升级为 smart_create
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")

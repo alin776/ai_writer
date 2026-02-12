@@ -551,7 +551,9 @@ tool_policy: {tool_policy}
         plan_data["tasks"] = self._ensure_editor_apply_tasks(plan_data.get("tasks", []))
         plan_data["tasks"] = self._ensure_replace_original_text(plan_data.get("tasks", []))
 
-        return self._normalize_plan_schema(plan_data)
+        normalized_plan = self._normalize_plan_schema(plan_data)
+        normalized_plan["tasks"] = self._ensure_replace_original_text(normalized_plan.get("tasks", []))
+        return normalized_plan
 
     def _auto_reuse_explore_artifacts(
         self,
@@ -785,6 +787,7 @@ tool_policy: {tool_policy}
             "smart_rewrite",
             "smart_insert",
             "smart_continue",
+            "smart_create",
             "operate_apply",
             "apply_chapter_edit"
         }
@@ -1617,6 +1620,11 @@ tool_policy: {tool_policy}
                 existing=params.get("retrieval_intent") if isinstance(params.get("retrieval_intent"), dict) else None,
             )
 
+            # 推断下游工具，让 Explore 按需获取上下文
+            downstream = self._infer_downstream_tool(tasks, task)
+            if downstream:
+                retrieval_intent["downstream_tool"] = downstream
+
             rewritten_params: Dict[str, Any] = {
                 "target_task": target_task,
                 "retrieval_intent": retrieval_intent,
@@ -1646,6 +1654,38 @@ tool_policy: {tool_policy}
                 )
 
         return tasks
+
+    @staticmethod
+    def _infer_downstream_tool(tasks: List[Dict[str, Any]], current_task: Dict[str, Any]) -> Optional[str]:
+        """从任务列表推断当前 explore 任务的下游工具名称。
+
+        查找 depends_on 包含当前 task_id 的下一个任务，返回其 tool 名称。
+        如果找不到依赖关系，按顺序看下一个任务的 tool 名称。
+        """
+        current_id = current_task.get("task_id")
+        if current_id is None:
+            return None
+
+        # 1. 找 depends_on 包含 current_id 的任务
+        for t in tasks:
+            deps = t.get("depends_on") or []
+            if isinstance(deps, list) and current_id in deps:
+                tool = str(t.get("tool") or "").strip()
+                if tool:
+                    return tool
+
+        # 2. 回退：按列表顺序找当前任务后面的第一个非 explore 任务
+        found_current = False
+        for t in tasks:
+            if t is current_task:
+                found_current = True
+                continue
+            if found_current:
+                tool = str(t.get("tool") or "").strip()
+                if tool and tool != "explore_content":
+                    return tool
+
+        return None
 
     def _validate_and_fix_plan(self, plan_data: Dict[str, Any], message: str) -> Dict[str, Any]:
         """
@@ -2011,11 +2051,20 @@ tool_policy: {tool_policy}
             elif tool == "explore_content":
                 last_explore_task_id = task_id
 
-            if tool in {"smart_rewrite", "smart_continue", "smart_insert", "rewrite_chapter_content"} and task_id:
-                if not params.get("chapter_id"):
-                    idx += 1
-                    continue
+            if tool in {"smart_rewrite", "smart_continue", "smart_insert", "smart_create", "rewrite_chapter_content"} and task_id:
+                # smart_create 用 work_id 而非 chapter_id，单独判断
+                if tool == "smart_create":
+                    if not params.get("work_id"):
+                        idx += 1
+                        continue
+                else:
+                    if not params.get("chapter_id"):
+                        idx += 1
+                        continue
                 if self._has_apply_task(tasks, task_id):
+                    # smart_create 的 apply task 需要修正参数（AI 可能生成了错误的 $ref 路径）
+                    if tool == "smart_create":
+                        self._fix_smart_create_apply_params(tasks, task_id)
                     idx += 1
                     continue
 
@@ -2148,7 +2197,7 @@ tool_policy: {tool_policy}
                     last_explore_task_id = task_id
                 continue
 
-            if tool in {"smart_rewrite", "smart_insert", "smart_continue", "operate_apply", "apply_chapter_edit"}:
+            if tool in {"smart_rewrite", "smart_insert", "smart_continue", "smart_create", "operate_apply", "apply_chapter_edit"}:
                 allow_locator_override = True
                 if tool in {"operate_apply", "apply_chapter_edit"}:
                     operation = str(params.get("operation") or "").strip().lower()
@@ -2236,7 +2285,7 @@ tool_policy: {tool_policy}
                     deps = ParameterResolver.extract_dependencies(params)
                     for dep_id in deps:
                         dep_task = task_by_id.get(dep_id)
-                        if dep_task and dep_task.get("tool") in {"smart_rewrite", "smart_insert", "smart_continue"}:
+                        if dep_task and dep_task.get("tool") in {"smart_rewrite", "smart_insert", "smart_continue", "smart_create"}:
                             source_task_id = dep_id
                             break
                     if params.get("operation") in {"replace", "insert"}:
@@ -2276,6 +2325,36 @@ tool_policy: {tool_policy}
                 task["params"] = params
 
         return tasks
+
+    def _fix_smart_create_apply_params(self, tasks: List[Dict[str, Any]], source_task_id: int) -> None:
+        """修正 AI 生成的 smart_create → operate_apply 参数。
+
+        AI 规划器可能为 operate_apply 生成错误的 $ref 路径（如 locate_targets[0].chapter_id），
+        这里强制覆盖为正确的路径。
+        """
+        from app.services.agent.parameter_resolver import ParameterResolver
+
+        for task in tasks:
+            if task.get("tool") not in {"operate_apply", "apply_chapter_edit"}:
+                continue
+            params = task.get("params", {})
+            if source_task_id not in ParameterResolver.extract_dependencies(params):
+                continue
+            # 强制覆盖为正确的参数
+            params["operation"] = "create"
+            params["work_id"] = {"$ref": {"task_id": source_task_id, "path": "data.work_id"}}
+            params["title"] = {"$ref": {"task_id": source_task_id, "path": "data.title"}}
+            params["content"] = {"$ref": {"task_id": source_task_id, "path": "data.content"}}
+            # 移除不需要的 chapter_id $ref（create 不需要 chapter_id）
+            if "chapter_id" in params:
+                ref_val = params["chapter_id"]
+                if isinstance(ref_val, dict) and "$ref" in ref_val:
+                    del params["chapter_id"]
+            logger.info(
+                "[PlanGenerator] 修正 smart_create→operate_apply 参数: task_id=%s, source=%s",
+                task.get("task_id"), source_task_id
+            )
+            break
 
     def _has_apply_task(self, tasks: List[Dict[str, Any]], source_task_id: int) -> bool:
         from app.services.agent.parameter_resolver import ParameterResolver
@@ -2326,6 +2405,13 @@ tool_policy: {tool_policy}
                 "operation": "append",
                 "content": {"$ref": {"task_id": source_task_id, "path": "data.content"}}
             }
+        elif source_tool == "smart_create":
+            params = {
+                "work_id": {"$ref": {"task_id": source_task_id, "path": "data.work_id"}},
+                "operation": "create",
+                "title": {"$ref": {"task_id": source_task_id, "path": "data.title"}},
+                "content": {"$ref": {"task_id": source_task_id, "path": "data.content"}}
+            }
         elif source_tool == "rewrite_chapter_content":
             params = {
                 "chapter_id": chapter_id_ref,
@@ -2368,7 +2454,7 @@ tool_policy: {tool_policy}
             params.setdefault("locate_target_hint", target_hint)
 
         # 续写 append 与整章改写不应携带定位字段
-        if source_tool not in {"smart_continue", "rewrite_chapter_content"}:
+        if source_tool not in {"smart_continue", "smart_create", "rewrite_chapter_content"}:
             if locate_task_id:
                 params.setdefault("node_id", {"$ref": {"task_id": locate_task_id, "path": "node_id"}})
                 params.setdefault("paragraph_index", {"$ref": {"task_id": locate_task_id, "path": "paragraph_index"}})

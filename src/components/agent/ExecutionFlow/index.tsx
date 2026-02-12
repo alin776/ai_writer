@@ -27,9 +27,8 @@ interface ExecutionFlowProps {
   onJumpRevision?: (itemId: string, requestId: string | undefined) => void;
   onAcceptAllRevisions?: (itemIds: string[]) => void;
   onDiscardAllRevisions?: (itemIds: string[]) => void;
-  // v7.2: 撤销/重做回调
+  // v7.2: 撤销回调
   onUndoRevision?: (itemId: string) => void;
-  onRedoRevision?: (itemId: string) => void;
 }
 
 export function ExecutionFlow({
@@ -41,8 +40,7 @@ export function ExecutionFlow({
   onJumpRevision,
   onAcceptAllRevisions,
   onDiscardAllRevisions,
-  onUndoRevision,
-  onRedoRevision
+  onUndoRevision
 }: ExecutionFlowProps) {
   if (!items || items.length === 0) {
     return null;
@@ -101,7 +99,6 @@ export function ExecutionFlow({
                 onAcceptRevision={stepData.revision ? (selectedVersion) => onAcceptRevision?.(revisionId, (stepData.revision as any)?.requestId, selectedVersion) : undefined}
                 onDiscardRevision={stepData.revision ? () => onDiscardRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}
                 onUndoRevision={stepData.revision ? () => onUndoRevision?.(revisionId) : undefined}
-                onRedoRevision={stepData.revision ? () => onRedoRevision?.(revisionId) : undefined}
                 onJumpRevision={stepData.revision ? () => onJumpRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}
               >
                 {exploreItems.length > 0 && (
@@ -165,8 +162,6 @@ export function ExecutionFlow({
             );
           case 'revision': {
             const revisionData = item.data as RevisionFlowData;
-            const isChapterReplace =
-              revisionData.operation === 'content' || revisionData.operation === 'replace_all';
             return (
               <RevisionCard
                 key={item.id}
@@ -174,7 +169,6 @@ export function ExecutionFlow({
                 onAccept={(selectedVersion) => onAcceptRevision?.(item.id, revisionData.requestId, selectedVersion)}
                 onDiscard={() => onDiscardRevision?.(item.id, revisionData.requestId)}
                 onUndo={() => onUndoRevision?.(item.id)}
-                onRedo={isChapterReplace ? undefined : () => onRedoRevision?.(item.id)}
                 onJump={() => onJumpRevision?.(item.id, revisionData.requestId)}
               />
             );

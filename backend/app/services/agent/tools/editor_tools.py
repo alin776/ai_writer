@@ -260,6 +260,20 @@ async def _generate_rewrite_versions(
     }]
 
 
+def _detect_chapter_heading(text: str):
+    """检测文本是否以章节标题开头。返回 (title, body) 或 None。"""
+    if not text:
+        return None
+    clean = re.sub(r'<[^>]+>', '', text).strip()
+    if not clean:
+        return None
+    first_line = clean.split('\n', 1)[0].strip()
+    if re.match(r'^第[一二三四五六七八九十百千万零\d]+[章节回]', first_line):
+        body = clean[len(first_line):].strip() if len(clean) > len(first_line) else ""
+        return (first_line, body)
+    return None
+
+
 @tool
 @register_as_tool(
     "apply_chapter_edit",
@@ -518,6 +532,22 @@ async def apply_chapter_edit(
                 new_content = actual_content
 
             elif operation == "append":
+                # 检测续写内容是否以新章节标题开头 → 新建章节而非追加
+                heading = _detect_chapter_heading(actual_content)
+                if heading:
+                    ch_title, ch_body = heading
+                    logger.info(f"[apply_chapter_edit] 检测到新章节标题「{ch_title}」，转为 create_chapter")
+                    from app.services.agent.tools.chapter_tools import create_chapter as _create_chapter
+                    _wid = work_id or str(chapter.work_id)
+                    # 纯文本 → HTML
+                    html_lines = ''.join(f'<p>{ln.strip()}</p>' for ln in ch_body.split('\n') if ln.strip())
+                    from app.utils.html_block_ids import ensure_block_ids as _ebi
+                    return await _create_chapter(
+                        work_id=_wid,
+                        title=ch_title,
+                        content=_ebi(html_lines),
+                        conversation_id=conversation_id,
+                    )
                 new_content = old_content + actual_content
 
             elif operation == "insert":
@@ -770,6 +800,93 @@ async def smart_continue(
 
     except Exception as e:
         logger.error(f"smart_continue failed: {e}")
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+@tool
+@register_as_tool(
+    "smart_create",
+    "creative",
+    "创作新章节内容（只生成，不写入编辑器）。返回纯净的小说正文。"
+)
+async def smart_create(
+    work_id: str,
+    title: Optional[str] = None,
+    user_requirement: Optional[str] = None,
+    evidence_context: Optional[str] = None,
+    worldview_context: Optional[str] = None,
+    worldview_hard_constraints: Optional[str] = None,
+    word_count: int = 2000,
+    user_id: Optional[str] = None,
+) -> str:
+    """
+    新建章节创作 - 从跨章节上下文创作全新章节（不直接修改编辑器）
+
+    与 smart_continue 的区别：
+    - smart_continue 续写现有章节（从章节末尾衔接）
+    - smart_create 创作全新章节（需要跨章节 KG 推理上下文）
+
+    Args:
+        work_id: 作品ID
+        title: 新章节标题
+        user_requirement: 用户的创作要求
+        evidence_context: 探索证据上下文（来自 _run_create 的 KG 推理 + 上一章末尾）
+        worldview_context: 世界观软约束
+        worldview_hard_constraints: 世界观硬约束（系统提示）
+        word_count: 期望创作字数
+        user_id: 用户ID
+
+    Returns:
+        生成的新章节内容
+    """
+    try:
+        ai_service = _get_ai_service()
+
+        title_text = f"章节标题：{title}\n" if title else ""
+        requirement_text = f"\n用户要求：{user_requirement}" if user_requirement else ""
+        evidence_text = f"\n\n【前文内容】\n{evidence_context}" if evidence_context else ""
+        worldview_text = f"\n\n【世界观设定】\n{worldview_context}" if worldview_context else ""
+
+        system_prompt = "你是专业的小说作家。"
+        if worldview_hard_constraints:
+            system_prompt += f"\n\n{worldview_hard_constraints}"
+
+        prompt = f"""你是专业的小说作家。请根据以下信息创作新章节约{word_count}字。
+{evidence_text}
+{worldview_text}
+
+【创作要求】
+{title_text}{requirement_text}
+
+1. 符合前文风格
+2. 与前文情节自然衔接
+3. 约{word_count}字
+
+请直接输出章节正文，不要添加任何解释。"""
+
+        created_content = await ai_service.call_ai(
+            system_prompt=system_prompt,
+            user_prompt=prompt,
+            max_tokens=word_count * 2,
+            temperature=0.8,
+            task_type=TaskType.CONTENT_CREATION
+        )
+
+        # CREATIVE 工具：应用输出过滤器，去除脏信息
+        created_content = creative_output_filter(created_content)
+
+        return json.dumps({
+            "success": True,
+            "action_type": "create",
+            "work_id": work_id,
+            "title": title or "",
+            "content": created_content,
+            "content_length": len(created_content),
+            "description": f"AI新建章节：生成{len(created_content)}字"
+        }, ensure_ascii=False)
+
+    except Exception as e:
+        logger.error(f"smart_create failed: {e}")
         return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 
@@ -1557,6 +1674,69 @@ smart_insert_tool = StandardTool(
     executor=smart_insert_executor,
     tags=["editor", "insert", "creative"],
     version="2.0.0"
+)
+
+
+# ==================== 3b. SmartCreate StandardTool ====================
+
+class SmartCreateInput(ToolInput):
+    """新建章节创作工具输入"""
+    work_id: str = Field(..., description="作品ID")
+    title: Optional[str] = Field(default=None, description="新章节标题")
+    user_requirement: Optional[str] = Field(default=None, description="用户的创作要求")
+    evidence_context: Optional[str] = Field(default=None, description="探索证据上下文（来自 _run_create 的 KG 推理 + 上一章末尾）")
+    worldview_context: Optional[str] = Field(default=None, description="世界观软约束（可选）")
+    worldview_hard_constraints: Optional[str] = Field(default=None, description="世界观硬约束（系统提示）")
+    word_count: int = Field(default=2000, description="期望创作字数")
+    user_id: Optional[str] = Field(default=None, description="用户ID")
+
+
+class SmartCreateOutput(ToolOutput):
+    """新建章节创作工具输出"""
+    pass
+
+
+async def smart_create_executor(input_data: SmartCreateInput) -> SmartCreateOutput:
+    """新建章节创作执行器（包装 @tool 版本）"""
+    try:
+        result_str = await smart_create.ainvoke({
+            "work_id": input_data.work_id,
+            "title": input_data.title,
+            "user_requirement": input_data.user_requirement,
+            "evidence_context": input_data.evidence_context,
+            "worldview_context": input_data.worldview_context,
+            "worldview_hard_constraints": input_data.worldview_hard_constraints,
+            "word_count": input_data.word_count,
+            "user_id": input_data.user_id,
+        })
+
+        result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
+
+        return SmartCreateOutput(
+            success=result_data.get("success", True),
+            message=result_data.get("description", "新章节创作完成"),
+            data=result_data,
+            metadata={"tool": "smart_create"}
+        )
+    except Exception as e:
+        logger.error(f"smart_create_executor 失败: {e}")
+        return SmartCreateOutput(
+            success=False,
+            message=f"新章节创作失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+smart_create_tool = StandardTool(
+    name="smart_create",
+    description="创作新章节内容（只生成，不写入编辑器）。使用跨章节 KG 推理获取全局上下文。",
+    category=ToolCategory.CREATIVE,
+    input_schema=SmartCreateInput,
+    output_schema=SmartCreateOutput,
+    executor=smart_create_executor,
+    tags=["editor", "create", "creative"],
+    version="1.0.0"
 )
 
 

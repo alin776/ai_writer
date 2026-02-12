@@ -84,7 +84,7 @@ def _get_planning_core_rules() -> str:
 
 【⚠️⚠️⚠️ 最重要规则 - CREATIVE 与 OPERATION 工具分离 ⚠️⚠️⚠️】
 
-**创作类工具**（smart_continue, smart_rewrite, smart_insert）只生成内容，**绝不直接写入编辑器**！
+**创作类工具**（smart_continue, smart_create, smart_rewrite, smart_insert）只生成内容，**绝不直接写入编辑器**！
 
 **必须遵循的流程**：
 1. 先用 CREATIVE 工具生成内容
@@ -99,16 +99,17 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 | replace | 改写 | smart_rewrite 后替换指定段落 |
 | insert | 插入 | smart_insert 后在指定位置插入 |
 | content | 整章替换 | 重写整章内容 |
-| create | 创建章节 | 写新章节（需要 work_id 和 title） |
+| create | 创建章节 | smart_create 后写新章节（需要 work_id 和 title） |
 | title | 修改标题 | 改进章节标题 |
 
 **推荐流程（使用 operate_apply）**：
 - smart_continue → operate_apply(operation="append")
+- smart_create → operate_apply(operation="create")
 - smart_rewrite → operate_apply(operation="replace")
 - smart_insert → operate_apply(operation="insert")
 
 ⚠️ **单结果规则**：
-- smart_rewrite/smart_insert/smart_continue 只生成**单条内容**
+- smart_rewrite/smart_insert/smart_continue/smart_create 只生成**单条内容**
 - 即使用户要求“多版本/多候选/两版”，任务描述也必须改成“生成一条内容”
 
 **什么时候需要写入编辑器？**
@@ -184,7 +185,7 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 - "梳理A与B的关系" → explore_content(target_task="梳理A与B的关系发展历程")
 - "找出所有提到XX的地方" → explore_content(target_task="收集所有关于XX的描写")
 
-⚠️ **不要使用 search_content、get_writing_context 等工具**，这些是 explore_content 内部调用的工具。
+⚠️ **不要使用旧检索工具、get_writing_context 等工具**，这些是 explore_content 内部调用的工具。
 
 ## Step 3: 处理方式
 
@@ -248,6 +249,8 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 **续写场景** → 用 smart_continue（只生成内容）
   - 用户说"续写第X章"、"继续写"、"往后写" → smart_continue
   - smart_continue 生成内容后，必须调用 operate_apply(operation="append") 应用
+  - ⚠️ 如果续写的章节还不存在（如"续写第6章"但只有5章）→ 用 smart_create（不是 smart_continue）
+    - smart_create 生成内容后，调用 operate_apply(operation="create") 应用
 
 **章节操作场景** → 直接用 operate_apply（无需 smart_* 生成）
   - 用户说"创建新章节" → operate_apply(operation="create", title="标题", content="内容")

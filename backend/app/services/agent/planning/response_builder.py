@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 # 定义工具类型
 INPUT_TOOLS = {
     "get_context_tool",
-    "search_content",
     "get_writing_context",
     "get_worldview_summary",  # 世界观查询工具，仅用于提供创作上下文
     "get_chapter_by_order_tool",  # 章节读取工具，在续写场景下是输入型
@@ -41,6 +40,7 @@ DISPLAY_TOOLS = {
 
 OUTPUT_TOOLS = {
     "smart_continue",
+    "smart_create",
     "smart_rewrite",
     "smart_insert",
     "analyze_content"
@@ -125,63 +125,6 @@ class ResponseBuilder:
             except Exception:
                 return {}
         return {}
-
-    def _collect_pending_confirmations(self, task_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """收集待确认修订任务（未落库）。"""
-        pending_items: List[Dict[str, Any]] = []
-        for task in task_results:
-            result_obj = self._extract_result_obj(task.get("result"))
-            if not result_obj:
-                continue
-            requires_confirmation = bool(result_obj.get("requires_confirmation"))
-            apply_state = str(result_obj.get("apply_state", "")).lower()
-            if requires_confirmation or apply_state == "pending":
-                pending_items.append(result_obj)
-        return pending_items
-
-    def _build_pending_confirmation_response(self, pending_items: List[Dict[str, Any]]) -> str:
-        """构建待确认修订的硬约束响应，禁止宣称已落库。"""
-        op_map = {
-            "append": "续写",
-            "replace": "段落改写",
-            "insert": "插入",
-            "content": "整章替换",
-            "replace_all": "整章替换",
-            "title": "改标题",
-            "create": "创建章节",
-        }
-        ops = []
-        change_summaries: List[str] = []
-        for item in pending_items:
-            operation = str(item.get("operation", "")).strip()
-            op_name = op_map.get(operation, "内容修改")
-            chapter_title = str(item.get("chapter_title", "")).strip()
-            if chapter_title:
-                ops.append(f"{op_name}（{chapter_title}）")
-            else:
-                ops.append(op_name)
-            description = str(item.get("description", "")).strip()
-            if description:
-                change_summaries.append(description)
-                continue
-            content = str(item.get("content") or item.get("new_content") or "").strip()
-            if content:
-                content = re.sub(r"<[^>]+>", "", content)
-                content = re.sub(r"\s+", " ", content).strip()
-                if len(content) > 90:
-                    content = content[:90] + "..."
-                change_summaries.append(content)
-        unique_ops = list(dict.fromkeys(ops))[:3]
-        unique_changes = list(dict.fromkeys([c for c in change_summaries if c]))[:2]
-        op_summary = "、".join(unique_ops) if unique_ops else "内容修改"
-        change_summary = "；".join(unique_changes) if unique_changes else "内容已生成，可在修订卡片预览。"
-
-        return (
-            f"已完成任务：{op_summary}。\n"
-            f"改动内容：{change_summary}\n"
-            f"当前状态：已生成{len(pending_items)}条待确认修订，尚未写回数据库。\n"
-            "下一步：请在修订卡片点击“采纳”，落库成功后编辑器才会更新。"
-        )
 
     async def _generate_summarization_reason(
         self,
@@ -307,7 +250,7 @@ class ResponseBuilder:
                 return await self.ai_summarization(task_results, message, on_content, knowledge_docs)
 
             # 创作类任务，且输出充分
-            if tool_name in ["smart_continue", "smart_rewrite", "smart_insert"] and len(result) > 500:
+            if tool_name in ["smart_continue", "smart_create", "smart_rewrite", "smart_insert"] and len(result) > 500:
                 logger.info(f"[Response] 单个创作任务({tool_name})，直接返回")
                 if on_content:
                     await on_content(result)
@@ -326,7 +269,7 @@ class ResponseBuilder:
             # 检查是否全是分析类任务
             analysis_like_tools = {"analyze_text_tool", "summarization", "analyze_content"}
             all_analyze = all(task.get("tool") in analysis_like_tools for task in output_tasks)
-            has_writing = any(task.get("tool") in {"smart_continue", "smart_rewrite", "smart_insert"} for task in output_tasks)
+            has_writing = any(task.get("tool") in {"smart_continue", "smart_create", "smart_rewrite", "smart_insert"} for task in output_tasks)
 
             if all_analyze and not has_writing:
                 logger.info(f"[Response] {len(output_tasks)}个分析类任务，使用AI整合")
@@ -341,7 +284,7 @@ class ResponseBuilder:
 
                 if tool_name in {"analyze_text_tool", "analyze_content"}:
                     parts.append(f"## 分析结果\n\n{result}")
-                elif tool_name in {"smart_continue", "smart_rewrite", "smart_insert"}:
+                elif tool_name in {"smart_continue", "smart_create", "smart_rewrite", "smart_insert"}:
                     parts.append(f"## 创作内容\n\n{result}")
                 else:
                     parts.append(result)
@@ -459,44 +402,6 @@ class ResponseBuilder:
         if not self._generate_text_stream:
             logger.warning("[Summarization] 未设置流式生成函数，返回简单拼接")
             return self._simple_concat(task_results, on_content)
-
-        pending_items = self._collect_pending_confirmations(task_results)
-        if pending_items:
-            logger.info(
-                "[Summarization] 检测到待确认修订，启用硬约束响应模板（count=%s）",
-                len(pending_items),
-            )
-            pending_response = self._build_pending_confirmation_response(pending_items)
-            if self._stream_event_handler:
-                try:
-                    task_classification = classify_tasks(task_results)
-                    await self._stream_event_handler.emit_summarization_start(
-                        {
-                            "input_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in task_classification["input_tasks"]],
-                            "output_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in task_classification["output_tasks"]],
-                            "display_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in task_classification["display_tasks"]]
-                        },
-                        {
-                            "original_length": 0,
-                            "compressed_length": 0,
-                            "mode": "硬约束模板"
-                        },
-                        "检测到待确认修订，返回固定说明"
-                    )
-                    await self._stream_event_handler.emit_summarization_complete()
-                    from app.services.agent.stream.flow_events import FlowEventBuilder
-                    await self._stream_event_handler.emit_flow_event(
-                        FlowEventBuilder.output_ready(
-                            output_title or "生成内容",
-                            "",
-                            is_applicable=is_applicable
-                        )
-                    )
-                except Exception as event_err:
-                    logger.warning(f"[Summarization] 硬约束事件发送失败: {event_err}")
-            if on_content:
-                await on_content(pending_response)
-            return pending_response
 
         # 任务分类
         classified = classify_tasks(task_results)
