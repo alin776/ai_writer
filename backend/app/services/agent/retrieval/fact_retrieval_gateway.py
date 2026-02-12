@@ -107,11 +107,14 @@ class FactRetrievalGateway:
         top_k: int = 20,
         mode: str = "",
         only_need_context: bool = True,
+        raw_mode: bool = False,
     ) -> List[Dict[str, Any]]:
         """直连 LightRAG 查询。返回含 chapter_id 的 chunk 列表。
 
         Args:
             only_need_context: True 跳过内部 LLM（快），False 启用 KG 推理（慢但含实体关系）。
+            raw_mode: True 时跳过 _parse_context_chunks，将原始回答作为 kg_summary 透传。
+                      适用于 only_need_context=False 的 KG 推理场景，避免解析器压扁结果。
         """
         endpoint = self._resolve_endpoint(self.lightrag_query_path)
         payload: Dict[str, Any] = {
@@ -127,11 +130,20 @@ class FactRetrievalGateway:
         if not isinstance(raw, dict):
             raw = {"response": str(raw or "")}
 
+        context_text = str(raw.get("response") or raw.get("answer") or raw.get("text") or "").strip()
+
+        # raw_mode：跳过解析，直接透传 KG 推理原始回答
+        if raw_mode:
+            logger.info(
+                "[FactRetrieval] query_lightrag_raw raw_mode query=%s response_len=%d",
+                query[:60], len(context_text),
+            )
+            return [{"kg_summary": context_text, "retrieval_mode": "lightrag_kg_raw"}]
+
         # 从 references 构建 reference_id → chapter_id 映射
         ref_to_chapter = self._build_ref_chapter_map(raw.get("references") or [])
 
         # 解析 context chunks（含 reference_id）
-        context_text = str(raw.get("response") or raw.get("answer") or raw.get("text") or "").strip()
         parsed_chunks = self._parse_context_chunks(context_text)
 
         results: List[Dict[str, Any]] = []

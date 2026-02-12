@@ -78,9 +78,9 @@ class ExploreV6:
 {f"世界观摘要：{worldview_summary[:500]}" if worldview_summary else ""}
 
 规则：
-- 生成 1 条简短的搜索查询（10-30 字）
-- 聚焦任务核心信息需求，不要堆砌多个维度
-- 用关键词 + 短语，不要写长句子
+- 生成 1 条搜索查询（30-80 字）
+- 聚焦任务核心信息需求，包含关键人物、事件、设定等要素
+- 用关键词 + 短语组合，覆盖任务涉及的主要维度
 
 只返回查询文本，不要其他内容。"""
 
@@ -546,37 +546,30 @@ class ExploreV6:
         query = await self.generate_query(chapters, worldview_summary)
         logger.info("[ExploreV6] 新建章节 KG 查询: %s", query)
 
+        kg_summary = ""
         from app.services.agent.retrieval.fact_retrieval_gateway import get_gateway
         gateway = get_gateway()
         try:
-            kg_chunks = await gateway.query_lightrag_raw(
-                query, mode="mix", only_need_context=False,
+            kg_results = await gateway.query_lightrag_raw(
+                query, mode="mix", only_need_context=False, raw_mode=True,
             )
-            # 补全 chapter_order/chapter_title（KG 模式可能无 references，chapter_id 可能为空）
-            kg_chunks = await self.enrich_chunks(kg_chunks, chapters)
-            for idx, chunk in enumerate(kg_chunks):
-                text = str(chunk.get("text") or "")
-                if not text:
-                    continue
-                evidences.append({
-                    "text": text,
-                    "chapter_id": chunk.get("chapter_id") or "",
-                    "chapter_order": chunk.get("chapter_order"),
-                    "chapter_title": chunk.get("chapter_title") or "",
-                    "source_type": "lightrag_kg",
-                    "similarity": max(0.05, 0.85 - idx * 0.03),
-                })
+            # raw_mode 返回 [{"kg_summary": "...", "retrieval_mode": "lightrag_kg_raw"}]
+            if kg_results and kg_results[0].get("kg_summary"):
+                kg_summary = kg_results[0]["kg_summary"]
         except Exception as exc:
             logger.warning("[ExploreV6] LightRAG KG 查询失败: %s", exc)
 
+        logger.info("[ExploreV6] KG 推理摘要长度: %d 字", len(kg_summary))
+
         duration_ms = int((time.time() - t0) * 1000)
-        logger.info("[ExploreV6] 新建章节上下文就绪: evidences=%d, 耗时=%dms",
-                    len(evidences), duration_ms)
+        logger.info("[ExploreV6] 新建章节上下文就绪: evidences=%d, kg_summary=%d字, 耗时=%dms",
+                    len(evidences), len(kg_summary), duration_ms)
 
         return self._build_result(
             evidences=evidences, chapters_info=chapters, worldview=worldview,
             stop_reason="新建章节上下文就绪", duration_ms=duration_ms,
             extra_stats={"downstream_tool": "create_chapter", "query": query},
+            kg_summary=kg_summary,
         )
 
     # ------------------------------------------------------------------
@@ -680,6 +673,7 @@ class ExploreV6:
         stop_reason: str,
         duration_ms: int,
         extra_stats: Optional[Dict[str, Any]] = None,
+        kg_summary: str = "",
     ) -> Dict[str, Any]:
         """构建与 explore_content V5 兼容的输出字典。"""
         located_chapters = sorted(set(
@@ -742,6 +736,7 @@ class ExploreV6:
             "locate_targets": locate_targets,
             "worldview": worldview,
             "explore_summary": "",
+            "kg_summary": kg_summary,
             "context_for_task": "\n\n".join(
                 str(e.get("text") or "") for e in evidences[:20]
             ),

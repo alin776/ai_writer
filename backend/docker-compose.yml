@@ -112,6 +112,8 @@ services:
       # 性能参数
       - MAX_ASYNC=2
       - MAX_PARALLEL_INSERT=1
+      # 语言
+      - SUMMARY_LANGUAGE=Chinese
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

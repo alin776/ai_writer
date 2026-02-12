@@ -908,9 +908,12 @@ class ToolExecutor:
                     "[ToolExecutor] operate_apply use_optimization enabled (intensity=%s)",
                     params.get("optimization_intensity")
                 )
-            params.setdefault("work_id", state.get("work_id", ""))
-            params.setdefault("user_id", state.get("user_id", ""))
-            params.setdefault("conversation_id", state.get("conversation_id", ""))
+            if not params.get("work_id"):
+                params["work_id"] = state.get("work_id", "")
+            if not params.get("user_id"):
+                params["user_id"] = state.get("user_id", "")
+            if not params.get("conversation_id"):
+                params["conversation_id"] = state.get("conversation_id", "")
             # 🔧 2026-01-30: 确保 paragraph_index 是整数或 None
             pi = params.get("paragraph_index")
             if pi is not None and not isinstance(pi, int):
@@ -1245,21 +1248,27 @@ class ToolExecutor:
                     return str(item.get("text"))
         return ""
 
-    def _build_evidence_context(self, state: dict, max_evidences: int = 6, max_chars: int = 1800) -> str:
+    def _build_evidence_context(self, state: dict, max_evidences: int = 6, max_evidence_chars: int = 1800) -> str:
         """拼接 Explore 证据/定位候选，注入 smart_* 上下文"""
         data = self._load_explore_result(state)
         if not data:
             return ""
         parts = []
-        summary = data.get("explore_summary") or data.get("context_for_task")
-        if isinstance(summary, str) and summary.strip():
-            summary = summary.strip()
-            if len(summary) > 400:
-                summary = summary[:400] + "..."
-            parts.append("【探索摘要】" + summary)
 
         evidences = data.get("evidences")
-        if isinstance(evidences, list) and evidences:
+        has_evidences = isinstance(evidences, list) and bool(evidences)
+
+        # 探索摘要：仅在没有 evidences 时使用（有 evidences 时内容重复，跳过）
+        if not has_evidences:
+            summary = data.get("explore_summary") or data.get("context_for_task")
+            if isinstance(summary, str) and summary.strip():
+                summary = summary.strip()
+                if len(summary) > 400:
+                    summary = summary[:400] + "..."
+                parts.append("【探索摘要】" + summary)
+
+        # 探索证据
+        if has_evidences:
             lines = []
             for item in evidences:
                 if not isinstance(item, dict):
@@ -1267,6 +1276,11 @@ class ToolExecutor:
                 text = (item.get("text") or "").strip()
                 if not text:
                     continue
+                # db 直读的章节原文完整保留（对衔接至关重要）
+                # 其他类型的 evidence 限制单条长度，避免 prompt 膨胀
+                source_type = item.get("source_type") or ""
+                if not source_type.startswith("db_") and len(text) > max_evidence_chars:
+                    text = text[:max_evidence_chars] + "..."
                 chapter_order = item.get("chapter_order") or item.get("chapter") or ""
                 paragraph_index = item.get("paragraph_index")
                 node_id = item.get("node_id") or ""
@@ -1302,12 +1316,14 @@ class ToolExecutor:
             if lines:
                 parts.append("【定位候选】\n" + "\n".join(lines))
 
+        # KG 推理摘要：完整保留，不截断
+        kg_summary = data.get("kg_summary")
+        if isinstance(kg_summary, str) and kg_summary.strip():
+            parts.append("【KG 推理】\n" + kg_summary.strip())
+
         if not parts:
             return ""
-        merged = "\n".join(parts)
-        if len(merged) > max_chars:
-            return merged[:max_chars] + "..."
-        return merged
+        return "\n".join(parts)
 
     @staticmethod
     def _extract_target_chapter_id(explore_result: dict) -> tuple[str, str]:

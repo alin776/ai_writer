@@ -844,7 +844,7 @@ async def smart_create(
 
         title_text = f"章节标题：{title}\n" if title else ""
         requirement_text = f"\n用户要求：{user_requirement}" if user_requirement else ""
-        evidence_text = f"\n\n【前文内容】\n{evidence_context}" if evidence_context else ""
+        evidence_text = f"\n\n【参考上下文】\n{evidence_context}" if evidence_context else ""
         worldview_text = f"\n\n【世界观设定】\n{worldview_context}" if worldview_context else ""
 
         system_prompt = "你是专业的小说作家。"
