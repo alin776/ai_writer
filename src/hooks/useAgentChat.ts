@@ -5,7 +5,7 @@ import { DataService } from '@/services/DataService';
 import { useConversationPersistence } from './useConversationPersistence';
 import { getGlobalSessionManager } from '@/contexts/SessionContext';
 import type { SessionState } from './SessionStateManager';
-import type { AgentChatRequest, AgentChatResponse, ActivityItem, ProgressData, FlowItem, ToolFlowData, StepFlowData, TaskSnapshot, SummarizationFlowData, RevisionFlowData, RevisionStatus } from '@/types/agent';
+import type { AgentChatRequest, AgentChatResponse, FlowItem, ToolFlowData, StepFlowData, SummarizationFlowData, RevisionFlowData, RevisionStatus } from '@/types/agent';
 import TypewriterWorker from '@/workers/typewriterWorker?worker';
 
 // 清理任务描述中的 UUID（兜底过滤）
@@ -23,11 +23,8 @@ interface Message {
   agentSteps?: any[];
   metadata?: any;
   timestamp: string;
-  flowItems?: FlowItem[];  // v5.1: 执行轨迹绑定到消息
-  tasksSnapshot?: TaskSnapshot[]; // v6.2: 任务列表快照（用于历史执行轨迹）
+  flowItems?: FlowItem[];
 }
-
-type Task = TaskSnapshot;
 
 interface UseAgentChatOptions {
   workId?: string;
@@ -77,11 +74,7 @@ interface UseAgentChatReturn {
   isLoading: boolean;
   error: string | null;
   suggestedActions: string[];
-  tasks: Task[];
-  currentTaskId: number | string | null;
-  activities: ActivityItem[];
-  progressData: ProgressData | null;
-  flowItems: FlowItem[];  // v5.0: 执行轨迹项
+  flowItems: FlowItem[];
   sendMessage: (request: AgentChatRequest) => Promise<AgentChatResponse | null>;
   sendMessageStream: (request: AgentChatRequest) => Promise<void>;
   clearMessages: () => void;
@@ -214,15 +207,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           }
         });
       }
-      // 从最后一条 agent 消息恢复 tasks
+      // 从最后一条 agent 消息恢复状态
       const lastAgentMessage = [...persisted.messages].reverse().find(m => m.role === 'agent');
-      const restoredTasks = (lastAgentMessage as any)?.tasksSnapshot || [];
 
       sessionManager.updateSession(sessionId, {
         messages: persisted.messages as Message[],
         conversationId: persisted.conversationId || undefined,
         mode: persisted.mode || 'plan',
-        tasks: restoredTasks  // 恢复任务列表
       });
     }
     refreshSessionSnapshot();
@@ -394,7 +385,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       pendingTaskTimersRef.current.forEach((timerId) => clearTimeout(timerId));
       pendingTaskTimersRef.current.clear();
 
-      const taskStartTimes = new Map<number, number>();
       const stepStartTimes = new Map<number, number>();  // v6.7: 记录 step 开始时间，用于同步延迟
       activityStartTimes.current.clear();
       lastRequestRef.current = request;
@@ -419,66 +409,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         isLoading: true,
         error: null,
         suggestedActions: [],
-        tasks: [],
-        currentTaskId: null,
-        activities: [],
-        progressData: null,
         pendingApproval: null,
         mode: uiMode
       });
       persistMessages(baseMessages, streamConversationId, uiMode);
 
       try {
-        const normalizeTaskId = (id: any) => {
-          if (id === null || id === undefined) return id;
-          if (typeof id === 'number') return id;
-          const asNumber = Number(id);
-          return Number.isNaN(asNumber) ? id : asNumber;
-        };
-
-        const normalizeTaskStatus = (status?: string) => {
-          if (!status) return 'pending';
-          if (status === 'in_progress') return 'running';
-          return status;
-        };
-
-        const getTaskDescription = (task: any) =>
-          cleanTaskDescription(task?.description ?? task?.title ?? '');
-
-        const applyPlanUpdate = (plan: any, forceUpdate: boolean = false) => {
-          const currentTasks = sessionManager.getSession(sessionId)?.tasks || [];
-          const currentTaskMap = new Map(
-            currentTasks.map(t => [normalizeTaskId(t.task_id), t])
-          );
-          const isUpdate = forceUpdate || plan?.is_update === true;
-          const sourceTasks = Array.isArray(plan?.tasks) ? plan.tasks : [];
-
-          const updatedTasks: Task[] = sourceTasks.map((t: any) => {
-            const taskId = normalizeTaskId(t.task_id);
-            const existing = currentTaskMap.get(taskId);
-
-            // 重规划时：保留已完成任务的状态
-            if (isUpdate && existing && existing.status === 'completed') {
-              return existing;
-            }
-
-            // 保留正在运行任务的状态
-            if (existing && existing.status === 'running') {
-              return { ...existing, description: getTaskDescription(t) };
-            }
-
-            return {
-              task_id: taskId,
-              description: getTaskDescription(t),
-              tool: t.tool,
-              estimated_time: t.estimated_time,
-              status: normalizeTaskStatus(t.status) as Task['status'],
-            };
-          });
-
-          sessionManager.updateSession(sessionId, { tasks: updatedTasks });
-        };
-
         await agentApi.chatStream(
           { ...request, conversation_id: streamConversationId },
           {
@@ -490,106 +426,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               // v5.1: flowItems 现在绑定到消息，不再全局清空
               sessionManager.updateSession(sessionId, {
                 conversationId: convId
-              });
-            },
-            onPlan: (plan: any) => {
-              applyPlanUpdate(plan);
-            },
-            onPlanUpdate: (plan: any) => {
-              applyPlanUpdate(plan, true);
-            },
-            onTaskStart: (task: any) => {
-              const taskId = normalizeTaskId(task.task_id);
-              taskStartTimes.set(taskId, Date.now());
-
-              // v6.0: flowItems 由 onFlowEvent 的 step_start 处理，这里只更新任务状态
-              const updatedTasks = (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
-                normalizeTaskId(t.task_id) === taskId ? { ...t, status: 'running' as const } : t
-              );
-              sessionManager.updateSession(sessionId, {
-                currentTaskId: taskId,
-                tasks: updatedTasks
-              });
-
-              // 保存 running 状态的任务快照，确保切换章节时不丢失
-              const currentSession = sessionManager.getSession(sessionId);
-              const currentMessages = currentSession?.messages || baseMessages;
-              const updated = [...currentMessages];
-              if (updated[agentMessageIndex]) {
-                updated[agentMessageIndex] = {
-                  ...updated[agentMessageIndex],
-                  tasksSnapshot: updatedTasks.map(t => ({ ...t }))
-                };
-                sessionManager.updateSession(sessionId, { messages: updated });
-                persistMessagesThrottled(updated, streamConversationId, uiMode, false);
-              }
-            },
-            onTaskDone: (taskDone: any) => {
-              const taskId = normalizeTaskId(taskDone.task_id);
-              const startTime = taskStartTimes.get(taskId);
-              let elapsedTime = taskDone.elapsed_time || 0;
-              if (startTime && elapsedTime === 0) {
-                elapsedTime = (Date.now() - startTime) / 1000;
-              }
-              const timerKey = `task-${taskId}`;
-
-              // v6.7: 确保 running 状态至少显示 500ms，提升用户体验
-              const MIN_RUNNING_DISPLAY_MS = 500;
-              const elapsedMs = startTime ? Date.now() - startTime : MIN_RUNNING_DISPLAY_MS;
-              const delayMs = Math.max(0, MIN_RUNNING_DISPLAY_MS - elapsedMs);
-
-              const updateTaskCompleted = () => {
-                pendingTaskTimersRef.current.delete(timerKey);
-                // v6.0: flowItems 由 onFlowEvent 的 step_complete 处理，这里只更新任务状态
-                sessionManager.updateSession(sessionId, {
-                  tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
-                    normalizeTaskId(t.task_id) === taskId
-                      ? { ...t, status: 'completed', elapsed_time: elapsedTime, progress_status: undefined }
-                      : t
-                  ),
-                  currentTaskId: sessionManager.getSession(sessionId)?.currentTaskId === taskId ? null : sessionManager.getSession(sessionId)?.currentTaskId
-                });
-                taskStartTimes.delete(taskId);
-              };
-
-              if (delayMs > 0) {
-                const timerId = setTimeout(updateTaskCompleted, delayMs);
-                pendingTaskTimersRef.current.set(timerKey, timerId);
-              } else {
-                updateTaskCompleted();
-              }
-            },
-            onTaskProgress: (progress: any) => {
-              // 更新任务的进度状态（仅字符串）
-              const taskId = normalizeTaskId(progress.task_id);
-              const status = progress.status;
-              if (taskId !== undefined && typeof status === 'string' && status) {
-                sessionManager.updateSession(sessionId, {
-                  tasks: (sessionManager.getSession(sessionId)?.tasks || []).map((t) =>
-                    normalizeTaskId(t.task_id) === taskId ? { ...t, progress_status: status } : t
-                  )
-                });
-              }
-            },
-            onThinking: (thinking: any) => {
-              const summary = typeof thinking === 'string'
-                ? thinking
-                : (thinking?.summary ?? thinking?.content ?? thinking?.text ?? '');
-              const nextStep = thinking?.next_step ? `下一步：${thinking.next_step}` : '';
-              const description = [summary, nextStep].filter(Boolean).join(' ');
-              if (!description) return;
-              const activity: ActivityItem = {
-                id: `thinking-${Date.now()}`,
-                type: 'thinking',
-                description,
-                timestamp: new Date().toISOString(),
-                status: 'completed'
-              };
-              sessionManager.updateSession(sessionId, {
-                activities: [
-                  ...(sessionManager.getSession(sessionId)?.activities || []),
-                  activity
-                ]
               });
             },
             // 🆕 planning 模式也需要处理审批请求
@@ -750,7 +586,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       updated[agentMessageIndex] = {
                         ...targetMessage,
                         flowItems: latestFlowItems,
-                        tasksSnapshot: (currentSession?.tasks || []).map((task) => ({ ...task }))
                       };
                       sessionManager.updateSession(sessionId, { messages: updated });
                     }, delayMs);
@@ -946,7 +781,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
               // 更新消息的flowItems
               const updated = [...currentMessages];
-              const tasksSnapshot = (currentSession?.tasks || []).map((task) => ({ ...task }));
               if (updated[agentMessageIndex]) {
                 // v6.8: 合并 flowItems，保留 output 类型项已有的 content（避免被覆盖）
                 const existingFlowItems = (updated[agentMessageIndex] as Message).flowItems || [];
@@ -969,7 +803,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 updated[agentMessageIndex] = {
                   ...updated[agentMessageIndex],
                   flowItems: mergedFlowItems,
-                  tasksSnapshot  // 保存任务列表快照，确保切换章节时不丢失
                 };
                 sessionManager.updateSession(sessionId, { messages: updated });
                 // 节流持久化，确保切换章节时 flowItems 不丢失
@@ -1113,9 +946,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 const currentMessages = currentSession?.messages || baseMessages;
                 const targetMessage = currentMessages[agentMessageIndex] as Message;
                 let currentFlowItems = targetMessage?.flowItems || [];
-                let finalTasks = currentSession?.tasks || [];
 
-                // ✅ 流结束时：立即完成所有 pending 的任务卡片（避免 running 状态残留）
+                // ✅ 流结束时：立即完成所有 pending 的步骤卡片（避免 running 状态残留）
                 if (pendingTaskTimersRef.current.size > 0) {
                   const pendingKeys = Array.from(pendingTaskTimersRef.current.keys());
 
@@ -1123,8 +955,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   pendingTaskTimersRef.current.forEach((timerId) => clearTimeout(timerId));
                   pendingTaskTimersRef.current.clear();
 
-                  // v6.7: 更新所有 pending step 的状态为 done
-                  // 注意：stepId 可能是数字或字符串，需要同时支持
                   const pendingStepIds = pendingKeys
                     .filter(k => k.startsWith('step-'))
                     .map(k => k.replace('step-', ''));
@@ -1142,23 +972,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       return item;
                     });
                   }
-
-                  // v6.7: 更新所有 pending task 的状态为 completed
-                  // 注意：task_id 可能是数字或字符串（UUID），需要同时支持
-                  const pendingTaskIds = pendingKeys
-                    .filter(k => k.startsWith('task-'))
-                    .map(k => k.replace('task-', ''));
-                  if (pendingTaskIds.length > 0) {
-                    finalTasks = finalTasks.map(t => {
-                      const taskIdStr = String(t.task_id);
-                      return pendingTaskIds.includes(taskIdStr)
-                        ? { ...t, status: 'completed' as const }
-                        : t;
-                    });
-                  }
                 }
-
-                const tasksSnapshot = finalTasks.map((task) => ({ ...task }));
 
                 // v6.8: 同步更新 flowItems 中 output 类型项的 content
                 const finalFlowItems = currentFlowItems.map(item => {
@@ -1179,20 +993,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     content: streamingContent,
                     agentSteps,
                     metadata,
-                    flowItems: finalFlowItems,  // v6.8: 使用更新后的 flowItems
-                    tasksSnapshot  // v6.2: 保存任务列表快照
+                    flowItems: finalFlowItems,
                   };
                 }
 
                 sessionManager.updateSession(sessionId, {
                   messages: updated,
-                  tasks: finalTasks,  // v6.7: 更新 tasks 状态
                   suggestedActions: actions || [],
                   isLoading: false,
-                  progressData: null,
-                  activities: (currentSession?.activities || []).map((a) =>
-                    a.status === 'active' ? { ...a, status: 'completed' } : a
-                  )
                 });
                 persistMessagesThrottled(updated, streamConversationId, uiMode, true);
                 sessionManager.disconnectSession(sessionId);
@@ -1228,7 +1036,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               const errorMessage = errorMsg || '未知错误';
               const currentSession = sessionManager.getSession(sessionId);
               const currentMessages = currentSession?.messages || baseMessages;
-              const tasksSnapshot = (currentSession?.tasks || []).map((task) => ({ ...task }));
               const updated = [...currentMessages];
               const isAbort =
                 stopRequestedRef.current ||
@@ -1244,7 +1051,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     : '抱歉，遇到了问题：' + errorMessage + '\\n\\n请稍后重试，或联系管理员。',
                   timestamp: new Date().toISOString(),
                   flowItems: existingFlowItems,  // v5.1: 保留执行轨迹
-                  tasksSnapshot  // v6.2: 保存任务列表快照
                 };
               } else if (isAbort) {
                 // fallback: push a single stop message if placeholder missing
@@ -1275,7 +1081,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         const currentSession = sessionManager.getSession(sessionId);
         const currentMessages = currentSession?.messages || [];
         const updated = [...currentMessages];
-        const tasksSnapshot = (currentSession?.tasks || []).map((task) => ({ ...task }));
         if (updated.length > 0 && updated[updated.length - 1].role === 'agent') {
           updated[updated.length - 1] = {
             ...updated[updated.length - 1],
@@ -1283,7 +1088,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               ? '对话已停止。'
               : '抱歉，遇到了问题：' + errorMessage + '\\n\\n请稍后重试，或联系管理员。',
             timestamp: new Date().toISOString(),
-            tasksSnapshot
           };
         } else if (isAbort) {
           updated.push({
@@ -1313,13 +1117,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       suggestedActions: [],
       error: null,
       isLoading: false,
-      tasks: [],
-      currentTaskId: null,
       conversationId: undefined,
-      activities: [],
-      progressData: null,
       pendingApproval: null,
-      flowItems: []  // v5.0: 清空执行轨迹
+      flowItems: []
     });
     activityStartTimes.current.clear();
     abortControllerRef.current = null;
@@ -1385,10 +1185,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           conversationId: undefined,
           suggestedActions: [],
           error: null,
-          tasks: [],
-          currentTaskId: null,
-          activities: [],
-          progressData: null,
           pendingApproval: null
         });
         activityStartTimes.current.clear();
@@ -1400,10 +1196,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         conversationId: session.conversationId || undefined,
         suggestedActions: [],
         error: null,
-        tasks: [],
-        currentTaskId: null,
-        activities: [],
-        progressData: null,
         pendingApproval: null,
         // 兼容旧数据：统一为 plan 模式
         mode: 'plan'
@@ -1837,11 +1629,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     isLoading: sessionState.isLoading,
     error: sessionState.error,
     suggestedActions: sessionState.suggestedActions,
-    tasks: (sessionState.tasks || []) as Task[],
-    currentTaskId: sessionState.currentTaskId,
-    activities: (sessionState.activities || []) as ActivityItem[],
-    progressData: sessionState.progressData,
-    flowItems: (sessionState.flowItems || []) as FlowItem[],  // v5.0: 执行轨迹项
+    flowItems: (sessionState.flowItems || []) as FlowItem[],
     sendMessage,
     sendMessageStream,
     clearMessages,

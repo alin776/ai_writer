@@ -7,8 +7,7 @@ import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
 import { DataService } from '../../services/DataService';
-import type { AgentChatRequest, TaskSnapshot, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
-import ActivityStream from '../agent/ActivityStream';  // 导入 ActivityStream
+import type { AgentChatRequest, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
 import { ExecutionFlow } from '../agent/ExecutionFlow';  // v5.0: 执行轨迹可视化
 import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // 编辑确认对话框
 import {
@@ -266,101 +265,6 @@ const MarkdownContent: React.FC<{ content: string }> = React.memo(({ content }) 
 MarkdownContent.displayName = 'MarkdownContent';
 
 
-const TaskList = ({ tasks }: { tasks: TaskSnapshot[] }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  if (!tasks || tasks.length === 0) return null;
-
-  // 计算已完成任务数
-  const completedCount = tasks.filter(t => t.status === 'completed').length;
-  const totalCount = tasks.length;
-
-  // 获取当前执行的任务（running 状态），如果没有则取最后一个任务
-  const currentTask = tasks.find(t => t.status === 'running') || tasks[tasks.length - 1];
-
-  return (
-    <div className="relative">
-      {/* 展开状态：绝对定位往上展开 */}
-      {isExpanded && (
-        <div className="absolute bottom-full left-0 right-0 mb-1 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-lg z-10">
-          {/* 头部：任务进度 + 收缩按钮 */}
-          <button
-            onClick={() => setIsExpanded(false)}
-            className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-          >
-            <span className="text-[11px] font-medium text-zinc-600 dark:text-slate-300">
-              任务进度
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-zinc-500 dark:text-slate-400">
-                {completedCount} / {totalCount}
-              </span>
-              <ChevronDown className="w-3.5 h-3.5 text-zinc-400 dark:text-slate-500" />
-            </div>
-          </button>
-
-          {/* 任务列表 */}
-          <div className="px-2 pb-2 space-y-1 max-h-64 overflow-y-auto">
-            {tasks.map((task) => (
-              <div
-                key={task.task_id}
-                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] ${
-                  task.status === 'completed'
-                    ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                    : task.status === 'running'
-                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                      : 'bg-zinc-100 text-zinc-600 dark:bg-slate-700 dark:text-slate-400'
-                }`}
-              >
-                {task.status === 'completed' ? (
-                  <Check className="w-3.5 h-3.5 flex-shrink-0" />
-                ) : task.status === 'running' ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-                ) : (
-                  <div className="w-3.5 h-3.5 rounded-full border border-current flex-shrink-0" />
-                )}
-                <span className="flex-1 min-w-0 whitespace-normal break-words">{task.description}</span>
-                {task.elapsed_time !== undefined && task.status === 'completed' && (
-                  <span className="text-[10px] opacity-60 flex-shrink-0">{task.elapsed_time.toFixed(1)}s</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 收缩状态：只显示当前任务行 */}
-      {currentTask && (
-        <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${
-              currentTask.status === 'completed'
-                ? 'text-green-700 dark:text-green-400'
-                : currentTask.status === 'running'
-                  ? 'text-blue-700 dark:text-blue-400'
-                  : 'text-zinc-600 dark:text-slate-400'
-            }`}
-          >
-            {currentTask.status === 'completed' ? (
-              <Check className="w-3.5 h-3.5 flex-shrink-0" />
-            ) : currentTask.status === 'running' ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-            ) : (
-              <div className="w-3.5 h-3.5 rounded-full border border-current flex-shrink-0" />
-            )}
-            <span className="flex-1 truncate text-left">{currentTask.description}</span>
-            <span className="text-[11px] text-zinc-500 dark:text-slate-400 flex-shrink-0">
-              {completedCount} / {totalCount}
-            </span>
-            <ChevronUp className={`w-3.5 h-3.5 text-zinc-400 dark:text-slate-500 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
 type AtCommandStage = 'root' | 'knowledge';
 
 type RootCommandOption = {
@@ -420,8 +324,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     isLoading,
     error,
     suggestedActions,
-    tasks,
-    activities,
     sendMessageStream,
     stopStreaming,
     pendingApproval,
@@ -951,7 +853,7 @@ ${context.selected_text}
     if (shouldAutoScrollRef.current) {
       scrollToBottom();
     }
-  }, [messages.length, tasks.length, flowItemsCount, scrollToBottom]);
+  }, [messages.length, flowItemsCount, scrollToBottom]);
 
   // 发送后仅做一次顶格，不持续跟随
   useLayoutEffect(() => {
@@ -1697,9 +1599,8 @@ ${selectionContext.selected_text}
           const completionItem = messageFlowItems.find((item: any) => item?.type === 'completion');
           const lastOutputItem = outputItems.length > 0 ? outputItems[outputItems.length - 1] : null;
           const isStreamingMessage = isLastMessage && isLoading;
-          const showActivityStream = isStreamingMessage && activities.length > 0;
-          const showThinking = isStreamingMessage && !showActivityStream && meaningfulFlowItems.length === 0;
-          const showFlowBlock = flowItemsWithoutOutput.length > 0 || showActivityStream || showThinking;
+          const showThinking = isStreamingMessage && meaningfulFlowItems.length === 0;
+          const showFlowBlock = flowItemsWithoutOutput.length > 0 || showThinking;
           const findRevisionByItemId = (targetId: string): RevisionFlowData | null => {
             if (!targetId) return null;
             for (const item of messageFlowItems as FlowItem[]) {
@@ -1955,14 +1856,6 @@ ${selectionContext.selected_text}
                         }}
                       />
                     )}
-                    {showActivityStream && (
-                      <div className="min-w-0">
-                        <ActivityStream
-                          key={`activities-${activities.length}`}
-                          activities={activities}
-                        />
-                      </div>
-                    )}
                     {showThinking && (
                       <span className="text-[12px] text-zinc-400 dark:text-slate-400 thinking-blink">
                         Thinking...
@@ -2070,13 +1963,6 @@ ${selectionContext.selected_text}
                   采纳
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* 任务列表（固定在底部，不随消息滚动） */}
-          {tasks.length > 0 && (
-            <div className="mb-2">
-              <TaskList tasks={tasks as TaskSnapshot[]} />
             </div>
           )}
 
