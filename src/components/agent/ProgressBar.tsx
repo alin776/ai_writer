@@ -12,7 +12,6 @@
 
 import React, { memo } from 'react';
 import { Clock, TrendingUp } from 'lucide-react';
-import type { ProgressData } from '@/types/agent';
 import styles from './ProgressBar.module.css';  // ✅ 导入CSS Module
 
 interface ProgressBarProps {

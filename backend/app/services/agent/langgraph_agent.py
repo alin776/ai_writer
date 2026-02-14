@@ -1714,10 +1714,6 @@ class WritingAgentGraph:
         chapter_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-        on_plan: Optional[callable] = None,
-        on_task_start: Optional[callable] = None,
-        on_task_progress: Optional[callable] = None,
-        on_task_done: Optional[callable] = None,
         on_content: Optional[callable] = None,
         on_flow_event: Optional[callable] = None,
         db: Optional[Any] = None,
@@ -1726,7 +1722,6 @@ class WritingAgentGraph:
         """
         V2: 使用 LangGraph StateGraph 驱动的 ReAct + Planning 模式
 
-        签名和返回格式与 chat_with_planning 完全一致。
         内部使用 graph.astream() 替代手写 for 循环。
         """
         import time
@@ -2023,14 +2018,6 @@ class WritingAgentGraph:
         elif event_type == "plan":
             if on_plan:
                 await on_plan(event.get("data", {}))
-
-        # task 事件
-        elif event_type == "task_start":
-            if on_task_start:
-                await on_task_start(event.get("data", {}))
-        elif event_type == "task_done":
-            if on_task_done:
-                await on_task_done(event.get("data", {}), event.get("result", {}))
 
 
 # ==================== 导出 ====================

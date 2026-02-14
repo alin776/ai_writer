@@ -299,23 +299,16 @@ class AgentApiService {
               break;
             }
             case 'summarization_start':
-              console.log('[AgentApi] Received summarization_start event:', data);
-              console.log('[AgentApi] callbacks.onFlowEvent exists:', !!callbacks.onFlowEvent);
-              if (callbacks.onFlowEvent) {
-                const flowEvent = {
-                  type: 'summarization_start',
-                  task_classification: data.task_classification,
-                  context_stats: data.context_stats,
-                  reason: data.reason,
-                  status: data.status,
-                  timestamp: data.timestamp
-                };
-                console.log('[AgentApi] Calling onFlowEvent with:', flowEvent);
-                callbacks.onFlowEvent(flowEvent);
-              }
+              callbacks.onFlowEvent?.({
+                type: 'summarization_start',
+                task_classification: data.task_classification,
+                context_stats: data.context_stats,
+                reason: data.reason,
+                status: data.status,
+                timestamp: data.timestamp
+              });
               break;
             case 'summarization_complete':
-              console.log('[AgentApi] Received summarization_complete event:', data);
               callbacks.onFlowEvent?.({
                 type: 'summarization_complete',
                 status: data.status,

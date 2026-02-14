@@ -55,7 +55,7 @@ class PlanningEvent(BaseModel):
 
     用于chat_with_planning()的实时事件
     """
-    type: str = Field(..., description="事件类型：plan/task_start/task_progress/task_done/content/done/error")
+    type: str = Field(..., description="事件类型：plan/content/done/error/flow_event")
     data: Any = Field(..., description="事件数据")
     mode: str = Field("planning", description="模式标识")
 

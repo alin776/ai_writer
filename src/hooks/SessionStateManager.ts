@@ -2,21 +2,20 @@
  * SessionStateManager - 多会话状态管理器
  *
  * 核心功能:
- * - 每个会话维护独立的状态（messages, flowItems等）
+ * - 每个会话维护独立的状态（messages等）
  * - 每个会话维护独立的SSE连接（fetch reader）
  * - 切换会话时不中断后台会话的响应
  * - 限制同时激活的SSE连接数量，防止内存泄漏
  * - 后台会话自动保存到localStorage
  */
 
-import type { Message, FlowItem } from '@/types/agent';
+import type { Message } from '@/types/agent';
 
 // 会话状态接口
 export interface SessionState {
   sessionId: string;
   conversationId?: string;
   messages: Message[];
-  flowItems: FlowItem[];
   isLoading: boolean;
   error: string | null;
   suggestedActions: string[];
@@ -55,7 +54,6 @@ export class SessionStateManager {
       sessionId,
       conversationId: initialData?.conversationId,
       messages: initialData?.messages || [],
-      flowItems: initialData?.flowItems || [],
       isLoading: false,
       error: null,
       suggestedActions: [],

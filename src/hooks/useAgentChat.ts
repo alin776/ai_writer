@@ -74,7 +74,6 @@ interface UseAgentChatReturn {
   isLoading: boolean;
   error: string | null;
   suggestedActions: string[];
-  flowItems: FlowItem[];
   sendMessage: (request: AgentChatRequest) => Promise<AgentChatResponse | null>;
   sendMessageStream: (request: AgentChatRequest) => Promise<void>;
   clearMessages: () => void;
@@ -1118,8 +1117,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       error: null,
       isLoading: false,
       conversationId: undefined,
-      pendingApproval: null,
-      flowItems: []
+      pendingApproval: null
     });
     activityStartTimes.current.clear();
     abortControllerRef.current = null;
@@ -1629,7 +1627,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     isLoading: sessionState.isLoading,
     error: sessionState.error,
     suggestedActions: sessionState.suggestedActions,
-    flowItems: (sessionState.flowItems || []) as FlowItem[],
     sendMessage,
     sendMessageStream,
     clearMessages,
