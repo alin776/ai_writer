@@ -303,7 +303,8 @@ async def load_explore_artifact(
     work_id: str,
     user_id: Optional[str] = None,
     mode: str = "full",
-    max_chars: Optional[int] = None
+    max_chars: Optional[int] = None,
+    step_reasoning: Optional[str] = None
 ) -> Dict[str, Any]:
     """读取 Explore Artifact（按需取回）"""
     artifact_id = str(artifact_id or "").strip()

@@ -15,7 +15,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Annotated
 
 from app.services.agent.model_selector import TaskType
 
@@ -780,6 +780,8 @@ def _define_tools():
     if _lc_tool is None or _register is None:
         return
 
+    from langgraph.prebuilt import InjectedState
+
     @_lc_tool
     @_register("explore_content", "explore", "深度探索内容收集相关信息")
     async def explore_content(
@@ -787,6 +789,8 @@ def _define_tools():
         target_task: str,
         retrieval_intent: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
+        step_reasoning: Optional[str] = None,
+        state: Annotated[dict, InjectedState] = None,
         **_kwargs: Any,
     ) -> str:
         """深度探索内容，收集完成任务所需的所有信息
@@ -797,6 +801,12 @@ def _define_tools():
             retrieval_intent: 结构化检索意图
             user_id: 用户ID（可选）
         """
+        # 从 state 读 downstream_tool，注入 retrieval_intent
+        if state and state.get("downstream_tool"):
+            if retrieval_intent is None:
+                retrieval_intent = {}
+            retrieval_intent.setdefault("downstream_tool", state["downstream_tool"])
+
         v6 = ExploreV6(
             work_id=work_id,
             target_task=target_task,
@@ -813,6 +823,7 @@ def _define_tools():
         user_id: Optional[str] = None,
         mode: str = "full",
         max_chars: Optional[int] = None,
+        step_reasoning: Optional[str] = None,
     ) -> str:
         """按 artifact_id 读取 Explore 结果"""
         from app.services.agent.utils.explore_artifact import load_explore_artifact as _load

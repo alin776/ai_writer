@@ -49,10 +49,8 @@ def _get_new_aggregated_tools_section() -> str:
     - 通常 10-30 秒内返回结果
 
   ⚠️ **禁止直接使用以下工具**（这些是内部工具）:
-    - ❌ list_chapters（已整合到 explore_content）
-    - ❌ list_paragraphs（已整合到 explore_content）
+    - ❌ read_paragraph（已整合到 explore_content）
     - ❌ retrieve_facts（由 explore_content 自动调用）
-    - ❌ read_paragraph/read_paragraphs（已整合到 explore_content）
 
 ---
 
@@ -94,10 +92,8 @@ def _get_retrieval_tools_section() -> str:
 
 以下工具已整合到 explore_content，请使用 explore_content 代替：
 
-- list_chapters: ❌ 内部工具（由 explore_content 自动调用）
-- list_paragraphs: ❌ 内部工具（由 explore_content 自动调用）
+- read_paragraph: ❌ 内部工具（由 explore_content 自动调用）
 - retrieve_facts: ❌ 内部工具（由 explore_content 自动调用）
-- read_paragraph / read_paragraphs: ❌ 内部工具（由 explore_content 自动调用）
 
 ✅ **正确做法**：使用 explore_content(target_task="你的查询需求")
 """
@@ -137,7 +133,7 @@ def _get_editor_tools_section() -> str:
   ⚠️ 如果用户想把改写内容写入编辑器 → 后续调用 operate_apply(operation="replace")
   ⚠️ **参数填充规则**（极其重要！）：
     * 如果用户指定了要改写的文本 → text_to_rewrite 填入该文本
-    * 如果用户说"改写第X章"（但未说明整章） → 先用 explore_content 定位证据，再用 {"$ref": {"task_id": N, "path": "evidences[0].text"}} 引用
+    * 如果用户说"改写第X章"（但未说明整章） → 先用 explore_content 定位目标段落，获取结果后在下一轮调用中将定位到的文本填入 text_to_rewrite
     * user_requirement 必须从用户消息中提取改写要求！
   ⚠️ 输出只允许单段内容，不要编号/版本列表
   ⚠️ 即使用户要求多版本/多候选，也只生成一条
@@ -233,24 +229,8 @@ def _get_read_tools_section() -> str:
 
 
 def _get_creative_tools_section() -> str:
-    """创作增强工具描述（情感、场景、风格）"""
-    return """
-【创作增强工具】
-- show_emotion_tool: 情感展示工具（Show Don't Tell）
-  参数: emotion(目标情感，如"生气"/"高兴"/"悲伤"/"害怕"), intensity(强度1-5，默认3)
-  用途: 将抽象情绪转换为具体的感官描写
-  示例: emotion="生气" → 返回愤怒的具体表现（动作、神态、环境）
-
-- enhance_scene_tool: 场景增强工具
-  参数: description(原始场景描述)
-  用途: 增强场景描写的感官细节和画面感
-  示例: 增加环境描写、感官细节、氛围渲染
-
-- learn_style_tool: 风格学习工具
-  参数: user_id(用户ID), text(样本文本), profile_name(档案名称，默认"default")
-  用途: 从样本中学习写作风格特征
-  返回: 风格特征分析报告
-"""
+    """创作增强工具描述"""
+    return ""
 
 
 def _get_operation_tools_section() -> str:
@@ -281,26 +261,9 @@ def _get_operation_tools_section() -> str:
 
 
 def _get_analysis_tools_section() -> str:
-    """分析工具描述（一致性检查、风格分析）"""
+    """分析工具描述"""
     return """
 【分析工具】⚠️ 已有聚合工具，请优先使用 analyze_content（仅用于一致性/风格/质量/打分等结构化评估）
-- check_story_consistency_tool: 故事一致性检查（兼容）
-  参数: work_id, chapters_json(章节JSON，默认"[]"), characters_json(角色JSON，默认"[]"), worldview_json(世界观JSON，默认"{}")
-  用途: 检查故事中的逻辑漏洞、人设矛盾、时间线错误
-  返回: 一致性问题列表及修复建议
-  触发词: "检查一致性"、"有没有矛盾"、"逻辑漏洞"
-
-- analyze_style_tool: 风格分析工具（兼容）
-  参数: text(待分析文本)
-  用途: 分析文本的写作风格特征
-  返回: 句式特点、用词偏好、节奏分析、风格标签
-  触发词: "分析风格"、"写作特点"
-
-- get_style_guidance_tool: 获取风格指导
-  参数: user_id(用户ID), profile_name(档案名称，默认"default")
-  用途: 基于用户已学习的风格档案，给出写作指导建议
-  返回: 风格指南、用词建议、句式参考
-  触发词: "风格指导"、"怎么保持风格一致"
 """
 
 

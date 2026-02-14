@@ -321,7 +321,7 @@ class AgentApiService {
               callbacks.onFlowEvent?.({ type: 'text', data: data.data, timestamp: data.timestamp });
               break;
             case 'step_start':
-              callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, status: data.status, timestamp: data.timestamp });
+              callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, description: data.description, status: data.status, timestamp: data.timestamp });
               break;
             case 'knowledge_loaded':
               callbacks.onFlowEvent?.({ type: 'knowledge_loaded', stepId: data.step_id, knowledgeType: data.knowledge_type, title: data.title, icon: data.icon, items: data.items, timestamp: data.timestamp });

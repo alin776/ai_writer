@@ -11,7 +11,6 @@ Agent 执行链路实现（Planning 主链路）
 """
 
 from typing import TypedDict, Annotated, List, Dict, Any, Optional
-from datetime import datetime
 import os
 from langgraph.checkpoint.redis import AsyncRedisSaver
 import operator
@@ -223,6 +222,8 @@ class WritingAgentGraph:
         self.response_builder.set_stream_generator(self._generate_text_stream)
         # ✅ Phase 4.4: 设置 ResponseBuilder 的流式事件处理器（用于 Summarization 事件）
         self.response_builder.set_stream_event_handler(self.stream_event_handler)
+        # V2: 缓存编译后的 StateGraph（避免每次请求重新编译）
+        self._compiled_graph = None
         logger.info("[LangGraph] ✅ 解耦模块已初始化 (IntentClassifier, ToolExecutor, EventParser, ResponseBuilder, ParallelExecutor, PlanGenerator, QuickPathHandler, StreamEventHandler, TaskRunner)")
 
     def _init_unified_memory_coordinator(self):
@@ -289,28 +290,15 @@ class WritingAgentGraph:
             logger.error(f"[LangGraph] ❌ UnifiedMemoryCoordinator初始化失败: {e}")
             self.memory_coordinator = None
 
-    async def _ensure_memory_coordinator_ready(self):
-        """确保记忆协调器已完成异步初始化"""
-        if self.memory_coordinator and not self.memory_coordinator._initialized:
-            await self.memory_coordinator.initialize()
-
     # ==================== 工具执行（委托到 ToolExecutor）====================
 
     async def _call_tool_via_registry(self, tool_name: str, tool_args: dict, state: dict) -> str:
         """通过 registry 统一调用工具 - 委托到 ToolExecutor"""
         return await self.tool_executor.call_tool(tool_name, tool_args, state)
 
-    def _prepare_tool_params(self, tool_name: str, tool_args: dict, state: dict) -> dict:
-        """准备工具参数 - 委托到 ToolExecutor"""
-        return self.tool_executor.prepare_params(tool_name, tool_args, state)
-
     def _extract_tool_result(self, tool_name: str, result: dict) -> str:
         """提取工具结果 - 委托到 ToolExecutor"""
         return self.tool_executor.extract_result(tool_name, result)
-
-    async def _fallback_to_legacy_tool(self, tool_name: str, tool_args: dict, state: dict) -> str:
-        """降级到旧版工具 - 委托到 ToolExecutor"""
-        return await self.tool_executor.fallback_to_legacy(tool_name, tool_args, state)
 
     # ==================== 原有方法继续 ====================
 
@@ -954,7 +942,6 @@ class WritingAgentGraph:
                     # v6.3: 先发送 output_ready（带空内容），再发送内容
                     if on_flow_event:
                         from app.services.agent.stream.flow_events import FlowEventBuilder
-                        await on_flow_event(FlowEventBuilder.agent_header())
                         # 使用 AI 生成的 output_title，降级为默认值
                         output_title = plan_data.get("output_title") or "回复内容"
                         await on_flow_event(FlowEventBuilder.output_ready(output_title, "", is_applicable=False))
@@ -1010,7 +997,6 @@ class WritingAgentGraph:
                 # v6.0: 包装回调以发送flow事件
                 step_counter = [0]  # 使用列表以便在闭包中修改
                 task_step_map = {}  # v6.1: 记录每个任务的 step_id
-                agent_header_sent = [False]  # v6.2: 跟踪是否已发送agent_header
 
                 # v6.3: 辅助函数 - 发送knowledge_loaded事件
                 async def _emit_knowledge_loaded(on_flow_event, step_id, tool_name, result_data):
@@ -1106,10 +1092,6 @@ class WritingAgentGraph:
                     task_step_map[task.get("task_id")] = current_step_id
                     if on_flow_event:
                         from app.services.agent.stream.flow_events import FlowEventBuilder
-                        # v6.2: 在第一个step_start之前发送agent_header
-                        if not agent_header_sent[0]:
-                            await on_flow_event(FlowEventBuilder.agent_header())
-                            agent_header_sent[0] = True
                         # v6.1: 优先使用 title（简洁标题），回退到 description
                         step_title = task.get("title") or task.get("description", "执行任务")
                         # 同时发送 description，让前端可以立即显示（与 step_complete 保持一致的回退逻辑）
@@ -1433,16 +1415,6 @@ class WritingAgentGraph:
         # 分类任务
         classified = self._classify_tasks(task_results)
         output_tasks = classified["output_tasks"]
-        display_tasks = classified["display_tasks"]  # ✅ P2-1修复
-
-        # ✅ P2-1修复: 情况0 - 纯展示型任务（用户只是查看数据）
-        # 当所有任务都是展示型任务时，直接格式化返回，不需要AI整合
-        if len(output_tasks) == 0 and len(display_tasks) > 0:
-            logger.info(
-                f"[Response] 纯展示型任务({len(display_tasks)}个)，"
-                f"直接格式化返回（跳过AI整合，节省成本）"
-            )
-            return await self._format_display_response(display_tasks, response_hint, on_content)
 
         # 情况1：没有输出任务（极少见）
         if len(output_tasks) == 0:
@@ -1504,19 +1476,6 @@ class WritingAgentGraph:
             # v6.4: 多个输出任务（包含续写）→ 也使用AI整合（确保Summarization事件）
             logger.info(f"[Response] {len(output_tasks)}个输出任务（含续写），使用AI整合")
             return await self._ai_summarization(task_results, message, on_content, knowledge_docs, output_title, is_applicable)
-
-    async def _format_display_response(
-        self,
-        display_tasks: List[Dict],
-        response_hint: Optional[str] = None,
-        on_content: Optional[callable] = None
-    ) -> str:
-        """格式化展示型任务的响应 - 委托到 ResponseBuilder"""
-        return await self.response_builder.format_display_response(
-            display_tasks=display_tasks,
-            response_hint=response_hint,
-            on_content=on_content
-        )
 
     async def _ai_summarization(
         self,
@@ -1745,22 +1704,333 @@ class WritingAgentGraph:
     # 🔧 2026-01-10: 已移除 _should_promote_continue_task 方法
     # CREATIVE 工具严格分离，不再自动转换为修订请求
 
-    async def _fallback_legacy_execute(
+    # ==================== V2: LangGraph StateGraph 驱动 ====================
+
+    async def chat_with_planning_v2(
         self,
-        tool_name: str,
-        params: dict,
-        work_id: str,
-        chapter_id: str,
-        context: str
-    ) -> str:
-        """降级执行 - 委托到 TaskRunner"""
-        return await self.task_runner._fallback_legacy_execute(
-            tool_name=tool_name,
-            params=params,
-            work_id=work_id,
-            chapter_id=chapter_id,
-            context=context
-        )
+        message: str,
+        user_id: Optional[str] = None,
+        work_id: Optional[str] = None,
+        chapter_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        on_plan: Optional[callable] = None,
+        on_task_start: Optional[callable] = None,
+        on_task_progress: Optional[callable] = None,
+        on_task_done: Optional[callable] = None,
+        on_content: Optional[callable] = None,
+        on_flow_event: Optional[callable] = None,
+        db: Optional[Any] = None,
+        graph_thread_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        V2: 使用 LangGraph StateGraph 驱动的 ReAct + Planning 模式
+
+        签名和返回格式与 chat_with_planning 完全一致。
+        内部使用 graph.astream() 替代手写 for 循环。
+        """
+        import time
+        from langchain_core.messages import HumanMessage, AIMessage
+        from app.services.agent.utils.monitoring import increment_counter, record_timer
+        from app.services.agent.graph_engine import build_graph
+
+        start_time = time.time()
+
+        try:
+            # v7.0: 提前设置 flow 事件回调
+            if on_flow_event:
+                self.stream_event_handler.set_flow_event_callback(on_flow_event)
+
+            # 构建隔离的 thread_id
+            isolated_thread_id = self._build_thread_id(user_id, work_id, conversation_id, "GraphV2")
+
+            async with async_timeout(TimeoutConfig.TASK_EXECUTION):
+                # ========== ① 加载记忆（复用 ContextManager） ==========
+                conversation_history = ""
+                context_bundle = None
+                metadata: Dict[str, Any] = {}
+
+                if user_id:
+                    self.context_manager.user_id = user_id
+
+                try:
+                    context_bundle = await self.context_manager.build_context(
+                        session_id=isolated_thread_id,
+                        system_prompt="",
+                        query=message,
+                        work_id=work_id,
+                        chapter_id=chapter_id,
+                    )
+
+                    messages = context_bundle.get("messages", [])
+                    context_obj = context_bundle.get("context")
+                    metadata = context_bundle.get("metadata", {})
+                    memory_pack_text = context_bundle.get("memory_pack_text")
+
+                    history_parts = []
+                    if memory_pack_text:
+                        history_parts.append(memory_pack_text)
+
+                    if context_obj and context_obj.summary_memory.summary:
+                        summary = context_obj.summary_memory.summary
+                        history_parts.append(f"【历史对话摘要】\n{summary}")
+                        if context_obj.summary_memory.important_facts:
+                            facts = "\n".join(f"- {fact}" for fact in context_obj.summary_memory.important_facts)
+                            history_parts.append(f"【重要信息】\n{facts}")
+
+                    recent_lines = []
+                    for msg in messages:
+                        role = msg.get("role", "")
+                        content = msg.get("content", "")
+                        if role == "user":
+                            recent_lines.append(f"用户: {content}")
+                        elif role == "assistant":
+                            recent_lines.append(f"助手: {content}")
+                    if recent_lines:
+                        history_parts.append("【近期对话】\n" + "\n".join(recent_lines))
+
+                    if history_parts:
+                        conversation_history = "\n\n".join(history_parts)
+
+                except Exception as e:
+                    logger.warning(f"[GraphV2] ContextManager 加载历史失败: {e}", exc_info=True)
+
+                # ========== ② 构建初始 State ==========
+                initial_state = {
+                    "messages": [HumanMessage(content=message)],
+                    "work_id": work_id or "",
+                    "chapter_id": chapter_id or "",
+                    "user_id": user_id or "",
+                    "conversation_id": conversation_id or "",
+                    "conversation_history": conversation_history,
+                    "context": context if isinstance(context, dict) else {},
+                    "plan_guidance": None,
+                    "downstream_tool": None,
+                    "tool_results": {},
+                }
+
+                # ========== ③ graph.astream 流式执行 ==========
+                # ✅ HITL 迁移：启用 checkpointer（interrupt 依赖它）
+                # 每次请求使用独立 graph_thread_id（含请求级后缀），避免 add_messages 跨请求累积
+                if not self._checkpointer_setup_done:
+                    await self.checkpointer.asetup()
+                    self._checkpointer_setup_done = True
+                    logger.info("[GraphV2] AsyncRedisSaver asetup() 完成")
+
+                if self._compiled_graph is None:
+                    self._compiled_graph = build_graph(checkpointer=self.checkpointer)
+                    logger.info("[GraphV2] StateGraph 编译完成（含 checkpointer）")
+                graph = self._compiled_graph
+
+                # 使用调用方传入的 graph_thread_id（含请求级后缀），或自动生成
+                import uuid as _uuid
+                actual_thread_id = graph_thread_id or f"{isolated_thread_id}:req_{_uuid.uuid4().hex[:8]}"
+
+                config = {
+                    "recursion_limit": 25,  # 防止 ReAct 无限循环
+                    "configurable": {"thread_id": actual_thread_id},
+                }
+
+                final_content = ""
+                agent_content_buffer = ""   # 缓冲 agent 节点 content，等确认无 tool_calls 再输出
+                agent_turn_has_tools = False # 当前 agent 轮次是否包含 tool_calls
+                agent_steps = []
+                step_counter = 0
+
+                async for mode, chunk in graph.astream(
+                    initial_state,
+                    config=config,
+                    stream_mode=["custom", "messages"],
+                ):
+                    if mode == "custom":
+                        # 工具/节点通过 get_stream_writer() 发送的自定义事件
+                        event_type = chunk.get("type", "") if isinstance(chunk, dict) else ""
+
+                        # Planner 直接回答内容 → on_content 回调
+                        if event_type == "direct_answer":
+                            content = chunk.get("content", "")
+                            if content:
+                                final_content += content
+                                if on_content:
+                                    await on_content({"content": content})
+                        else:
+                            await self._dispatch_custom_event(
+                                chunk, on_flow_event, on_plan, on_task_start, on_task_done
+                            )
+
+                    elif mode == "messages":
+                        # LLM token 流 — 缓冲 agent content，确认无 tool_calls 后再输出
+                        msg_chunk, msg_metadata = chunk
+                        node = msg_metadata.get("langgraph_node", "")
+
+                        # 节点从 agent 切走时：刷新或丢弃缓冲区
+                        if node != "agent" and agent_content_buffer:
+                            if not agent_turn_has_tools:
+                                # 无 tool_calls → 最终回复 → 输出到聊天
+                                final_content += agent_content_buffer
+                                if on_content:
+                                    await on_content({"content": agent_content_buffer})
+                            # 有 tool_calls → 丢弃（tool_executor_node 已用作 step description）
+                            agent_content_buffer = ""
+                            agent_turn_has_tools = False
+
+                        if node == "agent":
+                            has_tool_chunks = bool(getattr(msg_chunk, "tool_call_chunks", None))
+
+                            # 检测 tool_call_chunks（可能在有或无 content 的 chunk 中出现）
+                            if has_tool_chunks:
+                                agent_turn_has_tools = True
+
+                            # 缓冲 content
+                            if hasattr(msg_chunk, "content") and msg_chunk.content:
+                                content = msg_chunk.content
+
+                                # 新一轮检测：上一轮有 tool_calls，现在来了纯 content
+                                # → 说明 agent 被重新调用（ReAct 循环），丢弃旧 buffer
+                                if agent_turn_has_tools and not has_tool_chunks:
+                                    agent_content_buffer = ""
+                                    agent_turn_has_tools = False
+
+                                # Gemini 累积快照检测
+                                if agent_content_buffer and len(content) > 50:
+                                    check_len = min(50, len(agent_content_buffer))
+                                    if content[:check_len] == agent_content_buffer[:check_len]:
+                                        logger.debug(f"[GraphV2] 跳过累积快照 (chunk={len(content)}, buffered={len(agent_content_buffer)})")
+                                        continue
+                                agent_content_buffer += content
+
+                # astream 结束：刷新剩余缓冲区（最后一轮 agent 无 tool_calls = 最终回复）
+                if agent_content_buffer and not agent_turn_has_tools:
+                    final_content += agent_content_buffer
+                    if on_content:
+                        await on_content({"content": agent_content_buffer})
+
+                # ========== ③.5 检测 interrupt 状态（HITL 暂停） ==========
+                hitl_pending = False
+                try:
+                    graph_state = await graph.aget_state(config)
+                    if graph_state and graph_state.next:
+                        # next 非空说明图未走到 END，有节点等待 resume
+                        logger.info(f"[GraphV2] 检测到 interrupt 状态, next={graph_state.next}")
+                        hitl_pending = True
+                        # 发送 hitl_pending 事件（前端用于显示确认 UI）
+                        if on_flow_event:
+                            from app.services.agent.stream.flow_events import FlowEventBuilder
+                            await on_flow_event(FlowEventBuilder.hitl_pending(
+                                thread_id=actual_thread_id
+                            ))
+                        final_content = "__HITL_PENDING__"
+                except Exception as e:
+                    logger.warning(f"[GraphV2] 检查 interrupt 状态失败: {e}")
+
+                # ========== ④ 空内容 fallback ==========
+                # 当 Agent 只调用工具不产生文本 token 时（LLM 行为差异），
+                # 说明 Agent 完成了工具调用但没有生成总结文本
+                if not final_content and not hitl_pending:
+                    logger.info("[GraphV2] Agent 未产生流式文本，使用 fallback")
+                    fallback_msg = "任务已完成。工具执行结果已应用。"
+                    final_content = fallback_msg
+                    if on_content:
+                        await on_content({"content": final_content})
+
+                # ========== ⑤ 保存记忆（HITL 暂停时跳过） ==========
+                if not hitl_pending:
+                    # 发送 completion 事件（任务完成状态提示）
+                    if on_flow_event:
+                        from app.services.agent.stream.flow_events import FlowEventBuilder
+                        await on_flow_event(FlowEventBuilder.completion())
+
+                    try:
+                        await self.context_manager.update_context(
+                            session_id=isolated_thread_id,
+                            new_messages=[
+                                {"role": "user", "content": message},
+                                {"role": "assistant", "content": final_content},
+                            ],
+                            context=context_bundle.get("context") if context_bundle else None,
+                            work_id=work_id,
+                            chapter_id=chapter_id,
+                        )
+                        logger.info(f"[GraphV2] 已保存对话到 ContextManager (session={isolated_thread_id})")
+                    except Exception as e:
+                        logger.warning(f"[GraphV2] 保存对话到 ContextManager 失败: {e}")
+                else:
+                    logger.info("[GraphV2] HITL 暂停中，跳过保存记忆")
+
+                elapsed = time.time() - start_time
+                logger.info(f"[GraphV2] 完成，耗时: {elapsed:.2f}s")
+
+                return {
+                    "response": final_content,
+                    "conversation_id": conversation_id or "default",
+                    "agent_steps": agent_steps,
+                    "suggested_actions": [],
+                    "metadata": {
+                        "engine": "langgraph_v2",
+                        "elapsed_seconds": elapsed,
+                        "timestamp": str(get_utc_now()),
+                        "hitl_pending": hitl_pending,
+                        "thread_id": actual_thread_id if hitl_pending else None,
+                    },
+                }
+
+        except asyncio.TimeoutError:
+            elapsed = time.time() - start_time
+            timeout_seconds = TimeoutConfig.TASK_EXECUTION
+            timeout_minutes = max(1, int(timeout_seconds / 60))
+            logger.error(f"[GraphV2] 总体超时（{elapsed:.1f}秒，限制{timeout_seconds}秒）")
+            return {
+                "response": f"抱歉，请求处理超时（超过{timeout_minutes}分钟）。建议简化请求。",
+                "conversation_id": conversation_id or "default",
+                "agent_steps": [],
+                "suggested_actions": ["简化请求", "分步操作", "稍后重试"],
+                "metadata": {"error": "Overall timeout", "timeout_seconds": timeout_seconds},
+            }
+
+        except Exception as e:
+            logger.error(f"[GraphV2] 执行失败: {e}", exc_info=True)
+            return {
+                "response": f"抱歉，处理您的请求时出错了：{str(e)}",
+                "conversation_id": conversation_id or "default",
+                "agent_steps": [],
+                "suggested_actions": [],
+                "metadata": {"error": str(e)},
+            }
+
+    async def _dispatch_custom_event(
+        self,
+        event: dict,
+        on_flow_event: Optional[callable] = None,
+        on_plan: Optional[callable] = None,
+        on_task_start: Optional[callable] = None,
+        on_task_done: Optional[callable] = None,
+    ):
+        """将 graph 自定义事件分发到对应的回调"""
+        event_type = event.get("type", "")
+
+        # flow 事件直接转发
+        if event_type in (
+            "agent_header", "text", "step_start", "knowledge_loaded",
+            "step_complete", "output_ready", "completion",
+            "summarization_start", "summarization_complete",
+            "revision", "explore_round", "explore_summary",
+            "hitl_pending",
+        ):
+            if on_flow_event:
+                await on_flow_event(event)
+
+        # plan 事件
+        elif event_type == "plan":
+            if on_plan:
+                await on_plan(event.get("data", {}))
+
+        # task 事件
+        elif event_type == "task_start":
+            if on_task_start:
+                await on_task_start(event.get("data", {}))
+        elif event_type == "task_done":
+            if on_task_done:
+                await on_task_done(event.get("data", {}), event.get("result", {}))
 
 
 # ==================== 导出 ====================

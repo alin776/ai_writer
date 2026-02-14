@@ -712,7 +712,8 @@ async def smart_continue(
     worldview_hard_constraints: Optional[str] = None,
     word_count: int = 500,
     user_id: Optional[str] = None,
-    source_locator: Optional[dict] = None
+    source_locator: Optional[dict] = None,
+    step_reasoning: Optional[str] = None
 ) -> str:
     """
     智能续写 - 生成续写内容（不直接修改编辑器）
@@ -818,6 +819,7 @@ async def smart_create(
     worldview_hard_constraints: Optional[str] = None,
     word_count: int = 2000,
     user_id: Optional[str] = None,
+    step_reasoning: Optional[str] = None
 ) -> str:
     """
     新建章节创作 - 从跨章节上下文创作全新章节（不直接修改编辑器）
@@ -913,7 +915,8 @@ async def smart_rewrite(
     worldview_context: Optional[str] = None,
     worldview_hard_constraints: Optional[str] = None,
     user_id: Optional[str] = None,
-    source_locator: Optional[dict] = None
+    source_locator: Optional[dict] = None,
+    step_reasoning: Optional[str] = None
 ) -> str:
     """
     智能改写 - 改写用户指定范围的文本
@@ -1245,7 +1248,8 @@ async def smart_insert(
     word_count: int = 200,
     user_id: Optional[str] = None,
     work_id: Optional[str] = None,
-    source_locator: Optional[dict] = None
+    source_locator: Optional[dict] = None,
+    step_reasoning: Optional[str] = None
 ) -> str:
     """
     智能插入 - 生成要插入的内容（不直接修改编辑器）

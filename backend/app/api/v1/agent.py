@@ -55,19 +55,13 @@ TOOL_ICONS = {
     "get_context_tool": "BookOpen",
     "search_analysis_fragments_tool": "Search",
     "search_memory_tool": "Search",
-    "search_knowledge_advanced": "Search",
     "smart_continue": "PenTool",
-    "expand_text": "Plus",
     "smart_rewrite": "Edit3",
     "smart_insert": "Plus",
     "apply_chapter_edit": "Check",
     "operate_apply": "Check",
-    "deai_rewrite": "RefreshCw",
     "analyze_text_tool": "BarChart2",
     "analyze_content": "FileSearch",
-    "book_analysis": "BarChart2",
-    "novel_review": "MessageSquare",
-    "ai_evaluation": "Sparkles",
     "evaluate_quality": "Star",
     "add_todo_tool": "ListTodo",
     "get_work_details_tool": "BookOpen",
@@ -82,20 +76,14 @@ TOOL_TITLES = {
     "get_context_tool": "获取上下文",
     "search_analysis_fragments_tool": "检索设定",
     "search_memory_tool": "搜索记忆",
-    "search_knowledge_advanced": "高级检索",
     "get_worldview_summary": "探索世界观",
     "smart_continue": "智能续写",
-    "expand_text": "扩写内容",
     "smart_rewrite": "智能改写",
     "smart_insert": "智能插入",
     "apply_chapter_edit": "应用修改",
     "operate_apply": "应用修改",
-    "deai_rewrite": "去AI改写",
     "analyze_text_tool": "分析文本",
     "analyze_content": "内容分析",
-    "book_analysis": "书籍分析",
-    "novel_review": "小说评审",
-    "ai_evaluation": "AI评估",
     "evaluate_quality": "质量评估",
     "add_todo_tool": "添加待办",
     "get_work_details_tool": "获取作品信息",
@@ -1144,15 +1132,23 @@ async def agent_chat_stream(
                 logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
 
                 # 发送开始事件（包含mode信息）
+                # HITL: 预计算 graph_thread_id（含请求级后缀，确保每次请求独立）
+                _agent = get_agent_graph()
+                _base_thread_id = _agent._build_thread_id(
+                    user_id, request.work_id, conversation_id, "SSE"
+                )
+                _graph_thread_id = f"{_base_thread_id}:req_{uuid.uuid4().hex[:8]}"
                 start_event = {
                     'type': 'start',
                     'conversation_id': conversation_id,
-                    'mode': str(actual_mode)
+                    'mode': str(actual_mode),
+                    'thread_id': _graph_thread_id
                 }
                 stream_start_event = {
                     'type': 'stream_start',  # 兼容测试/前端获取cid
                     'conversation_id': conversation_id,
-                    'mode': str(actual_mode)
+                    'mode': str(actual_mode),
+                    'thread_id': _graph_thread_id
                 }
                 for ev in (start_event, stream_start_event):
                     yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
@@ -1589,7 +1585,8 @@ async def agent_chat_stream(
                     try:
                         # 绑定审批回调（注意：全局Agent可能被并发请求复用）
                         agent_graph._approval_callback = on_approval_request
-                        result = await agent_graph.chat_with_planning(
+                        # V2: LangGraph StateGraph 驱动（ReAct + Planning）
+                        result = await agent_graph.chat_with_planning_v2(
                             message=request.message,
                             user_id=user_id,
                             work_id=request.work_id,
@@ -1601,8 +1598,9 @@ async def agent_chat_stream(
                             on_task_progress=on_task_progress,
                             on_task_done=on_task_done,
                             on_content=on_content,
-                            on_flow_event=on_flow_event,  # v6.0: 执行轨迹事件
+                            on_flow_event=on_flow_event,
                             db=db,
+                            graph_thread_id=_graph_thread_id,
                         )
                         # Agent 完成后放入结束标记
                         await event_queue.put(('__done__', None))
@@ -1670,7 +1668,7 @@ async def agent_chat_stream(
                         event_payload['content'] = event_data
                     # v6.0: 执行轨迹事件直接使用event_data作为payload
                     # v8.1: 添加 explore_round 和 explore_summary 事件类型
-                    elif event_type in ('agent_header', 'text', 'step_start', 'knowledge_loaded', 'step_complete', 'output_ready', 'completion', 'summarization_start', 'summarization_complete', 'revision', 'explore_round', 'explore_summary'):
+                    elif event_type in ('agent_header', 'text', 'step_start', 'knowledge_loaded', 'step_complete', 'output_ready', 'completion', 'summarization_start', 'summarization_complete', 'revision', 'explore_round', 'explore_summary', 'hitl_pending'):
                         event_payload = event_data  # flow事件已包含完整结构
                         event_payload['mode'] = str(actual_mode)
                         event_payload['conversation_id'] = conversation_id
@@ -1988,6 +1986,122 @@ async def submit_approval_response(
 
 
 # ==================== HITL 批准管理 ====================
+
+
+# ==================== HITL interrupt + resume（LangGraph 原生） ====================
+
+class ResumeRequest(BaseModel):
+    """HITL resume 请求（用户确认/拒绝修订后调用）"""
+    thread_id: str = Field(..., description="图的 thread_id（从 start_event 或 hitl_pending 获取）")
+    approved: bool = Field(..., description="是否采纳修订")
+    request_id: Optional[str] = Field(None, description="修订请求ID")
+    reason: Optional[str] = Field(None, description="拒绝原因")
+
+
+@router.post("/chat/resume")
+async def resume_agent(
+    request: ResumeRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    恢复 HITL 暂停的 Agent（interrupt → resume）
+
+    Agent 执行到需要确认的地方时调用 interrupt() 暂停，
+    前端收到 hitl_pending 事件后展示确认 UI，
+    用户确认/拒绝后调用此端点，Agent 从暂停点恢复执行。
+
+    返回 SSE 流，转发 Agent 恢复后产生的消息（总结文本等）。
+    """
+    from langgraph.types import Command
+
+    user_id = str(current_user.id)
+    logger.info(f"[Resume] 收到 resume 请求: thread_id={request.thread_id}, approved={request.approved}, user={user_id}")
+
+    async def resume_event_generator():
+        try:
+            agent_graph = get_agent_graph()
+            graph = agent_graph._compiled_graph
+
+            if graph is None:
+                error_event = {"type": "error", "error": "Agent 图尚未编译，请先发送一条消息"}
+                yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+                return
+
+            config = {
+                "configurable": {"thread_id": request.thread_id},
+                "recursion_limit": 25,
+            }
+
+            resume_value = {
+                "approved": request.approved,
+                "request_id": request.request_id,
+                "reason": request.reason,
+            }
+
+            # 发送 stream_start 事件
+            start_event = {"type": "stream_start", "thread_id": request.thread_id}
+            yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
+
+            final_content = ""
+
+            async for mode, chunk in graph.astream(
+                Command(resume=resume_value),
+                config=config,
+                stream_mode=["custom", "messages"],
+            ):
+                if mode == "custom":
+                    event_type = chunk.get("type", "") if isinstance(chunk, dict) else ""
+                    if event_type == "direct_answer":
+                        content = chunk.get("content", "")
+                        if content:
+                            final_content += content
+                            content_event = {"type": "content", "data": content, "content": content}
+                            yield f"data: {json.dumps(content_event, ensure_ascii=False)}\n\n"
+                    elif event_type in (
+                        "agent_header", "text", "step_start", "knowledge_loaded",
+                        "step_complete", "output_ready", "completion",
+                        "summarization_start", "summarization_complete",
+                        "revision", "explore_round", "explore_summary", "hitl_pending",
+                    ):
+                        # flow 事件直接转发
+                        yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+
+                elif mode == "messages":
+                    msg_chunk, msg_metadata = chunk
+                    if hasattr(msg_chunk, "content") and msg_chunk.content:
+                        node = msg_metadata.get("langgraph_node", "")
+                        if node == "agent" and not getattr(msg_chunk, "tool_call_chunks", None):
+                            final_content += msg_chunk.content
+                            content_event = {
+                                "type": "content",
+                                "data": msg_chunk.content,
+                                "content": msg_chunk.content,
+                            }
+                            yield f"data: {json.dumps(content_event, ensure_ascii=False)}\n\n"
+
+            # 发送完成事件
+            done_event = {
+                "type": "done",
+                "approved": request.approved,
+                "final_content": final_content[:200] if final_content else "",
+            }
+            yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
+
+        except Exception as e:
+            logger.error(f"[Resume] 执行失败: {e}", exc_info=True)
+            error_event = {"type": "error", "error": str(e)}
+            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        resume_event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 
 # ==================== 操作日志管理（批量操作回滚） ====================
 

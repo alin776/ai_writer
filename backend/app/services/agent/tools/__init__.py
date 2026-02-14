@@ -49,10 +49,6 @@ from .tool_registry import (
 from .writing_tools import (
     # AI Service 设置
     set_ai_service,
-    # 扩写工具
-    ExpandTextInput,
-    ExpandTextOutput,
-    expand_text_tool
 )
 
 # ==================== 分析工具 ====================
@@ -83,15 +79,6 @@ from .hitl import (
     HITLManager,
     ApprovalRequest,
     ApprovalStatus
-)
-
-# ==================== 高级工具 ====================
-from .advanced_tools import (
-    book_analysis,
-    novel_review,
-    ai_evaluation,
-    deai_rewrite,
-    search_knowledge_advanced
 )
 
 # ==================== 编辑器工具 ====================
@@ -139,11 +126,6 @@ from .operate_tools import (
     operate_apply_tool
 )
 
-# ==================== 辅助工具（2026-01-09）====================
-from .consistency_checker import check_story_consistency_tool, check_story_consistency_st
-from .show_dont_tell import show_emotion_tool, enhance_scene_tool
-from .style_learning import learn_style_tool, get_style_guidance_tool, analyze_style_tool
-
 # ==================== 章节工具（StandardTool版本）====================
 # 延迟导入以避免循环依赖
 def _get_langgraph_tools():
@@ -154,8 +136,6 @@ def _get_langgraph_tools():
         search_analysis_fragments_tool_st,
         get_worldview_summary_tool_st,
         get_worldview_pack_tool_st,
-        get_worldview_node_tool_st,
-        get_worldview_tree_tool_st,
         get_writing_context_tool_st,
     )
     return {
@@ -165,8 +145,6 @@ def _get_langgraph_tools():
         'search_analysis_fragments_tool_st': search_analysis_fragments_tool_st,
         'get_worldview_summary_tool_st': get_worldview_summary_tool_st,
         'get_worldview_pack_tool_st': get_worldview_pack_tool_st,
-        'get_worldview_node_tool_st': get_worldview_node_tool_st,
-        'get_worldview_tree_tool_st': get_worldview_tree_tool_st,
         'get_writing_context_tool_st': get_writing_context_tool_st,
     }
 
@@ -175,7 +153,6 @@ def __getattr__(name):
     if name in ['get_context_tool_st', 'read_chapter_tool_st', 'get_chapter_by_order_tool_st',
                 'search_analysis_fragments_tool_st',
                 'get_worldview_summary_tool_st', 'get_worldview_pack_tool_st',
-                'get_worldview_node_tool_st', 'get_worldview_tree_tool_st',
                 'get_writing_context_tool_st']:
         tools = _get_langgraph_tools()
         return tools[name]
@@ -214,10 +191,6 @@ __all__ = [
     # ==================== 写作工具 ====================
     # AI Service
     "set_ai_service",
-    # 扩写工具
-    "ExpandTextInput",
-    "ExpandTextOutput",
-    "expand_text_tool",
 
     # ==================== 分析工具 ====================
     # 内容分析工具
@@ -243,14 +216,8 @@ __all__ = [
     "ApprovalRequest",
     "ApprovalStatus",
 
-    # ==================== 高级工具 ====================
-    "book_analysis",
-    "novel_review",
-    "ai_evaluation",
-    "deai_rewrite",
-    "search_knowledge_advanced",
 
-    # ==================== 编辑器工具 ====================
+    # ==================== 章节工具（StandardTool版本）====================
     "apply_chapter_edit",
     "smart_continue",
     "smart_create",
@@ -287,15 +254,6 @@ __all__ = [
     "operate_apply",
     "operate_apply_tool",
 
-    # ==================== 辅助工具（2026-01-09）====================
-    "check_story_consistency_tool",
-    "check_story_consistency_st",
-    "show_emotion_tool",
-    "enhance_scene_tool",
-    "learn_style_tool",
-    "get_style_guidance_tool",
-    "analyze_style_tool",
-
     # ==================== 章节工具（StandardTool版本）====================
     "get_context_tool_st",
     "read_chapter_tool_st",
@@ -303,8 +261,6 @@ __all__ = [
     "search_analysis_fragments_tool_st",
     "get_worldview_summary_tool_st",
     "get_worldview_pack_tool_st",
-    "get_worldview_node_tool_st",
-    "get_worldview_tree_tool_st",
     "get_writing_context_tool_st",  # 2026-01-12: 新增聚合工具
 ]
 
@@ -318,9 +274,6 @@ def _register_standard_tools():
     - find_tool_by_description() 能匹配到工具
     - get_tools_info_for_prompt() 能生成工具列表
     """
-    # 写作工具
-    registry.register_standard_tool(expand_text_tool)
-
     # 分析工具
     registry.register_standard_tool(analyze_content_tool)
     registry.register_standard_tool(analyze_text_tool)  # 2025-12-14: 新增兼容版本
@@ -343,8 +296,6 @@ def _register_standard_tools():
             search_analysis_fragments_tool_st,
             get_worldview_summary_tool_st,
             get_worldview_pack_tool_st,
-            get_worldview_node_tool_st,
-            get_worldview_tree_tool_st,
             get_writing_context_tool_st,
         )
         registry.register_standard_tool(get_context_tool_st)
@@ -355,17 +306,12 @@ def _register_standard_tools():
         # 世界观工具
         registry.register_standard_tool(get_worldview_summary_tool_st)
         registry.register_standard_tool(get_worldview_pack_tool_st)
-        registry.register_standard_tool(get_worldview_node_tool_st)
-        registry.register_standard_tool(get_worldview_tree_tool_st)
 
         # 聚合工具（2026-01-12: 新增）
         registry.register_standard_tool(get_writing_context_tool_st)
     except ImportError:
         # 如果导入失败（循环依赖），跳过注册
         pass
-
-    # 辅助工具（2026-01-09: 新增）
-    registry.register_standard_tool(check_story_consistency_st)
 
     # 章节管理工具（2026-01-10: 新增 OPERATION 类工具）
     registry.register_standard_tool(create_chapter_tool)

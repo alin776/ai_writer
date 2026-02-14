@@ -520,30 +520,3 @@ class TaskRunner:
                     return json.dumps(cached, ensure_ascii=False, indent=2)
 
         return None
-
-    def _update_chapter_cache(
-        self,
-        tool_name: str,
-        result: str,
-        work_id: str,
-        state: dict
-    ) -> None:
-        """更新章节缓存
-
-        Args:
-            tool_name: 工具名称
-            result: 工具返回结果（JSON 字符串）
-            work_id: 作品ID
-            state: Agent 状态
-        """
-        try:
-            data = json.loads(result) if isinstance(result, str) else result
-
-            # 单章节
-            if isinstance(data, dict) and "chapter_id" in data:
-                ChapterCache.set(state, data, work_id)
-            # 多章节
-            elif isinstance(data, dict) and "chapters" in data:
-                ChapterCache.set_batch(state, data["chapters"], work_id)
-        except Exception as e:
-            logger.warning(f"[TaskRunner] 缓存写入失败: {e}")

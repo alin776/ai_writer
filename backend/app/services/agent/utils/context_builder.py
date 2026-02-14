@@ -36,8 +36,6 @@ FULL_CONTENT_TOOLS = {
     "analyze_text_tool": 5000,
     "analyze_text": 5000,  # 兼容不带 _tool 后缀
     "analyze_content": 8000,
-    "analyze_style_tool": 4000,  # 风格分析报告
-    "analyze_style": 4000,  # 兼容不带 _tool 后缀
     # === 检索/定位类工具 ===
     "search_analysis_fragments_tool": 4000,
     "search_analysis_fragments": 4000,  # 兼容不带 _tool 后缀
@@ -48,11 +46,6 @@ FULL_CONTENT_TOOLS = {
     "load_explore_artifact": 8000,
     # === 世界观/一致性类工具 ===
     "get_worldview_summary": 6000,  # 角色/地点/设定列表
-    "check_story_consistency_tool": 5000,  # 一致性分析报告
-    "check_consistency": 5000,  # 兼容不带 _tool 后缀
-    # === 风格类工具 ===
-    "get_style_guidance_tool": 4000,
-    "get_style_guidance": 4000,  # 兼容不带 _tool 后缀
 }
 
 # 任务描述关键词匹配（作为备用方案）

@@ -35,17 +35,6 @@ class PlanGenerator:
     EDIT_CONTENT_TOOLS = {"smart_rewrite", "smart_insert"}
     EDIT_OPERATION_TOOLS = {"operate_apply", "apply_chapter_edit"}
     EDIT_OPERATIONS = {"replace", "insert"}
-    INTERNAL_EXPLORE_TOOLS = {
-        "list_chapters",
-        "list_paragraphs",
-        "read_paragraphs",
-    }
-    LEGACY_EXPLORE_TOOL_ALIASES = {
-        "read_paragraph_tool": "read_paragraph",
-        "read_paragraphs_tool": "read_paragraphs",
-        "list_paragraphs_tool": "list_paragraphs",
-        "list_chapters_tool": "list_chapters",
-    }
     FRESHNESS_KEYWORDS = (
         "重新", "最新", "更新", "再查", "再次", "再搜", "再探索", "重新探索",
         "重新搜索", "重做", "不要复用", "忽略历史", "不使用历史", "不要用历史"
@@ -1568,14 +1557,13 @@ tool_policy: {tool_policy}
         return payload
 
     def _rewrite_internal_explore_tasks(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """为 explore_content 任务补全 target_task 和 retrieval_intent 参数"""
         if not tasks:
             return tasks
 
         for task in tasks:
-            tool_raw = str(task.get("tool") or "").strip()
-            normalized_tool = self.LEGACY_EXPLORE_TOOL_ALIASES.get(tool_raw, tool_raw)
-            is_native_explore = normalized_tool == "explore_content"
-            if normalized_tool not in self.INTERNAL_EXPLORE_TOOLS and not is_native_explore:
+            tool_name = str(task.get("tool") or "").strip()
+            if tool_name != "explore_content":
                 continue
 
             params = task.get("params") or {}
@@ -1592,10 +1580,7 @@ tool_policy: {tool_policy}
             elif title:
                 target_lines.append(title)
 
-            if normalized_tool in {"read_paragraph", "read_paragraphs", "list_paragraphs"}:
-                target_lines.append("按段落读取并提取可定位原文证据。")
-            else:
-                target_lines.append("收集完成任务所需的原文证据。")
+            target_lines.append("收集完成任务所需的原文证据。")
 
             chapter_scope = (
                 params.get("chapter_range")
@@ -1629,8 +1614,6 @@ tool_policy: {tool_policy}
                 "target_task": target_task,
                 "retrieval_intent": retrieval_intent,
             }
-            if normalized_tool in {"read_paragraph", "read_paragraphs"}:
-                rewritten_params["require_paragraph_index"] = True
 
             for key in (
                 "max_rounds",
@@ -1644,14 +1627,7 @@ tool_policy: {tool_policy}
                 if key in params:
                     rewritten_params[key] = params.get(key)
 
-            task["tool"] = "explore_content"
             task["params"] = rewritten_params
-            if not is_native_explore:
-                logger.warning(
-                    "[Planning] 内部检索工具已纠偏为 explore_content: %s -> explore_content (task_id=%s)",
-                    tool_raw,
-                    task.get("task_id"),
-                )
 
         return tasks
 

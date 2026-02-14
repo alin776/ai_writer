@@ -365,7 +365,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           content: '',
           agentSteps: [],
           timestamp: now,
-          flowItems: []  // v5.1: 执行轨迹绑定到消息
+          flowItems: [{  // v5.1: 预填 agent_header，让 logo 和 Thinking... 同时出现
+            id: `flow-${Date.now()}-header`,
+            type: 'agent_header',
+            data: { name: '文枢AI', badge: '' },
+            timestamp: now,
+          }]
         }
       ];
       const agentMessageIndex = baseMessages.length - 1;
@@ -654,7 +659,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     data: { name: event.data?.name, badge: event.data?.badge },
                     timestamp,
                   };
-                  currentFlowItems = [...currentFlowItems, item];
+                  // 替换已有的 agent_header（预填或重复推送），避免出现两个 logo
+                  const hasExisting = currentFlowItems.some(fi => fi.type === 'agent_header');
+                  currentFlowItems = hasExisting
+                    ? currentFlowItems.map(fi => fi.type === 'agent_header' ? item : fi)
+                    : [...currentFlowItems, item];
                   break;
                 }
                 case 'text': {
@@ -672,6 +681,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   const stepData: StepFlowData = {
                     stepId: event.stepId,
                     title: cleanTaskDescription(event.title),
+                    description: event.description,
                     status: 'running',
                   };
                   const item: FlowItem = {
@@ -725,9 +735,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       const latestFlowItems = (targetMessage.flowItems || []).map(item => {
                         if (item.type === 'step' && (item.data as StepFlowData).stepId === stepId) {
                           const stepData = item.data as StepFlowData;
+                          // step_complete 的完成摘要优先，回退到 step_start 的 AI 意图描述
+                          const finalDescription = cleanTaskDescription(eventDescription) || stepData.description;
                           return {
                             ...item,
-                            data: { ...stepData, status: 'done' as const, description: cleanTaskDescription(eventDescription), toolCall: eventToolCall }
+                            data: { ...stepData, status: 'done' as const, description: finalDescription, toolCall: eventToolCall }
                           };
                         }
                         return item;
@@ -748,9 +760,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     currentFlowItems = currentFlowItems.map(item => {
                       if (item.type === 'step' && (item.data as StepFlowData).stepId === stepId) {
                         const stepData = item.data as StepFlowData;
+                        // step_complete 的完成摘要优先，回退到 step_start 的 AI 意图描述
+                        const finalDescription = cleanTaskDescription(eventDescription) || stepData.description;
                         return {
                           ...item,
-                          data: { ...stepData, status: 'done' as const, description: cleanTaskDescription(eventDescription), toolCall: eventToolCall }
+                          data: { ...stepData, status: 'done' as const, description: finalDescription, toolCall: eventToolCall }
                         };
                       }
                       return item;

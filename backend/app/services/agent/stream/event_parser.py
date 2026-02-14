@@ -67,23 +67,17 @@ class EventParser:
         # ========== 检索类 ==========
         "search_analysis_fragments_tool": {"icon": "Search", "title": "检索设定"},
         "search_memory_tool": {"icon": "Search", "title": "搜索记忆"},
-        "search_knowledge_advanced": {"icon": "Search", "title": "高级知识检索"},
         # ========== 写作类 ==========
         "smart_continue": {"icon": "PenTool", "title": "智能续写"},
         "smart_create": {"icon": "PenTool", "title": "智能创作"},
-        "expand_text": {"icon": "Maximize2", "title": "扩写内容"},
         # ========== 编辑类 ==========
         "smart_rewrite": {"icon": "Edit3", "title": "智能改写"},
         "smart_insert": {"icon": "Plus", "title": "智能插入"},
         "apply_chapter_edit": {"icon": "Check", "title": "应用修改"},
         "operate_apply": {"icon": "Check", "title": "应用修改"},
-        "deai_rewrite": {"icon": "RefreshCw", "title": "去AI改写"},
         # ========== 分析类 ==========
         "analyze_text_tool": {"icon": "BarChart2", "title": "分析文本"},
         "analyze_content": {"icon": "FileSearch", "title": "内容分析"},
-        "book_analysis": {"icon": "BarChart2", "title": "书籍分析"},
-        "novel_review": {"icon": "MessageSquare", "title": "小说评审"},
-        "ai_evaluation": {"icon": "Sparkles", "title": "AI评估"},
         "evaluate_quality": {"icon": "Star", "title": "质量评估"},
         # ========== 管理类 ==========
         "add_todo_tool": {"icon": "ListTodo", "title": "添加待办"},
@@ -158,9 +152,6 @@ class EventParser:
         elif tool_name == "search_memory_tool":
             query = args.get("query", "")
             return query[:30] if query else "搜索中..."
-        elif tool_name == "search_knowledge_advanced":
-            query = args.get("query", "")
-            return query[:30] if query else "检索中..."
         # 写作类
         elif tool_name == "smart_continue":
             words = args.get("target_words") or args.get("word_count", 500)
@@ -168,8 +159,6 @@ class EventParser:
         elif tool_name == "smart_create":
             words = args.get("word_count", 2000)
             return f"创作新章节，目标{words}字"
-        elif tool_name == "expand_text":
-            return "扩写中..."
         # 编辑类
         elif tool_name == "smart_rewrite":
             style = args.get("style", "润色优化")
@@ -189,18 +178,12 @@ class EventParser:
                 "title": "修改标题",
             }
             return op_map.get(operation, "保存中...")
-        elif tool_name == "deai_rewrite":
-            return "改写中..."
         # 分析类
         elif tool_name == "analyze_text_tool":
             focus = args.get("focus", "综合分析")
             return focus
-        elif tool_name in ["analyze_content", "book_analysis"]:
+        elif tool_name == "analyze_content":
             return "分析中..."
-        elif tool_name == "novel_review":
-            return "评审中..."
-        elif tool_name == "ai_evaluation":
-            return "评估中..."
         elif tool_name == "evaluate_quality":
             return "评估中..."
         # 管理类

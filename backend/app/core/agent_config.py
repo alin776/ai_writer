@@ -85,7 +85,6 @@ class AgentConfig:
     CORE_TOOLS = [
         "continue_writing",  # 续写
         "polish_text",  # 润色
-        "expand_text",  # 扩写
         "evaluate_text",  # 评估
         "search_knowledge",  # 知识库搜索
         "get_chapter_context",  # 获取章节上下文

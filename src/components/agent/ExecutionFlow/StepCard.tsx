@@ -34,7 +34,7 @@ export function StepCard({
   onJumpRevision
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const showToolCall = toolCall && toolCall.name !== 'explore_content';
+  const showToolCall = !!toolCall;
 
   return (
     <div className="mb-3">

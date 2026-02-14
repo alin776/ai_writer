@@ -55,14 +55,6 @@ TOOL_NAME_MAPPING = {
     "update_chapter_content": "update_chapter_content",
     # 聚合工具（2026-01-12）
     "get_writing_context": "get_writing_context",
-    "get_style_guidance_tool": "get_style_guidance",
-    # 历史内部检索别名（统一改写到 explore_content）
-    "list_paragraphs_tool": "explore_content",
-    "list_chapters_tool": "explore_content",
-    "read_paragraphs_tool": "explore_content",
-    "list_paragraphs": "explore_content",
-    "list_chapters": "explore_content",
-    "read_paragraphs": "explore_content",
 }
 
 TOOL_CACHE_INVALIDATION_TOOLS = {
@@ -449,14 +441,7 @@ class ToolExecutor:
             params.setdefault("worldview_hard_constraints", worldview_hard_constraints)
 
         # 工具特定的参数处理
-        if tool_name == "continue_writing":
-            params.setdefault("context", last_user_message)
-            params.setdefault("requirements", "")
-            # 🔧 默认值从 500 改为 2000，更符合实际续写需求
-            params.setdefault("target_length", 2000)
-            params.setdefault("style", "")
-
-        elif tool_name == "analyze_text":
+        if tool_name == "analyze_text":
             params.setdefault("text", last_user_message)
             params.setdefault("focus", "all")
 
@@ -791,19 +776,6 @@ class ToolExecutor:
             params.setdefault("include_guidelines", True)
             params.setdefault("task_hint", last_user_message)
             params.setdefault("chapter_orders", "")
-
-        elif tool_name == "get_worldview_node":
-            params.setdefault("work_id", state.get("work_id", ""))
-            params.setdefault("user_id", state.get("user_id", ""))
-            params.setdefault("node_type", "")
-            params.setdefault("node_id", "")
-            params.setdefault("name", "")
-            params.setdefault("fields", "")
-
-        elif tool_name == "get_worldview_tree":
-            params.setdefault("work_id", state.get("work_id", ""))
-            params.setdefault("user_id", state.get("user_id", ""))
-            params.setdefault("node_id", "")
 
         # 🆕 2026-01-17: explore_content 深度探索工具
         elif tool_name == "explore_content":
@@ -1596,7 +1568,7 @@ class ToolExecutor:
         if not isinstance(locate_targets, list) or not locate_targets:
             return None, {
                 "error": "missing_locate_targets",
-                "message": "缺少可定位段落，请先读取目标段落（read_paragraph/read_paragraphs）。"
+                "message": "缺少可定位段落，请先读取目标段落（read_paragraph）。"
             }
         if locator_id:
             matches = []
@@ -2015,10 +1987,7 @@ class ToolExecutor:
         """从 StandardTool 返回值中提取实际结果"""
         data = result.get("data", {})
 
-        if tool_name == "continue_writing":
-            return data.get("generated_text", "")
-
-        elif tool_name == "analyze_text":
+        if tool_name == "analyze_text":
             return data.get("analysis_report", "")
 
         elif tool_name in ["smart_rewrite", "smart_continue", "smart_insert", "smart_create", "apply_chapter_edit"]:
@@ -2061,12 +2030,6 @@ class ToolExecutor:
             return json.dumps(data, ensure_ascii=False)
 
         elif tool_name == "get_worldview_pack":
-            return json.dumps(data, ensure_ascii=False)
-
-        elif tool_name == "get_worldview_node":
-            return json.dumps(data, ensure_ascii=False)
-
-        elif tool_name == "get_worldview_tree":
             return json.dumps(data, ensure_ascii=False)
 
         elif tool_name == "evaluate_quality":
@@ -2179,8 +2142,6 @@ class ToolExecutor:
             analyze_content,
             get_worldview_summary,
             get_worldview_pack,
-            get_worldview_node,
-            get_worldview_tree,
             get_writing_context,
             search_analysis_fragments_tool,
             read_paragraph,
@@ -2194,23 +2155,11 @@ class ToolExecutor:
             apply_chapter_edit,
         )
         from app.services.agent.tools.operate_tools import operate_apply
-        from app.services.agent.tools.show_dont_tell import (
-            show_emotion_tool,
-            enhance_scene_tool,
-        )
-        from app.services.agent.tools.style_learning import (
-            learn_style_tool,
-            analyze_style_tool,
-            get_style_guidance_tool,
-        )
         from app.services.agent.tools.chapter_tools import (
             create_chapter,
             update_chapter_title,
             delete_chapter,
             update_chapter_content,
-        )
-        from app.services.agent.tools.consistency_checker import (
-            check_story_consistency_tool,
         )
 
         last_user_message = state.get("last_user_message", "")
@@ -2225,8 +2174,6 @@ class ToolExecutor:
             "apply_chapter_edit": apply_chapter_edit,
             "get_worldview_summary": get_worldview_summary,
             "get_worldview_pack": get_worldview_pack,
-            "get_worldview_node": get_worldview_node,
-            "get_worldview_tree": get_worldview_tree,
             # 聚合工具（2026-01-12）
             "get_writing_context": get_writing_context,
             "search_analysis_fragments": search_analysis_fragments_tool,
@@ -2235,19 +2182,11 @@ class ToolExecutor:
             "explore_content": explore_content,
             # 统一操作工具（2026-01-23）
             "operate_apply": operate_apply,
-            # 创作增强工具
-            "show_emotion_tool": show_emotion_tool,
-            "enhance_scene_tool": enhance_scene_tool,
-            "learn_style_tool": learn_style_tool,
-            "analyze_style_tool": analyze_style_tool,
-            "get_style_guidance_tool": get_style_guidance_tool,
             # 章节操作工具
             "create_chapter": create_chapter,
             "update_chapter_title": update_chapter_title,
             "delete_chapter": delete_chapter,
             "update_chapter_content": update_chapter_content,
-            # 分析工具
-            "check_story_consistency_tool": check_story_consistency_tool,
         }
 
         legacy_tool = LEGACY_TOOLS.get(tool_name)
@@ -2283,30 +2222,6 @@ class ToolExecutor:
                         "include_current": tool_args.get("include_current", True),
                         "look_ahead": tool_args.get("look_ahead", 0),
                         "max_content_length": tool_args.get("max_content_length", 200),
-                    }
-                elif tool_name == "show_emotion_tool":
-                    params = {
-                        "emotion": tool_args.get("emotion", ""),
-                        "intensity": tool_args.get("intensity", 3)
-                    }
-                elif tool_name == "enhance_scene_tool":
-                    params = {
-                        "description": tool_args.get("description", tool_args.get("text", last_user_message))
-                    }
-                elif tool_name == "analyze_style_tool":
-                    params = {
-                        "text": tool_args.get("text", last_user_message)
-                    }
-                elif tool_name == "learn_style_tool":
-                    params = {
-                        "user_id": tool_args.get("user_id", state.get("user_id", "")),
-                        "text": tool_args.get("text", last_user_message),
-                        "profile_name": tool_args.get("profile_name", "default")
-                    }
-                elif tool_name == "get_style_guidance_tool":
-                    params = {
-                        "user_id": tool_args.get("user_id", state.get("user_id", "")),
-                        "profile_name": tool_args.get("profile_name", "default")
                     }
                 # 章节操作工具
                 elif tool_name == "create_chapter":
@@ -2358,14 +2273,6 @@ class ToolExecutor:
                         "description": tool_args.get("description"),
                         "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", "")),
                         "work_id": tool_args.get("work_id", state.get("work_id", ""))
-                    }
-                # 分析工具
-                elif tool_name == "check_story_consistency_tool":
-                    params = {
-                        "work_id": tool_args.get("work_id", state.get("work_id", "")),
-                        "chapters_json": tool_args.get("chapters_json", "[]"),
-                        "characters_json": tool_args.get("characters_json", "[]"),
-                        "worldview_json": tool_args.get("worldview_json", "{}")
                     }
                 # 聚合工具（2026-01-12）
                 elif tool_name == "get_writing_context":

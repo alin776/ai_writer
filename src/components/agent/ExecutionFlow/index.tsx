@@ -94,7 +94,7 @@ export function ExecutionFlow({
               <StepCard
                 key={item.id}
                 {...stepData}
-                description={isExploreStep ? undefined : stepData.description}
+                description={stepData.description}
                 // v7.3: 传递修订回调给 StepCard（用于内嵌的 RevisionCard）
                 onAcceptRevision={stepData.revision ? (selectedVersion) => onAcceptRevision?.(revisionId, (stepData.revision as any)?.requestId, selectedVersion) : undefined}
                 onDiscardRevision={stepData.revision ? () => onDiscardRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}

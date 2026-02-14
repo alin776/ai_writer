@@ -12,7 +12,6 @@
 from typing import Dict, List, Any, Optional, Callable, Awaitable, TYPE_CHECKING
 import json
 import logging
-import re
 
 from app.services.agent.utils.context_builder import _build_summarization_context
 from app.services.agent.model_selector import TaskType
@@ -33,11 +32,6 @@ INPUT_TOOLS = {
     "read_chapter_tool"  # 章节读取工具，在续写场景下是输入型
 }
 
-DISPLAY_TOOLS = {
-    # 移除章节读取工具，因为在分阶段执行场景下，它们是输入型
-    # 如果用户明确要求"获取第三章"，AI整合后也会正确返回内容
-}
-
 OUTPUT_TOOLS = {
     "smart_continue",
     "smart_create",
@@ -48,23 +42,20 @@ OUTPUT_TOOLS = {
 
 
 def classify_tasks(task_results: List[Dict]) -> Dict[str, List]:
-    """分类任务：输入型 vs 输出型 vs 展示型
+    """分类任务：输入型 vs 输出型
 
     Args:
         task_results: 任务结果列表
 
     Returns:
-        分类后的任务字典，包含 input_tasks, output_tasks, display_tasks
+        分类后的任务字典，包含 input_tasks, output_tasks
     """
     input_tasks = []
     output_tasks = []
-    display_tasks = []
 
     for task in task_results:
         tool = task.get("tool", "")
-        if tool in DISPLAY_TOOLS:
-            display_tasks.append(task)
-        elif tool in INPUT_TOOLS:
+        if tool in INPUT_TOOLS:
             input_tasks.append(task)
         elif tool in OUTPUT_TOOLS:
             output_tasks.append(task)
@@ -73,13 +64,12 @@ def classify_tasks(task_results: List[Dict]) -> Dict[str, List]:
 
     logger.info(
         f"[TaskClassify] 任务分类: 输入型={len(input_tasks)}, "
-        f"输出型={len(output_tasks)}, 展示型={len(display_tasks)}"
+        f"输出型={len(output_tasks)}"
     )
 
     return {
         "input_tasks": input_tasks,
         "output_tasks": output_tasks,
-        "display_tasks": display_tasks
     }
 
 
@@ -171,207 +161,6 @@ class ResponseBuilder:
             logger.warning(f"[Summarization] 生成理由失败: {e}")
             return ""
 
-    async def build_final_response(
-        self,
-        task_results: List[Dict],
-        message: str,
-        on_content: Optional[Callable] = None,
-        response_hint: Optional[str] = None,
-        knowledge_docs: Optional[List[Dict]] = None,
-        direct_answer: Optional[str] = None
-    ) -> str:
-        """智能构建最终响应
-
-        根据任务类型智能判断是否需要AI整合：
-        - 缺失前置条件 → 直接返回友好提示
-        - 单个创作任务 → 直接返回
-        - 多个输出任务 → 简单拼接
-        - 其他情况 → AI整合
-        """
-        # 优先检查：缺失前置条件或积分不足
-        for result in task_results:
-            try:
-                result_str = result.get('result', '')
-                if not result_str:
-                    continue
-
-                result_json = json.loads(result_str)
-
-                if result_json.get('status') == 'missing_prerequisite':
-                    suggested = result_json.get('suggested_response', '')
-                    if suggested:
-                        logger.info("[Response] 检测到missing_prerequisite，直接返回友好提示")
-                        if on_content:
-                            await on_content(suggested)
-                        return suggested
-
-                if result_json.get('error') == 'tool_failed':
-                    error_msg = result_json.get('message', '')
-                    if "积分" in error_msg and ("不足" in error_msg or "余额" in error_msg):
-                        friendly_msg = "积分余额不足，请先充值后再使用此功能。"
-                        if on_content:
-                            await on_content(friendly_msg)
-                        return friendly_msg
-
-            except (json.JSONDecodeError, TypeError, KeyError):
-                continue
-
-        # 分类任务
-        classified = classify_tasks(task_results)
-        output_tasks = classified["output_tasks"]
-        display_tasks = classified["display_tasks"]
-
-        # 情况0：纯展示型任务
-        if len(output_tasks) == 0 and len(display_tasks) > 0:
-            logger.info(f"[Response] 纯展示型任务({len(display_tasks)}个)，直接格式化返回")
-            return await self.format_display_response(display_tasks, response_hint, on_content)
-
-        # 情况1：没有输出任务
-        if len(output_tasks) == 0:
-            # ✅ 分阶段执行：如果有 direct_answer，说明是第一阶段，返回询问
-            if direct_answer:
-                logger.info("[Response] 分阶段执行第一阶段，返回 direct_answer 询问用户")
-                if on_content:
-                    on_content(direct_answer)
-                return direct_answer
-
-            logger.warning("[Response] 没有明确输出任务，使用AI整合")
-            return await self.ai_summarization(task_results, message, on_content, knowledge_docs)
-
-        # 情况2：单个输出任务
-        elif len(output_tasks) == 1:
-            task = output_tasks[0]
-            tool_name = task.get("tool", "unknown")
-            result = task.get("result", "") or ""
-
-            # 使用知识库时，走AI整合路径
-            if knowledge_docs:
-                logger.info(f"[Response] 检测到知识库文档，使用AI整合")
-                return await self.ai_summarization(task_results, message, on_content, knowledge_docs)
-
-            # 创作类任务，且输出充分
-            if tool_name in ["smart_continue", "smart_create", "smart_rewrite", "smart_insert"] and len(result) > 500:
-                logger.info(f"[Response] 单个创作任务({tool_name})，直接返回")
-                if on_content:
-                    await on_content(result)
-                return result
-
-            # 分析类任务
-            logger.info(f"[Response] 单个分析任务({tool_name})，使用AI格式化")
-            return await self.ai_summarization(task_results, message, on_content, knowledge_docs)
-
-        # 情况3：多个输出任务
-        else:
-            if knowledge_docs:
-                logger.info(f"[Response] 检测到知识库文档，使用AI整合")
-                return await self.ai_summarization(task_results, message, on_content, knowledge_docs)
-
-            # 检查是否全是分析类任务
-            analysis_like_tools = {"analyze_text_tool", "summarization", "analyze_content"}
-            all_analyze = all(task.get("tool") in analysis_like_tools for task in output_tasks)
-            has_writing = any(task.get("tool") in {"smart_continue", "smart_create", "smart_rewrite", "smart_insert"} for task in output_tasks)
-
-            if all_analyze and not has_writing:
-                logger.info(f"[Response] {len(output_tasks)}个分析类任务，使用AI整合")
-                return await self.ai_summarization(task_results, message, on_content, knowledge_docs)
-
-            # 简单拼接
-            logger.info(f"[Response] {len(output_tasks)}个输出任务，简单拼接")
-            parts = []
-            for task in output_tasks:
-                tool_name = task.get("tool", "unknown")
-                result = task.get("result", "") or ""
-
-                if tool_name in {"analyze_text_tool", "analyze_content"}:
-                    parts.append(f"## 分析结果\n\n{result}")
-                elif tool_name in {"smart_continue", "smart_create", "smart_rewrite", "smart_insert"}:
-                    parts.append(f"## 创作内容\n\n{result}")
-                else:
-                    parts.append(result)
-
-            final_content = "\n\n".join(parts)
-            if on_content:
-                await on_content(final_content)
-            return final_content
-
-    async def format_display_response(
-        self,
-        display_tasks: List[Dict],
-        response_hint: Optional[str] = None,
-        on_content: Optional[Callable] = None
-    ) -> str:
-        """格式化展示型任务的响应
-
-        当用户只是查看数据（如查看章节内容）时，直接格式化返回，
-        不需要调用AI进行整合，节省成本。
-
-        Args:
-            display_tasks: 展示型任务列表
-            response_hint: Planning 阶段提供的响应提示
-            on_content: 内容回调函数
-
-        Returns:
-            格式化后的响应内容
-        """
-        response_parts = []
-
-        for task in display_tasks:
-            description = task.get("description", "")
-            result = task.get("result", "")
-
-            try:
-                result_json = json.loads(result)
-
-                if isinstance(result_json, dict):
-                    # 先检查是否是错误响应
-                    if "error" in result_json:
-                        error_msg = result_json.get("error", "未知错误")
-                        total_chapters = result_json.get("total_chapters")
-                        if total_chapters:
-                            response_parts.append(f"❌ {error_msg}（该作品共有 {total_chapters} 章）")
-                        else:
-                            response_parts.append(f"❌ {error_msg}")
-                        continue
-
-                    title = result_json.get("title", "")
-                    content = result_json.get("content", "")
-                    word_count = result_json.get("word_count", 0)
-                    chapter_order = result_json.get("order") or result_json.get("chapter_order", "")
-
-                    # 根据 response_hint 智能返回
-                    effective_hint = response_hint
-                    if not effective_hint:
-                        desc_lower = description.lower()
-                        if "标题" in desc_lower or "题目" in desc_lower or "章名" in desc_lower:
-                            effective_hint = "title"
-                        elif "字数" in desc_lower or "多少字" in desc_lower:
-                            effective_hint = "word_count"
-
-                    if effective_hint == "title":
-                        response_parts.append(f"第{chapter_order}章的标题是：**{title}**")
-                    elif effective_hint == "word_count":
-                        response_parts.append(f"第{chapter_order}章《{title}》共 **{word_count}** 字")
-                    elif effective_hint == "title_and_word_count":
-                        response_parts.append(f"第{chapter_order}章《**{title}**》，共 **{word_count}** 字")
-                    elif title and content:
-                        chapter_header = f"**第{chapter_order}章: {title}**" if chapter_order else f"**{title}**"
-                        content_preview = content[:1500] + "..." if len(content) > 1500 else content
-                        response_parts.append(f"{chapter_header}\n\n{content_preview}")
-                    else:
-                        response_parts.append(result)
-                else:
-                    response_parts.append(result)
-
-            except (json.JSONDecodeError, TypeError):
-                response_parts.append(result)
-
-        final_response = "\n\n---\n\n".join(response_parts)
-
-        if on_content and final_response:
-            await on_content(final_response)
-
-        return final_response
-
     async def ai_summarization(
         self,
         task_results: List[Dict],
@@ -439,7 +228,6 @@ class ResponseBuilder:
             task_classification = {
                 "input_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in classified["input_tasks"]],
                 "output_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in classified["output_tasks"]],
-                "display_tasks": [{"tool": t.get("tool", ""), "description": t.get("description", "")} for t in classified["display_tasks"]]
             }
             context_stats = {
                 "original_length": original_length,
