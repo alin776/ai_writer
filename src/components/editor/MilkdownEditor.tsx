@@ -179,13 +179,8 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
       {/* 编辑器主体 */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto"
+        className="flex-1 overflow-y-auto scrollbar-hide"
       />
-      {/* 底部状态栏 */}
-      <div className="flex items-center justify-between px-4 py-1.5 text-[11px] text-zinc-400 dark:text-slate-500 border-t border-zinc-100 dark:border-slate-700 flex-shrink-0">
-        <span>{wordCount} 字</span>
-        <span>Markdown</span>
-      </div>
     </div>
   );
 };

@@ -31,6 +31,7 @@ import { useEditorStore } from '../../store/editorStore';
 import { useWorkNavStore } from '../../store/workNavStore';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useTabManager } from '../../hooks/useTabManager';
+import { useEditorTabs } from '../../hooks/useEditorTabs';
 import HistoryPanel from '../../components/agent/HistoryPanel';
 import type { HistorySessionItem } from '@/types/agent';
 import { agentApi } from '@/services/agentApi';
@@ -232,6 +233,16 @@ const WorkDetailView: React.FC = () => {
     replaceTabSession,
     attachSessionTab
   } = useTabManager(workId || '', workId);
+
+  // 编辑器多标签页
+  const {
+    openTabs: editorTabs,
+    activeTabId: activeEditorTabId,
+    openTab: openEditorTab,
+    closeTab: closeEditorTab,
+    switchTab: switchEditorTab,
+    updateTabTitle: updateEditorTabTitle,
+  } = useEditorTabs(workId || '', chapters);
 
   const currentChapterMeta = chapters.find((chapter) => chapter.id === currentChapterId);
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
@@ -496,6 +507,9 @@ const WorkDetailView: React.FC = () => {
           setCurrentChapterId(targetChapter.id);
           setLastChapter(workId, targetChapter.id);
 
+          // 初始加载时打开编辑器标签
+          openEditorTab(targetChapter);
+
           // FS API: list 不含正文，需要单独加载内容
           try {
             const num = chapterIdToNum(targetChapter.id);
@@ -632,6 +646,9 @@ const WorkDetailView: React.FC = () => {
         setEditingChapterTitle('');
       }
 
+      // 打开编辑器标签
+      openEditorTab(chapter);
+
       // 先清空内容，避免新编辑器用旧章节内容初始化（消除闪烁）
       setCurrentChapterContent('');
       // 再更新章节ID（触发 EditorWrapper 通过 key 重新挂载）
@@ -662,7 +679,39 @@ const WorkDetailView: React.FC = () => {
         title: chapter.title,
       });
     }
-  }, [chapters, editingChapterId, workId, setLastChapter]);
+  }, [chapters, editingChapterId, workId, setLastChapter, openEditorTab]);
+
+  /**
+   * 处理编辑器标签页切换（先加载内容，再切换编辑器）
+   */
+  const handleEditorTabSwitch = useCallback(async (tabId: string) => {
+    switchEditorTab(tabId);
+    if (tabId === currentChapterId) return;
+
+    const chapter = chapters.find(c => c.id === tabId);
+    if (!chapter) return;
+
+    // 先加载内容，确保 EditorWrapper 重新挂载时有正确内容
+    let content = chapter.content || '';
+    try {
+      const num = chapterIdToNum(tabId);
+      if (num !== null) {
+        const full = await chaptersFs.get(workId!, num);
+        content = full.content || '';
+      }
+    } catch {
+      // 使用本地缓存
+    }
+
+    // 同时更新内容和 chapterId，EditorWrapper 会用正确内容重新挂载
+    setCurrentChapterContent(content);
+    setCurrentChapterId(tabId);
+    editorChapterIdRef.current = tabId;
+
+    if (workId) {
+      setLastChapter(workId, tabId);
+    }
+  }, [switchEditorTab, currentChapterId, chapters, workId, setLastChapter]);
 
   /**
    * 处理添加章节
@@ -779,6 +828,9 @@ const WorkDetailView: React.FC = () => {
         prev.map((c) => (c.id === editingChapterId ? updatedChapter : c))
       );
 
+      // 同步更新编辑器标签标题
+      updateEditorTabTitle(editingChapterId, updatedChapter.title, updatedChapter.order);
+
       showToast('success', t('workDetail.toast.chapterTitleUpdated'));
     } catch (error) {
       showToast('error', t('workDetail.toast.chapterTitleUpdateFailed'));
@@ -864,6 +916,9 @@ const WorkDetailView: React.FC = () => {
     if (!workId) return;
 
     try {
+      // 关闭对应的编辑器标签
+      closeEditorTab(chapterId);
+
       // 从 FS API 删除
       const num = chapterIdToNum(chapterId);
       if (num === null) return;
@@ -1434,6 +1489,9 @@ const WorkDetailView: React.FC = () => {
     if (target.closest('[data-scroll-scope="chapter-list"]')) {
       return;
     }
+    if (target.closest('[data-scroll-scope="editor-tabs"]')) {
+      return;
+    }
     if (target.closest('input, textarea, select, [contenteditable="true"], .ProseMirror')) {
       return;
     }
@@ -1974,17 +2032,16 @@ const WorkDetailView: React.FC = () => {
           </div>
         </div>
 
-        {/* 右侧编辑器窗口 - 圆弧样式 */}
+        {/* 右侧编辑器窗口 */}
         <div
           className="flex flex-col bg-white dark:bg-slate-900 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
           style={{
             flex: isEditorCollapsed ? '0 0 0' : '1 1 0%',
-            padding: isEditorCollapsed ? 0 : 12,
             opacity: isEditorCollapsed ? 0 : 1,
             overflow: 'hidden',
           }}
         >
-          <div className="flex-1 flex flex-col rounded-2xl border border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl shadow-zinc-300/30 dark:shadow-slate-950/50 overflow-hidden">
+          <div className="flex-1 flex flex-col border-l border-zinc-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
             {rightSidebarType === 'worldview' ? (
               <WorldviewPanel
                 workId={workId!}
@@ -2012,6 +2069,10 @@ const WorkDetailView: React.FC = () => {
                 isRightPanelCollapsed={isEditorCollapsed}
                 onExpandRightPanel={() => setIsEditorCollapsed(false)}
                 onCollapseRightPanel={() => setIsEditorCollapsed(true)}
+                tabs={editorTabs}
+                activeTabId={activeEditorTabId}
+                onTabSwitch={handleEditorTabSwitch}
+                onTabClose={closeEditorTab}
               />
             )}
           </div>

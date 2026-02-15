@@ -8,6 +8,8 @@ import React, { useCallback, useState } from 'react';
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import MilkdownEditor from './MilkdownEditor';
 import DiffViewer from '../agent/DiffViewer';
+import EditorTabBar from './EditorTabBar';
+import type { EditorTab } from '../../hooks/useEditorTabs';
 
 interface EditorWrapperProps {
   content?: string;
@@ -32,6 +34,11 @@ interface EditorWrapperProps {
   onCollapseAIPanel?: () => void;
   onInlineAISend?: (message: string, context: any) => void;
   isInlineAILoading?: boolean;
+  // 多标签页 props（可选，有值时渲染标签栏替代原页眉）
+  tabs?: EditorTab[];
+  activeTabId?: string | null;
+  onTabSwitch?: (tabId: string) => void;
+  onTabClose?: (tabId: string) => void;
 }
 
 const EditorWrapper: React.FC<EditorWrapperProps> = ({
@@ -48,6 +55,10 @@ const EditorWrapper: React.FC<EditorWrapperProps> = ({
   isRightPanelCollapsed,
   onExpandRightPanel,
   onCollapseRightPanel,
+  tabs,
+  activeTabId,
+  onTabSwitch,
+  onTabClose,
 }) => {
   const [showDiff, setShowDiff] = useState(false);
   const [diffOriginal, setDiffOriginal] = useState('');
@@ -78,57 +89,22 @@ const EditorWrapper: React.FC<EditorWrapperProps> = ({
 
   return (
     <div className="flex flex-col h-full">
-      {/* 顶部工具栏 */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-100 dark:border-slate-700 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          {/* 左侧面板折叠按钮 */}
-          {isLeftPanelCollapsed && onExpandLeftPanel && (
-            <button
-              type="button"
-              onClick={onExpandLeftPanel}
-              className="h-7 w-7 flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-all dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800"
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </button>
-          )}
-          {!isLeftPanelCollapsed && onCollapseLeftPanel && (
-            <button
-              type="button"
-              onClick={onCollapseLeftPanel}
-              className="h-7 w-7 flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-all dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800"
-            >
-              <PanelLeftClose className="h-4 w-4" />
-            </button>
-          )}
-          {/* 章节标题 */}
+      {/* 顶部：标签栏 or 章节标题 */}
+      {tabs && tabs.length > 0 && onTabSwitch && onTabClose ? (
+        <EditorTabBar
+          tabs={tabs}
+          activeTabId={activeTabId ?? null}
+          onTabSwitch={onTabSwitch}
+          onTabClose={onTabClose}
+        />
+      ) : (
+        <div className="flex items-center justify-between px-4 h-8 border-b border-zinc-100 dark:border-slate-700 flex-shrink-0">
           <span className="text-sm text-zinc-700 dark:text-slate-200 font-medium truncate max-w-[300px]">
             {chapterOrder !== undefined && `第${chapterOrder}章 `}
             {chapterTitle || ''}
           </span>
         </div>
-
-        <div className="flex items-center gap-1">
-          {/* 右侧面板折叠按钮 */}
-          {isRightPanelCollapsed && onExpandRightPanel && (
-            <button
-              type="button"
-              onClick={onExpandRightPanel}
-              className="h-7 w-7 flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-all dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800"
-            >
-              <PanelRightOpen className="h-4 w-4" />
-            </button>
-          )}
-          {!isRightPanelCollapsed && onCollapseRightPanel && (
-            <button
-              type="button"
-              onClick={onCollapseRightPanel}
-              className="h-7 w-7 flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-all dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800"
-            >
-              <PanelRightClose className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* 编辑器内容区域 */}
       <div className="flex-1 min-h-0">
