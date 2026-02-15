@@ -23,6 +23,7 @@ PARALLEL_SAFE_TOOLS = {
     "read_chapter_tool",
     "get_chapter_by_order_tool",
     "search_analysis_fragments_tool",
+    "search_content",
     "analyze_text_tool",  # 允许并行（无参数依赖时）
     "analyze_content"
 }
@@ -37,9 +38,6 @@ class ParallelExecutor:
     # 重试配置
     MAX_RETRIES = 2
     RETRYABLE_KEYWORDS = ["timeout", "connection", "network", "网络", "连接", "超时"]
-
-    REVIEW_WRITE_TOOLS = {"smart_insert", "smart_rewrite", "operate_apply"}
-    REVIEW_ANALYSIS_TOOLS = {"analyze_content", "analyze_text_tool"}
 
     def __init__(self, agent: "WritingAgentGraph"):
         """
@@ -61,7 +59,8 @@ class ParallelExecutor:
         on_task_progress: Optional[callable] = None,
         on_task_done: Optional[callable] = None,
         conversation_id: Optional[str] = None,  # v8.0: 添加 conversation_id 用于操作日志
-        state: Optional[Dict[str, Any]] = None  # 🆕 2026-01-12: 添加 state 用于章节缓存
+        state: Optional[Dict[str, Any]] = None,  # 🆕 2026-01-12: 添加 state 用于章节缓存
+        approval_callback: Optional[callable] = None,
     ) -> List[Dict[str, Any]]:
         """
         智能并行执行任务
@@ -86,16 +85,14 @@ class ParallelExecutor:
         Returns:
             任务结果列表
         """
-        # 保存 conversation_id 供内部方法使用
-        self._conversation_id = conversation_id
         # 🆕 2026-01-12: 保存或创建共享 state 用于章节缓存
-        self._shared_state = state if state else {
+        shared_state = state if state else {
             "work_id": work_id,
             "chapter_id": chapter_id,
             "context": context_payload or {},
         }
         if isinstance(context_payload, dict) and "tool_policy" in context_payload:
-            self._shared_state.setdefault("tool_policy", context_payload.get("tool_policy"))
+            shared_state.setdefault("tool_policy", context_payload.get("tool_policy"))
         # 创建参数解析器
         from app.services.agent.parameter_resolver import ParameterResolver
 
@@ -111,7 +108,10 @@ class ParallelExecutor:
             resolver=resolver,
             on_task_start=on_task_start,
             on_task_progress=on_task_progress,
-            on_task_done=on_task_done
+            on_task_done=on_task_done,
+            shared_state=shared_state,
+            conversation_id=conversation_id,
+            approval_callback=approval_callback,
         )
 
         task_results.sort(key=lambda x: x["task_id"])
@@ -148,7 +148,10 @@ class ParallelExecutor:
         on_task_start: Optional[callable],
         on_task_progress: Optional[callable],
         on_task_done: Optional[callable],
-        context_payload: Optional[Dict[str, Any]] = None
+        context_payload: Optional[Dict[str, Any]] = None,
+        shared_state: Optional[Dict[str, Any]] = None,
+        conversation_id: Optional[str] = None,
+        approval_callback: Optional[callable] = None,
     ) -> tuple:
         """基于 depends_on 的就绪队列调度执行任务。"""
         tasks_by_id, deps_by_id, ordered_ids = self._build_dependency_graph(tasks)
@@ -194,7 +197,10 @@ class ParallelExecutor:
                     on_task_start=on_task_start,
                     on_task_progress=on_task_progress,
                     on_task_done=on_task_done,
-                    batch_name="并行就绪"
+                    batch_name="并行就绪",
+                    shared_state=shared_state,
+                    conversation_id=conversation_id,
+                    approval_callback=approval_callback,
                 )
                 task_results.extend(results)
                 for result in results:
@@ -202,9 +208,6 @@ class ParallelExecutor:
                     if isinstance(task_id, int):
                         completed.add(task_id)
                         pending.discard(task_id)
-                    if result.get("status") == "blocked":
-                        logger.info("[ParallelExecution] Review Gate 阻塞，终止后续任务执行")
-                        return task_results, all_context
                 continue
 
             # 依赖任务或非并行安全任务：按顺序串行执行
@@ -220,13 +223,13 @@ class ParallelExecutor:
                 on_task_start=on_task_start,
                 on_task_progress=on_task_progress,
                 on_task_done=on_task_done,
-                batch_name="串行就绪"
+                batch_name="串行就绪",
+                shared_state=shared_state,
+                conversation_id=conversation_id,
+                approval_callback=approval_callback,
             )
             task_results.append(result)
             all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
-            if result.get("status") == "blocked":
-                logger.info("[ParallelExecution] Review Gate 阻塞，终止后续任务执行")
-                break
             completed.add(task_id)
             pending.discard(task_id)
 
@@ -377,7 +380,10 @@ class ParallelExecutor:
         on_task_progress: Optional[callable],
         on_task_done: Optional[callable],
         batch_name: str,
-        context_payload: Optional[Dict[str, Any]] = None
+        context_payload: Optional[Dict[str, Any]] = None,
+        shared_state: Optional[Dict[str, Any]] = None,
+        conversation_id: Optional[str] = None,
+        approval_callback: Optional[callable] = None,
     ) -> tuple:
         """
         并行执行一批任务
@@ -412,7 +418,10 @@ class ParallelExecutor:
                     on_task_start=on_task_start,
                     on_task_progress=on_task_progress,
                     on_task_done=on_task_done,
-                    batch_name=batch_name
+                    batch_name=batch_name,
+                    shared_state=shared_state,
+                    conversation_id=conversation_id,
+                    approval_callback=approval_callback,
                 )
 
         # 并行执行
@@ -454,7 +463,10 @@ class ParallelExecutor:
         on_task_start: Optional[callable],
         on_task_progress: Optional[callable],
         on_task_done: Optional[callable],
-        context_payload: Optional[Dict[str, Any]] = None
+        context_payload: Optional[Dict[str, Any]] = None,
+        shared_state: Optional[Dict[str, Any]] = None,
+        conversation_id: Optional[str] = None,
+        approval_callback: Optional[callable] = None,
     ) -> tuple:
         """
         串行执行一批任务
@@ -489,7 +501,10 @@ class ParallelExecutor:
                 on_task_start=on_task_start,
                 on_task_progress=on_task_progress,
                 on_task_done=on_task_done,
-                batch_name="串行"
+                batch_name="串行",
+                shared_state=shared_state,
+                conversation_id=conversation_id,
+                approval_callback=approval_callback,
             )
             task_results.append(result)
             all_context += f"\n任务{result['task_id']}结果：\n{result['result']}\n"
@@ -507,7 +522,10 @@ class ParallelExecutor:
         on_task_progress: Optional[callable],
         on_task_done: Optional[callable],
         batch_name: str,
-        context_payload: Optional[Dict[str, Any]] = None
+        context_payload: Optional[Dict[str, Any]] = None,
+        shared_state: Optional[Dict[str, Any]] = None,
+        conversation_id: Optional[str] = None,
+        approval_callback: Optional[callable] = None,
     ) -> Dict[str, Any]:
         """
         执行单个任务（带重试）
@@ -537,7 +555,6 @@ class ParallelExecutor:
         if on_task_start:
             await on_task_start(task)
 
-        shared_state = getattr(self, '_shared_state', None)
         step_id = None
         if isinstance(shared_state, dict):
             step_map = shared_state.get("task_step_map")
@@ -577,31 +594,6 @@ class ParallelExecutor:
                         )
                     logger.debug(f"[ParameterResolver] 任务{task_id}参数已解析")
 
-                gate_payload = self._check_review_gate(
-                    task=task,
-                    resolved_task=resolved_task,
-                    task_state=task_state
-                )
-                if gate_payload:
-                    elapsed_time = time.time() - start_time
-                    gate_text = json.dumps(gate_payload, ensure_ascii=False)
-                    await resolver.register_result(task_id, gate_payload)
-                    task_with_time = {**task, "elapsed_time": elapsed_time}
-                    if on_task_done:
-                        await on_task_done(task_with_time, gate_text)
-                    logger.info(
-                        f"[ParallelExecution] {batch_name}任务{task_id} Review Gate 阻塞"
-                    )
-                    return {
-                        "task_id": task_id,
-                        "description": description,
-                        "tool": tool_name,
-                        "result": gate_text,
-                        "raw_result": gate_payload,
-                        "status": "blocked",
-                        "elapsed_time": elapsed_time
-                    }
-
                 # 执行任务
                 result = await self.agent._execute_task(
                     task=resolved_task,
@@ -610,8 +602,9 @@ class ParallelExecutor:
                     context=context,
                     context_payload=context_payload,
                     on_progress=on_task_progress,
-                    conversation_id=getattr(self, '_conversation_id', None),  # v8.0: 传递 conversation_id
-                    state=task_state  # 🆕 2026-01-12: 传递共享 state 用于章节缓存
+                    conversation_id=conversation_id,  # v8.0: 传递 conversation_id
+                    state=task_state,  # 🆕 2026-01-12: 传递共享 state 用于章节缓存
+                    approval_callback=approval_callback,
                 )
 
                 raw_result = result
@@ -697,120 +690,6 @@ class ParallelExecutor:
             "result": error_result,
             "status": "failed"
         }
-
-    @staticmethod
-    def _has_locate_targets(explore_result: Any) -> bool:
-        if not isinstance(explore_result, dict):
-            return False
-        locate_targets = explore_result.get("locate_targets")
-        if not isinstance(locate_targets, list):
-            return False
-        for item in locate_targets:
-            if not isinstance(item, dict):
-                continue
-            chapter_id = item.get("chapter_id") or ""
-            paragraph_index = item.get("paragraph_index")
-            node_id = item.get("node_id") or ""
-            if chapter_id and (paragraph_index is not None or node_id):
-                return True
-        return False
-
-    @staticmethod
-    def _has_evidences(explore_result: Any) -> bool:
-        if not isinstance(explore_result, dict):
-            return False
-        evidences = explore_result.get("evidences")
-        if not isinstance(evidences, list):
-            return False
-        for item in evidences:
-            if isinstance(item, dict) and (item.get("text") or item.get("content")):
-                return True
-        return False
-
-    @staticmethod
-    def _has_direct_locator(params: Dict[str, Any]) -> bool:
-        if not isinstance(params, dict):
-            return False
-        if isinstance(params.get("source_locator"), dict):
-            return True
-        if params.get("node_id"):
-            return True
-        if params.get("paragraph_index") is not None:
-            return True
-        if params.get("locator_id") or params.get("locate_target_id"):
-            return True
-        if params.get("locate_target_index") is not None:
-            return True
-        return False
-
-    @staticmethod
-    def _operation_needs_locator(params: Dict[str, Any]) -> bool:
-        if not isinstance(params, dict):
-            return False
-        operation = str(params.get("operation") or "").strip().lower()
-        return operation in {"replace", "insert"}
-
-    def _params_reference_evidences(self, params: Any) -> bool:
-        if isinstance(params, dict):
-            ref = params.get("$ref")
-            if isinstance(ref, dict):
-                path = ref.get("path")
-                if isinstance(path, str) and ("evidences" in path or "locate_targets" in path):
-                    return True
-            for value in params.values():
-                if self._params_reference_evidences(value):
-                    return True
-        elif isinstance(params, list):
-            for item in params:
-                if self._params_reference_evidences(item):
-                    return True
-        return False
-
-    def _check_review_gate(
-        self,
-        task: Dict[str, Any],
-        resolved_task: Dict[str, Any],
-        task_state: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        tool_name = resolved_task.get("tool", "") if isinstance(resolved_task, dict) else ""
-        params = resolved_task.get("params", {}) if isinstance(resolved_task, dict) else {}
-        if not tool_name:
-            return None
-
-        explore_result = None
-        if isinstance(task_state, dict):
-            explore_result = task_state.get("last_explore_result")
-        has_locate_targets = self._has_locate_targets(explore_result)
-        has_evidences = self._has_evidences(explore_result)
-
-        if tool_name in self.REVIEW_WRITE_TOOLS:
-            if tool_name == "operate_apply" and not self._operation_needs_locator(params):
-                return None
-            if self._has_direct_locator(params):
-                return None
-            if has_locate_targets:
-                return None
-            return {
-                "status": "missing_prerequisite",
-                "missing": ["locate_targets"],
-                "message": "缺少可写回的定位证据，请先定位目标段落。",
-                "suggested_response": "请指定要修改的具体位置（第几段/哪句原文），或让我先用 explore_content 读取并定位。",
-                "tool": tool_name
-            }
-
-        if tool_name in self.REVIEW_ANALYSIS_TOOLS:
-            if self._params_reference_evidences(task.get("params")):
-                if has_evidences:
-                    return None
-                return {
-                    "status": "missing_prerequisite",
-                    "missing": ["evidences"],
-                    "message": "缺少分析所需的原文证据，请先读取原文。",
-                    "suggested_response": "请先提供要分析的原文，或让我用 explore_content 读取相关内容。",
-                    "tool": tool_name
-                }
-
-        return None
 
     @staticmethod
     def _stringify_result(result: Any) -> str:

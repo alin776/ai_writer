@@ -23,8 +23,8 @@ TOOL_CACHE_PREFIX = "tool_cache"
 # Tools that are cacheable by default (normalized tool names).
 CACHEABLE_TOOLS = {
     "get_writing_context",
-    "get_worldview_pack",
     "locate_content",
+    "search_content",
     "search_analysis_fragments",
     "read_paragraph",  # 2026-01-17: 段落精确读取缓存
 }
@@ -39,22 +39,14 @@ TOOL_ALIASES = {
 
 # TTL mapping (seconds) for non-aggregated tools.
 TOOL_TTL_SECONDS = {
-    "get_worldview_pack": 10 * 60,
     "locate_content": 5 * 60,
+    "search_content": 2 * 60,
     "search_analysis_fragments": 2 * 60,
     "read_paragraph": 10 * 60,  # 2026-01-17: 段落缓存10分钟（内容稳定）
 }
 
 # get_writing_context include options
-GWC_INCLUDE_TYPES = {
-    "work",
-    "chapter",
-    "worldview",
-    "worldview_pack",
-    "worldview_profile",
-    "style",
-    "rag",
-}
+GWC_INCLUDE_TYPES = {"work", "chapter", "worldview", "style", "rag"}
 
 # Volatile params that should not affect cache keys.
 VOLATILE_ARG_KEYS = {
@@ -366,8 +358,6 @@ def _get_writing_context_ttl_seconds(params: Dict[str, Any]) -> int:
     if include_set == {"chapter"}:
         return max(_GWC_TTL_MINUTES.get("chapter", 5), 0) * 60
     if include_set == {"worldview"}:
-        return max(_GWC_TTL_MINUTES.get("worldview", 30), 0) * 60
-    if include_set == {"worldview_pack"} or include_set == {"worldview_profile"}:
         return max(_GWC_TTL_MINUTES.get("worldview", 30), 0) * 60
     if include_set == {"work"}:
         return max(_GWC_TTL_MINUTES.get("work", 10), 0) * 60

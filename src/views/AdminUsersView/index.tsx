@@ -170,31 +170,23 @@ const AdminUsersView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">用户管理</h1>
-              <p className="mt-2 text-gray-600 dark:text-gray-400">管理系统用户 - 用户可通过注册页面自行注册</p>
-            </div>
-            {/* 添加用户按钮已隐藏 - 用户可以自己注册 */}
-          </div>
-
-          <Card background="blue">
-            <div className="p-6">
-              <Input
-                placeholder="搜索用户..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                icon={<Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
-              />
-            </div>
-          </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">用户管理</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">管理系统用户 - 用户可通过注册页面自行注册</p>
         </div>
+        {/* 添加用户按钮已隐藏 - 用户可以自己注册 */}
       </div>
 
       <Card background="blue">
-        <div className="p-6">
+        <div className="p-6 space-y-4">
+          <Input
+            placeholder="搜索用户..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            icon={<Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
+          />
+
           {/* 用户表格 */}
           <div className="overflow-x-auto">
             <table className="w-full">

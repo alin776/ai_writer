@@ -23,50 +23,7 @@ class Settings(BaseSettings):
     
     # Redis 配置
     REDIS_URL: str = "redis://localhost:6379/0"
-
-    # OpenSearch 配置（Explore 精确检索）
-    OPENSEARCH_HOSTS: str = "http://localhost:9200"
-    OPENSEARCH_INDEX_NAME: str = "novel_chapter_vectors"
-    OPENSEARCH_USERNAME: Optional[str] = None
-    OPENSEARCH_PASSWORD: Optional[str] = None
-    OPENSEARCH_USE_SSL: bool = False
-    OPENSEARCH_VERIFY_CERTS: bool = False
-    OPENSEARCH_TIMEOUT_SECONDS: int = 10
-    OPENSEARCH_REINDEX_ON_STARTUP: bool = False
-    OPENSEARCH_REINDEX_RECREATE_INDEX: bool = False
-    OPENSEARCH_SYNC_AUDIT_ON_STARTUP: bool = True
-    OPENSEARCH_SYNC_AUDIT_WORK_LIMIT: int = 0
-    OPENSEARCH_SYNC_AUDIT_CHAPTER_LIMIT_PER_WORK: int = 0
-    OPENSEARCH_SYNC_RETRY_BATCH_SIZE: int = 20
-    OPENSEARCH_SYNC_RETRY_MAX_ATTEMPTS: int = 6
-    OPENSEARCH_SYNC_RETRY_BASE_DELAY_SECONDS: int = 30
-    OPENSEARCH_SYNC_RETRY_MAX_DELAY_SECONDS: int = 900
-    OPENSEARCH_RUNTIME_SYNC_CHECK_ENABLED: bool = True
-    OPENSEARCH_RUNTIME_SYNC_CHECK_INTERVAL_SECONDS: int = 180
-    EXPLORE_INTENT_RETRIEVAL_V2: bool = True
-    # 探针对 AI 查询参数的介入模式：
-    # - suggest_only: 默认，仅在 AI 未提供有效结构化查询时才采用探针参数
-    # - force: 总是采用探针参数（旧行为，容易出现“机械改写查询”）
-    EXPLORE_PROBE_OVERRIDE_MODE: str = "suggest_only"
-
-    # 事实检索后端配置（固定为 LightRAG）
-    FACT_RETRIEVAL_BACKEND: str = "lightrag"
-
-    # LightRAG 外部检索配置
-    LIGHTRAG_BASE_URL: str = "http://127.0.0.1:9621"
-    LIGHTRAG_QUERY_PATH: str = "/query"
-    LIGHTRAG_INSERT_PATH: str = "/documents/text"
-    LIGHTRAG_API_KEY: Optional[str] = None
-    LIGHTRAG_TIMEOUT_SECONDS: int = 300
-    LIGHTRAG_MODE: str = "hybrid"
-    LIGHTRAG_TOP_K: int = 20
-    LIGHTRAG_MAX_RETRIES: int = 3
-    LIGHTRAG_RETRY_DELAY: float = 2.0
-    LIGHTRAG_ENABLE_RERANK: bool = True
-
-    # Reranker 服务配置（bge-reranker，Explore 段落精确定位）
-    RERANKER_BASE_URL: str = "http://localhost:7997"
-
+    
     # JWT 配置
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -193,8 +150,8 @@ class Settings(BaseSettings):
 
     # 工具缓存配置
     TOOL_CACHE_ENABLED: bool = True  # 是否启用工具结果缓存
-    TOOL_CACHE_WHITELIST: str = "get_writing_context,locate_content,search_analysis_fragments"
-    TOOL_CACHE_TTL_MINUTES: str = "locate_content=5,search_analysis_fragments=2"
+    TOOL_CACHE_WHITELIST: str = "get_writing_context,locate_content,search_content,search_analysis_fragments"
+    TOOL_CACHE_TTL_MINUTES: str = "locate_content=5,search_content=2,search_analysis_fragments=2"
     TOOL_CACHE_GWC_TTL_MINUTES: str = "default=3,chapter=5,rag=2,worldview=30,work=10,style=30"
 
     # 质量循环配置
@@ -280,19 +237,6 @@ class Settings(BaseSettings):
     WORLDVIEW_CHARACTER_BATCH_SIZE: int = 20  # 角色批次大小
     WORLDVIEW_LOCATION_BATCH_SIZE: int = 15  # 地点批次大小
     WORLDVIEW_SETTING_BATCH_SIZE: int = 10  # 设定批次大小
-
-    # 世界观扫描（导入解析）配置
-    WORLDVIEW_SCAN_BATCH_CHAPTERS: int = 2  # 每批次最大章节数
-    WORLDVIEW_SCAN_BATCH_MAX_CHARS: int = 8000  # 每批次最大字符数
-    WORLDVIEW_SCAN_FIRST_BATCH_CHAPTERS: int = 1  # 首批章节数（用于快速反馈）
-    WORLDVIEW_SCAN_FIRST_BATCH_MAX_CHARS: int = 4000  # 首批最大字符数
-    WORLDVIEW_SCAN_CONCURRENCY: int = 1  # 批次并发数（>1会禁用成本追踪）
-    WORLDVIEW_SCAN_FIRST_BATCH_MODEL: Optional[str] = "gemini-2.5-flash"  # 首批快模型（None表示不特殊处理）
-    WORLDVIEW_SCAN_MODEL: Optional[str] = "gemini-2.5-flash"  # 全量/后续批次模型
-    WORLDVIEW_SINGLE_CHAPTER_MODEL: Optional[str] = "gemini-2.5-flash"  # 单章解析模型
-
-    # 导入异步任务配置
-    ENABLE_CELERY_IMPORT_TASKS: bool = False  # 使用 Celery 执行导入相关重任务
 
     # 重试机制配置
     WORLDVIEW_BATCH_MAX_RETRIES: int = 3  # 单批次失败最大重试次数
@@ -380,8 +324,6 @@ class Settings(BaseSettings):
 
     # ==================== 模型智能选择配置（P0优化）====================
     MODEL_SELECTION_ENABLED: bool = True  # 启用ModelSelector智能选择
-
-    # ==================== Explore V6 配置 ====================
 
     model_config = ConfigDict(
         env_file=".env",

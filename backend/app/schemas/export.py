@@ -34,15 +34,6 @@ class ImportOptions(BaseModel):
     work_id: Optional[UUID] = Field(None, description="导入到现有作品的ID")
     include_worldview: bool = Field(True, description="是否导入世界观")
     include_guidelines: bool = Field(True, description="是否导入规范")
-    worldview_scan_mode: Optional[str] = Field("incremental", description="世界观扫描模式: incremental/full")
-
-
-class ImportContext(BaseModel):
-    """导入上下文信息（用于世界观解析）"""
-    chapter_ids: List[UUID] = Field(default_factory=list)
-    chapter_order_start: Optional[int] = None
-    chapter_order_end: Optional[int] = None
-    scan_mode: Optional[str] = None
 
 
 class ImportPreviewWork(BaseModel):
@@ -79,7 +70,6 @@ class ImportResponse(BaseModel):
     locations_created: int = 0
     settings_created: int = 0
     message: str = "导入成功"
-    import_context: Optional[ImportContext] = None
 
 
 # ============= 导出数据结构 =============

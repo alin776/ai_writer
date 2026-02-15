@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { DataService } from '../services/DataService';
 import { useGlobalStore } from '../store/globalStore';
-import { ImageWithFallback } from '../components/library/ImageWithFallback';
 
 interface Work {
   id: string;
@@ -60,7 +59,6 @@ const STATUS_MAP: Record<string, string> = {
   completed: '已完结',
   paused: '暂停',
 };
-const DEFAULT_COVER_IMAGE = '/default-cover.jpg';
 
 export default function AdminWorksView() {
   const { success, error } = useGlobalStore();
@@ -148,65 +146,63 @@ export default function AdminWorksView() {
   };
 
   return (
-    <div className="px-6 pb-6">
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pt-6">
-        {/* 页头 */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Book className="w-7 h-7" />
-            小说管理
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            管理所有用户创作的小说，包括审核、推荐和删除
-          </p>
-        </div>
+    <div className="p-6">
+      {/* 页头 */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <Book className="w-7 h-7" />
+          小说管理
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          管理所有用户创作的小说，包括审核、推荐和删除
+        </p>
+      </div>
 
-        {/* 搜索和筛选栏 */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* 搜索框 */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="搜索小说标题或作者..."
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* 筛选按钮 */}
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
-              <Filter className="w-4 h-4" />
-              <span>筛选</span>
-            </button>
+      {/* 搜索和筛选栏 */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* 搜索框 */}
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="搜索小说标题或作者..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
 
-          {/* 统计信息 */}
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">总小说数</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{total}</div>
+          {/* 筛选按钮 */}
+          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+            <Filter className="w-4 h-4" />
+            <span>筛选</span>
+          </button>
+        </div>
+
+        {/* 统计信息 */}
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">总小说数</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{total}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">已发布</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {works.filter((w) => w.isPublished).length}
               </div>
-              <div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">已发布</div>
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {works.filter((w) => w.isPublished).length}
-                </div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">推荐中</div>
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                {works.filter((w) => w.isFeatured).length}
               </div>
-              <div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">推荐中</div>
-                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                  {works.filter((w) => w.isFeatured).length}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">总字数</div>
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {(works.reduce((sum, w) => sum + w.totalWords, 0) / 10000).toFixed(1)}万
-                </div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">总字数</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                {(works.reduce((sum, w) => sum + w.totalWords, 0) / 10000).toFixed(1)}万
               </div>
             </div>
           </div>
@@ -254,8 +250,8 @@ export default function AdminWorksView() {
                   <tr key={work.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-4 py-4">
                       <div className="flex items-start gap-3 max-w-xs">
-                        <ImageWithFallback
-                          src={work.coverImage || DEFAULT_COVER_IMAGE}
+                        <img
+                          src={work.coverImage || '/placeholder-cover.png'}
                           alt={work.title}
                           className="w-10 h-14 object-cover rounded flex-shrink-0"
                         />

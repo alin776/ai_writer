@@ -159,57 +159,19 @@ const WorkDetailView: React.FC = () => {
     if (!workId || !autoExtractFromImport || hasWorldviewCards) return;
 
     let cancelled = false;
-    let notified = false;
-    let idleAttempts = 0;
-    const maxIdleAttempts = 5;
+    const delays = [2000, 6000, 12000, 25000, 45000];
     let timer: ReturnType<typeof setTimeout> | null = null;
 
-    const poll = async () => {
-      if (cancelled || !workId) return;
-      try {
-        const progress = await DataService.getWorldviewScanProgress(workId);
-
-        if (progress.status === 'idle') {
-          idleAttempts += 1;
-          const hasNewCards = await refreshWorldData();
-          if (hasNewCards || idleAttempts >= maxIdleAttempts) {
-            return 'stop';
-          }
-          return 'idle';
-        }
-
-        if (progress.status === 'running' || progress.status === 'pending' || progress.status === 'preparing' || progress.status === 'applying') {
-          if (!notified) {
-            showToast('info', '世界观解析进行中...');
-            notified = true;
-          }
-          return 'running';
-        }
-
-        if (progress.status === 'completed') {
-          await refreshWorldData();
-          showToast('success', '世界观解析完成，已更新世界观');
-          return 'stop';
-        }
-
-        if (progress.status === 'failed') {
-          showToast('error', progress.lastError || '世界观解析失败');
-          return 'stop';
-        }
-      } catch (error) {
-        console.warn('[WorkDetailView] 获取世界观解析进度失败:', error);
-        return 'idle';
+    const run = async (index: number) => {
+      if (cancelled) return;
+      const hasNewCards = await refreshWorldData();
+      if (hasNewCards || cancelled) return;
+      if (index < delays.length - 1) {
+        timer = setTimeout(() => run(index + 1), delays[index + 1]);
       }
     };
 
-    const scheduleNext = async () => {
-      const status = await poll();
-      if (cancelled || status === 'stop') return;
-      const delay = status === 'running' ? 5000 : 8000;
-      timer = setTimeout(scheduleNext, delay);
-    };
-
-    scheduleNext();
+    timer = setTimeout(() => run(0), delays[0]);
 
     return () => {
       cancelled = true;
@@ -217,7 +179,7 @@ const WorkDetailView: React.FC = () => {
         clearTimeout(timer);
       }
     };
-  }, [workId, autoExtractFromImport, hasWorldviewCards, refreshWorldData, showToast]);
+  }, [workId, autoExtractFromImport, hasWorldviewCards, refreshWorldData]);
   // 世界观面板初始 tab（用于搜索导航定位）
   const [worldviewInitialTab, setWorldviewInitialTab] = useState<'characters' | 'places' | 'settings' | undefined>(undefined);
   // 世界观面板目标项 ID（用于搜索导航滚动定位）
@@ -1598,6 +1560,13 @@ const WorkDetailView: React.FC = () => {
       try {
         const freshChapters = await DataService.getChapters(workId);
         setChapters(freshChapters);
+        const activeChapterId = editorChapterIdRef.current || currentChapterId;
+        if (activeChapterId) {
+          const activeChapter = freshChapters.find(ch => ch.id === activeChapterId);
+          if (activeChapter) {
+            setCurrentChapterContent(activeChapter.content || '');
+          }
+        }
         console.log('[WorkDetailView] 🔄 从数据库刷新章节列表');
       } catch (err) {
         console.error('[WorkDetailView] 刷新章节列表失败:', err);

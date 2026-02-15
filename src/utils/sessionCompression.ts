@@ -25,7 +25,7 @@ export function compressFlowItems(flowItems: FlowItem[] | undefined): FlowItem[]
   if (!flowItems || flowItems.length === 0) return flowItems;
 
   return flowItems.map((item) => {
-    const compressed = { ...item };
+    const compressed: any = { ...item };
 
     switch (item.type) {
       case 'explore_round': {
@@ -186,7 +186,7 @@ export function analyzeCompression(
   return {
     originalSize,
     compressedSize,
-    ratio: compressedSize / originalSize,
+    ratio: originalSize > 0 ? compressedSize / originalSize : 1,
     itemsRemoved: originalItems - compressedItems,
   };
 }

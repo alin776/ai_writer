@@ -275,153 +275,145 @@ const AdminCreditsView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
-        <div className="space-y-6">
-          {/* 页面标题 */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">积分管理</h1>
-              <p className="mt-2 text-gray-600 dark:text-gray-400">管理兑换码和用户积分</p>
-            </div>
-            <div className="flex gap-3">
-              <Button onClick={() => setShowGiftModal(true)} variant="outline" icon={<Gift className="w-4 h-4" />}>
-                赠送积分
-              </Button>
-              <Button onClick={() => setShowGenerateModal(true)} icon={<Plus className="w-4 h-4" />}>
-                生成兑换码
-              </Button>
-            </div>
-          </div>
+      {/* 页面标题 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">积分管理</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">管理兑换码和用户积分</p>
+        </div>
+        <div className="flex gap-3">
+          <Button onClick={() => setShowGiftModal(true)} variant="outline" icon={<Gift className="w-4 h-4" />}>
+            赠送积分
+          </Button>
+          <Button onClick={() => setShowGenerateModal(true)} icon={<Plus className="w-4 h-4" />}>
+            生成兑换码
+          </Button>
+        </div>
+      </div>
 
-          {/* 统计卡片 */}
-          {stats && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <Card background="blue">
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">积分用户数</p>
-                      <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stats.totalUsers.toLocaleString()}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
-                      <Coins className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              <Card background="blue">
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">总余额</p>
-                      <p className="mt-2 text-3xl font-bold text-green-600 dark:text-green-400">{stats.totalBalance.toLocaleString()}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              <Card background="blue">
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计充值</p>
-                      <p className="mt-2 text-3xl font-bold text-purple-600 dark:text-purple-400">{stats.totalRecharged.toLocaleString()}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center">
-                      <DollarSign className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              <Card background="blue">
-                <div className="p-6">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计消费</p>
-                  <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalConsumed.toLocaleString()}</p>
-                </div>
-              </Card>
-
-              <Card background="blue">
-                <div className="p-6">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计赠送</p>
-                  <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalGifted.toLocaleString()}</p>
-                </div>
-              </Card>
-
-              <Card background="blue">
-                <div className="p-6">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">交易总数</p>
-                  <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalTransactions.toLocaleString()}</p>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {/* 兑换码筛选 */}
+      {/* 统计卡片 */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Card background="blue">
             <div className="p-6">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <Input
-                    placeholder="搜索兑换码或备注..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    icon={<Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
-                  />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">积分用户数</p>
+                  <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stats.totalUsers.toLocaleString()}</p>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setUsedFilter('all')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      usedFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    全部
-                  </button>
-                  <button
-                    onClick={() => setUsedFilter('unused')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      usedFilter === 'unused' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    未使用
-                  </button>
-                  <button
-                    onClick={() => setUsedFilter('used')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      usedFilter === 'used' ? 'bg-gray-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    已使用
-                  </button>
-                  <button
-                    onClick={handleCopyAll}
-                    className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    title="一键复制当前列表兑换码"
-                  >
-                    复制全部
-                  </button>
-                  <button
-                    onClick={handleExportCsv}
-                    className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center space-x-1"
-                    title="导出当前列表为 CSV"
-                  >
-                    <FileDown className="w-4 h-4" />
-                    <span>导出CSV</span>
-                  </button>
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
+                  <Coins className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
             </div>
           </Card>
-        </div>
-      </div>
 
+          <Card background="blue">
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">总余额</p>
+                  <p className="mt-2 text-3xl font-bold text-green-600 dark:text-green-400">{stats.totalBalance.toLocaleString()}</p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card background="blue">
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计充值</p>
+                  <p className="mt-2 text-3xl font-bold text-purple-600 dark:text-purple-400">{stats.totalRecharged.toLocaleString()}</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card background="blue">
+            <div className="p-6">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计消费</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalConsumed.toLocaleString()}</p>
+            </div>
+          </Card>
+
+          <Card background="blue">
+            <div className="p-6">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计赠送</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalGifted.toLocaleString()}</p>
+            </div>
+          </Card>
+
+          <Card background="blue">
+            <div className="p-6">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">交易总数</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalTransactions.toLocaleString()}</p>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* 兑换码列表 */}
       <Card background="blue">
-        <div className="p-6">
+        <div className="p-6 space-y-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <Input
+                placeholder="搜索兑换码或备注..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                icon={<Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setUsedFilter('all')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  usedFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                全部
+              </button>
+              <button
+                onClick={() => setUsedFilter('unused')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  usedFilter === 'unused' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                未使用
+              </button>
+              <button
+                onClick={() => setUsedFilter('used')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  usedFilter === 'used' ? 'bg-gray-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                已使用
+              </button>
+              <button
+                onClick={handleCopyAll}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                title="一键复制当前列表兑换码"
+              >
+                复制全部
+              </button>
+              <button
+                onClick={handleExportCsv}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center space-x-1"
+                title="导出当前列表为 CSV"
+              >
+                <FileDown className="w-4 h-4" />
+                <span>导出CSV</span>
+              </button>
+            </div>
+          </div>
+
           {/* 兑换码表格 */}
           <div className="overflow-x-auto">
             <table className="w-full">

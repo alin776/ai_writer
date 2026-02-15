@@ -212,21 +212,20 @@ export default function AdminReportsView() {
   };
 
   return (
-    <div className="px-6 pb-6">
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pt-6">
-        {/* 页头 */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Flag className="w-7 h-7" />
-            举报管理
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            处理用户提交的举报，包括消息、评论和小说举报
-          </p>
-        </div>
+    <div className="p-6">
+      {/* 页头 */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <Flag className="w-7 h-7" />
+          举报管理
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          处理用户提交的举报，包括消息、评论和小说举报
+        </p>
+      </div>
 
-        {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      {/* 统计卡片 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -282,10 +281,10 @@ export default function AdminReportsView() {
           </div>
       </div>
 
-        {/* Tab 切换 */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="border-b border-gray-200 dark:border-gray-700">
-            <nav className="flex -mb-px">
+      {/* Tab 切换 */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="border-b border-gray-200 dark:border-gray-700">
+          <nav className="flex -mb-px">
             <button
               onClick={() => setActiveTab('messages')}
               className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -336,10 +335,7 @@ export default function AdminReportsView() {
             </button>
           </nav>
         </div>
-      </div>
-    </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         {/* 列表内容 */}
         <div className="p-4">
           {loading ? (

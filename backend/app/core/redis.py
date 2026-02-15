@@ -265,7 +265,6 @@ class CacheKey:
     SETTINGS = "worldview:{work_id}:settings"
     GUIDELINES = "worldview:{work_id}:guidelines"
     AI_GUIDELINES = "worldview:{work_id}:ai_guidelines"
-    GLOSSARY = "worldview:{work_id}:glossary"
     
     # 分析相关
     ANALYSIS_STATUS = "analysis:{work_id}:status"

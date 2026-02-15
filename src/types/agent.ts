@@ -1,37 +1,38 @@
-/**
- * Agent系统 - TypeScript类型定义
+﻿/**
+ * Agent绯荤粺 - TypeScript绫诲瀷瀹氫箟
  */
 
 import { z } from 'zod';
 
-// ==================== 基础类型 ====================
+// ==================== 鍩虹绫诲瀷 ====================
 
 export interface AgentChatRequest {
   message: string;
-  mode?: 'planning';  // Agent执行模式：planning(先规划再执行)
+  mode?: 'planning' | 'react';  // Agent鎵ц妯″紡锛歱lanning(鍏堣鍒掑啀鎵ц) 鎴?react(杈规€濊€冭竟鎵ц)
   tool_policy?: 'auto' | 'no_tool' | 'cache_only';
   work_id?: string;
   chapter_id?: string;
   conversation_id?: string;
+  enable_reflection?: boolean;  // 鍚敤 DeepAgent 鍙嶆€濇ā寮?
   context?: {
     chapter_context?: string;
     text?: string;
     current_content?: string;
-    /** 知识库文档ID列表，用于@引用指定文档 */
+    /** 鐭ヨ瘑搴撴枃妗D鍒楄〃锛岀敤浜嶡寮曠敤鎸囧畾鏂囨。 */
     knowledge_doc_ids?: string[];
-    /** @deprecated 已弃用，请使用 knowledge_doc_ids。此字段将在后续版本移除 */
+    /** @deprecated 宸插純鐢紝璇蜂娇鐢?knowledge_doc_ids銆傛瀛楁灏嗗湪鍚庣画鐗堟湰绉婚櫎 */
     knowledge_tags?: string[];
     use_optimization?: boolean;
-    /** 编辑器选中的文字（纯文本） */
+    /** 缂栬緫鍣ㄩ€変腑鐨勬枃瀛楋紙绾枃鏈級 */
     selected_text?: string;
-    /** 编辑器选中的文字（保留HTML格式） */
+    /** 缂栬緫鍣ㄩ€変腑鐨勬枃瀛楋紙淇濈暀HTML鏍煎紡锛?*/
     selected_text_html?: string;
-    /** 选中文字在编辑器中的位置 */
+    /** 閫変腑鏂囧瓧鍦ㄧ紪杈戝櫒涓殑浣嶇疆 */
     selection_position?: {
       from: number;
       to: number;
     };
-    /** 前端结构性定位结果（用于 locate_content 快速路径） */
+    /** 鍓嶇缁撴瀯鎬у畾浣嶇粨鏋滐紙鐢ㄤ簬 locate_content 蹇€熻矾寰勶級 */
     locate_node_id?: string;
     locate_paragraph_index?: number;
     locate_method?: string;
@@ -49,36 +50,36 @@ export interface AgentChatResponse {
   agent_steps: AgentStep[];
   suggested_actions: string[];
   metadata: AgentMetadata;
-  /** 编辑器操作指令（用于修改/续写） */
+  /** 缂栬緫鍣ㄦ搷浣滄寚浠わ紙鐢ㄤ簬淇敼/缁啓锛?*/
   editor_action?: EditorAction;
 }
 
-/** 编辑器操作类型 */
+/** 缂栬緫鍣ㄦ搷浣滅被鍨?*/
 export interface EditorAction {
-  /** 操作类型：modify(修改) | continue(续写) | insert(插入) | none(无操作) */
+  /** 鎿嶄綔绫诲瀷锛歮odify(淇敼) | continue(缁啓) | insert(鎻掑叆) | none(鏃犳搷浣? */
   type: 'modify' | 'continue' | 'insert' | 'none';
-  /** 原始文字（仅 modify 时有值） */
+  /** 鍘熷鏂囧瓧锛堜粎 modify 鏃舵湁鍊硷級 */
   original_text?: string;
-  /** 新文字（修改后/续写/插入的内容） */
+  /** 鏂版枃瀛楋紙淇敼鍚?缁啓/鎻掑叆鐨勫唴瀹癸級 */
   new_text?: string;
-  /** 新文字（HTML格式） */
+  /** 鏂版枃瀛楋紙HTML鏍煎紡锛?*/
   new_text_html?: string;
-  /** 插入位置（仅 insert 时有值） */
+  /** 鎻掑叆浣嶇疆锛堜粎 insert 鏃舵湁鍊硷級 */
   position?: {
     from: number;
     to: number;
   };
-  /** 是否需要用户确认 */
+  /** 鏄惁闇€瑕佺敤鎴风‘璁?*/
   requires_confirmation?: boolean;
-  /** 操作描述 */
+  /** 鎿嶄綔鎻忚堪 */
   description?: string;
-  /** 锚点定位：修改点前的文本（30-50字），用于位置失效时重新定位 */
+  /** 閿氱偣瀹氫綅锛氫慨鏀圭偣鍓嶇殑鏂囨湰锛?0-50瀛楋級锛岀敤浜庝綅缃け鏁堟椂閲嶆柊瀹氫綅 */
   before_anchor?: string;
-  /** 锚点定位：修改点后的文本（30-50字），用于位置失效时重新定位 */
+  /** 閿氱偣瀹氫綅锛氫慨鏀圭偣鍚庣殑鏂囨湰锛?0-50瀛楋級锛岀敤浜庝綅缃け鏁堟椂閲嶆柊瀹氫綅 */
   after_anchor?: string;
-  /** 🆕 节点 ID（最高优先级定位，来自 UniqueID 扩展） */
+  /** 馃啎 鑺傜偣 ID锛堟渶楂樹紭鍏堢骇瀹氫綅锛屾潵鑷?UniqueID 鎵╁睍锛?*/
   node_id?: string;
-  /** 🆕 段落索引（可用于从 getAllNodes() 获取 node_id） */
+  /** 馃啎 娈佃惤绱㈠紩锛堝彲鐢ㄤ簬浠?getAllNodes() 鑾峰彇 node_id锛?*/
   paragraph_index?: number;
 }
 
@@ -114,7 +115,7 @@ export interface HistorySessionItem {
   titleLocked?: boolean;
 }
 
-// ==================== 会话管理 ====================
+// ==================== 浼氳瘽绠＄悊 ====================
 
 export interface AgentSession {
   session_id: string;
@@ -135,7 +136,7 @@ export interface CreateAgentSessionResponse {
   created_at?: string;
 }
 
-// ==================== 计划管理 ====================
+// ==================== 璁″垝绠＄悊 ====================
 
 export interface PlanCreationRequest {
   goal: string;
@@ -164,7 +165,7 @@ export interface PlanTask {
 export type PlanStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 
-// ==================== 人机协同 (HITL) ====================
+// ==================== 浜烘満鍗忓悓 (HITL) ====================
 
 export interface ApprovalResponse {
   request_id: string;
@@ -185,7 +186,7 @@ export interface ApprovalActionRequest {
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'timeout';
 
-// ==================== 记忆系统 ====================
+// ==================== 璁板繂绯荤粺 ====================
 
 export interface MemoryContext {
   success: boolean;
@@ -227,7 +228,7 @@ export interface WritingStyle {
 export type SkillLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
 export type InteractionMode = 'autonomous' | 'guided' | 'manual';
 
-// ==================== UI组件类型 ====================
+// ==================== UI缁勪欢绫诲瀷 ====================
 
 export interface Message {
   role: 'user' | 'agent';
@@ -235,8 +236,8 @@ export interface Message {
   agentSteps?: AgentStep[];
   metadata?: AgentMetadata;
   timestamp: string;
-  flowItems?: FlowItem[];  // v5.1: 执行轨迹绑定到消息
-  tasksSnapshot?: TaskSnapshot[]; // v6.2: 任务列表快照（用于历史执行轨迹）
+  flowItems?: FlowItem[];  // v5.1: 鎵ц杞ㄨ抗缁戝畾鍒版秷鎭?
+  tasksSnapshot?: TaskSnapshot[]; // v6.2: 浠诲姟鍒楄〃蹇収锛堢敤浜庡巻鍙叉墽琛岃建杩癸級
 }
 
 export interface TaskSnapshot {
@@ -254,6 +255,8 @@ export interface ChatInputProps {
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
+  mode: 'plan' | 'agent';
+  onModeChange: (mode: 'plan' | 'agent') => void;
   isLoading?: boolean;
   onStop?: () => void;
 }
@@ -268,7 +271,7 @@ export interface SuggestedActionsProps {
   onActionClick: (action: string) => void;
 }
 
-// ==================== API响应类型 ====================
+// ==================== API鍝嶅簲绫诲瀷 ====================
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -282,22 +285,22 @@ export interface ApiError {
   status_code: number;
 }
 
-// ==================== ActivityStream 活动流 ====================
+// ==================== ActivityStream 娲诲姩娴?====================
 
 /**
- * Agent 活动类型（用于实时进度展示）
- * 注意：与 activity.ts 中的 ActivityType 枚举不同，这是 Agent 专用的活动类型
+ * Agent 娲诲姩绫诲瀷锛堢敤浜?ReAct 妯″紡鐨勫疄鏃惰繘搴﹀睍绀猴級
+ * 娉ㄦ剰锛氫笌 activity.ts 涓殑 ActivityType 鏋氫妇涓嶅悓锛岃繖鏄?Agent 涓撶敤鐨勬椿鍔ㄧ被鍨?
  */
 export type AgentActivityType = 'intent_analysis' | 'thinking' | 'tool_execution' | 'generating';
 
 /**
- * 活动状态
+ * 娲诲姩鐘舵€?
  */
 export type ActivityStatus = 'active' | 'completed' | 'failed';
 
 /**
- * 活动项
- * 用于实时进度展示
+ * 娲诲姩椤?
+ * 鐢ㄤ簬ReAct妯″紡鐨勫疄鏃惰繘搴﹀睍绀?
  */
 export interface ActivityItem {
   id: string;
@@ -305,85 +308,198 @@ export interface ActivityItem {
   description: string;
   timestamp: string;
   status: ActivityStatus;
-  node?: string;  // LangGraph节点名
-  tool?: string;  // 工具名（如果是工具调用）
-  details?: Record<string, any>;  // 额外信息
-  elapsedTime?: number;  // 执行时间（秒）
+  node?: string;  // LangGraph鑺傜偣鍚?
+  tool?: string;  // 宸ュ叿鍚嶏紙濡傛灉鏄伐鍏疯皟鐢級
+  details?: Record<string, any>;  // 棰濆淇℃伅
+  elapsedTime?: number;  // 鎵ц鏃堕棿锛堢锛?
 }
 
-// ==================== ExecutionFlow 执行轨迹 (v5.0) ====================
+/**
+ * 杩涘害浜嬩欢锛堜粠鍚庣鎺ユ敹锛?
+ */
+export interface ProgressEvent {
+  type: 'progress';
+  step: 'intent_analysis' | 'thinking' | 'tool_execution' | 'generating';
+  description: string;
+  node?: string;
+  details?: Record<string, any>;
+  timestamp: string;
+}
 
 /**
- * 执行轨迹项类型
+ * 宸ュ叿璋冪敤浜嬩欢锛堜粠鍚庣鎺ユ敹锛?
+ */
+export interface ToolCallEvent {
+  tool: string;
+  args: any;
+  timestamp: string;
+}
+
+// ==================== ProgressTracker 杩涘害杩借釜 ====================
+
+/**
+ * 杩涘害淇℃伅锛堜粠鍚庣SSE浜嬩欢鎺ユ敹锛?
+ * 鐢盤rogressTracker鐢熸垚鐨勫畬鏁磋繘搴︽暟鎹?
+ */
+export interface ProgressData {
+  progress: number;              // 杩涘害鐧惧垎姣?(0-100)
+  eta: number | null;            // 棰勪及鍓╀綑鏃堕棿锛堢锛?
+  eta_display: string;           // ETA鍙嬪ソ鏄剧ず锛堝"2鍒嗛挓"銆?鍗冲皢瀹屾垚"锛?
+  eta_confidence: 'low' | 'medium' | 'high';  // ETA缃俊搴?
+  current_step: number;          // 褰撳墠绗嚑姝ワ紙浠?寮€濮嬶級
+  total_steps: number;           // 鎬绘鏁?
+  step_description: string;      // 姝ラ鎻忚堪锛堝"绗?/5姝?锛?
+  elapsed: number;               // 宸茬敤鏃堕棿锛堢锛?
+  current_node?: string;         // 褰撳墠鑺傜偣鍚嶏紙LangGraph鍐呴儴鍚嶇О锛?
+  current_node_display?: string | null; // 褰撳墠鑺傜偣鍙嬪ソ鍚嶇О锛堝"馃 鎰忓浘鍒嗘瀽"锛?
+  current_node_description?: string | null; // 褰撳墠鑺傜偣鎻忚堪锛堝"姝ｅ湪鍒嗘瀽鎮ㄧ殑闇€姹?.."锛?
+}
+
+/**
+ * 澧炲己鐨勮繘搴︿簨浠讹紙鍖呭惈ProgressTracker鏁版嵁锛?
+ * 鎵╁睍ProgressEvent锛屾坊鍔犺繘搴﹁拷韪俊鎭?
+ */
+export interface EnhancedProgressEvent extends ProgressEvent {
+  // ProgressTracker鎻愪緵鐨勫瓧娈?
+  progress?: number;
+  eta?: number | null;
+  eta_display?: string;
+  eta_confidence?: 'low' | 'medium' | 'high';
+  current_step?: number;
+  total_steps?: number;
+  step_description?: string;
+  elapsed?: number;
+}
+
+// ==================== Zod楠岃瘉Schema ====================
+
+/**
+ * ProgressData鐨刏od楠岃瘉Schema
+ * 鉁?鐢ㄤ簬杩愯鏃舵暟鎹獙璇侊紝纭繚鍚庣杩斿洖鐨勬暟鎹鍚堥鏈?
+ */
+export const ProgressDataSchema = z.object({
+  progress: z.number().min(0).max(100),
+  eta: z.number().nullable(),
+  eta_display: z.string(),
+  eta_confidence: z.enum(['low', 'medium', 'high']),
+  current_step: z.number().int().positive(),
+  total_steps: z.number().int().positive(),
+  step_description: z.string(),
+  elapsed: z.number().nonnegative(),
+  current_node: z.string().optional(),
+  current_node_display: z.string().nullable().optional(),
+  current_node_description: z.string().nullable().optional()
+});
+
+/**
+ * ActivityItem鐨刏od楠岃瘉Schema
+ */
+export const ActivityItemSchema = z.object({
+  id: z.string(),
+  type: z.enum(['intent_analysis', 'thinking', 'tool_execution', 'generating']),
+  description: z.string(),
+  timestamp: z.string(),
+  status: z.enum(['active', 'completed', 'failed']),
+  node: z.string().optional(),
+  tool: z.string().optional(),
+  details: z.record(z.string(), z.any()).optional(),
+  elapsedTime: z.number().optional()
+});
+
+/**
+ * EnhancedProgressEvent鐨刏od楠岃瘉Schema
+ */
+export const EnhancedProgressEventSchema = z.object({
+  type: z.literal('progress'),
+  step: z.enum(['intent_analysis', 'thinking', 'tool_execution', 'generating']),
+  description: z.string(),
+  node: z.string().optional(),
+  details: z.record(z.string(), z.any()).optional(),
+  timestamp: z.string(),
+  // ProgressTracker瀛楁
+  progress: z.number().min(0).max(100).optional(),
+  eta: z.number().nullable().optional(),
+  eta_display: z.string().optional(),
+  eta_confidence: z.enum(['low', 'medium', 'high']).optional(),
+  current_step: z.number().int().positive().optional(),
+  total_steps: z.number().int().positive().optional(),
+  step_description: z.string().optional(),
+  elapsed: z.number().nonnegative().optional()
+});
+
+// ==================== ExecutionFlow 鎵ц杞ㄨ抗 (v5.0) ====================
+
+/**
+ * 鎵ц杞ㄨ抗椤圭被鍨?
  */
 export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization' | 'revision' | 'explore_round' | 'explore_summary' | 'operate';
 
-// ==================== 知识调取相关类型 (v6.0) ====================
+// ==================== 鐭ヨ瘑璋冨彇鐩稿叧绫诲瀷 (v6.0) ====================
 
 /**
- * 知识项
+ * 鐭ヨ瘑椤?
  */
 export interface KnowledgeItem {
-  name: string;            // "林逸 - 主角"
-  tag?: string;            // "人物" | "地点" | "设定" | "规范"
-  similarity?: number;     // 0.89 (检索结果用)
-  link?: string;           // 点击跳转链接
+  name: string;            // "鏋楅€?- 涓昏"
+  tag?: string;            // "浜虹墿" | "鍦扮偣" | "璁惧畾" | "瑙勮寖"
+  similarity?: number;     // 0.89 (妫€绱㈢粨鏋滅敤)
+  link?: string;           // 鐐瑰嚮璺宠浆閾炬帴
 }
 
 /**
- * 知识调取数据
+ * 鐭ヨ瘑璋冨彇鏁版嵁
  */
 export interface KnowledgeFlowData {
-  title: string;           // "世界观已加载(5)"
+  title: string;           // "涓栫晫瑙傚凡鍔犺浇(5)"
   icon: string;            // "BookOpen" | "FileText" | "Search"
   items: KnowledgeItem[];
 }
 
 /**
- * 执行步骤数据
+ * 鎵ц姝ラ鏁版嵁
  */
 export interface StepFlowData {
   stepId: number;
-  title: string;           // "获取世界观设定"
+  title: string;           // "鑾峰彇涓栫晫瑙傝瀹?
   status: 'running' | 'done' | 'error';
-  description?: string;    // 步骤描述
-  knowledge?: KnowledgeFlowData[];  // 知识调取列表
+  description?: string;    // 姝ラ鎻忚堪
+  knowledge?: KnowledgeFlowData[];  // 鐭ヨ瘑璋冨彇鍒楄〃
   toolCall?: {
     icon: string;          // "Wrench"
     name: string;          // "get_worldview_summary"
   };
-  revision?: RevisionFlowData;  // 内嵌的修订胶囊（v7.3）
-  revisionItemId?: string;      // 关联的 FlowItem ID（用于回调）
+  revision?: RevisionFlowData;  // 鍐呭祵鐨勪慨璁㈣兌鍥婏紙v7.3锛?
+  revisionItemId?: string;      // 鍏宠仈鐨?FlowItem ID锛堢敤浜庡洖璋冿級
 }
 
 /**
- * 最终输出数据
+ * 鏈€缁堣緭鍑烘暟鎹?
  */
 export interface OutputFlowData {
-  intro?: string;          // "第五章已续写完成！本章主要讲述..."
-  introHighlight?: string; // "林逸开始外门修炼" (加粗部分)
-  title: string;           // "第五章：外门初修"
-  content: string;         // 章节内容 (支持Markdown)
-  isApplicable?: boolean;  // 是否可应用到编辑器（显示"应用到章节"按钮）
+  intro?: string;          // "绗簲绔犲凡缁啓瀹屾垚锛佹湰绔犱富瑕佽杩?.."
+  introHighlight?: string; // "鏋楅€稿紑濮嬪闂ㄤ慨鐐? (鍔犵矖閮ㄥ垎)
+  title: string;           // "绗簲绔狅細澶栭棬鍒濅慨"
+  content: string;         // 绔犺妭鍐呭 (鏀寔Markdown)
+  isApplicable?: boolean;  // 鏄惁鍙簲鐢ㄥ埌缂栬緫鍣紙鏄剧ず"搴旂敤鍒扮珷鑺?鎸夐挳锛?
 }
 
 /**
- * Agent头部数据
+ * Agent澶撮儴鏁版嵁
  */
 export interface AgentHeaderFlowData {
-  name?: string;           // "文枢AI"
-  badge?: string;          // 可选标签
+  name?: string;           // "鏂囨灑AI"
+  badge?: string;          // 鍙€夋爣绛?
 }
 
 /**
- * 完成状态数据
+ * 瀹屾垚鐘舵€佹暟鎹?
  */
 export interface CompletionFlowData {
-  text?: string;           // "任务已完成"
+  text?: string;           // "浠诲姟宸插畬鎴?
 }
 
 /**
- * AI整合分析数据 (Summarization)
+ * AI鏁村悎鍒嗘瀽鏁版嵁 (Summarization)
  */
 export interface SummarizationFlowData {
   status: 'running' | 'done';
@@ -401,44 +517,86 @@ export interface SummarizationFlowData {
 }
 
 /**
- * AI 说明文字数据
+ * AI 璇存槑鏂囧瓧鏁版嵁
  */
 export interface TextFlowData {
   content: string;
 }
 
 /**
- * 工具卡片数据
+ * 宸ュ叿鍗＄墖鏁版嵁
  */
 export interface ToolFlowData {
   taskId: number;
-  icon: string;           // Lucide 图标名
-  title: string;          // 工具标题
-  description: string;    // 工具描述
+  icon: string;           // Lucide 鍥炬爣鍚?
+  title: string;          // 宸ュ叿鏍囬
+  description: string;    // 宸ュ叿鎻忚堪
   status: 'running' | 'done' | 'error';
 }
 
 /**
- * 流式内容数据
+ * 娴佸紡鍐呭鏁版嵁
  */
+
+/**
+ * Agentic budget data
+ */
+export interface BudgetFlowData {
+  budget?: {
+    max_steps?: number;
+    used_steps?: number;
+    max_cost?: number;
+    used_cost?: number;
+    max_time_ms?: number;
+  };
+}
+
+/**
+ * Agentic decision data
+ */
+export interface DecisionFlowData {
+  status?: 'running' | 'done' | 'error' | string;
+  goal?: string;
+  reason?: string;
+  candidates?: Array<{
+    id?: string;
+    identifier?: string;
+    title?: string;
+  }>;
+  decision?: {
+    id?: string;
+    identifier?: string;
+    reason?: string;
+    risk?: string;
+  };
+}
+
+/**
+ * Agentic reflection data
+ */
+export interface ReflectFlowData {
+  summary?: string;
+  nextAction?: string;
+  stopReason?: string;
+}
 export interface ContentFlowData {
   content: string;
 }
 
-// ==================== 修订卡片类型 (v7.0) ====================
+// ==================== 淇鍗＄墖绫诲瀷 (v7.0) ====================
 
 /**
- * 修订类型
+ * 淇绫诲瀷
  */
 export type RevisionType = 'append' | 'replace' | 'insert' | 'create' | 'rename';
 
 /**
- * 修订状态
+ * 淇鐘舵€?
  */
 export type RevisionStatus = 'pending' | 'accepted' | 'discarded';
 
 /**
- * 改写版本
+ * 鏀瑰啓鐗堟湰
  */
 export interface RewriteVersion {
   style_name: string;
@@ -447,39 +605,39 @@ export interface RewriteVersion {
 }
 
 /**
- * 修订卡片数据
+ * 淇鍗＄墖鏁版嵁
  */
 export interface RevisionFlowData {
   revisionType: RevisionType;
   status: RevisionStatus;
-  operation?: string;
+  statusUpdatedAt?: string;    // 鐘舵€佹洿鏂版椂闂达紙鐢ㄤ簬鈥滃凡鎾ら攢璁板綍鈥濊拷婧級
   requestId?: string;
   chapterId?: string;
   chapterTitle?: string;
-  contentPreview?: string;      // 内容预览（前50字）
-  oldTitle?: string;            // 原标题（rename 类型）
-  newTitle?: string;            // 新标题（rename 类型）
-  versions?: RewriteVersion[];  // 改写版本（replace 类型）
-  // v7.2: 撤销/重做支持
-  originalContent?: string;     // 原始内容快照（用于撤销）
-  newContent?: string;          // 新内容快照（用于重做）
-  editorPosition?: { from: number; to: number };  // 编辑器位置
-  selectedVersion?: number;     // 选择的改写版本索引
+  contentPreview?: string;      // 鍐呭棰勮锛堝墠50瀛楋級
+  oldTitle?: string;            // 鍘熸爣棰橈紙rename 绫诲瀷锛?
+  newTitle?: string;            // 鏂版爣棰橈紙rename 绫诲瀷锛?
+  versions?: RewriteVersion[];  // 鏀瑰啓鐗堟湰锛坮eplace 绫诲瀷锛?
+  // v7.2: 鎾ら攢/閲嶅仛鏀寔
+  originalContent?: string;     // 鍘熷鍐呭蹇収锛堢敤浜庢挙閿€锛?
+  newContent?: string;          // 鏂板唴瀹瑰揩鐓э紙鐢ㄤ簬閲嶅仛锛?
+  editorPosition?: { from: number; to: number };  // 缂栬緫鍣ㄤ綅缃?
+  selectedVersion?: number;     // 閫夋嫨鐨勬敼鍐欑増鏈储寮?
 }
 
-// ==================== Explore 探索轨迹类型 (v9.0) ====================
+// ==================== Explore 鎺㈢储杞ㄨ抗绫诲瀷 (v9.0) ====================
 
 /**
- * Explore 工具调用标签
+ * Explore 宸ュ叿璋冪敤鏍囩
  */
 export interface ExploreToolCall {
   type: 'Search' | 'Locate' | 'ReadRaw' | 'ReadParagraph' | 'ListChapters' | 'ListParagraphs' | 'Worldview';
   value: string;
-  highlight?: string;  // Search 类型的高亮关键词
+  highlight?: string;  // Search 绫诲瀷鐨勯珮浜叧閿瘝
 }
 
 /**
- * Explore 证据项
+ * Explore 璇佹嵁椤?
  */
 export interface ExploreEvidenceItem {
   chapter?: number;
@@ -491,34 +649,34 @@ export interface ExploreEvidenceItem {
 }
 
 /**
- * Explore 轮次数据（流事件）
+ * Explore 杞鏁版嵁锛堟祦浜嬩欢锛?
  */
 export interface ExploreRoundFlowData {
   stepId: number;
   roundIdx: number;
   title: string;
-  reason?: string;  // AI 生成的决策理由（完整）
+  reason?: string;  // AI 鐢熸垚鐨勫喅绛栫悊鐢憋紙瀹屾暣锛?
   toolCalls: ExploreToolCall[];
   hitCount: number;
   missingItems: string[];
   statusText: string;
   evidences: ExploreEvidenceItem[];
-  reviewStatus: string;  // "覆盖不足" | "补齐要点" | "通过"
+  reviewStatus: string;  // "瑕嗙洊涓嶈冻" | "琛ラ綈瑕佺偣" | "閫氳繃"
   status: 'running' | 'done';
 }
 
 /**
- * Explore 统计数据
+ * Explore 缁熻鏁版嵁
  */
 export interface ExploreStats {
   worldview: number;
   chapters: string;    // "1-4"
   evidences: number;
-  coverage: string;    // "充足/覆盖不足/未知"
+  coverage: string;    // "鍏呰冻/瑕嗙洊涓嶈冻/鏈煡"
 }
 
 /**
- * Explore 总结数据（流事件）
+ * Explore 鎬荤粨鏁版嵁锛堟祦浜嬩欢锛?
  */
 export interface ExploreSummaryFlowData {
   stepId: number;
@@ -532,12 +690,12 @@ export interface ExploreSummaryFlowData {
 }
 
 /**
- * ExploreCard 组件使用的轮次数据（兼容旧版）
+ * ExploreCard 缁勪欢浣跨敤鐨勮疆娆℃暟鎹紙鍏煎鏃х増锛?
  */
 export interface ExploreRound {
   id: string;
   title?: string;
-  reason?: string;  // AI 生成的决策理由（完整）
+  reason?: string;  // AI 鐢熸垚鐨勫喅绛栫悊鐢憋紙瀹屾暣锛?
   query?: string;
   search?: {
     query?: string;
@@ -564,41 +722,41 @@ export interface ExploreRound {
 }
 
 /**
- * ExploreCard 组件使用的数据（兼容旧版）
+ * ExploreCard 缁勪欢浣跨敤鐨勬暟鎹紙鍏煎鏃х増锛?
  */
 export interface ExploreFlowData {
   rounds: ExploreRound[];
 }
 
-// ==================== Operate 操作轨迹类型 (v10.0) ====================
+// ==================== Operate 鎿嶄綔杞ㄨ抗绫诲瀷 (v10.0) ====================
 
 /**
- * Operate 操作类型
+ * Operate 鎿嶄綔绫诲瀷
  */
 export type OperateOperationType = 'append' | 'replace' | 'insert' | 'content' | 'create' | 'title';
 
 /**
- * Operate 定位方式
+ * Operate 瀹氫綅鏂瑰紡
  */
 export type OperateLocateMethod = 'direct' | 'text_match' | 'semantic' | 'none' | 'fallback' | 'failed';
 
 /**
- * Operate 阶段状态
+ * Operate 闃舵鐘舵€?
  */
 export type OperatePhaseStatus = 'pending' | 'running' | 'done' | 'skipped';
 
 /**
- * Operate 标签
+ * Operate 鏍囩
  */
 export interface OperateTag {
-  label: string;      // 标签名：输入、工具、方式、位置、操作、状态
-  value: string;      // 显示值（已转换为用户友好名称）
-  icon?: string;      // Lucide 图标名
+  label: string;      // 鏍囩鍚嶏細杈撳叆銆佸伐鍏枫€佹柟寮忋€佷綅缃€佹搷浣溿€佺姸鎬?
+  value: string;      // 鏄剧ず鍊硷紙宸茶浆鎹负鐢ㄦ埛鍙嬪ソ鍚嶇О锛?
+  icon?: string;      // Lucide 鍥炬爣鍚?
   variant?: 'default' | 'success' | 'warning' | 'info';
 }
 
 /**
- * Operate 阶段数据
+ * Operate 闃舵鏁版嵁
  */
 export interface OperatePhaseData {
   phase: 1 | 2 | 3;
@@ -608,19 +766,19 @@ export interface OperatePhaseData {
 }
 
 /**
- * Operate 轨迹数据（流事件）
+ * Operate 杞ㄨ抗鏁版嵁锛堟祦浜嬩欢锛?
  */
 export interface OperateFlowData {
   stepId: number;
-  operation: OperateOperationType;     // 原始操作类型
-  phases: OperatePhaseData[];          // 三阶段数据
+  operation: OperateOperationType;     // 鍘熷鎿嶄綔绫诲瀷
+  phases: OperatePhaseData[];          // 涓夐樁娈垫暟鎹?
   status: 'running' | 'done' | 'error';
-  // 定位结果（阶段2）
+  // 瀹氫綅缁撴灉锛堥樁娈?锛?
   locateMethod?: OperateLocateMethod;  // direct | text_match | semantic | none | fallback
-  locateTarget?: string;               // "第五章 · 第2段"
-  // 执行结果（阶段3）
-  targetOperation?: string;            // 实际执行的操作（如 content → replace_all）
-  toolUsed?: string;                   // 使用的工具
+  locateTarget?: string;               // "绗簲绔?路 绗?娈?
+  // 鎵ц缁撴灉锛堥樁娈?锛?
+  targetOperation?: string;            // 瀹為檯鎵ц鐨勬搷浣滐紙濡?content 鈫?replace_all锛?
+  toolUsed?: string;                   // 浣跨敤鐨勫伐鍏?
   chapterId?: string;
   chapterTitle?: string;
   requiresConfirmation?: boolean;
@@ -629,7 +787,7 @@ export interface OperateFlowData {
 }
 
 /**
- * 执行轨迹项
+ * 鎵ц杞ㄨ抗椤?
  */
 export interface FlowItem {
   id: string;
@@ -639,56 +797,57 @@ export interface FlowItem {
 }
 
 /**
- * 增强版任务开始事件（后端 v5.0 发送）
+ * 澧炲己鐗堜换鍔″紑濮嬩簨浠讹紙鍚庣 v5.0 鍙戦€侊級
  */
 export interface EnhancedTaskStartEvent {
   task_id: number;
   description: string;
   tool?: string;
   params?: Record<string, any>;
-  // v5.0 增强字段
-  explanation?: string;      // AI 说明文字
-  icon?: string;             // Lucide 图标名
-  tool_title?: string;       // 工具标题
-  tool_description?: string; // 工具描述
+  // v5.0 澧炲己瀛楁
+  explanation?: string;      // AI 璇存槑鏂囧瓧
+  icon?: string;             // Lucide 鍥炬爣鍚?
+  tool_title?: string;       // 宸ュ叿鏍囬
+  tool_description?: string; // 宸ュ叿鎻忚堪
 }
 
-// ==================== 非阻塞式修订 (v7.5) ====================
+// ==================== 闈為樆濉炲紡淇 (v7.5) ====================
 
 /**
- * 待处理修订
+ * 寰呭鐞嗕慨璁?
  */
 export interface PendingRevision {
-  id: string;                    // 前端生成的唯一ID
-  requestId: string;             // 后端的request_id
+  id: string;                    // 鍓嶇鐢熸垚鐨勫敮涓€ID
+  requestId: string;             // 鍚庣鐨剅equest_id
   chapterId: string;
   chapterTitle: string;
   revisionType: RevisionType;
-  content: string;               // 完整内容
-  originalContent?: string;      // 原内容（replace类型需要）
-  contentPreview: string;        // 内容预览（前50字）
+  content: string;               // 瀹屾暣鍐呭
+  originalContent?: string;      // 鍘熷唴瀹癸紙replace绫诲瀷闇€瑕侊級
+  contentPreview: string;        // 鍐呭棰勮锛堝墠50瀛楋級
   position?: { from: number; to: number };
-  operation?: string;            // 操作类型
-  editorAction?: EditorAction;   // 编辑器操作信息
+  operation?: string;            // 鎿嶄綔绫诲瀷
+  editorAction?: EditorAction;   // 缂栬緫鍣ㄦ搷浣滀俊鎭?
   status: 'pending' | 'accepted' | 'rejected';
   createdAt: number;
-  messageId?: string;            // 关联的消息ID
-  flowItemId?: string;           // 关联的FlowItem ID
+  messageId?: string;            // 鍏宠仈鐨勬秷鎭疘D
+  flowItemId?: string;           // 鍏宠仈鐨凢lowItem ID
 }
 
 /**
- * 修订会话
+ * 淇浼氳瘽
  */
 export interface RevisionSession {
-  sessionId: string;             // 对应一次Agent执行
-  conversationId: string;        // 对话ID
-  revisions: PendingRevision[];  // 修订列表
+  sessionId: string;             // 瀵瑰簲涓€娆gent鎵ц
+  conversationId: string;        // 瀵硅瘽ID
+  revisions: PendingRevision[];  // 淇鍒楄〃
   status: 'in_progress' | 'completed';
-  pendingCount: number;          // 待确认数量
-  acceptedCount: number;         // 已采纳数量
-  rejectedCount: number;         // 已弃用数量
+  pendingCount: number;          // 寰呯‘璁ゆ暟閲?
+  acceptedCount: number;         // 宸查噰绾虫暟閲?
+  rejectedCount: number;         // 宸插純鐢ㄦ暟閲?
   startTime: number;
   endTime?: number;
 }
+
 
 

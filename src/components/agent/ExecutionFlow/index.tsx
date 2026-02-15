@@ -1,8 +1,8 @@
-/**
- * ExecutionFlow - 执行轨迹可视化组件 (v7.1)
+﻿/**
+ * ExecutionFlow - 鎵ц杞ㄨ抗鍙鍖栫粍浠?(v7.1)
  *
- * 显示 AI 说明文字 + 执行步骤 + 工具卡片 + 最终输出 + 修订卡片
- * 支持知识调取容器、可折叠步骤、输出卡片、修订胶囊、批量修订管理
+ * 鏄剧ず AI 璇存槑鏂囧瓧 + 鎵ц姝ラ + 宸ュ叿鍗＄墖 + 鏈€缁堣緭鍑?+ 淇鍗＄墖
+ * 鏀寔鐭ヨ瘑璋冨彇瀹瑰櫒銆佸彲鎶樺彔姝ラ銆佽緭鍑哄崱鐗囥€佷慨璁㈣兌鍥娿€佹壒閲忎慨璁㈢鐞?
  */
 
 import type { FlowItem, TextFlowData, ToolFlowData, ContentFlowData, StepFlowData, OutputFlowData, AgentHeaderFlowData, CompletionFlowData, SummarizationFlowData, RevisionFlowData, ExploreRoundFlowData, ExploreSummaryFlowData, OperateFlowData } from '@/types/agent';
@@ -27,8 +27,9 @@ interface ExecutionFlowProps {
   onJumpRevision?: (itemId: string, requestId: string | undefined) => void;
   onAcceptAllRevisions?: (itemIds: string[]) => void;
   onDiscardAllRevisions?: (itemIds: string[]) => void;
-  // v7.2: 撤销回调
+  // v7.2: 鎾ら攢/閲嶅仛鍥炶皟
   onUndoRevision?: (itemId: string) => void;
+  onRedoRevision?: (itemId: string) => void;
 }
 
 export function ExecutionFlow({
@@ -40,7 +41,8 @@ export function ExecutionFlow({
   onJumpRevision,
   onAcceptAllRevisions,
   onDiscardAllRevisions,
-  onUndoRevision
+  onUndoRevision,
+  onRedoRevision
 }: ExecutionFlowProps) {
   if (!items || items.length === 0) {
     return null;
@@ -71,10 +73,10 @@ export function ExecutionFlow({
       {items.map((item) => {
         switch (item.type) {
           case 'text':
-            // 不渲染 TextBlock，只保留 StepCard
+            // 涓嶆覆鏌?TextBlock锛屽彧淇濈暀 StepCard
             return null;
           case 'tool':
-            // 不渲染 ToolCard，只保留 StepCard
+            // 涓嶆覆鏌?ToolCard锛屽彧淇濈暀 StepCard
             return null;
           case 'content':
             return (
@@ -88,17 +90,18 @@ export function ExecutionFlow({
             const exploreItems = exploreItemsByStep.get(stepData.stepId) || [];
             const isExploreStep = exploreItemsByStep.has(stepData.stepId)
               || stepData.toolCall?.name === 'explore_content';
-            // v7.4: 使用 item.id 作为 fallback，确保回调函数始终有效
+            // v7.4: 浣跨敤 item.id 浣滀负 fallback锛岀‘淇濆洖璋冨嚱鏁板缁堟湁鏁?
             const revisionId = stepData.revisionItemId || item.id;
             return (
               <StepCard
                 key={item.id}
                 {...stepData}
-                description={stepData.description}
-                // v7.3: 传递修订回调给 StepCard（用于内嵌的 RevisionCard）
+                revisionEventTimestamp={item.timestamp}
+                description={isExploreStep ? undefined : stepData.description}
                 onAcceptRevision={stepData.revision ? (selectedVersion) => onAcceptRevision?.(revisionId, (stepData.revision as any)?.requestId, selectedVersion) : undefined}
                 onDiscardRevision={stepData.revision ? () => onDiscardRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}
                 onUndoRevision={stepData.revision ? () => onUndoRevision?.(revisionId) : undefined}
+                onRedoRevision={stepData.revision ? () => onRedoRevision?.(revisionId) : undefined}
                 onJumpRevision={stepData.revision ? () => onJumpRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}
               >
                 {exploreItems.length > 0 && (
@@ -166,9 +169,11 @@ export function ExecutionFlow({
               <RevisionCard
                 key={item.id}
                 {...revisionData}
+                eventTimestamp={item.timestamp}
                 onAccept={(selectedVersion) => onAcceptRevision?.(item.id, revisionData.requestId, selectedVersion)}
                 onDiscard={() => onDiscardRevision?.(item.id, revisionData.requestId)}
                 onUndo={() => onUndoRevision?.(item.id)}
+                onRedo={() => onRedoRevision?.(item.id)}
                 onJump={() => onJumpRevision?.(item.id, revisionData.requestId)}
               />
             );
@@ -209,3 +214,4 @@ export function ExecutionFlow({
 }
 
 export default ExecutionFlow;
+

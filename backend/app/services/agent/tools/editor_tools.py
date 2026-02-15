@@ -59,10 +59,7 @@ async def _generate_rewrite_versions(
     original_text: str,
     chapter_content: str,
     user_requirement: Optional[str] = None,
-    evidence_context: Optional[str] = None,
-    worldview_context: Optional[str] = None,
-    worldview_hard_constraints: Optional[str] = None,
-    max_tokens: int = 4000
+    evidence_context: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     使用AI生成单个改写结果
@@ -87,7 +84,6 @@ async def _generate_rewrite_versions(
 
     response_text = ""
     evidence_block = f"\n\n【探索证据】\n{evidence_context}" if evidence_context else ""
-    worldview_block = f"\n\n{worldview_context}" if worldview_context else ""
     if use_dual_prompt:
         # === 阶段2：使用创作层Prompt（重量级，包含Few-Shot） ===
         try:
@@ -111,7 +107,7 @@ async def _generate_rewrite_versions(
                 current_plot="",  # TODO: 如果有剧情状态可以传入
                 character_context=""  # TODO: 如果有角色信息可以传入
             )
-            creative_prompt += worldview_block + evidence_block
+            creative_prompt += evidence_block
 
             # 添加JSON格式要求
             creative_prompt += f"""
@@ -129,13 +125,10 @@ async def _generate_rewrite_versions(
             logger.info(f"[smart_rewrite] 使用创作层Prompt (双Prompt架构)")
 
             # 调用AI生成
-            system_prompt = "你是资深网文作家，专注于高质量内容创作。"
-            if worldview_hard_constraints:
-                system_prompt += f"\n\n{worldview_hard_constraints}"
             response_text = await ai_service.call_ai(
-                system_prompt=system_prompt,
+                system_prompt="你是资深网文作家，专注于高质量内容创作。",
                 user_prompt=creative_prompt,
-                max_tokens=max_tokens,
+                max_tokens=4000,
                 temperature=0.8,
                 task_type=TaskType.CONTENT_CREATION
             )
@@ -165,7 +158,6 @@ async def _generate_rewrite_versions(
 {original_text}
 {style_context}
 {user_requirement_context}
-{worldview_block}
 {evidence_block}
 
 【改写要求】
@@ -189,13 +181,10 @@ async def _generate_rewrite_versions(
         logger.info(f"[smart_rewrite] 使用传统单Prompt架构")
 
         # 调用AI生成（使用call_ai非流式方法）
-        system_prompt = "你是专业的小说改写助手。"
-        if worldview_hard_constraints:
-            system_prompt += f"\n\n{worldview_hard_constraints}"
         response_text = await ai_service.call_ai(
-            system_prompt=system_prompt,
+            system_prompt="你是专业的小说改写助手。",
             user_prompt=prompt,
-            max_tokens=max_tokens,  # 需要足够的token来生成改写内容
+            max_tokens=4000,  # 需要足够的token来生成改写内容
             temperature=0.8,  # 稍高的温度以获得更多样化的结果
             task_type=TaskType.CONTENT_CREATION
         )
@@ -258,20 +247,6 @@ async def _generate_rewrite_versions(
         "reason": "AI解析失败，返回原文",
         "content": fallback_text or original_text
     }]
-
-
-def _detect_chapter_heading(text: str):
-    """检测文本是否以章节标题开头。返回 (title, body) 或 None。"""
-    if not text:
-        return None
-    clean = re.sub(r'<[^>]+>', '', text).strip()
-    if not clean:
-        return None
-    first_line = clean.split('\n', 1)[0].strip()
-    if re.match(r'^第[一二三四五六七八九十百千万零\d]+[章节回]', first_line):
-        body = clean[len(first_line):].strip() if len(clean) > len(first_line) else ""
-        return (first_line, body)
-    return None
 
 
 @tool
@@ -532,22 +507,6 @@ async def apply_chapter_edit(
                 new_content = actual_content
 
             elif operation == "append":
-                # 检测续写内容是否以新章节标题开头 → 新建章节而非追加
-                heading = _detect_chapter_heading(actual_content)
-                if heading:
-                    ch_title, ch_body = heading
-                    logger.info(f"[apply_chapter_edit] 检测到新章节标题「{ch_title}」，转为 create_chapter")
-                    from app.services.agent.tools.chapter_tools import create_chapter as _create_chapter
-                    _wid = work_id or str(chapter.work_id)
-                    # 纯文本 → HTML
-                    html_lines = ''.join(f'<p>{ln.strip()}</p>' for ln in ch_body.split('\n') if ln.strip())
-                    from app.utils.html_block_ids import ensure_block_ids as _ebi
-                    return await _create_chapter(
-                        work_id=_wid,
-                        title=ch_title,
-                        content=_ebi(html_lines),
-                        conversation_id=conversation_id,
-                    )
                 new_content = old_content + actual_content
 
             elif operation == "insert":
@@ -708,12 +667,9 @@ async def smart_continue(
     chapter_content: Optional[str] = None,
     user_requirement: Optional[str] = None,
     evidence_context: Optional[str] = None,
-    worldview_context: Optional[str] = None,
-    worldview_hard_constraints: Optional[str] = None,
     word_count: int = 500,
     user_id: Optional[str] = None,
-    source_locator: Optional[dict] = None,
-    step_reasoning: Optional[str] = None
+    source_locator: Optional[dict] = None
 ) -> str:
     """
     智能续写 - 生成续写内容（不直接修改编辑器）
@@ -758,17 +714,12 @@ async def smart_continue(
 
         requirement_text = f"\n用户要求：{user_requirement}" if user_requirement else ""
         evidence_text = f"\n\n【探索证据】\n{evidence_context}" if evidence_context else ""
-        worldview_text = f"\n\n{worldview_context}" if worldview_context else ""
-        system_prompt = "你是专业的小说续写助手。"
-        if worldview_hard_constraints:
-            system_prompt += f"\n\n{worldview_hard_constraints}"
 
         prompt = f"""你是专业的小说续写助手。请根据以下内容续写约{word_count}字。
 
 【当前内容（最后部分）】
 {context}
 {requirement_text}
-{worldview_text}
 {evidence_text}
 
 【续写要求】
@@ -779,7 +730,7 @@ async def smart_continue(
 请直接输出续写内容，不要添加任何解释。"""
 
         continued_content = await ai_service.call_ai(
-            system_prompt=system_prompt,
+            system_prompt="你是专业的小说续写助手。",
             user_prompt=prompt,
             max_tokens=word_count * 2,
             temperature=0.8,
@@ -806,94 +757,6 @@ async def smart_continue(
 
 @tool
 @register_as_tool(
-    "smart_create",
-    "creative",
-    "创作新章节内容（只生成，不写入编辑器）。返回纯净的小说正文。"
-)
-async def smart_create(
-    work_id: str,
-    title: Optional[str] = None,
-    user_requirement: Optional[str] = None,
-    evidence_context: Optional[str] = None,
-    worldview_context: Optional[str] = None,
-    worldview_hard_constraints: Optional[str] = None,
-    word_count: int = 2000,
-    user_id: Optional[str] = None,
-    step_reasoning: Optional[str] = None
-) -> str:
-    """
-    新建章节创作 - 从跨章节上下文创作全新章节（不直接修改编辑器）
-
-    与 smart_continue 的区别：
-    - smart_continue 续写现有章节（从章节末尾衔接）
-    - smart_create 创作全新章节（需要跨章节 KG 推理上下文）
-
-    Args:
-        work_id: 作品ID
-        title: 新章节标题
-        user_requirement: 用户的创作要求
-        evidence_context: 探索证据上下文（来自 _run_create 的 KG 推理 + 上一章末尾）
-        worldview_context: 世界观软约束
-        worldview_hard_constraints: 世界观硬约束（系统提示）
-        word_count: 期望创作字数
-        user_id: 用户ID
-
-    Returns:
-        生成的新章节内容
-    """
-    try:
-        ai_service = _get_ai_service()
-
-        title_text = f"章节标题：{title}\n" if title else ""
-        requirement_text = f"\n用户要求：{user_requirement}" if user_requirement else ""
-        evidence_text = f"\n\n【参考上下文】\n{evidence_context}" if evidence_context else ""
-        worldview_text = f"\n\n【世界观设定】\n{worldview_context}" if worldview_context else ""
-
-        system_prompt = "你是专业的小说作家。"
-        if worldview_hard_constraints:
-            system_prompt += f"\n\n{worldview_hard_constraints}"
-
-        prompt = f"""你是专业的小说作家。请根据以下信息创作新章节约{word_count}字。
-{evidence_text}
-{worldview_text}
-
-【创作要求】
-{title_text}{requirement_text}
-
-1. 符合前文风格
-2. 与前文情节自然衔接
-3. 约{word_count}字
-
-请直接输出章节正文，不要添加任何解释。"""
-
-        created_content = await ai_service.call_ai(
-            system_prompt=system_prompt,
-            user_prompt=prompt,
-            max_tokens=word_count * 2,
-            temperature=0.8,
-            task_type=TaskType.CONTENT_CREATION
-        )
-
-        # CREATIVE 工具：应用输出过滤器，去除脏信息
-        created_content = creative_output_filter(created_content)
-
-        return json.dumps({
-            "success": True,
-            "action_type": "create",
-            "work_id": work_id,
-            "title": title or "",
-            "content": created_content,
-            "content_length": len(created_content),
-            "description": f"AI新建章节：生成{len(created_content)}字"
-        }, ensure_ascii=False)
-
-    except Exception as e:
-        logger.error(f"smart_create failed: {e}")
-        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
-
-
-@tool
-@register_as_tool(
     "smart_rewrite",
     "creative",
     """生成改写内容（只生成，不写入编辑器）。返回1个改写结果，由前端决定是否应用。
@@ -912,11 +775,8 @@ async def smart_rewrite(
     chapter_content: Optional[str] = None,
     user_requirement: Optional[str] = None,
     evidence_context: Optional[str] = None,
-    worldview_context: Optional[str] = None,
-    worldview_hard_constraints: Optional[str] = None,
     user_id: Optional[str] = None,
-    source_locator: Optional[dict] = None,
-    step_reasoning: Optional[str] = None
+    source_locator: Optional[dict] = None
 ) -> str:
     """
     智能改写 - 改写用户指定范围的文本
@@ -995,9 +855,7 @@ async def smart_rewrite(
             original_text=text_to_rewrite,
             chapter_content=chapter_content or text_to_rewrite,
             user_requirement=user_requirement,
-            evidence_context=evidence_context,
-            worldview_context=worldview_context,
-            worldview_hard_constraints=worldview_hard_constraints
+            evidence_context=evidence_context
         )
 
         # CREATIVE 工具：应用输出过滤器，去除脏信息和 HTML 标签
@@ -1022,160 +880,6 @@ async def smart_rewrite(
 
     except Exception as e:
         logger.error(f"smart_rewrite failed: {e}")
-        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
-
-
-@tool
-@register_as_tool(
-    "rewrite_chapter_content",
-    "creative",
-    """整章改写工具（只生成，不写入编辑器）
-
-    使用场景：
-    - 用户明确要求“整章重写/全文改写/全章改写”
-    - ❗️禁止用于段落级改写（段落改写必须用 smart_rewrite + 精确定位）
-
-    返回：整章改写后的完整内容（content）
-    """
-)
-async def rewrite_chapter_content(
-    chapter_id: str,
-    user_requirement: Optional[str] = None,
-    chapter_content: Optional[str] = None,
-    evidence_context: Optional[str] = None,
-    work_id: Optional[str] = None,
-    user_id: Optional[str] = None
-) -> str:
-    """
-    整章改写 - 改写整章内容
-
-    Args:
-        chapter_id: 章节ID（支持 UUID 或章节序号）
-        user_requirement: 用户的具体要求
-        chapter_content: 章节完整内容（可选，未传则自动读取）
-        evidence_context: 探索证据上下文（可选）
-        work_id: 作品ID（章节序号解析需要）
-        user_id: 用户ID
-    """
-    try:
-        # ✅ 优先从请求上下文获取 user_id
-        from app.core.request_context import get_request_user_id
-        actual_user_id = user_id or get_request_user_id()
-
-        # 检查速率限制
-        if actual_user_id:
-            is_allowed, remaining = await agent_edit_limiter.check(actual_user_id)
-            if not is_allowed:
-                return json.dumps({
-                    "success": False,
-                    "error": "rate_limit_exceeded",
-                    "message": "操作过于频繁，请稍后再试。",
-                    "retry_after": 60
-                }, ensure_ascii=False)
-
-        if not chapter_id:
-            return json.dumps({
-                "success": False,
-                "error": "missing_chapter_id",
-                "message": "缺少章节ID"
-            }, ensure_ascii=False)
-
-        resolved_chapter_id = chapter_id
-        if work_id:
-            from app.services.agent.langgraph_tools import resolve_chapter_id, is_chapter_order
-            if isinstance(chapter_id, str) and is_chapter_order(chapter_id):
-                resolved_id, error = await resolve_chapter_id(work_id, chapter_id)
-                if error:
-                    return error
-                if resolved_id:
-                    resolved_chapter_id = resolved_id
-
-        if not chapter_content:
-            try:
-                async with AsyncSessionLocal() as db:
-                    from app.services.chapter_service import ChapterService
-                    chapter_svc = ChapterService(db)
-                    chapter = await chapter_svc.get_chapter_by_id(resolved_chapter_id)
-                    if chapter and chapter.content:
-                        chapter_content = chapter.content
-                    else:
-                        return json.dumps({
-                            "success": False,
-                            "error": "chapter_not_found",
-                            "message": f"无法获取章节内容: {chapter_id}"
-                        }, ensure_ascii=False)
-            except Exception as e:
-                logger.error(f"[rewrite_chapter_content] 获取章节内容失败: {e}")
-                return json.dumps({
-                    "success": False,
-                    "error": "fetch_chapter_failed",
-                    "message": f"获取章节内容失败: {str(e)}"
-                }, ensure_ascii=False)
-
-        original_text = TextCleaner.html_to_clean_text(
-            chapter_content or "",
-            preserve_structure=True
-        ).strip()
-        if not original_text:
-            return json.dumps({
-                "success": False,
-                "error": "missing_content",
-                "message": "章节内容为空，无法改写"
-            }, ensure_ascii=False)
-
-        user_requirement_context = ""
-        if user_requirement:
-            user_requirement_context = f"\n\n【用户的具体要求】\n{user_requirement}\n\n请严格满足用户要求。"
-        evidence_block = f"\n\n【探索证据】\n{evidence_context}" if evidence_context else ""
-
-        prompt = f"""你是专业的小说改写助手。任务：在不改变剧情与信息的前提下，重写整章内容。
-
-【原文】
-{original_text}
-{user_requirement_context}
-{evidence_block}
-
-【改写要求】
-1. 保持原有剧情顺序与关键信息
-2. 保持整体风格一致
-3. 保留段落结构，用换行分段
-4. 不输出编号/版本/解释
-
-请直接输出改写后的完整章节正文："""
-
-        ai_service = _get_ai_service()
-        max_tokens = min(12000, max(4000, int(len(original_text) * 2)))
-        system_prompt = "你是资深网文作家，专注于高质量内容创作。"
-        response_text = await ai_service.call_ai(
-            system_prompt=system_prompt,
-            user_prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=0.8,
-            task_type=TaskType.CONTENT_CREATION
-        )
-
-        rewritten = creative_output_filter(response_text or "")
-        if re.search(r'<[^>]+>', rewritten):
-            rewritten = TextCleaner.html_to_clean_text(rewritten, preserve_structure=True)
-        if not rewritten:
-            return json.dumps({
-                "success": False,
-                "error": "empty_rewrite",
-                "message": "改写结果为空"
-            }, ensure_ascii=False)
-
-        return json.dumps({
-            "success": True,
-            "action_type": "rewrite_chapter",
-            "chapter_id": str(resolved_chapter_id or chapter_id),
-            "content": rewritten,
-            "content_length": len(rewritten),
-            "original_length": len(original_text),
-            "description": f"AI整章改写：{len(original_text)}字 → {len(rewritten)}字"
-        }, ensure_ascii=False)
-
-    except Exception as e:
-        logger.error(f"rewrite_chapter_content failed: {e}", exc_info=True)
         return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 
@@ -1243,13 +947,10 @@ async def smart_insert(
     chapter_content: Optional[str] = None,
     insert_context: Optional[str] = None,
     evidence_context: Optional[str] = None,
-    worldview_context: Optional[str] = None,
-    worldview_hard_constraints: Optional[str] = None,
     word_count: int = 200,
     user_id: Optional[str] = None,
     work_id: Optional[str] = None,
-    source_locator: Optional[dict] = None,
-    step_reasoning: Optional[str] = None
+    source_locator: Optional[dict] = None
 ) -> str:
     """
     智能插入 - 生成要插入的内容（不直接修改编辑器）
@@ -1302,10 +1003,6 @@ async def smart_insert(
         clean_insert_context = TextCleaner.html_to_clean_text(insert_context, preserve_structure=False) if insert_context else ""
         context_text = f"\n【插入点上下文】\n{clean_insert_context}" if clean_insert_context else ""
         evidence_text = f"\n【探索证据】\n{evidence_context}" if evidence_context else ""
-        worldview_text = f"\n{worldview_context}" if worldview_context else ""
-        system_prompt = "你是专业的小说创作助手。"
-        if worldview_hard_constraints:
-            system_prompt += f"\n\n{worldview_hard_constraints}"
         multi_version_intent = _has_multi_version_intent(user_intent)
         single_rule = "\n5. 即使用户要求多版本，也只生成一条内容" if multi_version_intent else ""
 
@@ -1320,7 +1017,6 @@ async def smart_insert(
 【用户意图】
 {user_intent}
 {context_text}
-{worldview_text}
 {evidence_text}
 
 【章节内容参考】
@@ -1336,7 +1032,7 @@ async def smart_insert(
 请直接输出生成的内容，不要添加任何解释。"""
 
         generated_content = await ai_service.call_ai(
-            system_prompt=system_prompt,
+            system_prompt="你是专业的小说创作助手。",
             user_prompt=prompt,
             max_tokens=word_count * 2,
             temperature=0.8,
@@ -1389,7 +1085,6 @@ def _get_operation_name(operation: str) -> str:
     return names.get(operation, operation)
 
 
-
 def register_editor_tools():
     """注册所有编辑器工具"""
     logger.info("Registering editor tools...")
@@ -1397,7 +1092,6 @@ def register_editor_tools():
         "apply_chapter_edit",
         "smart_continue",
         "smart_rewrite",
-        "rewrite_chapter_content",
         "smart_insert"
     ]
     for tool_name in tools:
@@ -1425,8 +1119,6 @@ class SmartRewriteInput(ToolInput):
     chapter_content: Optional[str] = Field(default=None, description="章节完整内容")
     user_requirement: Optional[str] = Field(default=None, description="用户的具体要求")
     evidence_context: Optional[str] = Field(default=None, description="探索证据上下文")
-    worldview_context: Optional[str] = Field(default=None, description="世界观软约束（可选）")
-    worldview_hard_constraints: Optional[str] = Field(default=None, description="世界观硬约束（系统提示）")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     source_locator: Optional[dict] = Field(default=None, description="定位来源（只读）")
 
@@ -1446,8 +1138,6 @@ async def smart_rewrite_executor(input_data: SmartRewriteInput) -> SmartRewriteO
             "chapter_content": input_data.chapter_content,
             "user_requirement": input_data.user_requirement,
             "evidence_context": input_data.evidence_context,
-            "worldview_context": input_data.worldview_context,
-            "worldview_hard_constraints": input_data.worldview_hard_constraints,
             "user_id": input_data.user_id,
             "source_locator": input_data.source_locator
         })
@@ -1484,68 +1174,7 @@ smart_rewrite_tool = StandardTool(
 )
 
 
-# ==================== 2. RewriteChapterContent StandardTool ====================
-
-class RewriteChapterContentInput(ToolInput):
-    """整章改写工具输入"""
-    chapter_id: str = Field(..., description="章节ID")
-    user_requirement: Optional[str] = Field(default=None, description="用户的具体要求")
-    chapter_content: Optional[str] = Field(default=None, description="章节完整内容")
-    evidence_context: Optional[str] = Field(default=None, description="探索证据上下文")
-    work_id: Optional[str] = Field(default=None, description="作品ID（章节序号解析需要）")
-    user_id: Optional[str] = Field(default=None, description="用户ID")
-
-
-class RewriteChapterContentOutput(ToolOutput):
-    """整章改写工具输出"""
-    pass
-
-
-async def rewrite_chapter_content_executor(
-    input_data: RewriteChapterContentInput
-) -> RewriteChapterContentOutput:
-    """整章改写执行器（包装 @tool 版本）"""
-    try:
-        result_str = await rewrite_chapter_content.ainvoke({
-            "chapter_id": input_data.chapter_id,
-            "user_requirement": input_data.user_requirement,
-            "chapter_content": input_data.chapter_content,
-            "evidence_context": input_data.evidence_context,
-            "work_id": input_data.work_id,
-            "user_id": input_data.user_id
-        })
-
-        result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
-
-        return RewriteChapterContentOutput(
-            success=result_data.get("success", True),
-            message=result_data.get("description", "整章改写完成"),
-            data=result_data,
-            metadata={"tool": "rewrite_chapter_content"}
-        )
-    except Exception as e:
-        logger.error(f"rewrite_chapter_content_executor 失败: {e}")
-        return RewriteChapterContentOutput(
-            success=False,
-            message=f"整章改写失败: {str(e)}",
-            data=None,
-            metadata={"error": str(e)}
-        )
-
-
-rewrite_chapter_content_tool = StandardTool(
-    name="rewrite_chapter_content",
-    description="整章改写章节内容，生成完整章节文本",
-    category=ToolCategory.CREATIVE,
-    input_schema=RewriteChapterContentInput,
-    output_schema=RewriteChapterContentOutput,
-    executor=rewrite_chapter_content_executor,
-    tags=["editor", "rewrite", "chapter", "hitl"],
-    version="1.0.0"
-)
-
-
-# ==================== 3. SmartContinue StandardTool ====================
+# ==================== 2. SmartContinue StandardTool ====================
 
 class SmartContinueInput(ToolInput):
     """智能续写工具输入"""
@@ -1553,8 +1182,6 @@ class SmartContinueInput(ToolInput):
     chapter_content: Optional[str] = Field(default=None, description="章节当前内容")
     user_requirement: Optional[str] = Field(default=None, description="用户的续写要求")
     evidence_context: Optional[str] = Field(default=None, description="探索证据上下文")
-    worldview_context: Optional[str] = Field(default=None, description="世界观软约束（可选）")
-    worldview_hard_constraints: Optional[str] = Field(default=None, description="世界观硬约束（系统提示）")
     word_count: int = Field(default=500, description="期望续写字数")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     source_locator: Optional[dict] = Field(default=None, description="定位来源（只读）")
@@ -1574,8 +1201,6 @@ async def smart_continue_executor(input_data: SmartContinueInput) -> SmartContin
             "chapter_content": input_data.chapter_content,
             "user_requirement": input_data.user_requirement,
             "evidence_context": input_data.evidence_context,
-            "worldview_context": input_data.worldview_context,
-            "worldview_hard_constraints": input_data.worldview_hard_constraints,
             "word_count": input_data.word_count,
             "user_id": input_data.user_id,
             "source_locator": input_data.source_locator
@@ -1620,8 +1245,6 @@ class SmartInsertInput(ToolInput):
     chapter_content: Optional[str] = Field(default=None, description="章节完整内容")
     insert_context: Optional[str] = Field(default=None, description="插入点附近的上下文")
     evidence_context: Optional[str] = Field(default=None, description="探索证据上下文")
-    worldview_context: Optional[str] = Field(default=None, description="世界观软约束（可选）")
-    worldview_hard_constraints: Optional[str] = Field(default=None, description="世界观硬约束（系统提示）")
     word_count: int = Field(default=200, description="期望生成字数")
     user_id: Optional[str] = Field(default=None, description="用户ID")
     work_id: Optional[str] = Field(default=None, description="作品ID（用于章节序号解析）")
@@ -1643,8 +1266,6 @@ async def smart_insert_executor(input_data: SmartInsertInput) -> SmartInsertOutp
             "chapter_content": input_data.chapter_content,
             "insert_context": input_data.insert_context,
             "evidence_context": input_data.evidence_context,
-            "worldview_context": input_data.worldview_context,
-            "worldview_hard_constraints": input_data.worldview_hard_constraints,
             "word_count": input_data.word_count,
             "user_id": input_data.user_id,
             "work_id": input_data.work_id,
@@ -1678,69 +1299,6 @@ smart_insert_tool = StandardTool(
     executor=smart_insert_executor,
     tags=["editor", "insert", "creative"],
     version="2.0.0"
-)
-
-
-# ==================== 3b. SmartCreate StandardTool ====================
-
-class SmartCreateInput(ToolInput):
-    """新建章节创作工具输入"""
-    work_id: str = Field(..., description="作品ID")
-    title: Optional[str] = Field(default=None, description="新章节标题")
-    user_requirement: Optional[str] = Field(default=None, description="用户的创作要求")
-    evidence_context: Optional[str] = Field(default=None, description="探索证据上下文（来自 _run_create 的 KG 推理 + 上一章末尾）")
-    worldview_context: Optional[str] = Field(default=None, description="世界观软约束（可选）")
-    worldview_hard_constraints: Optional[str] = Field(default=None, description="世界观硬约束（系统提示）")
-    word_count: int = Field(default=2000, description="期望创作字数")
-    user_id: Optional[str] = Field(default=None, description="用户ID")
-
-
-class SmartCreateOutput(ToolOutput):
-    """新建章节创作工具输出"""
-    pass
-
-
-async def smart_create_executor(input_data: SmartCreateInput) -> SmartCreateOutput:
-    """新建章节创作执行器（包装 @tool 版本）"""
-    try:
-        result_str = await smart_create.ainvoke({
-            "work_id": input_data.work_id,
-            "title": input_data.title,
-            "user_requirement": input_data.user_requirement,
-            "evidence_context": input_data.evidence_context,
-            "worldview_context": input_data.worldview_context,
-            "worldview_hard_constraints": input_data.worldview_hard_constraints,
-            "word_count": input_data.word_count,
-            "user_id": input_data.user_id,
-        })
-
-        result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
-
-        return SmartCreateOutput(
-            success=result_data.get("success", True),
-            message=result_data.get("description", "新章节创作完成"),
-            data=result_data,
-            metadata={"tool": "smart_create"}
-        )
-    except Exception as e:
-        logger.error(f"smart_create_executor 失败: {e}")
-        return SmartCreateOutput(
-            success=False,
-            message=f"新章节创作失败: {str(e)}",
-            data=None,
-            metadata={"error": str(e)}
-        )
-
-
-smart_create_tool = StandardTool(
-    name="smart_create",
-    description="创作新章节内容（只生成，不写入编辑器）。使用跨章节 KG 推理获取全局上下文。",
-    category=ToolCategory.CREATIVE,
-    input_schema=SmartCreateInput,
-    output_schema=SmartCreateOutput,
-    executor=smart_create_executor,
-    tags=["editor", "create", "creative"],
-    version="1.0.0"
 )
 
 
@@ -1832,11 +1390,9 @@ __all__ = [
     "apply_chapter_edit",
     "smart_continue",
     "smart_rewrite",
-    "rewrite_chapter_content",
     "smart_insert",
     # StandardTool 版本
     "smart_rewrite_tool",
-    "rewrite_chapter_content_tool",
     "smart_continue_tool",
     "smart_insert_tool",
     "apply_chapter_edit_tool",

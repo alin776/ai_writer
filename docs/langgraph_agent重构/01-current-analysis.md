@@ -186,7 +186,7 @@ execute_task_3() → complete → reflect (needs_replan?)
 **代码证据：**
 
 ```python
-# 反思执行器（已移除）示例
+# deep_agent/executor.py
 async def execute_with_reflection(self, plan, context, execute_task_func):
     i = 0
     while i < len(tasks):
@@ -269,10 +269,10 @@ $ grep -r "Command(resume" backend/app/services/agent/
 
 | 功能 | 当前实现 | 替换为 |
 |------|----------|--------|
-| Agent 核心流程 | `langgraph_agent.py` | Planning 主链路 |
-| 反思系统 | 已移除 | - |
-| HITL 轮询 | `hitl.py` | LangGraph interrupt |
-| 任务规划 | 自定义 | 保持现有 |
+| Agent 核心流程 | `langgraph_agent.py` | Deep Agents |
+| 反思系统 | `deep_agent/executor.py` | Deep Agents todos |
+| HITL 轮询 | `hitl.py` | Deep Agents interrupt |
+| 任务规划 | 自定义 | Deep Agents task |
 
 ### 4.3 专业写作工具清单
 
@@ -319,6 +319,7 @@ from app.services.agent.parallel_tool_node import ParallelToolNode
 from app.services.agent.langgraph_tools import (
     LANGGRAPH_TOOLS, continue_writing_tool, analyze_text_tool, ...
 )
+from app.services.agent.deep_agent import DeepAgentExecutor
 from app.services.agent.model_selector import TaskType
 from app.services.agent.tools import registry
 from app.services.context import ContextManager

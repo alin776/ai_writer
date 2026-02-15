@@ -52,16 +52,14 @@ const AdminAIModelsView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">AI 模型管理</h1>
-            <p className="mt-2 text-gray-600">配置和管理 AI 模型</p>
-          </div>
-          <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={handleAddModel}>
-            添加模型
-          </Button>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">AI 模型管理</h1>
+          <p className="mt-2 text-gray-600">配置和管理 AI 模型</p>
         </div>
+        <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={handleAddModel}>
+          添加模型
+        </Button>
       </div>
 
       <Card>

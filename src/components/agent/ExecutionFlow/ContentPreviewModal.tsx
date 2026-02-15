@@ -4,7 +4,7 @@
  * 支持浅色/暗色模式
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Download, Copy, Check, BookPlus, Maximize2, Minimize2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { normalizeAgentMarkdown } from './markdownNormalizer';
 
 interface ContentPreviewModalProps {
   isOpen: boolean;
@@ -41,86 +42,7 @@ export function ContentPreviewModal({
 }: ContentPreviewModalProps) {
   const [copied, setCopied] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-
-  const toNumber = (value: string) => {
-    const cleaned = value.trim();
-    if (!cleaned) return null;
-    if (/^\d+$/.test(cleaned)) return parseInt(cleaned, 10);
-    const map: Record<string, number> = {
-      '零': 0,
-      '一': 1,
-      '二': 2,
-      '两': 2,
-      '三': 3,
-      '四': 4,
-      '五': 5,
-      '六': 6,
-      '七': 7,
-      '八': 8,
-      '九': 9,
-      '十': 10
-    };
-    if (cleaned === '十') return 10;
-    if (cleaned.includes('十')) {
-      const parts = cleaned.split('十');
-      const tens = parts[0] ? (map[parts[0]] ?? 0) : 1;
-      const ones = parts[1] ? (map[parts[1]] ?? 0) : 0;
-      return tens * 10 + ones;
-    }
-    const single = map[cleaned];
-    if (single === undefined) return null;
-    return single;
-  };
-
-  const isYearish = (value: string) => {
-    const trimmed = value.trim();
-    if (!/^(19|20)\d{2}$/.test(trimmed)) return false;
-    const year = parseInt(trimmed, 10);
-    if (year < 1900 || year > 2100) return false;
-    return true;
-  };
-
-  const isNoticeLine = (text: string) => {
-    if (!text) return false;
-    const haystack = text.trim();
-    return /(公告|编号|版本|通知|更新|修订|说明|通告|第[一二三四五六七八九十]+号)/.test(haystack);
-  };
-
-  // Normalize common numbered prefixes to Markdown ordered lists.
-  const fix = (line: string) => {
-    const bracketed = line.match(/^(\s*)[（(]\s*([0-9]+)\s*[）)]\s*(.+)$/);
-    if (bracketed) {
-      if (isYearish(bracketed[2]) || isNoticeLine(bracketed[3])) return line;
-      return `${bracketed[1]}${bracketed[2]}. ${bracketed[3]}`;
-    }
-
-    const numbered = line.match(/^(\s*)([0-9]+|[一二三四五六七八九十两]+)\s*[、\.．\)\]）:：]\s*(.+)$/);
-    if (!numbered) return line;
-    const value = toNumber(numbered[2]);
-    if (value === null) return line;
-    if (isYearish(String(value)) || isNoticeLine(numbered[3])) return line;
-    if (/^\s*[0-9]+\s*[\.．]\s*[0-9]/.test(line)) return line;
-    return `${numbered[1]}${value}. ${numbered[3]}`;
-  };
-
-  const normalize = (value: string) => {
-    const lines = value.split(/\r?\n/);
-    const result = lines.reduce(
-      (state, line) => {
-        const trimmed = line.trim();
-        const isFence = trimmed.startsWith('```');
-        if (isFence) {
-          return { inCode: !state.inCode, lines: [...state.lines, line] };
-        }
-        if (state.inCode) {
-          return { inCode: true, lines: [...state.lines, line] };
-        }
-        return { inCode: false, lines: [...state.lines, fix(line)] };
-      },
-      { inCode: false, lines: [] as string[] }
-    );
-    return result.lines.join('\n');
-  };
+  const normalizedContent = useMemo(() => normalizeAgentMarkdown(content), [content]);
 
   // ESC 关闭
   useEffect(() => {
@@ -147,7 +69,7 @@ export function ContentPreviewModal({
 
   // 复制内容
   const handleCopy = () => {
-    navigator.clipboard.writeText(content);
+    navigator.clipboard.writeText(normalizedContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -161,7 +83,7 @@ export function ContentPreviewModal({
 
     const config = formatConfig[format];
 
-    const blob = new Blob([content], { type: config.mime });
+    const blob = new Blob([normalizedContent], { type: config.mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -283,7 +205,7 @@ export function ContentPreviewModal({
           <div className="max-w-[800px] mx-auto px-12">
             <div className="prose-preview">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {normalize(content)}
+                {normalizedContent}
               </ReactMarkdown>
             </div>
           </div>

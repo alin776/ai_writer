@@ -369,8 +369,7 @@ async def notifications_stream(websocket: WebSocket, user_id: str):
     except Exception as e:
         # 检查是否是连接已关闭的错误（常见于客户端断开）
         error_str = str(e).lower()
-        exc_type_name = type(e).__name__.lower()
-        is_connection_closed = any(keyword in error_str or keyword in exc_type_name for keyword in [
+        is_connection_closed = any(keyword in error_str for keyword in [
             "connectionclosed", "connection closed", "no close frame",
             "incomplete read", "clientdisconnected", "disconnected"
         ])
@@ -380,7 +379,7 @@ async def notifications_stream(websocket: WebSocket, user_id: str):
             logger.debug(f"[WebSocket] 连接已关闭: user_id={user_id}, reason={type(e).__name__}")
         else:
             # 其他错误才记录为 ERROR
-            logger.error(f"[WebSocket] 通知推送错误: {type(e).__name__}: {e}")
+            logger.error(f"[WebSocket] 通知推送错误: {e}", exc_info=True)
             try:
                 # 尝试发送错误消息前检查连接状态（使用枚举值比较更安全）
                 if websocket.client_state == WebSocketState.CONNECTED:

@@ -1,6 +1,6 @@
-/**
- * StepCard - 执行步骤卡片组件
- * 可折叠，显示状态图标、知识调取、工具调用、内嵌修订胶囊
+﻿/**
+ * StepCard - 鎵ц姝ラ鍗＄墖缁勪欢
+ * 鍙姌鍙狅紝鏄剧ず鐘舵€佸浘鏍囥€佺煡璇嗚皟鍙栥€佸伐鍏疯皟鐢ㄣ€佸唴宓屼慨璁㈣兌鍥?
  */
 
 import { useState, type ReactNode } from 'react';
@@ -12,10 +12,11 @@ import { RevisionCard } from './RevisionCard';
 interface StepCardProps extends StepFlowData {
   defaultExpanded?: boolean;
   children?: ReactNode;
-  // v7.3: 修订回调（从 ExecutionFlow 传入）
+  revisionEventTimestamp?: string;
   onAcceptRevision?: (selectedVersion?: number) => void;
   onDiscardRevision?: () => void;
   onUndoRevision?: () => void;
+  onRedoRevision?: () => void;
   onJumpRevision?: () => void;
 }
 
@@ -27,23 +28,25 @@ export function StepCard({
   toolCall,
   children,
   revision,
+  revisionEventTimestamp,
   defaultExpanded = true,
   onAcceptRevision,
   onDiscardRevision,
   onUndoRevision,
+  onRedoRevision,
   onJumpRevision
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const showToolCall = !!toolCall;
+  const showToolCall = toolCall && toolCall.name !== 'explore_content';
 
   return (
     <div className="mb-3">
-      {/* 步骤头部 */}
+      {/* 姝ラ澶撮儴 */}
       <div
         className="flex items-center gap-2 py-1.5 cursor-pointer select-none"
         onClick={() => setExpanded(!expanded)}
       >
-        {/* 状态图标 */}
+        {/* 鐘舵€佸浘鏍?*/}
         <div className="w-[18px] h-[18px] flex items-center justify-center">
           {status === 'running' ? (
             <Loader2 size={12} className="text-blue-500 animate-spin" />
@@ -54,7 +57,7 @@ export function StepCard({
           )}
         </div>
 
-        {/* 标题区域 */}
+        {/* 鏍囬鍖哄煙 */}
         <div className="flex items-center gap-1.5">
           <span className="text-[14px] font-medium text-gray-900 dark:text-white">{title}</span>
           <span className="text-gray-400 dark:text-slate-600 text-[10px]">
@@ -65,10 +68,10 @@ export function StepCard({
         <div className="flex-1" />
       </div>
 
-      {/* 步骤内容 */}
+      {/* 姝ラ鍐呭 */}
       {expanded && (
         <div className="ml-[26px] pt-1">
-          {/* 知识调取 */}
+          {/* 鐭ヨ瘑璋冨彇 */}
           {knowledge && knowledge.length > 0 && (
             <div className="mb-2">
               {knowledge.map((k, index) => (
@@ -77,20 +80,20 @@ export function StepCard({
             </div>
           )}
 
-          {/* 步骤描述 */}
+          {/* 姝ラ鎻忚堪 */}
           {description && (
             <div className="text-[13px] text-gray-500 dark:text-slate-300 my-2 leading-[1.6]">
               {description}
             </div>
           )}
 
-          {/* 工具调用标签 */}
+          {/* 宸ュ叿璋冪敤鏍囩 */}
           {showToolCall && (
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full my-2">
               <span className="text-gray-400 dark:text-slate-500">
                 <Wrench size={12} />
               </span>
-              <span className="text-[13px] text-gray-500 dark:text-slate-400">调用工具</span>
+              <span className="text-[13px] text-gray-500 dark:text-slate-400">璋冪敤宸ュ叿</span>
               <span className="font-mono text-[12px] text-gray-600 dark:text-slate-300">
                 {toolCall.name}
               </span>
@@ -103,14 +106,16 @@ export function StepCard({
             </div>
           )}
 
-          {/* v7.3: 内嵌修订胶囊 */}
+          {/* v7.3: 鍐呭祵淇鑳跺泭 */}
           {revision && (
             <div className="mt-2">
               <RevisionCard
                 {...revision}
+                eventTimestamp={revisionEventTimestamp}
                 onAccept={onAcceptRevision}
                 onDiscard={onDiscardRevision}
                 onUndo={onUndoRevision}
+                onRedo={onRedoRevision}
                 onJump={onJumpRevision}
               />
             </div>
@@ -120,3 +125,4 @@ export function StepCard({
     </div>
   );
 }
+

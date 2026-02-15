@@ -3,7 +3,7 @@
  * 显示在修订内容旁边，提供两个操作：弃用、采纳
  */
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 
 export interface RevisionData {
@@ -34,40 +34,16 @@ const AIRevisionBar: React.FC<AIRevisionBarProps> = ({
   isLoading = false
 }) => {
   const { t } = useTranslation();
-  const barRef = useRef<HTMLDivElement>(null);
-
-  // 确保操作栏不超出视口
-  useEffect(() => {
-    if (!barRef.current || !position) return;
-
-    const bar = barRef.current;
-    const rect = bar.getBoundingClientRect();
-    const maxRight = window.innerWidth - 20;
-    const maxBottom = window.innerHeight - 20;
-    const minTop = 10;  // 最小top值，防止超出上边界
-
-    // 检查上边界：如果top太小，显示在内容下方
-    if (position.top < minTop) {
-      bar.style.top = `${minTop + rect.height + 10}px`;
-    }
-    if (rect.right > maxRight) {
-      bar.style.left = `${position.left - (rect.right - maxRight)}px`;
-    }
-    if (rect.bottom > maxBottom) {
-      bar.style.top = `${position.top - rect.height - 10}px`;
-    }
-  }, [position]);
 
   if (!position) return null;
 
   return (
     <div
-      ref={barRef}
       className="flex items-center gap-1 px-1.5 py-1 bg-white dark:bg-slate-800 border border-zinc-200 dark:border-slate-600 rounded-full shadow-md animate-in fade-in slide-in-from-top-1 duration-200"
       style={{
-        position: 'fixed',
-        top: Math.max(10, position.top),  // 确保不超出上边界
-        left: position.left,
+        position: 'absolute',
+        top: Math.max(8, position.top),
+        left: Math.max(8, position.left),
         zIndex: 1000
       }}
     >

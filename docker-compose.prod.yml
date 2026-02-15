@@ -27,10 +27,10 @@ services:
 
   # ==================== 缓存 ====================
   redis:
-    image: redis/redis-stack-server:latest
+    image: redis:7-alpine
     container_name: wenshu_redis
     restart: always
-    command: redis-stack-server --appendonly yes
+    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
     networks:
@@ -40,21 +40,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # ==================== OpenSearch ====================
-  opensearch:
-    image: opensearchproject/opensearch:2.11.1
-    container_name: wenshu_opensearch
-    restart: always
-    environment:
-      - discovery.type=single-node
-      - DISABLE_SECURITY_PLUGIN=true
-      - DISABLE_INSTALL_DEMO_CONFIG=true
-      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
-    volumes:
-      - opensearch_data:/usr/share/opensearch/data
-    networks:
-      - wenshu_network
 
   # ==================== 后端API ====================
   backend:
@@ -68,15 +53,12 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://${DB_USER:-novelaide}:${DB_PASSWORD:-novelaide_password}@postgres:5432/${DB_NAME:-novelaide}
       - REDIS_URL=redis://redis:6379/0
-      - OPENSEARCH_HOSTS=http://opensearch:9200
       - ENABLE_SCHEDULER=false
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      opensearch:
-        condition: service_started
     networks:
       - wenshu_network
     volumes:
@@ -96,15 +78,12 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://${DB_USER:-novelaide}:${DB_PASSWORD:-novelaide_password}@postgres:5432/${DB_NAME:-novelaide}
       - REDIS_URL=redis://redis:6379/0
-      - OPENSEARCH_HOSTS=http://opensearch:9200
       - ENABLE_SCHEDULER=true
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      opensearch:
-        condition: service_started
     networks:
       - wenshu_network
     volumes:
@@ -132,8 +111,6 @@ volumes:
     name: wenshu_postgres_data
   redis_data:
     name: wenshu_redis_data
-  opensearch_data:
-    name: wenshu_opensearch_data
   backend_logs:
     name: wenshu_backend_logs
   backend_uploads:

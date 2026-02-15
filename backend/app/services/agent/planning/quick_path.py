@@ -141,6 +141,7 @@ class QuickPathHandler:
                     # v6.3: 先发送 output_ready（带空内容），再发送内容
                     if on_flow_event:
                         from app.services.agent.stream.flow_events import FlowEventBuilder
+                        await on_flow_event(FlowEventBuilder.agent_header())
                         await on_flow_event(FlowEventBuilder.output_ready("章节信息", "", is_applicable=False))
                     await on_content({"content": response})
 
@@ -163,6 +164,7 @@ class QuickPathHandler:
                     # v6.3: 先发送 output_ready（带空内容），再发送内容
                     if on_flow_event:
                         from app.services.agent.stream.flow_events import FlowEventBuilder
+                        await on_flow_event(FlowEventBuilder.agent_header())
                         await on_flow_event(FlowEventBuilder.output_ready("问候回复", "", is_applicable=False))
                     await on_content({"content": response})
 

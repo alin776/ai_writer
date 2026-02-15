@@ -1,0 +1,192 @@
+.activityStream {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.stats {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.statActive {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #2563eb;
+}
+
+.statCompleted {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #10b981;
+}
+
+.activityList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activityItem {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.activityItem.active {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.activityItem.completed {
+  border-color: #d1fae5;
+  background: #ecfdf3;
+}
+
+.activityItem.failed {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.activityIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2ff;
+}
+
+.activityContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.activityDescription {
+  font-size: 13px;
+  color: #111827;
+}
+
+.activityMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.activityType {
+  padding: 2px 6px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.toolName {
+  padding: 2px 6px;
+  background: #ede9fe;
+  color: #5b21b6;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.activityTime {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.activityStatus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+}
+
+.progressBar {
+  margin-top: 10px;
+  height: 4px;
+  width: 100%;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.progressFillActive {
+  background: linear-gradient(90deg, #3b82f6, #6366f1);
+}
+
+.progressFillComplete {
+  background: #10b981;
+}
+
+.iconActive {
+  color: #2563eb;
+}
+
+.iconCompleted {
+  color: #10b981;
+}
+
+.checkIcon {
+  color: #10b981;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+.pulse {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.shimmer {
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.45; }
+  100% { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}

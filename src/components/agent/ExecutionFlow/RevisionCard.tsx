@@ -1,29 +1,47 @@
 /**
  * RevisionCard - 修订胶囊组件
- * 显示修订操作，支持采纳/弃用/撤销/重做
+ * 显示修订操作，支持采纳/撤销/重做
  */
 
 import { useState } from 'react';
-import { FilePen, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { FilePen, Check, X, ChevronDown, ChevronUp, Redo2 } from 'lucide-react';
 import type { RevisionFlowData } from '@/types/agent';
 
 interface RevisionCardProps extends RevisionFlowData {
+  eventTimestamp?: string;
   onAccept?: (selectedVersion?: number) => void;
   onDiscard?: () => void;
   onUndo?: () => void;   // v7.2: 撤销回调
+  onRedo?: () => void;   // v7.2: 重做回调
   onJump?: () => void;
 }
+
+const formatRecordTime = (value?: string): string | null => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  const second = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+};
 
 export function RevisionCard({
   revisionType,
   status,
+  statusUpdatedAt,
   chapterTitle,
   contentPreview,
   oldTitle,
   newTitle,
   versions,
+  eventTimestamp,
   onAccept,
   onDiscard,
+  onRedo,
   onJump
 }: RevisionCardProps) {
   // v7.1: 已处理的修订默认收起，pending 状态默认展开
@@ -62,8 +80,9 @@ export function RevisionCard({
   const statusText: Record<string, string> = {
     pending: '待确认',
     accepted: '已采纳',
-    discarded: '已弃用'
+    discarded: '已撤销记录'
   };
+  const discardedRecordTime = formatRecordTime(statusUpdatedAt || eventTimestamp);
 
   return (
     <div className={`inline-block bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 mb-3 ${
@@ -197,7 +216,7 @@ export function RevisionCard({
                 className="flex items-center gap-1 px-2.5 py-1 text-[12px] text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
               >
                 <X size={12} />
-                弃用
+                撤销
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onAccept?.(versions ? selectedVersion : undefined); }}
@@ -216,11 +235,21 @@ export function RevisionCard({
               </span>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            // v7.2: 已撤销状态 - 显示重做按钮（create/rename 类型不支持重做）
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="flex items-center gap-1 text-[12px] text-gray-500">
                 <X size={12} />
-                修订已弃用
+                {discardedRecordTime ? `已撤销记录 · ${discardedRecordTime}` : '已撤销记录'}
               </span>
+              {onRedo && revisionType !== 'create' && revisionType !== 'rename' && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRedo(); }}
+                  className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                >
+                  <Redo2 size={10} />
+                  重做
+                </button>
+              )}
             </div>
           )}
         </div>

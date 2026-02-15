@@ -2,7 +2,6 @@
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  BookOpen,
   LibraryBig,
   Settings,
   ChevronLeft,
@@ -23,6 +22,7 @@ import {
   User,
   CheckCheck,
   ExternalLink,
+  BookOpen,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useWorkNavStore } from '../../store/workNavStore';

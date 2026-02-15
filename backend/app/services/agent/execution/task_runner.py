@@ -2,7 +2,7 @@
 """
 任务执行器
 
-负责执行单个任务
+负责执行单个任务（DeepAgent 模式使用）
 
 从 langgraph_agent.py 拆分，减少主文件复杂度
 """
@@ -21,9 +21,10 @@ from app.services.agent.langgraph_tools import (
     get_chapter_by_order_tool,
     get_context_tool,
     search_analysis_fragments_tool,
+    search_content,
     read_paragraph,  # 2026-01-17: 段落精确读取
 )
-from app.services.agent.tools.editor_tools import smart_continue, smart_create
+from app.services.agent.tools.editor_tools import smart_continue
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +38,15 @@ class TaskRunner:
     # 工具名称映射
     TOOL_NAME_MAPPING = {
         "smart_continue": "smart_continue",
-        "smart_create": "smart_create",
         "analyze_text_tool": "analyze_content",
         "analyze_content_tool": "analyze_content",
         "analyze_content": "analyze_content",
         "get_context_tool": "get_context",
         "read_chapter_tool": "read_chapter",
         "get_chapter_by_order_tool": "get_chapter_by_order",
-        "search_analysis_fragments_tool": "search_analysis_fragments",
-        "search_analysis_fragments": "search_analysis_fragments",
+        "search_analysis_fragments_tool": "search_content",
+        "search_analysis_fragments": "search_content",
+        "search_content": "search_content",
         # 2026-01-17: 探索工具
         "read_paragraph": "read_paragraph",
         "explore_content": "explore_content",
@@ -77,7 +78,7 @@ class TaskRunner:
         conversation_id: Optional[str] = None,  # v8.0: 添加 conversation_id 用于操作日志
         state: Optional[Dict[str, Any]] = None  # 🆕 2026-01-12: 添加 state 用于章节缓存
     ) -> str:
-        """执行单个任务
+        """执行单个任务（DeepAgent 模式使用）
 
         Args:
             task: 任务配置
@@ -260,6 +261,25 @@ class TaskRunner:
                 "max_content_length": params.get("max_content_length", 2000),
             }
 
+        elif tool_name == "search_content":
+            if not work_id:
+                logger.warning(
+                    f"[TaskRunner] search_content 需要 work_id 参数，"
+                    f"但当前 work_id 为空。任务描述: {task.get('description', 'N/A')}"
+                )
+                return json.dumps({
+                    "error": "需要指定作品ID才能搜索内容",
+                    "message": "请在聊天时指定作品ID，或在作品详情页使用此功能",
+                    "tool": "search_content"
+                }, ensure_ascii=False, indent=2)
+            return {
+                "work_id": work_id,
+                "query": params.get("query", "相关内容"),
+                "top_k": params.get("top_k", 10),
+                "chapter_id": chapter_id or "",
+                "look_ahead": params.get("look_ahead", 0),
+            }
+
         elif tool_name == "smart_continue":
             context_param = self._extract_context_param(params, context)
             # 🔧 2026-01-09: 修复 chapter_id 参数处理，与其他工具保持一致
@@ -270,15 +290,6 @@ class TaskRunner:
                 "chapter_id": params.get("chapter_id") or chapter_id or "",
                 "user_requirement": params.get("user_requirement"),  # 添加用户要求
                 "word_count": params.get("word_count", 500),  # 添加字数
-            }
-
-        elif tool_name == "smart_create":
-            return {
-                "work_id": params.get("work_id") or work_id or "",
-                "title": params.get("title") or "",
-                "user_requirement": params.get("user_requirement"),
-                "evidence_context": params.get("evidence_context") or "",
-                "word_count": params.get("word_count", 2000),
             }
 
         elif tool_name in {"analyze_text_tool", "analyze_content"}:
@@ -392,7 +403,7 @@ class TaskRunner:
         chapter_id: str,
         context: str
     ) -> str:
-        """降级执行（使用 @tool）
+        """DeepAgent 模式的降级执行（使用 @tool）
 
         Args:
             tool_name: 工具名称
@@ -429,6 +440,14 @@ class TaskRunner:
                 "look_ahead": params.get("look_ahead", 0),
                 "max_content_length": params.get("max_content_length", 200),
             })
+        elif tool_name == "search_content":
+            return await search_content.ainvoke({
+                "work_id": work_id,
+                "query": params.get("query", "相关内容"),
+                "top_k": params.get("top_k", 10),
+                "chapter_id": chapter_id or "",
+                "look_ahead": params.get("look_ahead", 0),
+            })
         elif tool_name == "smart_continue":
             # 🔧 2026-01-11: 修复参数名 - smart_continue 期望 chapter_content，不是 content
             return await smart_continue.ainvoke({
@@ -436,14 +455,6 @@ class TaskRunner:
                 "chapter_content": params.get("chapter_content") or params.get("content") or context,
                 "user_requirement": params.get("user_requirement"),
                 "word_count": params.get("word_count", 500),
-            })
-        elif tool_name == "smart_create":
-            return await smart_create.ainvoke({
-                "work_id": params.get("work_id", ""),
-                "title": params.get("title", ""),
-                "user_requirement": params.get("user_requirement"),
-                "evidence_context": params.get("evidence_context") or "",
-                "word_count": params.get("word_count", 2000),
             })
         elif tool_name == "analyze_text_tool":
             return await analyze_text_tool.ainvoke({
@@ -520,3 +531,30 @@ class TaskRunner:
                     return json.dumps(cached, ensure_ascii=False, indent=2)
 
         return None
+
+    def _update_chapter_cache(
+        self,
+        tool_name: str,
+        result: str,
+        work_id: str,
+        state: dict
+    ) -> None:
+        """更新章节缓存
+
+        Args:
+            tool_name: 工具名称
+            result: 工具返回结果（JSON 字符串）
+            work_id: 作品ID
+            state: Agent 状态
+        """
+        try:
+            data = json.loads(result) if isinstance(result, str) else result
+
+            # 单章节
+            if isinstance(data, dict) and "chapter_id" in data:
+                ChapterCache.set(state, data, work_id)
+            # 多章节
+            elif isinstance(data, dict) and "chapters" in data:
+                ChapterCache.set_batch(state, data["chapters"], work_id)
+        except Exception as e:
+            logger.warning(f"[TaskRunner] 缓存写入失败: {e}")

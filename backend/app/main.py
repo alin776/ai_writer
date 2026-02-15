@@ -13,9 +13,6 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
-# 确保启动时加载全部模型，init_db(create_all) 才能感知新增表结构。
-import app.models  # noqa: F401
-
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.core.redis import redis_client
@@ -89,8 +86,6 @@ async def lifespan(app: FastAPI):
 
     await init_db()
 
-    # OpenSearch 同步链路已停用：启动阶段不再执行重建/审计。
-
     # 初始化官方频道
     try:
         from init_official_channels_sql import init_channels
@@ -137,15 +132,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[STARTUP] Embedding模型预加载失败: {e}")
         logger.warning("[STARTUP] 首次向量化时将自动加载模型")
-
-    # 预加载 SentenceTransformer（VectorMemoryStore 单例，避免首次请求 12s 阻塞）
-    try:
-        from app.services.context.vector_memory_store import get_vector_memory_store
-        logger.info("[STARTUP] 开始预加载 SentenceTransformer 模型...")
-        get_vector_memory_store()
-        logger.info("[STARTUP] ✅ SentenceTransformer 模型预加载完成")
-    except Exception as e:
-        logger.warning(f"[STARTUP] SentenceTransformer 预加载失败: {e}")
+    logger.info("[STARTUP] P0性能优化已暂时禁用（诊断模式）")
 
     logger.info("[STARTUP] 应用启动完成")
 

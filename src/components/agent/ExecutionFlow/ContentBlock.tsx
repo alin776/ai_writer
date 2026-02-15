@@ -12,10 +12,15 @@ export function ContentBlock({ content }: ContentBlockProps) {
     return null;
   }
 
+  const normalized = content
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[\s\u00a0\u2000-\u200b\u202f\u205f\u3000\uFEFF]+/, ''))
+    .join('\n');
+
   return (
     <div className="my-3">
       <div className="text-[13px] text-slate-500 dark:text-slate-300 whitespace-pre-wrap leading-[1.7]">
-        {content}
+        {normalized}
       </div>
     </div>
   );

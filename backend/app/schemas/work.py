@@ -38,7 +38,6 @@ class WorkResponse(WorkBase):
     favorite_count: int = 0
     is_published: bool = False
     is_featured: bool = False
-    worldview_version: int = 1
     created_at: datetime
     updated_at: datetime
     published_at: Optional[datetime] = None

@@ -224,26 +224,3 @@ export interface ApplyChangesResult {
   settingsCreated: number;
   relationshipsCreated: number;
 }
-
-// 世界观扫描进度（导入解析）
-export interface WorldviewScanProgress {
-  workId: string;
-  status: 'idle' | 'pending' | 'running' | 'completed' | 'failed';
-  scanMode?: 'incremental' | 'full';
-  chaptersTotal: number;
-  chaptersProcessed: number;
-  batchesTotal: number;
-  batchesCompleted: number;
-  progressPercentage: number;
-  results?: {
-    charactersCreated: number;
-    charactersUpdated: number;
-    locationsCreated: number;
-    locationsUpdated: number;
-    settingsCreated: number;
-    settingsUpdated: number;
-    relationshipsCreated: number;
-  };
-  lastError?: string;
-  updatedAt?: string;
-}

@@ -27,8 +27,6 @@ class WorkGuidelines(Base):
     # 设定约束
     power_system = Column(Text, nullable=True)  # 力量体系
     world_rules = Column(Text, nullable=True)  # 世界规则
-    constraints = Column(Text, nullable=True)  # 约束清单
-    taboo = Column(Text, nullable=True)  # 禁忌清单
     
     # 创作目标
     target_audience = Column(String(200), nullable=True)  # 目标读者

@@ -34,7 +34,7 @@ from app.services.ai.http_ai_service import HTTPAIService
 from app.services.ai.humanize_service import HumanizeService
 from app.services.agent.langgraph_agent import WritingAgentGraph
 from app.services.knowledge_service import KnowledgeService
-from app.services.work_service import WorkService
+from app.services.worldview_service import WorldviewService
 from app.core.config import settings
 from app.core.humanize_config import get_config
 # ✅ 2025-12-01: 支持Agent成本追踪（通过请求上下文传递user_id）
@@ -45,7 +45,144 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # ════════════════════════════════════════════════════════════════
+# 执行轨迹可视化 - 辅助函数 (v5.0)
 # ════════════════════════════════════════════════════════════════
+
+# 工具图标映射（Lucide 图标名）
+TOOL_ICONS = {
+    "get_chapter_by_order_tool": "FileText",
+    "read_chapter_tool": "FileText",
+    "get_context_tool": "BookOpen",
+    "search_analysis_fragments_tool": "Search",
+    "search_memory_tool": "Search",
+    "search_knowledge_advanced": "Search",
+    "smart_continue": "PenTool",
+    "expand_text": "Plus",
+    "smart_rewrite": "Edit3",
+    "smart_insert": "Plus",
+    "apply_chapter_edit": "Check",
+    "operate_apply": "Check",
+    "deai_rewrite": "RefreshCw",
+    "analyze_text_tool": "BarChart2",
+    "analyze_content": "FileSearch",
+    "book_analysis": "BarChart2",
+    "novel_review": "MessageSquare",
+    "ai_evaluation": "Sparkles",
+    "evaluate_quality": "Star",
+    "add_todo_tool": "ListTodo",
+    "get_work_details_tool": "BookOpen",
+    "update_work_metadata_tool": "Save",
+    "_default": "Wrench"
+}
+
+# 工具标题映射
+TOOL_TITLES = {
+    "get_chapter_by_order_tool": "读取章节",
+    "read_chapter_tool": "读取章节",
+    "get_context_tool": "获取上下文",
+    "search_analysis_fragments_tool": "检索设定",
+    "search_memory_tool": "搜索记忆",
+    "search_knowledge_advanced": "高级检索",
+    "get_worldview_summary": "探索世界观",
+    "smart_continue": "智能续写",
+    "expand_text": "扩写内容",
+    "smart_rewrite": "智能改写",
+    "smart_insert": "智能插入",
+    "apply_chapter_edit": "应用修改",
+    "operate_apply": "应用修改",
+    "deai_rewrite": "去AI改写",
+    "analyze_text_tool": "分析文本",
+    "analyze_content": "内容分析",
+    "book_analysis": "书籍分析",
+    "novel_review": "小说评审",
+    "ai_evaluation": "AI评估",
+    "evaluate_quality": "质量评估",
+    "add_todo_tool": "添加待办",
+    "get_work_details_tool": "获取作品信息",
+    "update_work_metadata_tool": "更新元数据",
+    "_default": "工具调用"
+}
+
+
+def get_tool_icon(tool_name: str) -> str:
+    """获取工具图标名（Lucide）"""
+    return TOOL_ICONS.get(tool_name, TOOL_ICONS["_default"])
+
+
+def get_tool_title(tool_name: str) -> str:
+    """获取工具标题"""
+    return TOOL_TITLES.get(tool_name, TOOL_TITLES["_default"])
+
+
+def build_tool_description(task: dict) -> str:
+    """构建工具调用的简短描述"""
+    tool = task.get("tool", "")
+    params = task.get("params", {})
+
+    if tool == "get_chapter_by_order_tool":
+        # 只有 get_chapter_by_order_tool 才有 chapter_order
+        chapter = params.get("chapter_order", "")
+        return f"第{chapter}章" if chapter else ""
+
+    if tool == "read_chapter_tool":
+        # read_chapter_tool 只有 chapter_id (UUID)，不应显示 UUID
+        # 尝试从 chapter_title 获取可读名称，否则返回空
+        return params.get("chapter_title", "")
+
+    if tool == "search_analysis_fragments_tool":
+        return params.get("query", "") or "检索中..."
+
+    if tool == "smart_continue":
+        # 🔧 统一参数名：优先使用 target_words，兼容 target_length
+        words = params.get("target_words") or params.get("target_length") or 2000
+        return f"约{words}字"
+
+    if tool == "analyze_text_tool":
+        focus = params.get("focus", "")
+        return focus if focus else "分析中..."
+
+    if tool == "smart_rewrite":
+        style = params.get("style", "润色优化")
+        return style
+
+    if tool == "operate_apply":
+        operation = params.get("operation", "")
+        op_map = {
+            "append": "续写",
+            "replace": "改写",
+            "insert": "插入",
+            "content": "整章替换",
+            "create": "创建章节",
+            "title": "修改标题",
+        }
+        return op_map.get(operation, "应用中...")
+
+    return ""
+
+
+def generate_explanation(task_index: int, task: dict) -> str:
+    """生成任务说明（AI 视角的自然语言）"""
+    desc = task.get("description", "")
+    tool = task.get("tool", "")
+
+    # 根据任务位置选择前缀
+    if task_index == 0:
+        prefix = "我先"
+    elif task_index == 1:
+        prefix = "接下来"
+    else:
+        prefix = "然后"
+
+    # 工具特定后缀
+    if "read" in tool or "get_chapter" in tool:
+        suffix = "，了解当前内容："
+    elif "search" in tool:
+        suffix = "："
+    else:
+        suffix = "："
+
+    return f"{prefix}{desc}{suffix}"
+
 
 # ════════════════════════════════════════════════════════════════
 
@@ -114,10 +251,12 @@ def get_agent_graph() -> WritingAgentGraph:
 class AgentChatRequest(BaseModel):
     """Agent chat request"""
     message: str = Field(..., description="User message", min_length=1)
+    mode: Optional[str] = Field(None, description="Chat mode: planning only (default)")
     work_id: Optional[str] = Field(None, description="Work ID")
     chapter_id: Optional[str] = Field(None, description="Chapter ID")
     conversation_id: Optional[str] = Field(None, description="Conversation ID for continuing session")
     context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Extra context")
+    enable_reflection: bool = Field(False, description="Enable DeepAgent reflection mode")
     tool_policy: Optional[str] = Field(None, description="Tool policy: auto/no_tool/cache_only")
 
 
@@ -143,6 +282,9 @@ class ApprovalResponseRequest(BaseModel):
     approved: bool
     selected_version: Optional[int] = None
     reason: Optional[str] = None
+    chapter_id: Optional[str] = None
+    work_id: Optional[str] = None
+    conversation_id: Optional[str] = None
 
 
 class ApprovalResponse(BaseModel):
@@ -844,6 +986,7 @@ async def agent_chat_stream(
     ai_service: HTTPAIService = Depends(get_ai_service),
     hitl: HITLManager = Depends(get_hitl_manager),  # HITL 管理器
     # ✅ 修复：移除db依赖，避免生命周期不匹配
+    mode: Optional[str] = None,  # 新增：支持mode参数（通过查询参数或Body）
     fastapi_request: Request = None,  # 注入原始 Request 以检测断连
 ):
     """
@@ -857,13 +1000,25 @@ async def agent_chat_stream(
         memory: 记忆管理器
         ai_service: AI服务
         db: 数据库会话
+        mode: 聊天模式（仅planning，默认planning）
+
     Returns:
         StreamingResponse: SSE流式响应
     """
     import asyncio
 
-    # 仅支持 planning
-    actual_mode = ChatMode.PLANNING
+    # 仅支持 planning，任何其他输入均回退为 planning
+    requested_mode = mode or request.mode or ChatMode.PLANNING
+    try:
+        actual_mode = ChatMode(requested_mode.lower()) if isinstance(requested_mode, str) else ChatMode(requested_mode)
+    except Exception:
+        logger.warning(f"[Chat Stream] 无效的mode值: {requested_mode}, 使用默认planning")
+        actual_mode = ChatMode.PLANNING
+
+    if actual_mode != ChatMode.PLANNING:
+        logger.info(f"[Chat Stream] 模式 {actual_mode} 已停用，回退到 planning")
+        actual_mode = ChatMode.PLANNING
+
     logger.info(f"[Chat Stream] Mode: {actual_mode}")
 
     # 预先确定conversation_id，供SSE头与生成器共用
@@ -1007,23 +1162,15 @@ async def agent_chat_stream(
                 logger.info(f"[LangGraph Agent Stream] ⏱️ 请求开始 - User: {user_id}, Mode: {actual_mode}, Message: {request.message[:50]}...")
 
                 # 发送开始事件（包含mode信息）
-                # HITL: 预计算 graph_thread_id（含请求级后缀，确保每次请求独立）
-                _agent = get_agent_graph()
-                _base_thread_id = _agent._build_thread_id(
-                    user_id, request.work_id, conversation_id, "SSE"
-                )
-                _graph_thread_id = f"{_base_thread_id}:req_{uuid.uuid4().hex[:8]}"
                 start_event = {
                     'type': 'start',
                     'conversation_id': conversation_id,
-                    'mode': str(actual_mode),
-                    'thread_id': _graph_thread_id
+                    'mode': str(actual_mode)
                 }
                 stream_start_event = {
                     'type': 'stream_start',  # 兼容测试/前端获取cid
                     'conversation_id': conversation_id,
-                    'mode': str(actual_mode),
-                    'thread_id': _graph_thread_id
+                    'mode': str(actual_mode)
                 }
                 for ev in (start_event, stream_start_event):
                     yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
@@ -1149,40 +1296,68 @@ async def agent_chat_stream(
                 # ════════════════════════════════════════════════════════════════
                 if request.work_id:
                     try:
-                        work_service = WorkService(db)
-                        work = await work_service.get_work_by_id(str(request.work_id))
-                        if not work or str(work.author_id) != str(current_user.id):
-                            logger.warning(
-                                f"[agent_chat_stream] 世界观注入权限不足: work_id={request.work_id}"
-                            )
-                            work = None
-                        if not work:
-                            raise ValueError("not_authorized")
+                        worldview_service = WorldviewService(db)
+                        worldview_data: Dict[str, Any] = {}
 
-                        from app.services.agent.langgraph_tools import _fetch_worldview_data
+                        # 获取人物列表
+                        characters = await worldview_service.get_characters_by_work(str(request.work_id))
+                        if characters:
+                            worldview_data["characters"] = [
+                                {
+                                    "name": c.name,
+                                    "role": c.role or "未指定",
+                                    "description": c.description[:500] if c.description else "",  # 摘要限制500字
+                                    "tags": c.tags or [],
+                                    "relationships": c.relationships or []
+                                }
+                                for c in characters
+                            ]
 
-                        worldview_data = await _fetch_worldview_data(
-                            db,
-                            str(request.work_id),
-                            include_guidelines=True
-                        )
+                        # 获取地点列表
+                        locations = await worldview_service.get_locations_by_work(str(request.work_id))
+                        if locations:
+                            worldview_data["locations"] = [
+                                {
+                                    "name": l.name,
+                                    "type": l.type or "未指定",
+                                    "description": l.description[:300] if l.description else "",  # 摘要限制300字
+                                    "tags": l.tags or []
+                                }
+                                for l in locations
+                            ]
+
+                        # 获取设定列表
+                        settings_list = await worldview_service.get_settings_by_work(str(request.work_id))
+                        if settings_list:
+                            worldview_data["settings"] = [
+                                {
+                                    "title": s.title,
+                                    "category": s.category or "通用设定",
+                                    "content": s.content[:500] if s.content else "",  # 摘要限制500字
+                                    "tags": s.tags or []
+                                }
+                                for s in settings_list
+                            ]
+
+                        # 获取作品规范
+                        guidelines = await worldview_service.get_guidelines_by_work(str(request.work_id))
+                        if guidelines:
+                            worldview_data["guidelines"] = {
+                                "outline": guidelines.outline or "",  # 大纲流程
+                                "style": guidelines.style or "",  # 整体风格
+                                "tone": guidelines.tone or "",  # 语言风格
+                                "words_per_chapter": guidelines.words_per_chapter,  # 每章字数
+                                "power_system": guidelines.power_system or "",  # 力量体系
+                                "world_rules": guidelines.world_rules or "",  # 世界规则
+                                "target_audience": guidelines.target_audience or "",  # 目标读者
+                                "main_theme": guidelines.main_theme or "",  # 主题
+                                "plot_direction": guidelines.plot_direction or "",  # 剧情走向
+                                "notes": guidelines.notes or ""  # 备注
+                            }
 
                         # 注入到上下文
                         if worldview_data:
                             context["worldview_data"] = worldview_data
-                            try:
-                                from app.services.agent.langgraph_tools import _build_worldview_pack
-                                worldview_pack = _build_worldview_pack(
-                                    worldview_data,
-                                    keywords=[],
-                                    top_k=5,
-                                    include_guidelines=False,
-                                    task_hint=request.message or ""
-                                )
-                                if worldview_pack:
-                                    context["worldview_pack"] = worldview_pack
-                            except Exception as pack_err:
-                                logger.debug(f"[agent_chat_stream] 构建 worldviews pack 失败: {pack_err}")
                             char_count = len(worldview_data.get("characters", []))
                             loc_count = len(worldview_data.get("locations", []))
                             setting_count = len(worldview_data.get("settings", []))
@@ -1310,6 +1485,95 @@ async def agent_chat_stream(
 
                 # ✅ 追踪内容是否已通过流式发送（避免重复发送）
                 content_sent = {'value': False}
+                # ✅ 移除 MD5 去重：逐字发送模式下，相同字符也需要正常发送
+                # ✅ v5.0: 保存 plan_data 用于计算任务索引
+                plan_data_ref = {'tasks': []}
+
+                # 定义回调函数 - 实时放入队列
+                async def on_plan(plan_data):
+                    """Handle plan event."""
+                    # 保存任务列表用于后续计算索引
+                    plan_data_ref['tasks'] = plan_data.get('tasks', [])
+                    await event_queue.put(('plan', plan_data))
+                    # 兼容 plan_update：仅在更新时发送（前端可复用 plan 处理逻辑）
+                    if plan_data.get('is_update'):
+                        await event_queue.put(('plan_update', plan_data))
+                    logger.info(f"[Stream] Plan tasks: {len(plan_data.get('tasks', []))} items")
+
+                async def on_task_start(task):
+                    """Handle task start event - 增强版 (v5.0)"""
+                    # 计算任务索引
+                    task_id = task.get('task_id')
+                    task_index = next(
+                        (i for i, t in enumerate(plan_data_ref['tasks'])
+                         if t.get('task_id') == task_id),
+                        0
+                    )
+
+                    # 增强事件数据
+                    enhanced_task = {
+                        **task,
+                        'explanation': generate_explanation(task_index, task),
+                        'icon': get_tool_icon(task.get('tool', '')),
+                        'tool_title': get_tool_title(task.get('tool', '')),
+                        'tool_description': build_tool_description(task)
+                    }
+
+                    await event_queue.put(('task_start', enhanced_task))
+                    logger.info(f"[Stream] Task started: {task.get('description')} (icon={enhanced_task['icon']})")
+
+                async def on_task_progress(task, status):
+                    """任务进度回调"""
+                    payload = {'task_id': task.get('task_id'), 'status': status}
+                    await event_queue.put(('task_progress', payload))
+
+                    # 兼容 thinking 事件：从反思进度文本中提取（DeepAgent会发送"💭 反思: ..."）
+                    thinking_payload = None
+                    if isinstance(status, dict) and status.get('type') == 'thinking':
+                        data = status.get('data') or {}
+                        if isinstance(data, str):
+                            thinking_payload = {'summary': data, 'next_step': '', 'task_id': task.get('task_id')}
+                        elif isinstance(data, dict):
+                            thinking_payload = {**data, 'task_id': task.get('task_id')}
+                        if thinking_payload:
+                            summary = str(thinking_payload.get('summary', ''))[:200]
+                            next_step = str(thinking_payload.get('next_step', ''))[:200]
+                            logger.info(
+                                "[Stream] thinking(structured) task_id=%s summary=%s next_step=%s",
+                                task.get('task_id'),
+                                summary,
+                                next_step
+                            )
+                    elif isinstance(status, str):
+                        text = status.strip()
+                        if text.startswith("💭"):
+                            summary = text.lstrip("💭").strip()
+                            if summary.startswith("反思:"):
+                                summary = summary[len("反思:"):].strip()
+                            thinking_payload = {
+                                'summary': summary or text,
+                                'next_step': '',
+                                'task_id': task.get('task_id'),
+                                'raw': text
+                            }
+                            summary_preview = str(thinking_payload.get('summary', ''))[:200]
+                            logger.info(
+                                "[Stream] thinking(text) task_id=%s summary=%s",
+                                task.get('task_id'),
+                                summary_preview
+                            )
+                    if thinking_payload:
+                        await event_queue.put(('thinking', thinking_payload))
+
+                async def on_task_done(task, result_data):
+                    """任务完成回调"""
+                    elapsed_time = task.get('elapsed_time', 0)
+                    await event_queue.put(('task_done', {
+                        'task_id': task.get('task_id'),
+                        'description': task.get('description'),
+                        'elapsed_time': elapsed_time
+                    }))
+                    logger.info(f"[Stream] 任务完成: {task.get('description')} ({elapsed_time:.1f}s)")
 
                 async def on_content(chunk):
                     """内容生成回调 - 逐字发送，无去重"""
@@ -1337,9 +1601,17 @@ async def agent_chat_stream(
                     # v7.5: 存储修订数据到 HITLManager（用于后续采纳时写入数据库）
                     request_id = approval_data.get("request_id") or str(uuid.uuid4())
                     approval_data["request_id"] = request_id
-                    approval_data.setdefault("apply_state", "pending")
                     description = approval_data.get("description") or approval_data.get("message") or "修订请求"
                     approval_data["description"] = description
+                    if request.work_id and not approval_data.get("work_id"):
+                        approval_data["work_id"] = request.work_id
+                    if request.chapter_id and not approval_data.get("chapter_id"):
+                        approval_data["chapter_id"] = request.chapter_id
+                    if conversation_id:
+                        approval_data["conversation_id"] = conversation_id
+
+                    target_work_id = approval_data.get("work_id") or request.work_id
+                    target_chapter_id = approval_data.get("chapter_id") or request.chapter_id
 
                     # 创建 approval request 存储到 Redis（使用相同的 request_id）
                     hitl.create_approval_request(
@@ -1348,17 +1620,15 @@ async def agent_chat_stream(
                         title=description,
                         description=description,
                         proposed_action=approval_data,  # 存储完整的修订数据
-                        context={"work_id": request.work_id, "chapter_id": request.chapter_id},
+                        context={
+                            "work_id": request.work_id,
+                            "chapter_id": request.chapter_id,
+                            "target_work_id": target_work_id,
+                            "target_chapter_id": target_chapter_id,
+                            "conversation_id": conversation_id,
+                        },
                         timeout_seconds=3600,  # 1小时过期
                         request_id=request_id  # v7.5: 使用相同的 request_id
-                    )
-                    logger.info(
-                        "[ApprovalFlow] approval_request created request_id=%s action_type=%s operation=%s work_id=%s chapter_id=%s",
-                        request_id,
-                        approval_data.get("action_type"),
-                        approval_data.get("operation"),
-                        approval_data.get("work_id"),
-                        approval_data.get("chapter_id"),
                     )
 
                     await event_queue.put(('approval_request', approval_data))
@@ -1367,22 +1637,23 @@ async def agent_chat_stream(
                 # 在后台运行 Agent（仅 planning 模式）
                 async def run_agent():
                     nonlocal result
-                    prev_approval_callback = getattr(agent_graph, "_approval_callback", None)
                     try:
-                        # 绑定审批回调（注意：全局Agent可能被并发请求复用）
-                        agent_graph._approval_callback = on_approval_request
-                        # V2: LangGraph StateGraph 驱动（ReAct + Planning）
-                        result = await agent_graph.chat_with_planning_v2(
+                        result = await agent_graph.chat_with_planning(
                             message=request.message,
                             user_id=user_id,
                             work_id=request.work_id,
                             chapter_id=request.chapter_id,
                             conversation_id=conversation_id,
                             context=context,
+                            on_plan=on_plan,
+                            on_task_start=on_task_start,
+                            on_task_progress=on_task_progress,
+                            on_task_done=on_task_done,
                             on_content=on_content,
-                            on_flow_event=on_flow_event,
+                            on_flow_event=on_flow_event,  # v6.0: 执行轨迹事件
+                            approval_callback=on_approval_request,
                             db=db,
-                            graph_thread_id=_graph_thread_id,
+                            enable_reflection=request.enable_reflection,  # DeepAgent 反思模式
                         )
                         # Agent 完成后放入结束标记
                         await event_queue.put(('__done__', None))
@@ -1393,8 +1664,6 @@ async def agent_chat_stream(
                             'error': str(e),
                             'error_type': type(e).__name__
                         }))
-                    finally:
-                        agent_graph._approval_callback = prev_approval_callback
 
                 # 启动 Agent 任务
                 agent_task = asyncio.create_task(run_agent())
@@ -1450,7 +1719,7 @@ async def agent_chat_stream(
                         event_payload['content'] = event_data
                     # v6.0: 执行轨迹事件直接使用event_data作为payload
                     # v8.1: 添加 explore_round 和 explore_summary 事件类型
-                    elif event_type in ('agent_header', 'text', 'step_start', 'knowledge_loaded', 'step_complete', 'output_ready', 'completion', 'summarization_start', 'summarization_complete', 'revision', 'explore_round', 'explore_summary', 'hitl_pending'):
+                    elif event_type in ('agent_header', 'text', 'step_start', 'knowledge_loaded', 'step_complete', 'output_ready', 'completion', 'summarization_start', 'summarization_complete', 'revision', 'explore_round', 'explore_summary'):
                         event_payload = event_data  # flow事件已包含完整结构
                         event_payload['mode'] = str(actual_mode)
                         event_payload['conversation_id'] = conversation_id
@@ -1589,13 +1858,6 @@ async def submit_approval_response(
     from app.services.chapter_service import ChapterService
 
     try:
-        logger.info(
-            "[ApprovalFlow] approval_response received request_id=%s approved=%s selected_version=%s",
-            request.request_id,
-            request.approved,
-            request.selected_version,
-        )
-        apply_state = "pending"
         approval_status = ApprovalStatus.APPROVED if request.approved else ApprovalStatus.REJECTED
         extra_data: Dict[str, Any] = {}
         if request.selected_version is not None:
@@ -1611,6 +1873,130 @@ async def submit_approval_response(
 
         approval_request = hitl.get_approval_request(request.request_id)
         approval_data = approval_request.proposed_action if approval_request else None
+        approval_context = (
+            approval_request.context
+            if approval_request and isinstance(approval_request.context, dict)
+            else {}
+        )
+
+        if not revision and not approval_request:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="审批请求不存在或已过期，请重新生成。"
+            )
+
+        current_user_id = str(current_user.id)
+        if approval_request and str(approval_request.user_id) != current_user_id:
+            logger.warning(
+                "[Approval] 用户越权: user=%s request=%s owner=%s",
+                current_user_id,
+                request.request_id,
+                approval_request.user_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权限操作该审批请求。"
+            )
+
+        if revision and revision.user_id and str(revision.user_id) != current_user_id:
+            logger.warning(
+                "[Approval] 修订越权: user=%s request=%s owner=%s",
+                current_user_id,
+                request.request_id,
+                revision.user_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权限操作该修订请求。"
+            )
+        if revision and not revision.user_id and not approval_request:
+            logger.warning(
+                "[Approval] 修订缺少 owner 且审批记录已失效: request=%s",
+                request.request_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="审批记录已失效，请重新生成修订后再操作。"
+            )
+
+        def _normalize_uuid_like(value: Optional[Any]) -> Optional[str]:
+            if value is None:
+                return None
+            raw = str(value).strip()
+            if not raw:
+                return None
+            try:
+                return str(uuid.UUID(raw))
+            except (ValueError, AttributeError, TypeError):
+                return raw
+
+        client_chapter_id = _normalize_uuid_like(request.chapter_id)
+        client_work_id = _normalize_uuid_like(request.work_id)
+        client_conversation_id = str(request.conversation_id).strip() if request.conversation_id else None
+
+        expected_chapter_id: Optional[str] = None
+        expected_work_id: Optional[str] = None
+        expected_conversation_id: Optional[str] = None
+
+        if revision:
+            expected_chapter_id = _normalize_uuid_like(revision.chapter_id)
+            expected_work_id = _normalize_uuid_like(revision.work_id)
+
+        if isinstance(approval_data, dict):
+            expected_chapter_id = expected_chapter_id or _normalize_uuid_like(approval_data.get("chapter_id"))
+            expected_work_id = expected_work_id or _normalize_uuid_like(approval_data.get("work_id"))
+            if approval_data.get("conversation_id"):
+                expected_conversation_id = str(approval_data.get("conversation_id")).strip()
+
+        if isinstance(approval_context, dict):
+            expected_chapter_id = expected_chapter_id or _normalize_uuid_like(
+                approval_context.get("target_chapter_id") or approval_context.get("chapter_id")
+            )
+            expected_work_id = expected_work_id or _normalize_uuid_like(
+                approval_context.get("target_work_id") or approval_context.get("work_id")
+            )
+            if not expected_conversation_id and approval_context.get("conversation_id"):
+                expected_conversation_id = str(approval_context.get("conversation_id")).strip()
+
+        if client_chapter_id and expected_chapter_id and client_chapter_id != expected_chapter_id:
+            logger.warning(
+                "[Approval] 章节不一致: request=%s client=%s expected=%s",
+                request.request_id,
+                client_chapter_id,
+                expected_chapter_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="采纳失败：当前章节与修订目标章节不一致，请切换到目标章节后重试。"
+            )
+
+        if client_work_id and expected_work_id and client_work_id != expected_work_id:
+            logger.warning(
+                "[Approval] 作品不一致: request=%s client=%s expected=%s",
+                request.request_id,
+                client_work_id,
+                expected_work_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="采纳失败：当前作品与修订目标作品不一致，请刷新后重试。"
+            )
+
+        if (
+            client_conversation_id
+            and expected_conversation_id
+            and client_conversation_id != expected_conversation_id
+        ):
+            logger.warning(
+                "[Approval] 会话不一致: request=%s client=%s expected=%s",
+                request.request_id,
+                client_conversation_id,
+                expected_conversation_id
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="采纳失败：会话已切换，请在正确会话中重试。"
+            )
 
         # 如果是采纳，需要写入数据库
         if request.approved:
@@ -1631,17 +2017,10 @@ async def submit_approval_response(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"修订应用失败: {revision_error}"
                     )
-                apply_state = "applied"
-                logger.info(
-                    "[ApprovalFlow] approval_response applied request_id=%s revision_id=%s chapter_id=%s",
-                    request.request_id,
-                    str(revision.id),
-                    str(revision.chapter_id),
-                )
-            elif approval_data:
+            elif isinstance(approval_data, dict):
                 action_type = approval_data.get("action_type")
-                chapter_id = approval_data.get("chapter_id")
-                work_id = approval_data.get("work_id")
+                chapter_id = approval_data.get("chapter_id") or expected_chapter_id
+                work_id = approval_data.get("work_id") or expected_work_id
 
                 # 处理章节创建
                 if action_type == "create" and work_id:
@@ -1657,13 +2036,7 @@ async def submit_approval_response(
                         order=order,
                         chapter_id=chapter_id  # 使用预生成的 chapter_id
                     )
-                    apply_state = "applied"
                     logger.info(f"[Approval] 章节已创建: chapter_id={new_chapter.id}, title={title}")
-                    logger.info(
-                        "[ApprovalFlow] approval_response applied request_id=%s action_type=create chapter_id=%s",
-                        request.request_id,
-                        str(new_chapter.id),
-                    )
 
                 # 处理章节内容编辑（兼容历史审批）
                 elif chapter_id and action_type in ["edit", "rewrite", "continue", "update_content"]:
@@ -1685,20 +2058,7 @@ async def submit_approval_response(
                             operation=operation,
                             position=position
                         )
-                        apply_state = "applied"
                         logger.info(f"[Approval] 修订已写入数据库: chapter_id={chapter_id}, operation={operation}")
-                        logger.info(
-                            "[ApprovalFlow] approval_response applied request_id=%s action_type=%s chapter_id=%s",
-                            request.request_id,
-                            action_type,
-                            chapter_id,
-                        )
-                    else:
-                        apply_state = "failed"
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="审批通过但缺少可写入内容，请重新生成后再采纳。"
-                        )
 
                 # 处理章节标题修改
                 elif chapter_id and action_type == "rename":
@@ -1707,44 +2067,18 @@ async def submit_approval_response(
                     if new_title:
                         from app.schemas.chapter import ChapterUpdate
                         await chapter_service.update_chapter(chapter_id, ChapterUpdate(title=new_title))
-                        apply_state = "applied"
                         logger.info(f"[Approval] 章节标题已修改: chapter_id={chapter_id}, new_title={new_title}")
-                        logger.info(
-                            "[ApprovalFlow] approval_response applied request_id=%s action_type=rename chapter_id=%s",
-                            request.request_id,
-                            chapter_id,
-                        )
 
                 # 处理章节删除
                 elif chapter_id and action_type == "delete":
                     chapter_service = ChapterService(db)
                     await chapter_service.delete_chapter(chapter_id)
-                    apply_state = "applied"
                     logger.info(f"[Approval] 章节已删除: chapter_id={chapter_id}")
-                    logger.info(
-                        "[ApprovalFlow] approval_response applied request_id=%s action_type=delete chapter_id=%s",
-                        request.request_id,
-                        chapter_id,
-                    )
-                else:
-                    apply_state = "failed"
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="审批通过但未执行任何变更，请检查审批数据。"
-                    )
-            else:
-                apply_state = "failed"
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="未找到审批请求，无法应用变更。"
-                )
         else:
             if revision:
                 await revision_service.mark_status(revision, ChapterRevisionStatus.DISCARDED)
-            apply_state = "rejected"
 
         # 更新 HITLManager 状态
-        extra_data["apply_state"] = apply_state
         await hitl.submit_approval(
             request_id=request.request_id,
             status=approval_status,
@@ -1754,8 +2088,7 @@ async def submit_approval_response(
         return {
             "success": True,
             "request_id": request.request_id,
-            "action": "accepted" if request.approved else "rejected",
-            "apply_state": apply_state
+            "action": "accepted" if request.approved else "rejected"
         }
     except HTTPException:
         raise
@@ -1768,122 +2101,6 @@ async def submit_approval_response(
 
 
 # ==================== HITL 批准管理 ====================
-
-
-# ==================== HITL interrupt + resume（LangGraph 原生） ====================
-
-class ResumeRequest(BaseModel):
-    """HITL resume 请求（用户确认/拒绝修订后调用）"""
-    thread_id: str = Field(..., description="图的 thread_id（从 start_event 或 hitl_pending 获取）")
-    approved: bool = Field(..., description="是否采纳修订")
-    request_id: Optional[str] = Field(None, description="修订请求ID")
-    reason: Optional[str] = Field(None, description="拒绝原因")
-
-
-@router.post("/chat/resume")
-async def resume_agent(
-    request: ResumeRequest,
-    current_user: User = Depends(get_current_active_user),
-):
-    """
-    恢复 HITL 暂停的 Agent（interrupt → resume）
-
-    Agent 执行到需要确认的地方时调用 interrupt() 暂停，
-    前端收到 hitl_pending 事件后展示确认 UI，
-    用户确认/拒绝后调用此端点，Agent 从暂停点恢复执行。
-
-    返回 SSE 流，转发 Agent 恢复后产生的消息（总结文本等）。
-    """
-    from langgraph.types import Command
-
-    user_id = str(current_user.id)
-    logger.info(f"[Resume] 收到 resume 请求: thread_id={request.thread_id}, approved={request.approved}, user={user_id}")
-
-    async def resume_event_generator():
-        try:
-            agent_graph = get_agent_graph()
-            graph = agent_graph._compiled_graph
-
-            if graph is None:
-                error_event = {"type": "error", "error": "Agent 图尚未编译，请先发送一条消息"}
-                yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
-                return
-
-            config = {
-                "configurable": {"thread_id": request.thread_id},
-                "recursion_limit": 25,
-            }
-
-            resume_value = {
-                "approved": request.approved,
-                "request_id": request.request_id,
-                "reason": request.reason,
-            }
-
-            # 发送 stream_start 事件
-            start_event = {"type": "stream_start", "thread_id": request.thread_id}
-            yield f"data: {json.dumps(start_event, ensure_ascii=False)}\n\n"
-
-            final_content = ""
-
-            async for mode, chunk in graph.astream(
-                Command(resume=resume_value),
-                config=config,
-                stream_mode=["custom", "messages"],
-            ):
-                if mode == "custom":
-                    event_type = chunk.get("type", "") if isinstance(chunk, dict) else ""
-                    if event_type == "direct_answer":
-                        content = chunk.get("content", "")
-                        if content:
-                            final_content += content
-                            content_event = {"type": "content", "data": content, "content": content}
-                            yield f"data: {json.dumps(content_event, ensure_ascii=False)}\n\n"
-                    elif event_type in (
-                        "agent_header", "text", "step_start", "knowledge_loaded",
-                        "step_complete", "output_ready", "completion",
-                        "summarization_start", "summarization_complete",
-                        "revision", "explore_round", "explore_summary", "hitl_pending",
-                    ):
-                        # flow 事件直接转发
-                        yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-
-                elif mode == "messages":
-                    msg_chunk, msg_metadata = chunk
-                    if hasattr(msg_chunk, "content") and msg_chunk.content:
-                        node = msg_metadata.get("langgraph_node", "")
-                        if node == "agent" and not getattr(msg_chunk, "tool_call_chunks", None):
-                            final_content += msg_chunk.content
-                            content_event = {
-                                "type": "content",
-                                "data": msg_chunk.content,
-                                "content": msg_chunk.content,
-                            }
-                            yield f"data: {json.dumps(content_event, ensure_ascii=False)}\n\n"
-
-            # 发送完成事件
-            done_event = {
-                "type": "done",
-                "approved": request.approved,
-                "final_content": final_content[:200] if final_content else "",
-            }
-            yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
-
-        except Exception as e:
-            logger.error(f"[Resume] 执行失败: {e}", exc_info=True)
-            error_event = {"type": "error", "error": str(e)}
-            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
-
-    return StreamingResponse(
-        resume_event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
 
 # ==================== 操作日志管理（批量操作回滚） ====================
 

@@ -9,7 +9,7 @@ export interface ConversationSession {
   createdAt: string;
   updatedAt: string;
   title: string;
-  mode?: 'plan' | 'chat';
+  mode?: 'plan' | 'agent';
   workId?: string;
   chapterId?: string;
 }
@@ -45,10 +45,6 @@ const SESSIONS_ORDER_KEY = 'agent_sessions_order';
 const CONTEXT_SESSION_MAP_KEY = 'agent_context_session_map';
 const DEFAULT_MAX_SESSIONS = 5; // 先改为 5，观察效果后再决定是否进一步减少
 const DEFAULT_TITLE = '新会话';
-
-function normalizeMode(mode?: string): 'plan' | 'chat' {
-  return mode === 'plan' ? 'plan' : 'chat';
-}
 
 function generateSessionId(): string {
   return `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -155,7 +151,7 @@ export function useConversationPersistence(
           createdAt: existing?.createdAt || now,
           updatedAt: now,
           title: metadata?.title || existing?.title || generateTitleFromMessages(messages),
-          mode: normalizeMode(metadata?.mode ?? existing?.mode),
+          mode: metadata?.mode ?? existing?.mode,
           workId: metadata?.workId ?? existing?.workId,
           chapterId: metadata?.chapterId ?? existing?.chapterId
         };
@@ -270,7 +266,7 @@ export function useConversationPersistence(
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             title: metadata?.title || DEFAULT_TITLE,
-            mode: normalizeMode(metadata?.mode),
+            mode: metadata?.mode,
             workId: metadata?.workId || workId,
             chapterId: metadata?.chapterId || chapterId
           } as ConversationSession)

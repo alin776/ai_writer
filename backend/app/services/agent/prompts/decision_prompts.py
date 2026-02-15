@@ -15,7 +15,7 @@ from .tool_descriptions import (
 )
 
 # Prompt 版本号 - 修改 Prompt 时请更新此版本号
-PROMPT_VERSION = "v2.42.0"  # 2026-02-13: smart_continue 目标章节不存在时升级为 smart_create
+PROMPT_VERSION = "v2.41.0"  # 2026-01-26: smart_rewrite 单结果输出，移除 base_version
 
 
 @cache_review(expire=3600, key_prefix=f"prompt:tool_decision:{PROMPT_VERSION}")
@@ -53,10 +53,8 @@ async def get_tool_decision_static_prompt() -> str:
 【第二步：如果需要工具，选择合适的工具】
 
 【编辑器工具 - 修改内容时优先使用】
-- smart_rewrite: 段落级改写/修改章节内容（只生成1个改写结果）
+- smart_rewrite: 改写/修改章节内容（只生成1个改写结果）
   参数: chapter_id, text_to_rewrite, user_requirement, evidence_context
-- rewrite_chapter_content: 整章改写（只生成整章内容）
-  参数: chapter_id, user_requirement, chapter_content(可选), evidence_context(可选)
 - smart_continue: 智能续写（根据上下文生成续写内容）
   参数: chapter_id, chapter_content, user_requirement, evidence_context, word_count
 - smart_insert: 智能插入（根据意图生成插入内容）
@@ -80,20 +78,21 @@ async def get_tool_decision_static_prompt() -> str:
 【工具使用规则】
 
 1. 用户提到具体文字但未说章节 → 先用 explore_content 定位章节
-2. 用户说"整章重写/全文改写/全章改写" → rewrite_chapter_content → operate_apply(operation="content")
-3. 用户说"修改第X章"、"改写第X章" → smart_rewrite → operate_apply(operation="replace")
-4. 用户说"续写"、"继续写" → smart_continue → operate_apply(operation="append")
-5. 用户说"插入" → smart_insert → operate_apply(operation="insert")
-6. 用户说"创建新章节"、"新建章节" → operate_apply(operation="create")
-7. 用户说"删除章节" → delete_chapter（⚠️ 危险操作，需确认）
-8. 用户说"改标题"、"重命名章节" → operate_apply(operation="title")
-9. 用户说"检查一致性"、"有没有矛盾" → 使用 analyze_content（analysis_types=["consistency"]）
-10. 用户说"分析风格"、"写作特点" → 使用 analyze_content（analysis_types=["style"]）
-11. 用户要"暗线/伏笔/剧情大纲/设定补充/推演方案" → 只用 explore_content（取证据后直接回答，不用 analyze_content）
+2. 用户说"修改第X章"、"改写第X章" → smart_rewrite → operate_apply(operation="replace")
+3. 用户说"续写"、"继续写" → smart_continue → operate_apply(operation="append")
+4. 用户说"插入" → smart_insert → operate_apply(operation="insert")
+5. 用户说"创建新章节"、"新建章节" → operate_apply(operation="create")
+6. 用户说"删除章节" → delete_chapter（⚠️ 危险操作，需确认）
+7. 用户说"改标题"、"重命名章节" → operate_apply(operation="title")
+8. 用户说"检查一致性"、"有没有矛盾" → 使用 analyze_content（analysis_types=["consistency"]）
+9. 用户说"分析风格"、"写作特点" → 使用 analyze_content（analysis_types=["style"]）
+10. 用户说"情感描写"、"展示情绪" → 使用 show_emotion_tool
+11. 用户说"增强场景"、"画面感" → 使用 enhance_scene_tool
+12. 用户要“暗线/伏笔/剧情大纲/设定补充/推演方案” → 只用 explore_content（取证据后直接回答，不用 analyze_content）
 
 ⚠️ **operate_apply 定位规则**：
 - replace/insert 必须传 node_id 或 paragraph_index
-- 需要先用 locate_content 定位（检索证据统一走 explore_content）
+- 需要先用 locate_content 或 list_paragraphs/read_paragraphs 定位
 
 ⚠️ 【搜索兜底规则】：
 - 如果用户提供的文字**过于简短**（少于3个字）或是**通用描述**（如"这一章"、"这段话"）
@@ -132,6 +131,7 @@ async def get_tool_decision_static_prompt() -> str:
 "检查前五章有没有矛盾" → {{"need_tools": true, "tool_name": "analyze_content", "tool_args": {{"analysis_types": ["consistency"], "work_id": "xxx", "content": "..."}}}}
 "分析一下我的写作风格" → {{"need_tools": true, "tool_name": "analyze_content", "tool_args": {{"analysis_types": ["style"], "content": "..."}}}}
 "基于原文设计暗线和伏笔" → {{"need_tools": true, "tool_name": "explore_content", "tool_args": {{"target_task": "收集暗线/伏笔相关原文证据，便于推演方案"}}}}
+"帮我写一段愤怒的情感描写" → {{"need_tools": true, "tool_name": "show_emotion_tool", "tool_args": {{"emotion": "愤怒", "intensity": 4}}}}
 
 ⚠️ 如果不确定用户是否需要工具，选择直接回答。请严格返回JSON格式:"""
 

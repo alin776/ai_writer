@@ -33,16 +33,15 @@ TOOL_NAME_MAPPING = {
     "analyze_text_tool": "analyze_content",
     "smart_rewrite": "smart_rewrite",
     "smart_continue": "smart_continue",
-    "smart_create": "smart_create",
     "smart_insert": "smart_insert",
     "apply_chapter_edit": "apply_chapter_edit",
     # 章节工具
     "get_context_tool": "get_context",
     "read_chapter_tool": "read_chapter",
     "get_chapter_by_order_tool": "get_chapter_by_order",
-    "read_paragraph_tool": "read_paragraph",
-    "search_analysis_fragments_tool": "search_analysis_fragments",
-    "search_analysis_fragments": "search_analysis_fragments",
+    "search_analysis_fragments_tool": "search_content",
+    "search_analysis_fragments": "search_content",
+    "search_content": "search_content",
     # 世界观工具
     "get_worldview_summary": "get_worldview_summary",
     # 分析工具
@@ -55,6 +54,7 @@ TOOL_NAME_MAPPING = {
     "update_chapter_content": "update_chapter_content",
     # 聚合工具（2026-01-12）
     "get_writing_context": "get_writing_context",
+    "get_style_guidance_tool": "get_style_guidance",
 }
 
 TOOL_CACHE_INVALIDATION_TOOLS = {
@@ -103,8 +103,7 @@ class ToolExecutor:
         """
         # 规范化工具名称
         tool_args = dict(tool_args or {})
-        requested_tool_name = str(tool_name or "").strip()
-        normalized_name = TOOL_NAME_MAPPING.get(requested_tool_name, requested_tool_name)
+        normalized_name = TOOL_NAME_MAPPING.get(tool_name, tool_name)
         tool_policy = self._resolve_tool_policy(state)
 
         if tool_policy == "no_tool":
@@ -132,12 +131,6 @@ class ToolExecutor:
         try:
             # 准备参数
             params = self.prepare_params(normalized_name, tool_args, state)
-            if normalized_name == "operate_apply":
-                params = await self._maybe_upgrade_append_to_create(params, state)
-            if normalized_name == "smart_continue":
-                normalized_name, params = await self._maybe_upgrade_continue_to_create(
-                    normalized_name, params, state
-                )
             if normalized_name == "smart_insert":
                 params = await self._augment_insert_context(params, state)
             elif normalized_name == "smart_rewrite":
@@ -169,17 +162,6 @@ class ToolExecutor:
                                 actual_chapter_id,
                                 expected_chapter_id
                             )
-                        elif operation == "append":
-                            # append 操作降级为 WARNING：不阻止，自动覆盖为目标章节。
-                            # 原因：用户说"续写下去"时 AI 可能选错 chapter_id，
-                            # 且 append 内容若包含新章节标题会由 _detect_chapter_heading 自动创建新章节。
-                            logger.warning(
-                                "[ToolExecutor] append 操作 chapter_id 不一致（降级放行）: actual=%s expected=%s source=%s",
-                                actual_chapter_id,
-                                expected_chapter_id,
-                                expected_source
-                            )
-                            params["chapter_id"] = expected_chapter_id
                         else:
                             logger.error(
                                 "[ToolExecutor] chapter_id 不一致，已阻止写回: actual=%s expected=%s source=%s",
@@ -251,22 +233,13 @@ class ToolExecutor:
                     params.pop("source_locator", None)
 
             if isinstance(params, dict) and params.get("__locator_error"):
-                # __locator_error 只拦截写回工具（operate_apply/apply_chapter_edit），
-                # 不拦截创作工具（smart_rewrite/smart_insert/smart_continue/smart_create），
-                # 因为创作工具不需要精确定位即可生成内容，定位是写回阶段的责任。
-                if normalized_name in {"operate_apply", "apply_chapter_edit"}:
-                    error_payload = params.get("__locator_error") or {}
-                    if isinstance(error_payload, dict):
-                        return json.dumps(error_payload, ensure_ascii=False)
-                    return json.dumps({
-                        "error": "locator_error",
-                        "message": str(error_payload)
-                    }, ensure_ascii=False)
-                else:
-                    logger.warning(
-                        "[ToolExecutor] %s 存在 __locator_error 但为创作工具，跳过拦截",
-                        normalized_name
-                    )
+                error_payload = params.get("__locator_error") or {}
+                if isinstance(error_payload, dict):
+                    return json.dumps(error_payload, ensure_ascii=False)
+                return json.dumps({
+                    "error": "locator_error",
+                    "message": str(error_payload)
+                }, ensure_ascii=False)
 
             cached_result = self._read_cover_cache(normalized_name, params, state)
             if cached_result is not None:
@@ -304,32 +277,13 @@ class ToolExecutor:
                         step_id = None
                 if isinstance(step_id, int):
                     step_token = set_explore_step_id(step_id)
-
-            # ---- Explore V6 快速路径 ----
-            if normalized_name == "explore_content":
-                try:
-                    from app.services.agent.tools.explore_v6 import ExploreV6
-                    v6 = ExploreV6(
-                        work_id=params.get("work_id", ""),
-                        target_task=params.get("target_task", ""),
-                        retrieval_intent=params.get("retrieval_intent"),
-                        user_id=params.get("user_id", ""),
-                    )
-                    result = await v6.run()
-                    logger.info("[ToolExecutor] explore_content 使用 V6 完成")
-                finally:
-                    if step_token is not None:
-                        reset_explore_step_id(step_token)
-                    if stream_token is not None:
-                        reset_stream_event_handler(stream_token)
-            else:
-                try:
-                    result = await registry.call_tool(normalized_name, params)
-                finally:
-                    if step_token is not None:
-                        reset_explore_step_id(step_token)
-                    if stream_token is not None:
-                        reset_stream_event_handler(stream_token)
+            try:
+                result = await registry.call_tool(normalized_name, params)
+            finally:
+                if step_token is not None:
+                    reset_explore_step_id(step_token)
+                if stream_token is not None:
+                    reset_stream_event_handler(stream_token)
 
             # 🔧 处理返回值为 JSON 字符串的情况（如 locate_content、@tool 装饰器返回值）
             if isinstance(result, str):
@@ -340,11 +294,6 @@ class ToolExecutor:
 
             # 提取返回值
             if isinstance(result, dict) and result.get("success"):
-                if normalized_name in {"smart_rewrite", "smart_continue", "smart_insert", "smart_create"}:
-                    try:
-                        await self._attach_consistency_report(normalized_name, params, state, result)
-                    except Exception as exc:
-                        logger.debug(f"[ToolExecutor] 一致性校验触发失败: {exc}")
                 if normalized_name == "explore_content":
                     try:
                         tool_result = json.dumps(result, ensure_ascii=False)
@@ -414,34 +363,16 @@ class ToolExecutor:
         params = dict(tool_args)
         last_user_message = state.get("last_user_message", "")
         evidence_context = self._build_evidence_context(state)
-        context_data = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
-        worldview_context = ""
-        worldview_hard_constraints = ""
-        try:
-            from app.services.agent.utils import _build_worldview_context_text, _build_worldview_hard_constraints
-            worldview_context = _build_worldview_context_text(context_data)
-            worldview_hard_constraints = _build_worldview_hard_constraints(context_data)
-        except Exception:
-            worldview_context = ""
-            worldview_hard_constraints = ""
-        if worldview_context:
-            try:
-                from app.services.agent.utils.monitoring import increment_counter
-                worldview_source = context_data.get("worldview_pack") if isinstance(context_data.get("worldview_pack"), dict) else context_data.get("worldview_data")
-                count = 0
-                if isinstance(worldview_source, dict):
-                    for key in ("characters", "locations", "settings", "glossary"):
-                        items = worldview_source.get(key)
-                        if isinstance(items, list):
-                            count += len(items)
-                increment_counter("worldview_soft_injected_items", value=count)
-            except Exception:
-                pass
-        if worldview_hard_constraints and tool_name in {"smart_rewrite", "smart_continue", "smart_insert", "smart_create"}:
-            params.setdefault("worldview_hard_constraints", worldview_hard_constraints)
 
         # 工具特定的参数处理
-        if tool_name == "analyze_text":
+        if tool_name == "continue_writing":
+            params.setdefault("context", last_user_message)
+            params.setdefault("requirements", "")
+            # 🔧 默认值从 500 改为 2000，更符合实际续写需求
+            params.setdefault("target_length", 2000)
+            params.setdefault("style", "")
+
+        elif tool_name == "analyze_text":
             params.setdefault("text", last_user_message)
             params.setdefault("focus", "all")
 
@@ -500,8 +431,6 @@ class ToolExecutor:
             if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
                 logger.warning("[ToolExecutor] smart_rewrite evidence_context 非字符串，已强制转换")
                 params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
-            if worldview_context and not params.get("worldview_context"):
-                params["worldview_context"] = worldview_context
 
             auto_locator = bool(params.get("__auto_locator"))
             explicit_locator = bool(
@@ -590,20 +519,6 @@ class ToolExecutor:
             if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
                 logger.warning("[ToolExecutor] smart_continue evidence_context 非字符串，已强制转换")
                 params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
-            if worldview_context and not params.get("worldview_context"):
-                params["worldview_context"] = worldview_context
-
-        elif tool_name == "smart_create":
-            # smart_create 使用 work_id 而非 chapter_id
-            params.setdefault("work_id", state.get("work_id", ""))
-            params.setdefault("user_id", state.get("user_id"))
-            if evidence_context and not params.get("evidence_context"):
-                params["evidence_context"] = evidence_context
-            if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
-                logger.warning("[ToolExecutor] smart_create evidence_context 非字符串，已强制转换")
-                params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
-            if worldview_context and not params.get("worldview_context"):
-                params["worldview_context"] = worldview_context
 
         elif tool_name == "smart_insert":
             # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
@@ -644,8 +559,6 @@ class ToolExecutor:
             if "evidence_context" in params and not isinstance(params.get("evidence_context"), str):
                 logger.warning("[ToolExecutor] smart_insert evidence_context 非字符串，已强制转换")
                 params["evidence_context"] = self._coerce_evidence_context(params.get("evidence_context"))
-            if worldview_context and not params.get("worldview_context"):
-                params["worldview_context"] = worldview_context
 
             auto_locator = bool(params.get("__auto_locator"))
             explicit_locator = bool(
@@ -749,9 +662,25 @@ class ToolExecutor:
             params.setdefault("look_ahead", 0)
             params.setdefault("max_content_length", 200)
 
+        elif tool_name == "search_content":
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("query", last_user_message)
+            params.setdefault("top_k", 10)
+            ignore_state = self._should_ignore_state_chapter_id(state, params)
+            params.setdefault("chapter_id", "" if ignore_state else state.get("chapter_id", ""))
+            params.setdefault("look_ahead", 0)
+            try:
+                top_k = int(params.get("top_k", 10))
+            except (TypeError, ValueError):
+                top_k = 10
+            if top_k < 1:
+                top_k = 1
+            if top_k > 50:
+                top_k = 50
+            params["top_k"] = top_k
+
         elif tool_name == "get_worldview_summary":
             params.setdefault("work_id", state.get("work_id", ""))
-            params.setdefault("user_id", state.get("user_id", ""))
 
         # 🆕 2026-01-12: get_writing_context 聚合工具
         elif tool_name == "get_writing_context":
@@ -762,38 +691,25 @@ class ToolExecutor:
             params.setdefault("include", "work,chapter,worldview,style,rag")
             params.setdefault("rag_query", "")
             params.setdefault("rag_top_k", 5)
-            params.setdefault("worldview_keywords", "")
-            params.setdefault("worldview_task_hint", last_user_message)
-            params.setdefault("worldview_top_k", 5)
-            params.setdefault("worldview_include_guidelines", True)
             params.setdefault("use_cache", True)
-
-        elif tool_name == "get_worldview_pack":
-            params.setdefault("work_id", state.get("work_id", ""))
-            params.setdefault("user_id", state.get("user_id", ""))
-            params.setdefault("keywords", "")
-            params.setdefault("top_k", 5)
-            params.setdefault("include_guidelines", True)
-            params.setdefault("task_hint", last_user_message)
-            params.setdefault("chapter_orders", "")
 
         # 🆕 2026-01-17: explore_content 深度探索工具
         elif tool_name == "explore_content":
             params.setdefault("work_id", state.get("work_id", ""))
             params.setdefault("user_id", state.get("user_id", ""))
             # target_task 必须由 AI 提供，不设默认值
-            params.setdefault("max_rounds", 100)
+            params.setdefault("max_rounds", 10)
             params.setdefault("conversation_id", state.get("conversation_id", ""))
             allowed_keys = {
                 "work_id",
                 "target_task",
-                "retrieval_intent",
+                "search_keywords",
                 "max_rounds",
+                "explore_mode",
                 "max_tool_calls",
                 "max_read_paragraphs",
                 "output_mode",
                 "require_paragraph_index",
-                "force_global_search",
                 "user_id",
                 "conversation_id",
                 "use_cache",
@@ -880,12 +796,9 @@ class ToolExecutor:
                     "[ToolExecutor] operate_apply use_optimization enabled (intensity=%s)",
                     params.get("optimization_intensity")
                 )
-            if not params.get("work_id"):
-                params["work_id"] = state.get("work_id", "")
-            if not params.get("user_id"):
-                params["user_id"] = state.get("user_id", "")
-            if not params.get("conversation_id"):
-                params["conversation_id"] = state.get("conversation_id", "")
+            params.setdefault("work_id", state.get("work_id", ""))
+            params.setdefault("user_id", state.get("user_id", ""))
+            params.setdefault("conversation_id", state.get("conversation_id", ""))
             # 🔧 2026-01-30: 确保 paragraph_index 是整数或 None
             pi = params.get("paragraph_index")
             if pi is not None and not isinstance(pi, int):
@@ -1220,27 +1133,21 @@ class ToolExecutor:
                     return str(item.get("text"))
         return ""
 
-    def _build_evidence_context(self, state: dict, max_evidences: int = 6, max_evidence_chars: int = 1800) -> str:
+    def _build_evidence_context(self, state: dict, max_evidences: int = 6, max_chars: int = 1800) -> str:
         """拼接 Explore 证据/定位候选，注入 smart_* 上下文"""
         data = self._load_explore_result(state)
         if not data:
             return ""
         parts = []
+        summary = data.get("explore_summary") or data.get("context_for_task")
+        if isinstance(summary, str) and summary.strip():
+            summary = summary.strip()
+            if len(summary) > 400:
+                summary = summary[:400] + "..."
+            parts.append("【探索摘要】" + summary)
 
         evidences = data.get("evidences")
-        has_evidences = isinstance(evidences, list) and bool(evidences)
-
-        # 探索摘要：仅在没有 evidences 时使用（有 evidences 时内容重复，跳过）
-        if not has_evidences:
-            summary = data.get("explore_summary") or data.get("context_for_task")
-            if isinstance(summary, str) and summary.strip():
-                summary = summary.strip()
-                if len(summary) > 400:
-                    summary = summary[:400] + "..."
-                parts.append("【探索摘要】" + summary)
-
-        # 探索证据
-        if has_evidences:
+        if isinstance(evidences, list) and evidences:
             lines = []
             for item in evidences:
                 if not isinstance(item, dict):
@@ -1248,11 +1155,6 @@ class ToolExecutor:
                 text = (item.get("text") or "").strip()
                 if not text:
                     continue
-                # db 直读的章节原文完整保留（对衔接至关重要）
-                # 其他类型的 evidence 限制单条长度，避免 prompt 膨胀
-                source_type = item.get("source_type") or ""
-                if not source_type.startswith("db_") and len(text) > max_evidence_chars:
-                    text = text[:max_evidence_chars] + "..."
                 chapter_order = item.get("chapter_order") or item.get("chapter") or ""
                 paragraph_index = item.get("paragraph_index")
                 node_id = item.get("node_id") or ""
@@ -1288,14 +1190,12 @@ class ToolExecutor:
             if lines:
                 parts.append("【定位候选】\n" + "\n".join(lines))
 
-        # KG 推理摘要：完整保留，不截断
-        kg_summary = data.get("kg_summary")
-        if isinstance(kg_summary, str) and kg_summary.strip():
-            parts.append("【KG 推理】\n" + kg_summary.strip())
-
         if not parts:
             return ""
-        return "\n".join(parts)
+        merged = "\n".join(parts)
+        if len(merged) > max_chars:
+            return merged[:max_chars] + "..."
+        return merged
 
     @staticmethod
     def _extract_target_chapter_id(explore_result: dict) -> tuple[str, str]:
@@ -1328,200 +1228,6 @@ class ToolExecutor:
             return target_id, str(source)
         explore_result = self._load_explore_result(state)
         return self._extract_target_chapter_id(explore_result)
-
-    @staticmethod
-    def _chinese_numeral_to_int(value: str) -> Optional[int]:
-        if not value:
-            return None
-        if value.isdigit():
-            try:
-                return int(value)
-            except ValueError:
-                return None
-
-        digits = {
-            "零": 0,
-            "一": 1,
-            "二": 2,
-            "两": 2,
-            "三": 3,
-            "四": 4,
-            "五": 5,
-            "六": 6,
-            "七": 7,
-            "八": 8,
-            "九": 9,
-        }
-        units = {"十": 10, "百": 100, "千": 1000, "万": 10000}
-
-        total = 0
-        current = 0
-        has_chinese_numeral = False
-        for ch in value:
-            if ch in digits:
-                current = digits[ch]
-                has_chinese_numeral = True
-                continue
-            if ch in units:
-                has_chinese_numeral = True
-                unit = units[ch]
-                if current == 0:
-                    current = 1
-                total += current * unit
-                current = 0
-                continue
-            return None
-
-        if not has_chinese_numeral:
-            return None
-        total += current
-        return total if total > 0 else None
-
-    def _extract_continue_target_chapter_order(self, message: str, state: dict = None) -> Optional[int]:
-        """从用户消息或 explore 查询中提取目标章序号。
-
-        不依赖硬编码续写关键词——安全阀是 operation=="append" + 章节存在性检查。
-        优先级：
-        1. 用户消息中的 "第X章" → X
-        2. explore 查询中的 "第X章" → X
-        """
-        _chapter_re = r"第\s*([一二两三四五六七八九十百千万零\d]{1,6})\s*章"
-
-        # 优先：用户消息中的 "第X章"
-        if message:
-            match = re.search(_chapter_re, message)
-            if match:
-                order = self._chinese_numeral_to_int((match.group(1) or "").strip())
-                if order and 1 <= order <= 9999:
-                    return order
-
-        # 回退：从 explore 查询中提取 "第X章"（AI 查询生成器已识别目标章节）
-        if state:
-            explore_result = self._load_explore_result(state)
-            if isinstance(explore_result, dict):
-                query = (explore_result.get("stats") or {}).get("query", "")
-                query_match = re.search(_chapter_re, str(query))
-                if query_match:
-                    order = self._chinese_numeral_to_int((query_match.group(1) or "").strip())
-                    if order and 1 <= order <= 9999:
-                        logger.info(
-                            "[ToolExecutor] 从 explore 查询提取目标章节: 第%s章 (query=%s)",
-                            order, query[:40],
-                        )
-                        return order
-
-        return None
-
-    @staticmethod
-    def _is_chapter_not_found_error(error_text: str) -> bool:
-        if not error_text:
-            return False
-        return "未找到第" in error_text or "total_chapters" in error_text
-
-    @staticmethod
-    def _build_chapter_title_from_order(order: int) -> str:
-        return f"第{order}章"
-
-    async def _maybe_upgrade_append_to_create(self, params: Dict[str, Any], state: dict) -> Dict[str, Any]:
-        if not isinstance(params, dict):
-            return params
-
-        operation = str(params.get("operation") or "").strip().lower()
-        if operation != "append":
-            return params
-
-        message = str(state.get("last_user_message") or "")
-        target_order = self._extract_continue_target_chapter_order(message, state=state)
-        if not target_order:
-            return params
-
-        work_id = str(params.get("work_id") or state.get("work_id") or "").strip()
-        if not work_id:
-            return params
-
-        resolved_id, resolve_error = await resolve_chapter_id(work_id, str(target_order))
-        if resolved_id:
-            previous = params.get("chapter_id")
-            params["chapter_id"] = resolved_id
-            if str(previous or "") != str(resolved_id):
-                logger.info(
-                    "[ToolExecutor] 续写目标章节已解析: 第%s章 -> %s (was=%s)",
-                    target_order,
-                    resolved_id,
-                    previous,
-                )
-            return params
-
-        if resolve_error and not self._is_chapter_not_found_error(resolve_error):
-            logger.warning(
-                "[ToolExecutor] 续写目标章节解析失败，保留 append: 第%s章 error=%s",
-                target_order,
-                resolve_error,
-            )
-            return params
-
-        params["operation"] = "create"
-        params["work_id"] = work_id
-        params["title"] = params.get("title") or self._build_chapter_title_from_order(target_order)
-        params.pop("chapter_id", None)
-        params.pop("paragraph_index", None)
-        params.pop("node_id", None)
-        params.pop("source_locator", None)
-        params.pop("before_anchor", None)
-        params.pop("after_anchor", None)
-        params.pop("original_text", None)
-
-        logger.info(
-            "[ToolExecutor] 续写目标章节不存在，自动切换 create: 第%s章 title=%s",
-            target_order,
-            params.get("title"),
-        )
-        return params
-
-    async def _maybe_upgrade_continue_to_create(
-        self,
-        tool_name: str,
-        params: Dict[str, Any],
-        state: dict,
-    ) -> Tuple[str, Dict[str, Any]]:
-        """smart_continue 的目标章节不存在时，升级为 smart_create。"""
-        if not isinstance(params, dict):
-            return tool_name, params
-
-        message = str(state.get("last_user_message") or "")
-        target_order = self._extract_continue_target_chapter_order(message, state=state)
-        if not target_order:
-            return tool_name, params
-
-        work_id = str(params.get("work_id") or state.get("work_id") or "").strip()
-        if not work_id:
-            return tool_name, params
-
-        resolved_id, resolve_error = await resolve_chapter_id(work_id, str(target_order))
-        if resolved_id:
-            # 章节存在 → 保持 smart_continue
-            return tool_name, params
-
-        if resolve_error and not self._is_chapter_not_found_error(resolve_error):
-            return tool_name, params
-
-        # ---- 章节不存在 → 升级为 smart_create ----
-        new_params = {
-            "work_id": work_id,
-            "title": params.get("title") or self._build_chapter_title_from_order(target_order),
-            "user_requirement": params.get("user_requirement") or message,
-            "word_count": params.get("word_count", 2000),
-            "user_id": params.get("user_id") or state.get("user_id"),
-        }
-        for ctx_key in ("evidence_context", "worldview_context", "worldview_hard_constraints"):
-            if params.get(ctx_key):
-                new_params[ctx_key] = params[ctx_key]
-
-        logger.info(
-            "[ToolExecutor] smart_continue 目标章节不存在，升级为 smart_create: 第%s章",
-            target_order,
-        )
-        return "smart_create", new_params
 
     @staticmethod
     def _coerce_evidence_context(value: Any) -> str:
@@ -1568,7 +1274,7 @@ class ToolExecutor:
         if not isinstance(locate_targets, list) or not locate_targets:
             return None, {
                 "error": "missing_locate_targets",
-                "message": "缺少可定位段落，请先读取目标段落（read_paragraph）。"
+                "message": "缺少可定位段落，请先读取目标段落（read_paragraph/read_paragraphs）。"
             }
         if locator_id:
             matches = []
@@ -1682,23 +1388,8 @@ class ToolExecutor:
         text_hint: str = "",
         force: bool = False
     ) -> Optional[Dict[str, Any]]:
-        existing_locator = params.get("source_locator") if isinstance(params.get("source_locator"), dict) else {}
-        existing_node_id = existing_locator.get("node_id") if isinstance(existing_locator, dict) else None
-        existing_paragraph_index = existing_locator.get("paragraph_index") if isinstance(existing_locator, dict) else None
-        if existing_paragraph_index is not None and not isinstance(existing_paragraph_index, int):
-            try:
-                existing_paragraph_index = int(existing_paragraph_index)
-            except (ValueError, TypeError):
-                existing_paragraph_index = None
-        has_existing_locator = bool(existing_node_id or existing_paragraph_index is not None)
-
-        if has_existing_locator and not force:
-            if not params.get("node_id") and existing_node_id:
-                params["node_id"] = existing_node_id
-            if params.get("paragraph_index") is None and existing_paragraph_index is not None:
-                params["paragraph_index"] = existing_paragraph_index
+        if isinstance(params.get("source_locator"), dict) and not force:
             return None
-
         explore_result = self._load_explore_result(state)
         locate_targets = explore_result.get("locate_targets") if isinstance(explore_result, dict) else []
         context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
@@ -1710,27 +1401,11 @@ class ToolExecutor:
             if stripped.lstrip("-").isdigit():
                 target_index = int(stripped)
         has_explicit_selection = bool(locator_id or target_hint or target_index is not None)
-
-        if force and not has_explicit_selection and has_existing_locator:
-            if not params.get("node_id") and existing_node_id:
-                params["node_id"] = existing_node_id
-            if params.get("paragraph_index") is None and existing_paragraph_index is not None:
-                params["paragraph_index"] = existing_paragraph_index
-            return None
-
-        node_id = params.get("node_id") or existing_node_id
-        paragraph_index = params.get("paragraph_index")
-        if paragraph_index is None:
-            paragraph_index = existing_paragraph_index
-        if paragraph_index is not None and not isinstance(paragraph_index, int):
-            try:
-                paragraph_index = int(paragraph_index)
-            except (ValueError, TypeError):
-                paragraph_index = None
-
+        node_id = None
+        paragraph_index = None
         if not (force and not has_explicit_selection):
-            if not node_id:
-                node_id = context.get("locate_node_id")
+            node_id = params.get("node_id") or context.get("locate_node_id")
+            paragraph_index = params.get("paragraph_index")
             if paragraph_index is None:
                 paragraph_index = context.get("locate_paragraph_index")
 
@@ -1744,22 +1419,6 @@ class ToolExecutor:
             target_hint=target_hint
         )
         if error:
-            if has_existing_locator and not has_explicit_selection:
-                logger.warning(
-                    "[ToolExecutor] source_locator 自动重选失败，回退使用已有定位: %s",
-                    error.get("error"),
-                )
-                params["source_locator"] = {
-                    "chapter_id": existing_locator.get("chapter_id") or params.get("chapter_id"),
-                    "paragraph_index": existing_paragraph_index,
-                    "node_id": existing_node_id,
-                    "text": existing_locator.get("text") or text_hint or target_hint,
-                }
-                if not params.get("node_id") and existing_node_id:
-                    params["node_id"] = existing_node_id
-                if params.get("paragraph_index") is None and existing_paragraph_index is not None:
-                    params["paragraph_index"] = existing_paragraph_index
-                return None
             return error
         if selected and isinstance(selected, dict):
             params["source_locator"] = {
@@ -1900,19 +1559,17 @@ class ToolExecutor:
             return tool_args
 
         try:
-            search_result = await registry.call_tool("search_analysis_fragments", {
+            search_result = await registry.call_tool("search_content", {
                 "work_id": work_id,
                 "query": query,
                 "top_k": 1,
                 "chapter_id": "",
-                "include_current": True,
-                "look_ahead": 0,
-                "max_content_length": 200,
+                "look_ahead": 0
             })
             chapter_id = self._extract_first_chapter_id(search_result)
             if chapter_id:
                 tool_args["chapter_id"] = chapter_id
-                logger.info("[ToolExecutor] locate_content 缺少 chapter_id，已通过 search_analysis_fragments 自动补全")
+                logger.info("[ToolExecutor] locate_content 缺少 chapter_id，已通过 search_content 自动补全")
         except Exception as e:
             logger.warning(f"[ToolExecutor] locate_content 自动补全 chapter_id 失败: {e}")
 
@@ -1960,8 +1617,6 @@ class ToolExecutor:
             return ""
 
         results_payload = data.get("results")
-        if results_payload is None:
-            results_payload = data.get("fragments")
         if isinstance(results_payload, str):
             try:
                 results_payload = json.loads(results_payload)
@@ -1987,10 +1642,13 @@ class ToolExecutor:
         """从 StandardTool 返回值中提取实际结果"""
         data = result.get("data", {})
 
-        if tool_name == "analyze_text":
+        if tool_name == "continue_writing":
+            return data.get("generated_text", "")
+
+        elif tool_name == "analyze_text":
             return data.get("analysis_report", "")
 
-        elif tool_name in ["smart_rewrite", "smart_continue", "smart_insert", "smart_create", "apply_chapter_edit"]:
+        elif tool_name in ["smart_rewrite", "smart_continue", "smart_insert", "apply_chapter_edit"]:
             return json.dumps(data, ensure_ascii=False)
 
         elif tool_name == "locate_content":
@@ -2025,11 +1683,11 @@ class ToolExecutor:
         elif tool_name == "search_analysis_fragments":
             return data.get("fragments", "")
 
+        elif tool_name == "search_content":
+            return data.get("results", "")
+
         elif tool_name == "get_worldview_summary":
             # 返回 JSON 字符串格式的世界观摘要
-            return json.dumps(data, ensure_ascii=False)
-
-        elif tool_name == "get_worldview_pack":
             return json.dumps(data, ensure_ascii=False)
 
         elif tool_name == "evaluate_quality":
@@ -2056,80 +1714,6 @@ class ToolExecutor:
 
         return json.dumps(data, ensure_ascii=False)
 
-    async def _attach_consistency_report(
-        self,
-        tool_name: str,
-        params: dict,
-        state: dict,
-        result: dict
-    ) -> None:
-        """为创作类工具附加一致性检查报告（轻量版）"""
-        if tool_name not in {"smart_rewrite", "smart_continue", "smart_insert", "smart_create"}:
-            return
-        data = result.get("data")
-        if not isinstance(data, dict):
-            return
-        if data.get("consistency_report"):
-            return
-
-        context_data = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
-        worldview = context_data.get("worldview_pack") if isinstance(context_data.get("worldview_pack"), dict) else context_data.get("worldview_data")
-        if not isinstance(worldview, dict) or not worldview:
-            return
-
-        work_id = params.get("work_id") or state.get("work_id") or context_data.get("work_id")
-        chapter_id = params.get("chapter_id") or data.get("chapter_id")
-        if not work_id or not chapter_id:
-            return
-
-        chapter_content = params.get("chapter_content") or ""
-        generated = data.get("content") if isinstance(data.get("content"), str) else ""
-        if chapter_content and generated and generated not in chapter_content:
-            content = f"{chapter_content}\n{generated}"
-        else:
-            content = chapter_content or generated
-        if not content:
-            return
-
-        def _rules_to_dict(items: Any, prefix: str) -> Dict[str, str]:
-            if not items:
-                return {}
-            if isinstance(items, dict):
-                return {str(k): str(v) for k, v in items.items()}
-            if isinstance(items, list):
-                return {f"{prefix}{idx + 1}": str(item) for idx, item in enumerate(items) if str(item).strip()}
-            text = str(items).strip()
-            return {f"{prefix}1": text} if text else {}
-
-        rules_dict: Dict[str, str] = {}
-        rules_dict.update(_rules_to_dict(worldview.get("world_rules"), "世界规则-"))
-        rules_dict.update(_rules_to_dict(worldview.get("constraints"), "约束-"))
-        rules_dict.update(_rules_to_dict(worldview.get("taboo"), "禁忌-"))
-
-        characters = worldview.get("characters") if isinstance(worldview.get("characters"), list) else []
-
-        from app.services.agent.tools.consistency_checker import check_story_consistency
-        report = await check_story_consistency(
-            work_id=str(work_id),
-            chapters=[{"id": str(chapter_id), "content": content}],
-            characters=characters,
-            worldview=rules_dict
-        )
-
-        if hasattr(report, "model_dump"):
-            data["consistency_report"] = report.model_dump()
-        elif hasattr(report, "dict"):
-            data["consistency_report"] = report.dict()
-        else:
-            data["consistency_report"] = report
-
-        try:
-            total = getattr(report, "total_inconsistencies", 0)
-            if isinstance(total, int) and total > 0:
-                data["consistency_requires_review"] = True
-        except Exception:
-            pass
-
     async def fallback_to_legacy(
         self,
         tool_name: str,
@@ -2141,25 +1725,35 @@ class ToolExecutor:
             analyze_text_tool,
             analyze_content,
             get_worldview_summary,
-            get_worldview_pack,
             get_writing_context,
-            search_analysis_fragments_tool,
+            search_content,
             read_paragraph,
             explore_content,
         )
         from app.services.agent.tools.editor_tools import (
             smart_rewrite,
             smart_continue,
-            smart_create,
             smart_insert,
             apply_chapter_edit,
         )
         from app.services.agent.tools.operate_tools import operate_apply
+        from app.services.agent.tools.show_dont_tell import (
+            show_emotion_tool,
+            enhance_scene_tool,
+        )
+        from app.services.agent.tools.style_learning import (
+            learn_style_tool,
+            analyze_style_tool,
+            get_style_guidance_tool,
+        )
         from app.services.agent.tools.chapter_tools import (
             create_chapter,
             update_chapter_title,
             delete_chapter,
             update_chapter_content,
+        )
+        from app.services.agent.tools.consistency_checker import (
+            check_story_consistency_tool,
         )
 
         last_user_message = state.get("last_user_message", "")
@@ -2169,24 +1763,30 @@ class ToolExecutor:
             "analyze_content": analyze_content,
             "smart_rewrite": smart_rewrite,
             "smart_continue": smart_continue,
-            "smart_create": smart_create,
             "smart_insert": smart_insert,
             "apply_chapter_edit": apply_chapter_edit,
             "get_worldview_summary": get_worldview_summary,
-            "get_worldview_pack": get_worldview_pack,
             # 聚合工具（2026-01-12）
             "get_writing_context": get_writing_context,
-            "search_analysis_fragments": search_analysis_fragments_tool,
+            "search_content": search_content,
             # 深度探索工具（2026-01-17）
             "read_paragraph": read_paragraph,
             "explore_content": explore_content,
             # 统一操作工具（2026-01-23）
             "operate_apply": operate_apply,
+            # 创作增强工具
+            "show_emotion_tool": show_emotion_tool,
+            "enhance_scene_tool": enhance_scene_tool,
+            "learn_style_tool": learn_style_tool,
+            "analyze_style_tool": analyze_style_tool,
+            "get_style_guidance_tool": get_style_guidance_tool,
             # 章节操作工具
             "create_chapter": create_chapter,
             "update_chapter_title": update_chapter_title,
             "delete_chapter": delete_chapter,
             "update_chapter_content": update_chapter_content,
+            # 分析工具
+            "check_story_consistency_tool": check_story_consistency_tool,
         }
 
         legacy_tool = LEGACY_TOOLS.get(tool_name)
@@ -2213,15 +1813,37 @@ class ToolExecutor:
                     params = {
                         "work_id": tool_args.get("work_id", state.get("work_id", ""))
                     }
-                elif tool_name == "search_analysis_fragments":
+                elif tool_name == "search_content":
                     params = {
                         "work_id": tool_args.get("work_id", state.get("work_id", "")),
                         "query": tool_args.get("query", last_user_message),
-                        "top_k": tool_args.get("top_k", 5),
+                        "top_k": tool_args.get("top_k", 10),
                         "chapter_id": tool_args.get("chapter_id", state.get("chapter_id", "")),
-                        "include_current": tool_args.get("include_current", True),
                         "look_ahead": tool_args.get("look_ahead", 0),
-                        "max_content_length": tool_args.get("max_content_length", 200),
+                    }
+                elif tool_name == "show_emotion_tool":
+                    params = {
+                        "emotion": tool_args.get("emotion", ""),
+                        "intensity": tool_args.get("intensity", 3)
+                    }
+                elif tool_name == "enhance_scene_tool":
+                    params = {
+                        "description": tool_args.get("description", tool_args.get("text", last_user_message))
+                    }
+                elif tool_name == "analyze_style_tool":
+                    params = {
+                        "text": tool_args.get("text", last_user_message)
+                    }
+                elif tool_name == "learn_style_tool":
+                    params = {
+                        "user_id": tool_args.get("user_id", state.get("user_id", "")),
+                        "text": tool_args.get("text", last_user_message),
+                        "profile_name": tool_args.get("profile_name", "default")
+                    }
+                elif tool_name == "get_style_guidance_tool":
+                    params = {
+                        "user_id": tool_args.get("user_id", state.get("user_id", "")),
+                        "profile_name": tool_args.get("profile_name", "default")
                     }
                 # 章节操作工具
                 elif tool_name == "create_chapter":
@@ -2274,6 +1896,14 @@ class ToolExecutor:
                         "conversation_id": tool_args.get("conversation_id", state.get("conversation_id", "")),
                         "work_id": tool_args.get("work_id", state.get("work_id", ""))
                     }
+                # 分析工具
+                elif tool_name == "check_story_consistency_tool":
+                    params = {
+                        "work_id": tool_args.get("work_id", state.get("work_id", "")),
+                        "chapters_json": tool_args.get("chapters_json", "[]"),
+                        "characters_json": tool_args.get("characters_json", "[]"),
+                        "worldview_json": tool_args.get("worldview_json", "{}")
+                    }
                 # 聚合工具（2026-01-12）
                 elif tool_name == "get_writing_context":
                     params = {
@@ -2307,22 +1937,9 @@ class ToolExecutor:
                     params = {
                         "work_id": tool_args.get("work_id", state.get("work_id", "")),
                         "target_task": tool_args.get("target_task", ""),
-                        "retrieval_intent": tool_args.get("retrieval_intent"),
-                        "max_rounds": tool_args.get("max_rounds", 100),
-                        "max_tool_calls": tool_args.get("max_tool_calls"),
-                        "max_read_paragraphs": tool_args.get("max_read_paragraphs"),
-                        "output_mode": tool_args.get("output_mode", "full"),
-                        "require_paragraph_index": tool_args.get("require_paragraph_index"),
-                        "force_global_search": tool_args.get("force_global_search"),
+                        "max_rounds": tool_args.get("max_rounds", 10),
                         "user_id": tool_args.get("user_id", state.get("user_id", ""))
                     }
-                    conversation_id = tool_args.get("conversation_id", state.get("conversation_id", ""))
-                    if conversation_id:
-                        params["conversation_id"] = conversation_id
-                    if "use_cache" in tool_args:
-                        params["use_cache"] = tool_args.get("use_cache")
-                    if "force_refresh" in tool_args:
-                        params["force_refresh"] = tool_args.get("force_refresh")
                 elif tool_name == "operate_apply":
                     context = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
                     state_chapter_id = state.get("chapter_id")
@@ -2445,12 +2062,6 @@ class ToolExecutor:
             keep_keys.add("chapters")
         if "worldview" in include_set:
             keep_keys.add("worldview")
-        if "worldview_full" in include_set:
-            keep_keys.add("worldview")
-        if "worldview_pack" in include_set:
-            keep_keys.add("worldview_pack")
-        if "worldview_profile" in include_set:
-            keep_keys.add("worldview_profile")
         if "style" in include_set:
             keep_keys.add("style_guidance")
         if "rag" in include_set:
@@ -2794,3 +2405,4 @@ class ToolExecutor:
         if policy in {"auto", "no_tool", "cache_only"}:
             return policy
         return "auto"
+

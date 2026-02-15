@@ -66,7 +66,7 @@
 阶段2: 项目现状分析
 ├── 分析 langgraph_agent.py (4852行)
 ├── 分析现有 HITL 实现（轮询机制）
-├── 分析反思执行器机制
+├── 分析 DeepAgentExecutor 反思机制
 └── 分析 PromptManager 模板系统
 
 阶段3: 过度设计评估
@@ -76,13 +76,13 @@
 
 阶段4: 方案讨论
 ├── Skills 机制是否需要渐进式披露
-├── 是否引入额外代理库
+├── 是否使用 deepagents 库
 └── 是否复用现有 PromptManager
 
 阶段5: 最终方案
 ├── 使用 LangGraph 原生 interrupt
 ├── 增强现有 PromptManager（非新建 Skills）
-└── 在反思执行器添加中断点
+└── 在 DeepAgentExecutor 添加中断点
 ```
 
 ### 2.2 关键发现
@@ -90,13 +90,13 @@
 | 发现 | 详情 |
 |------|------|
 | **HITL 现状** | 使用 Redis 轮询（5秒间隔），延迟高 |
-| **反思机制** | 反思执行器只能任务完成后反思，无法中途调整 |
-| **interrupt 来源** | `interrupt()` 和 `Command` 来自 `langgraph.types`，无需额外代理库 |
+| **反思机制** | DeepAgentExecutor 只能任务完成后反思，无法中途调整 |
+| **interrupt 来源** | `interrupt()` 和 `Command` 来自 `langgraph.types`，无需 deepagents 库 |
 | **现有模板系统** | PromptManager + YAML + Jinja2 已经很完善 |
 
 ### 2.3 核心结论
 
-1. **不需要引入额外代理库** - LangGraph 原生 interrupt 足够
+1. **不需要引入 deepagents 库** - LangGraph 原生 interrupt 足够
 2. **不需要新建 Skills 文件系统** - 改造现有 PromptManager 更简单
 3. **完整 Deep Agents 迁移是过度设计** - 4-5天轻量方案更合适
 
@@ -155,7 +155,7 @@
 └─ 验收：用户能看到 AI 在做什么
 
 📋 Phase 2: interrupt 人机交互（2-3天）
-├─ 后端: 反思执行器添加中断点
+├─ 后端: DeepAgentExecutor 添加中断点
 ├─ 前端: InterruptDialog 组件
 ├─ API: /resume 端点
 └─ 验收：用户能确认/跳过/修改任务
@@ -173,7 +173,7 @@
    └── 使用 LangGraph 原生 interrupt() + Command(resume=...)
 
 2. 实时任务调整
-   └── 在反思执行器的任务循环中添加中断点
+   └── 在 DeepAgentExecutor 的任务循环中添加中断点
 
 3. 渐进式知识披露
    └── 增强 PromptManager 或合并到 IntentClassifier
@@ -194,7 +194,7 @@
 | 对比项 | 原 Deep Agents 方案 | 简化方案 |
 |--------|---------------------|----------|
 | 工期 | 15 天 | 6-7 天 |
-| 新依赖 | 额外代理库 | 0 |
+| 新依赖 | deepagents 库 | 0 |
 | 学习成本 | 高 | 低 |
 | 风险 | 高 | 低 |
 | 功能完整性 | 完整 | 满足需求 |

@@ -1,6 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-import sqlalchemy as sa
 from typing import AsyncGenerator
 import logging
 from contextlib import asynccontextmanager
@@ -43,20 +42,6 @@ async_session_maker = AsyncSessionLocal
 
 # 创建基础模型类
 Base = declarative_base()
-
-def _ensure_worldview_version_column(sync_conn) -> None:
-    """Ensure works.worldview_version exists for legacy DBs."""
-    try:
-        inspector = sa.inspect(sync_conn)
-        if "works" not in inspector.get_table_names():
-            return
-        columns = {col["name"] for col in inspector.get_columns("works")}
-        if "worldview_version" in columns:
-            return
-        logger.warning("[DB] works.worldview_version missing; adding column")
-        sync_conn.execute(sa.text("ALTER TABLE works ADD COLUMN worldview_version INTEGER NOT NULL DEFAULT 1"))
-    except Exception as exc:
-        logger.warning(f"[DB] Failed to ensure works.worldview_version: {exc}")
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -123,7 +108,6 @@ async def init_db():
             logger.info(f"正在初始化数据库... (尝试 {attempt + 1}/{max_retries})")
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-                await conn.run_sync(_ensure_worldview_version_column)
             logger.info("✅ 数据库初始化成功")
             return
         except Exception as e:

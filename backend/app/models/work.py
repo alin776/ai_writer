@@ -53,7 +53,6 @@ class Work(Base):
     total_chapters = Column(Integer, default=0, nullable=False)
     view_count = Column(Integer, default=0, nullable=False)
     favorite_count = Column(Integer, default=0, nullable=False, comment="收藏数")
-    worldview_version = Column(Integer, default=1, nullable=False, comment="世界观版本号")
     
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -77,7 +76,6 @@ class Work(Base):
     work_ratings = relationship("WorkRating", back_populates="work", cascade="all, delete-orphan")
     channel = relationship("Channel", back_populates="work", cascade="all, delete-orphan", uselist=False)
     comments = relationship("Comment", back_populates="work", cascade="all, delete-orphan")
-    glossary_terms = relationship("GlossaryTerm", back_populates="work", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Work {self.title}>"

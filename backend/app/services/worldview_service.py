@@ -3,7 +3,6 @@
 处理人物、地点、设定、作品规范的业务逻辑
 """
 from typing import List, Optional
-import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -11,17 +10,13 @@ from sqlalchemy.orm import selectinload
 from app.models.character import Character
 from app.models.location import Location
 from app.models.setting import Setting
-from app.models.glossary_term import GlossaryTerm
 from app.models.work_guidelines import WorkGuidelines
 from app.schemas.worldview import (
     CharacterCreate, CharacterUpdate,
     LocationCreate, LocationUpdate,
     SettingCreate, SettingUpdate,
-    WorkGuidelinesCreate, WorkGuidelinesUpdate,
-    GlossaryTermCreate, GlossaryTermUpdate
+    WorkGuidelinesCreate, WorkGuidelinesUpdate
 )
-
-logger = logging.getLogger(__name__)
 
 
 class WorldviewService:
@@ -29,16 +24,6 @@ class WorldviewService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
-
-    def _invalidate_worldview_cache(self, work_id: str) -> None:
-        """失效世界观相关缓存（按作品维度）"""
-        if not work_id:
-            return
-        try:
-            from app.services.agent.utils.tool_cache import ToolCache
-            ToolCache.invalidate(work_id=str(work_id), include_work_scope=True)
-        except Exception as e:
-            logger.debug(f"[WorldviewService] 缓存失效失败: {e}")
     
     # ==================== Character 相关 ====================
     
@@ -62,7 +47,6 @@ class WorldviewService:
         self.db.add(character)
         await self.db.commit()
         await self.db.refresh(character)
-        self._invalidate_worldview_cache(str(character.work_id))
         return character
     
     async def update_character(self, character_id: str, character_data: CharacterUpdate) -> Optional[Character]:
@@ -77,7 +61,6 @@ class WorldviewService:
         
         await self.db.commit()
         await self.db.refresh(character)
-        self._invalidate_worldview_cache(str(character.work_id))
         return character
     
     async def delete_character(self, character_id: str) -> bool:
@@ -85,10 +68,9 @@ class WorldviewService:
         character = await self.get_character_by_id(character_id)
         if not character:
             return False
-        work_id = str(character.work_id)
+        
         await self.db.delete(character)
         await self.db.commit()
-        self._invalidate_worldview_cache(work_id)
         return True
     
     # ==================== Location 相关 ====================
@@ -113,7 +95,6 @@ class WorldviewService:
         self.db.add(location)
         await self.db.commit()
         await self.db.refresh(location)
-        self._invalidate_worldview_cache(str(location.work_id))
         return location
     
     async def update_location(self, location_id: str, location_data: LocationUpdate) -> Optional[Location]:
@@ -128,7 +109,6 @@ class WorldviewService:
         
         await self.db.commit()
         await self.db.refresh(location)
-        self._invalidate_worldview_cache(str(location.work_id))
         return location
     
     async def delete_location(self, location_id: str) -> bool:
@@ -136,10 +116,9 @@ class WorldviewService:
         location = await self.get_location_by_id(location_id)
         if not location:
             return False
-        work_id = str(location.work_id)
+        
         await self.db.delete(location)
         await self.db.commit()
-        self._invalidate_worldview_cache(work_id)
         return True
     
     # ==================== Setting 相关 ====================
@@ -164,7 +143,6 @@ class WorldviewService:
         self.db.add(setting)
         await self.db.commit()
         await self.db.refresh(setting)
-        self._invalidate_worldview_cache(str(setting.work_id))
         return setting
     
     async def update_setting(self, setting_id: str, setting_data: SettingUpdate) -> Optional[Setting]:
@@ -179,7 +157,6 @@ class WorldviewService:
         
         await self.db.commit()
         await self.db.refresh(setting)
-        self._invalidate_worldview_cache(str(setting.work_id))
         return setting
     
     async def delete_setting(self, setting_id: str) -> bool:
@@ -187,10 +164,9 @@ class WorldviewService:
         setting = await self.get_setting_by_id(setting_id)
         if not setting:
             return False
-        work_id = str(setting.work_id)
+        
         await self.db.delete(setting)
         await self.db.commit()
-        self._invalidate_worldview_cache(work_id)
         return True
     
     # ==================== WorkGuidelines 相关 ====================
@@ -218,7 +194,6 @@ class WorldviewService:
                 setattr(existing, field, value)
             await self.db.commit()
             await self.db.refresh(existing)
-            self._invalidate_worldview_cache(str(work_id))
             return existing
         else:
             # 创建新规范
@@ -229,7 +204,6 @@ class WorldviewService:
             self.db.add(guidelines)
             await self.db.commit()
             await self.db.refresh(guidelines)
-            self._invalidate_worldview_cache(str(work_id))
             return guidelines
     
     async def delete_guidelines(self, work_id: str) -> bool:
@@ -237,56 +211,7 @@ class WorldviewService:
         guidelines = await self.get_guidelines_by_work(work_id)
         if not guidelines:
             return False
+        
         await self.db.delete(guidelines)
         await self.db.commit()
-        self._invalidate_worldview_cache(str(work_id))
-        return True
-
-    # ==================== Glossary 相关 ====================
-
-    async def get_glossary_by_work(self, work_id: str) -> List[GlossaryTerm]:
-        """获取作品术语表"""
-        result = await self.db.execute(
-            select(GlossaryTerm).where(GlossaryTerm.work_id == work_id)
-        )
-        return result.scalars().all()
-
-    async def get_glossary_term_by_id(self, term_id: str) -> Optional[GlossaryTerm]:
-        """根据ID获取术语"""
-        result = await self.db.execute(
-            select(GlossaryTerm).where(GlossaryTerm.id == term_id)
-        )
-        return result.scalar_one_or_none()
-
-    async def create_glossary_term(self, term_data: GlossaryTermCreate) -> GlossaryTerm:
-        """创建术语"""
-        term = GlossaryTerm(**term_data.model_dump())
-        self.db.add(term)
-        await self.db.commit()
-        await self.db.refresh(term)
-        self._invalidate_worldview_cache(str(term.work_id))
-        return term
-
-    async def update_glossary_term(self, term_id: str, term_data: GlossaryTermUpdate) -> Optional[GlossaryTerm]:
-        """更新术语"""
-        term = await self.get_glossary_term_by_id(term_id)
-        if not term:
-            return None
-        update_data = term_data.model_dump(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(term, field, value)
-        await self.db.commit()
-        await self.db.refresh(term)
-        self._invalidate_worldview_cache(str(term.work_id))
-        return term
-
-    async def delete_glossary_term(self, term_id: str) -> bool:
-        """删除术语"""
-        term = await self.get_glossary_term_by_id(term_id)
-        if not term:
-            return False
-        work_id = str(term.work_id)
-        await self.db.delete(term)
-        await self.db.commit()
-        self._invalidate_worldview_cache(work_id)
         return True

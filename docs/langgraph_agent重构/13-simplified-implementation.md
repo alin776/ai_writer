@@ -32,7 +32,7 @@
 | 对比项 | 原方案 (07-implementation-plan.md) | 简化方案 |
 |--------|-----------------------------------|----------|
 | 工期 | 15 天 | 6-7 天 |
-| 依赖 | 外部代理库 | 0 新依赖 |
+| 依赖 | deepagents 库 | 0 新依赖 |
 | Skills | 新建文件系统 | 增强 PromptManager |
 | 复杂度 | 完整框架迁移 | 最小改动 |
 
@@ -44,12 +44,12 @@
 
 #### 2.1.1 核心思路
 
-使用 LangGraph 原生 `interrupt()` 和 `Command(resume=...)`，无需额外代理库。
+使用 LangGraph 原生 `interrupt()` 和 `Command(resume=...)`，无需 deepagents 库。
 
 #### 2.1.2 关键代码
 
 ```python
-# 来自 langgraph.types（原生能力）
+# 来自 langgraph.types，不是 deepagents
 from langgraph.types import interrupt, Command
 
 # 在需要用户确认的节点中
@@ -83,7 +83,7 @@ result = await agent.ainvoke(
 | 文件 | 改动 |
 |------|------|
 | `langgraph_agent.py` | 在 `_execute_task` 方法前添加 interrupt |
-| 反思执行器（已移除） | 在任务循环中添加中断点 |
+| `deep_agent/executor.py` | 在任务循环中添加中断点 |
 | `api/v1/agent.py` | 添加 `/resume` 端点 |
 
 ---
@@ -92,13 +92,13 @@ result = await agent.ainvoke(
 
 #### 2.2.1 核心思路
 
-在反思执行器的任务循环中添加中断点，允许用户在每个任务执行前确认或修改任务列表。
+在 DeepAgentExecutor 的任务循环中添加中断点，允许用户在每个任务执行前确认或修改任务列表。
 
 #### 2.2.2 改造前后对比
 
 **改造前**（只能任务完成后反思）：
 ```python
-class ReflectionExecutor:
+class DeepAgentExecutor:
     async def execute_with_reflection(self, tasks):
         for task in tasks:
             await self._execute_task(task)  # 直接执行
@@ -109,7 +109,7 @@ class ReflectionExecutor:
 
 **改造后**（每个任务前可确认）：
 ```python
-class ReflectionExecutor:
+class DeepAgentExecutor:
     async def execute_with_confirmation(self, tasks):
         remaining_tasks = tasks.copy()
 
@@ -281,7 +281,7 @@ backend/app/services/agent/
 ### 3.2 Phase 2: interrupt 人机交互（2-3天）
 
 - [ ] 在 `langgraph_agent.py` 的 `_execute_task` 方法前添加 interrupt
-- [ ] 修改 `反思执行器.execute_with_reflection` 为 `execute_with_confirmation`
+- [ ] 修改 `DeepAgentExecutor.execute_with_reflection` 为 `execute_with_confirmation`
 - [ ] 在任务循环中添加中断点
 - [ ] 处理用户响应（执行/跳过/修改/停止）
 - [ ] 添加 `/api/v1/agent/resume` 端点

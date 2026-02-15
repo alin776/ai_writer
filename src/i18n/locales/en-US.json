@@ -389,7 +389,7 @@
       "sentToAI": "Sent to AI assistant",
       "confirmRevision": "Please confirm revision",
       "revisionAccepted": "Revision accepted",
-      "revisionDiscarded": "Revision discarded",
+      "revisionDiscarded": "Revision reverted",
       "cannotRegenerate": "Cannot regenerate. Please select text and send command again.",
       "selectTextFirst": "Please select some text first"
     },

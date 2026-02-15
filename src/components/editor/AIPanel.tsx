@@ -6,8 +6,9 @@ import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
-import { DataService } from '../../services/DataService';
-import type { AgentChatRequest, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
+import type { AgentChatRequest, TaskSnapshot, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
+import type { AgentMode } from '../agent/ModeSelector';
+import ActivityStream from '../agent/ActivityStream';  // 导入 ActivityStream
 import { ExecutionFlow } from '../agent/ExecutionFlow';  // v5.0: 执行轨迹可视化
 import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // 编辑确认对话框
 import {
@@ -265,6 +266,101 @@ const MarkdownContent: React.FC<{ content: string }> = React.memo(({ content }) 
 MarkdownContent.displayName = 'MarkdownContent';
 
 
+const TaskList = ({ tasks }: { tasks: TaskSnapshot[] }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!tasks || tasks.length === 0) return null;
+
+  // 计算已完成任务数
+  const completedCount = tasks.filter(t => t.status === 'completed').length;
+  const totalCount = tasks.length;
+
+  // 获取当前执行的任务（running 状态），如果没有则取最后一个任务
+  const currentTask = tasks.find(t => t.status === 'running') || tasks[tasks.length - 1];
+
+  return (
+    <div className="relative">
+      {/* 展开状态：绝对定位往上展开 */}
+      {isExpanded && (
+        <div className="absolute bottom-full left-0 right-0 mb-1 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-lg z-10">
+          {/* 头部：任务进度 + 收缩按钮 */}
+          <button
+            onClick={() => setIsExpanded(false)}
+            className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+          >
+            <span className="text-[11px] font-medium text-zinc-600 dark:text-slate-300">
+              任务进度
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-zinc-500 dark:text-slate-400">
+                {completedCount} / {totalCount}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-zinc-400 dark:text-slate-500" />
+            </div>
+          </button>
+
+          {/* 任务列表 */}
+          <div className="px-2 pb-2 space-y-1 max-h-64 overflow-y-auto">
+            {tasks.map((task) => (
+              <div
+                key={task.task_id}
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] ${
+                  task.status === 'completed'
+                    ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                    : task.status === 'running'
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'bg-zinc-100 text-zinc-600 dark:bg-slate-700 dark:text-slate-400'
+                }`}
+              >
+                {task.status === 'completed' ? (
+                  <Check className="w-3.5 h-3.5 flex-shrink-0" />
+                ) : task.status === 'running' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                ) : (
+                  <div className="w-3.5 h-3.5 rounded-full border border-current flex-shrink-0" />
+                )}
+                <span className="flex-1 min-w-0 whitespace-normal break-words">{task.description}</span>
+                {task.elapsed_time !== undefined && task.status === 'completed' && (
+                  <span className="text-[10px] opacity-60 flex-shrink-0">{task.elapsed_time.toFixed(1)}s</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 收缩状态：只显示当前任务行 */}
+      {currentTask && (
+        <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors ${
+              currentTask.status === 'completed'
+                ? 'text-green-700 dark:text-green-400'
+                : currentTask.status === 'running'
+                  ? 'text-blue-700 dark:text-blue-400'
+                  : 'text-zinc-600 dark:text-slate-400'
+            }`}
+          >
+            {currentTask.status === 'completed' ? (
+              <Check className="w-3.5 h-3.5 flex-shrink-0" />
+            ) : currentTask.status === 'running' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+            ) : (
+              <div className="w-3.5 h-3.5 rounded-full border border-current flex-shrink-0" />
+            )}
+            <span className="flex-1 truncate text-left">{currentTask.description}</span>
+            <span className="text-[11px] text-zinc-500 dark:text-slate-400 flex-shrink-0">
+              {completedCount} / {totalCount}
+            </span>
+            <ChevronUp className={`w-3.5 h-3.5 text-zinc-400 dark:text-slate-500 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 type AtCommandStage = 'root' | 'knowledge';
 
 type RootCommandOption = {
@@ -324,6 +420,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     isLoading,
     error,
     suggestedActions,
+    tasks,
+    activities,
     sendMessageStream,
     stopStreaming,
     pendingApproval,
@@ -346,6 +444,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const { saveDraft, getDraft, clearDraft } = useChatDraftStore();
 
   const [inputValue, setInputValue] = useState('');
+  const [mode] = useState<AgentMode>('plan'); // Agent 执行模式：plan(固定规划) | agent(DeepAgent 反思)
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesContentRef = useRef<HTMLDivElement>(null);
@@ -386,6 +485,49 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const [atTriggerIndex, setAtTriggerIndex] = useState<number | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const [menuHeight, setMenuHeight] = useState<number>(220);
+  const resolveRevisionRequestId = useCallback((revision?: RevisionFlowData | null) => {
+    if (!revision) return undefined;
+    return (revision.requestId || (revision as any).request_id) as string | undefined;
+  }, []);
+  const resolveRevisionChapterId = useCallback((revision?: RevisionFlowData | null) => {
+    if (!revision) return undefined;
+    return (revision.chapterId || (revision as any).chapter_id) as string | undefined;
+  }, []);
+  const resolveRevisionPosition = useCallback((revision?: RevisionFlowData | null) => {
+    if (!revision) return undefined;
+    const editorAction = (revision as any).editorAction || (revision as any).editor_action;
+    return (revision as any).editorPosition || editorAction?.position;
+  }, []);
+  const crossChapterPendingCount = useMemo(() => {
+    if (!chapterId) return 0;
+    const pendingIds = new Set<string>();
+
+    const collectRevision = (revision: RevisionFlowData | undefined | null, fallbackId?: string) => {
+      if (!revision) return;
+      if (revision.status !== 'pending') return;
+      const revisionChapterId = (revision.chapterId || (revision as any).chapter_id) as string | undefined;
+      if (!revisionChapterId || revisionChapterId === chapterId) return;
+      const id = (revision.requestId || (revision as any).request_id || fallbackId) as string | undefined;
+      if (id) pendingIds.add(id);
+    };
+
+    messages.forEach((message) => {
+      const messageFlowItems = (message as any).flowItems || [];
+      messageFlowItems.forEach((item: FlowItem) => {
+        if (item.type === 'step') {
+          const stepData = item.data as StepFlowData;
+          collectRevision(stepData.revision as RevisionFlowData | undefined, stepData.revisionItemId || item.id);
+          return;
+        }
+        if (item.type === 'revision') {
+          collectRevision(item.data as RevisionFlowData, item.id);
+        }
+      });
+    });
+
+    return pendingIds.size;
+  }, [chapterId, messages]);
+  const disableBatchOperationControls = crossChapterPendingCount > 0;
 
   // 🔧 expandedMode 切换时保存/恢复滚动位置，避免跳动
   useLayoutEffect(() => {
@@ -593,7 +735,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   handleSendWithContextRef.current = async (message: string, context?: any) => {
     if (!message.trim() || isLoading) return;
 
-    const backendMode: AgentChatRequest['mode'] = 'planning';
+    const backendMode: AgentChatRequest['mode'] = mode === 'agent' ? 'react' : 'planning';
 
     // 固定 payload 结构，将选中信息放入独立 selection 字段
     // 避免将选中文本放入 prompt/chapter_context 导致被覆盖或结构混乱
@@ -615,6 +757,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       mode: backendMode,
       work_id: workId,
       chapter_id: chapterId,
+      enable_reflection: mode === 'agent',
       context: {
         ...context,
         // 新增独立 selection 字段，推荐结构化
@@ -853,7 +996,7 @@ ${context.selected_text}
     if (shouldAutoScrollRef.current) {
       scrollToBottom();
     }
-  }, [messages.length, flowItemsCount, scrollToBottom]);
+  }, [messages.length, tasks.length, flowItemsCount, scrollToBottom]);
 
   // 发送后仅做一次顶格，不持续跟随
   useLayoutEffect(() => {
@@ -1221,6 +1364,10 @@ ${context.selected_text}
         }
       : {};
 
+    // Agent 模式 = Planning + DeepAgent 反思，可动态调整计划
+    // Plan 模式 = 仅 Planning，无反思，任务列表固定
+    const enableDeepAgent = mode === 'agent';
+
     const locateHint = (() => {
       const quoted = getQuotedRangeLocateHint(message);
       if (Object.keys(quoted).length > 0) return quoted;
@@ -1230,6 +1377,7 @@ ${context.selected_text}
     const request: AgentChatRequest = {
       message,
       mode: 'planning',  // 始终使用 planning 模式
+      enable_reflection: enableDeepAgent,  // Agent 模式启用 DeepAgent 反思
       work_id: workId,
       chapter_id: chapterId,
       context: {
@@ -1398,7 +1546,7 @@ ${selectionContext.selected_text}
                 {/* 选中文本前置 */}
                 {selectionContext?.selected_text && (
                   <span
-                    className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                    className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
                     style={{ maxWidth: '100%' }}
                     title={selectionContext.selected_text}
                   >
@@ -1599,8 +1747,9 @@ ${selectionContext.selected_text}
           const completionItem = messageFlowItems.find((item: any) => item?.type === 'completion');
           const lastOutputItem = outputItems.length > 0 ? outputItems[outputItems.length - 1] : null;
           const isStreamingMessage = isLastMessage && isLoading;
-          const showThinking = isStreamingMessage && meaningfulFlowItems.length === 0;
-          const showFlowBlock = flowItemsWithoutOutput.length > 0 || showThinking;
+          const showActivityStream = isStreamingMessage && mode === 'agent' && activities.length > 0;
+          const showThinking = isStreamingMessage && !showActivityStream && meaningfulFlowItems.length === 0;
+          const showFlowBlock = flowItemsWithoutOutput.length > 0 || showActivityStream || showThinking;
           const findRevisionByItemId = (targetId: string): RevisionFlowData | null => {
             if (!targetId) return null;
             for (const item of messageFlowItems as FlowItem[]) {
@@ -1629,12 +1778,14 @@ ${selectionContext.selected_text}
                         onAcceptRevision={(itemId, requestId, selectedVersion) => {
                           console.log('[AIPanel] RevisionCard accepted:', { itemId, requestId, selectedVersion });
                           const revisionData = findRevisionByItemId(itemId);
-                          const resolvedRequestId = requestId || revisionData?.requestId;
-                          const targetChapterId = revisionData?.chapterId;
-                          const isChapterReplace =
-                            revisionData?.operation === 'content' || revisionData?.operation === 'replace_all';
-                          const chapterReplacement =
-                            (revisionData as any)?.content || revisionData?.newContent;
+                          const resolvedRequestId = requestId || resolveRevisionRequestId(revisionData);
+                          const targetChapterId = resolveRevisionChapterId(revisionData);
+                          const isPendingApprovalMatch = Boolean(
+                            pendingApproval &&
+                            resolvedRequestId &&
+                            pendingApproval.request_id === resolvedRequestId
+                          );
+                          const matchedPendingApproval = isPendingApprovalMatch ? pendingApproval : null;
 
                           // v7.2: 从 pendingApproval 中提取快照数据用于撤销/重做
                           let snapshot: {
@@ -1644,17 +1795,17 @@ ${selectionContext.selected_text}
                             selectedVersion?: number;
                           } | undefined;
 
-                          if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
+                          if (matchedPendingApproval) {
                             // 根据不同类型提取快照数据
-                            const originalContent = pendingApproval.original_content;
-                            let newContent = pendingApproval.new_content;
-                            const editorPosition = pendingApproval.editor_action?.position;
+                            const originalContent = matchedPendingApproval.original_content;
+                            let newContent = matchedPendingApproval.new_content;
+                            const editorPosition = matchedPendingApproval.editor_action?.position;
 
                             // 如果是 rewrite 类型，使用选择的版本内容
-                            if (pendingApproval.action_type === 'rewrite' &&
+                            if (matchedPendingApproval.action_type === 'rewrite' &&
                                 selectedVersion !== undefined &&
-                                pendingApproval.versions?.[selectedVersion]?.content) {
-                              newContent = pendingApproval.versions[selectedVersion].content;
+                                matchedPendingApproval.versions?.[selectedVersion]?.content) {
+                              newContent = matchedPendingApproval.versions[selectedVersion].content;
                             }
 
                             snapshot = {
@@ -1672,25 +1823,34 @@ ${selectionContext.selected_text}
                             });
                           }
 
-                          // 更新 revision 状态为已采纳，并保存快照
-                          updateRevisionStatus(itemId, 'accepted', snapshot);
-
-                          // 如果是 pendingApproval，且 requestId 匹配，则调用 submitApproval
-                          if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
-                            submitApproval(true, selectedVersion);
+                          // 如果是 pendingApproval，且 requestId 匹配，则走统一审批链路（成功后再落状态）
+                          if (matchedPendingApproval) {
+                            submitApproval(true, selectedVersion).then((success) => {
+                              updateRevisionStatus(itemId, success ? 'accepted' : 'pending', snapshot);
+                            });
                           } else if (resolvedRequestId) {
+                            const effectiveChapterId = targetChapterId || chapterId;
+                            const chapterMismatch = Boolean(
+                              chapterId &&
+                              targetChapterId &&
+                              chapterId !== targetChapterId
+                            );
+                            if (chapterMismatch && targetChapterId) {
+                              console.info('[AIPanel] 跨章节采纳，等待确认后自动跳转', {
+                                requestId: resolvedRequestId,
+                                currentChapterId: chapterId,
+                                targetChapterId
+                              });
+                            }
                             // v7.5: 非阻塞式修订 - 直接调用后端 API 写入数据
                             console.log('[AIPanel] 非阻塞式修订，直接调用后端 API');
                             agentApi.submitApprovalResponse({
                               request_id: resolvedRequestId,
                               approved: true,
-                              selected_version: selectedVersion
-                            }).then((approvalResponse) => {
-                              const isApplied = approvalResponse.apply_state === 'applied';
-                              if (!isApplied) {
-                                console.warn('[AIPanel] 审批未落库，跳过本地采纳事件:', approvalResponse);
-                                return;
-                              }
+                              selected_version: selectedVersion,
+                              chapter_id: effectiveChapterId,
+                              work_id: workId
+                            }).then(() => {
                               console.log('[AIPanel] ✅ 修订已写入数据库');
                               if (workId) {
                                 window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
@@ -1698,72 +1858,50 @@ ${selectionContext.selected_text}
                                 }));
                                 console.log('[AIPanel] ✅ 派发章节确认事件，刷新列表');
                               }
-                              if (isChapterReplace) {
-                                const syncChapterReplace = async () => {
-                                  let replacement = chapterReplacement;
-                                  if (targetChapterId) {
-                                    try {
-                                      const latestChapter = await DataService.getChapter(targetChapterId);
-                                      if (latestChapter?.content) {
-                                        replacement = latestChapter.content;
-                                      }
-                                    } catch (readErr) {
-                                      console.warn('[AIPanel] 回读章节最新内容失败，回退到修订内容:', readErr);
-                                    }
+                              window.dispatchEvent(
+                                new CustomEvent('agent-accept-revision', {
+                                  detail: {
+                                    request_id: resolvedRequestId,
+                                    revision_id: itemId,
+                                    chapter_id: effectiveChapterId
                                   }
-                                  if (!replacement) {
-                                    console.warn('[AIPanel] 章节级替换缺少可用内容，跳过本地替换');
-                                    return;
-                                  }
-                                  window.dispatchEvent(
-                                    new CustomEvent('agent-replace-text', {
-                                      detail: {
-                                        replacement,
-                                        skipRevision: true,
-                                        forceReplaceAll: true,
-                                        chapterId: targetChapterId
-                                      }
-                                    })
-                                  );
-                                };
-                                void syncChapterReplace();
-                              } else {
-                                // 派发采纳事件到编辑器
+                                })
+                              );
+                              if (chapterMismatch && targetChapterId) {
                                 window.dispatchEvent(
-                                  new CustomEvent('agent-accept-revision', {
+                                  new CustomEvent('agent-jump-revision', {
                                     detail: {
-                                      request_id: resolvedRequestId,
-                                      revision_id: itemId,
-                                      chapter_id: targetChapterId
+                                      workId,
+                                      chapterId: targetChapterId,
+                                      requestId: resolvedRequestId,
+                                      revisionId: resolvedRequestId,
+                                      position: resolveRevisionPosition(revisionData)
                                     }
                                   })
                                 );
                               }
+                              updateRevisionStatus(itemId, 'accepted', snapshot);
                             }).catch((err) => {
                               console.error('[AIPanel] 写入数据库失败:', err);
+                              updateRevisionStatus(itemId, 'pending');
                             });
                           } else {
-                            if (isChapterReplace) {
-                              // 章节级替换必须有 request_id 才能保证后端已落库
-                              console.warn('[AIPanel] 章节级采纳缺少 request_id，跳过本地替换');
-                            } else {
-                              window.dispatchEvent(
-                                new CustomEvent('agent-accept-revision', {
-                                  detail: {
-                                    request_id: itemId,
-                                    revision_id: itemId,
-                                    chapter_id: targetChapterId
-                                  }
-                                })
-                              );
-                            }
+                            console.error('[AIPanel] 缺少 request_id，无法提交采纳:', { itemId, revisionData });
+                            showError('修订缺少 request_id，无法采纳，请重试或重新生成');
+                            updateRevisionStatus(itemId, 'pending', snapshot);
                           }
                         }}
                         onDiscardRevision={(itemId, requestId) => {
                           console.log('[AIPanel] RevisionCard discarded:', { itemId, requestId });
                           const revisionData = findRevisionByItemId(itemId);
-                          const resolvedRequestId = requestId || revisionData?.requestId;
-                          const targetChapterId = revisionData?.chapterId;
+                          const resolvedRequestId = requestId || resolveRevisionRequestId(revisionData);
+                          const targetChapterId = resolveRevisionChapterId(revisionData);
+                          const isPendingApprovalMatch = Boolean(
+                            pendingApproval &&
+                            resolvedRequestId &&
+                            pendingApproval.request_id === resolvedRequestId
+                          );
+                          const matchedPendingApproval = isPendingApprovalMatch ? pendingApproval : null;
 
                           // v7.2: 从 pendingApproval 中提取快照数据用于重做
                           let snapshot: {
@@ -1773,10 +1911,10 @@ ${selectionContext.selected_text}
                             selectedVersion?: number;
                           } | undefined;
 
-                          if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
-                            const originalContent = pendingApproval.original_content;
-                            const newContent = pendingApproval.new_content;
-                            const editorPosition = pendingApproval.editor_action?.position;
+                          if (matchedPendingApproval) {
+                            const originalContent = matchedPendingApproval.original_content;
+                            const newContent = matchedPendingApproval.new_content;
+                            const editorPosition = matchedPendingApproval.editor_action?.position;
 
                             snapshot = {
                               originalContent,
@@ -1785,49 +1923,57 @@ ${selectionContext.selected_text}
                             };
                           }
 
-                          // 更新 revision 状态为已弃用，并保存快照
-                          updateRevisionStatus(itemId, 'discarded', snapshot);
-
-                          if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
-                            submitApproval(false);
+                          if (matchedPendingApproval) {
+                            submitApproval(false).then((success) => {
+                              updateRevisionStatus(itemId, success ? 'discarded' : 'pending', snapshot);
+                            });
                           } else if (resolvedRequestId) {
+                            const effectiveChapterId = targetChapterId || chapterId;
+                            const chapterMismatch = Boolean(
+                              chapterId &&
+                              targetChapterId &&
+                              chapterId !== targetChapterId
+                            );
+                            if (chapterMismatch && targetChapterId) {
+                              console.info('[AIPanel] 跨章节弃用，按目标章节提交', {
+                                requestId: resolvedRequestId,
+                                currentChapterId: chapterId,
+                                targetChapterId
+                              });
+                            }
                             // v7.5: 非阻塞式修订 - 直接调用后端 API
                             console.log('[AIPanel] 非阻塞式修订，直接调用后端 API (弃用)');
                             agentApi.submitApprovalResponse({
                               request_id: resolvedRequestId,
-                              approved: false
+                              approved: false,
+                              chapter_id: effectiveChapterId,
+                              work_id: workId
+                            }).then(() => {
+                              window.dispatchEvent(
+                                new CustomEvent('agent-discard-revision', {
+                                  detail: {
+                                    request_id: resolvedRequestId,
+                                    revision_id: itemId,
+                                    chapter_id: effectiveChapterId
+                                  }
+                                })
+                              );
+                              updateRevisionStatus(itemId, 'discarded', snapshot);
                             }).catch((err) => {
                               console.error('[AIPanel] 弃用请求失败:', err);
+                              updateRevisionStatus(itemId, 'pending');
                             });
-                            // v7.6: 派发弃用事件到编辑器（直接操作修订标记）
-                            window.dispatchEvent(
-                              new CustomEvent('agent-discard-revision', {
-                                detail: {
-                                  request_id: resolvedRequestId,
-                                  revision_id: itemId,
-                                  chapter_id: targetChapterId
-                                }
-                              })
-                            );
                           } else {
-                            // v7.6: 即使没有 pendingApproval，也派发弃用事件到编辑器
-
-                            window.dispatchEvent(
-                              new CustomEvent('agent-discard-revision', {
-                                detail: {
-                                  request_id: itemId,
-                                  revision_id: itemId,
-                                  chapter_id: targetChapterId
-                                }
-                              })
-                            );
+                            console.error('[AIPanel] 缺少 request_id，无法提交弃用:', { itemId, revisionData });
+                            showError('修订缺少 request_id，无法弃用，请重试或重新生成');
+                            updateRevisionStatus(itemId, 'pending', snapshot);
                           }
                         }}
                         onJumpRevision={(itemId, requestId) => {
                           console.log('[AIPanel] RevisionCard jump:', { itemId, requestId });
                           const revisionData = findRevisionByItemId(itemId);
-                          const resolvedRequestId = requestId || revisionData?.requestId;
-                          const targetChapterId = revisionData?.chapterId || chapterId;
+                          const resolvedRequestId = requestId || resolveRevisionRequestId(revisionData);
+                          const targetChapterId = resolveRevisionChapterId(revisionData) || chapterId;
                           const targetRevisionId = resolvedRequestId || itemId;
                           window.dispatchEvent(
                             new CustomEvent('agent-jump-revision', {
@@ -1836,7 +1982,7 @@ ${selectionContext.selected_text}
                                 chapterId: targetChapterId,
                                 revisionId: targetRevisionId,
                                 requestId: resolvedRequestId,
-                                position: revisionData?.editorPosition
+                                position: resolveRevisionPosition(revisionData)
                               }
                             })
                           );
@@ -1844,6 +1990,10 @@ ${selectionContext.selected_text}
                         onUndoRevision={(itemId) => {
                           console.log('[AIPanel] RevisionCard undo:', { itemId });
                           undoRevision(itemId);
+                        }}
+                        onRedoRevision={(itemId) => {
+                          console.log('[AIPanel] RevisionCard redo:', { itemId });
+                          redoRevision(itemId);
                         }}
                         // v7.3: 批量操作回调
                         onAcceptAllRevisions={(itemIds) => {
@@ -1855,6 +2005,14 @@ ${selectionContext.selected_text}
                           discardAllRevisions(itemIds);
                         }}
                       />
+                    )}
+                    {showActivityStream && (
+                      <div className="min-w-0">
+                        <ActivityStream
+                          key={`activities-${activities.length}`}
+                          activities={activities}
+                        />
+                      </div>
                     )}
                     {showThinking && (
                       <span className="text-[12px] text-zinc-400 dark:text-slate-400 thinking-blink">
@@ -1947,22 +2105,36 @@ ${selectionContext.selected_text}
               <p className="text-[12px] text-zinc-600 dark:text-slate-300 mb-2">
                 Agent 已执行章节操作，请确认是否保留这些修改：
               </p>
+              {disableBatchOperationControls && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-2">
+                  检测到跨章节修订，需逐条采纳或撤销后才能进行批量操作。
+                </p>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={rollbackAllOperations}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-full border border-zinc-200 dark:border-slate-600 transition-colors"
+                  disabled={disableBatchOperationControls}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-full border border-zinc-200 dark:border-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <X className="w-3.5 h-3.5" />
-                  弃用
+                  撤销
                 </button>
                 <button
                   onClick={acceptAllOperations}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-green-50 hover:bg-green-100 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 rounded-full border border-green-200 dark:border-green-800 transition-colors"
+                  disabled={disableBatchOperationControls}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-green-50 hover:bg-green-100 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 rounded-full border border-green-200 dark:border-green-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Check className="w-3.5 h-3.5" />
                   采纳
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* 任务列表（固定在底部，不随消息滚动） */}
+          {tasks.length > 0 && (
+            <div className="mb-2">
+              <TaskList tasks={tasks as TaskSnapshot[]} />
             </div>
           )}
 
@@ -1990,7 +2162,7 @@ ${selectionContext.selected_text}
                 {/* 选中文本前置（放在后，保持同一行逻辑）*/}
                 {selectionContext?.selected_text && (
                   <span
-                    className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                    className="inline-flex items-center gap-2 rounded-xl bg-zinc-50 text-zinc-800 px-3 py-2 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
                     style={{ maxWidth: '100%' }}
                     title={selectionContext.selected_text}
                   >

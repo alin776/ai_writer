@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>迭代 Agent UI 预览</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+  <style>
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .animate-spin { animation: spin 1s linear infinite; }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-slate-950 min-h-screen p-4">
+  <div class="fixed top-4 right-4 z-50">
+    <button onclick="document.documentElement.classList.toggle('dark')"
+            class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-[12px] text-zinc-600 dark:text-slate-300 shadow-sm">
+      切换暗色模式
+    </button>
+  </div>
+
+  <div class="max-w-2xl mx-auto">
+    <h1 class="text-xl font-medium text-zinc-800 dark:text-slate-200 mb-4">迭代 Agent UI 预览</h1>
+
+    <!-- AI Panel 容器 -->
+    <div class="rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden">
+
+      <!-- 消息区域 -->
+      <div class="p-4 space-y-4 max-h-[700px] overflow-y-auto">
+
+        <!-- 用户消息 -->
+        <div class="flex justify-end">
+          <div class="p-2.5 rounded-2xl bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-200 max-w-[80%] shadow-sm">
+            <p class="text-[14px] leading-relaxed">帮我续写第三章，要符合世界观设定</p>
+          </div>
+        </div>
+
+        <!-- ========== 任务列表（可展开/收起）========== -->
+        <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+          <button onclick="toggleTaskList()" class="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+            <span class="text-[11px] font-medium text-zinc-600 dark:text-slate-300">任务进度</span>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] text-zinc-500 dark:text-slate-400">2 / 4</span>
+              <i data-lucide="chevron-up" class="w-3.5 h-3.5 text-zinc-400 dark:text-slate-500"></i>
+            </div>
+          </button>
+          <div id="taskListContent" class="px-2 pb-2 space-y-1">
+            <!-- 已完成任务 1 -->
+            <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+              <i data-lucide="check" class="w-3.5 h-3.5 flex-shrink-0"></i>
+              <span class="flex-1 truncate">获取第三章内容</span>
+              <span class="text-[10px] opacity-60 flex-shrink-0">0.8s</span>
+            </div>
+            <!-- 已完成任务 2（动态添加） -->
+            <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+              <i data-lucide="check" class="w-3.5 h-3.5 flex-shrink-0"></i>
+              <span class="flex-1 truncate">获取世界观设定</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">动态</span>
+              <span class="text-[10px] opacity-60 flex-shrink-0">1.2s</span>
+            </div>
+            <!-- 执行中任务 -->
+            <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+              <i data-lucide="loader-2" class="w-3.5 h-3.5 flex-shrink-0 animate-spin"></i>
+              <span class="flex-1 truncate font-medium">续写章节内容</span>
+            </div>
+            <!-- 待执行任务 -->
+            <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] bg-zinc-100 text-zinc-600 dark:bg-slate-700 dark:text-slate-400">
+              <div class="w-3.5 h-3.5 rounded-full border border-current flex-shrink-0"></div>
+              <span class="flex-1 truncate">应用到编辑器</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== StepCard 风格的执行步骤 ========== -->
+        <div class="space-y-1">
+          <!-- Step 1: 获取章节 - 已完成 -->
+          <div class="mb-3">
+            <div class="flex items-center gap-2 py-1.5 cursor-pointer select-none" onclick="toggleStep('step1')">
+              <div class="w-[18px] h-[18px] flex items-center justify-center">
+                <i data-lucide="check" class="w-3 h-3 text-gray-500"></i>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[14px] font-medium text-gray-900 dark:text-white">获取章节内容</span>
+                <i data-lucide="chevron-up" id="step1-icon" class="w-2.5 h-2.5 text-gray-400 dark:text-gray-600"></i>
+              </div>
+            </div>
+            <div id="step1-content" class="ml-[26px] pt-1">
+              <div class="text-[13px] text-gray-500 dark:text-[#999] my-2 leading-[1.6]">
+                成功获取第三章内容，共 2000 字，讲述主角进入神秘森林。
+              </div>
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full my-2">
+                <i data-lucide="wrench" class="w-3 h-3 text-gray-400 dark:text-slate-500"></i>
+                <span class="text-[13px] text-gray-500 dark:text-slate-400">调用工具</span>
+                <span class="font-mono text-[12px] text-gray-600 dark:text-slate-300">get_chapter_content</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: 获取世界观（动态添加）- 已完成 -->
+          <div class="mb-3">
+            <div class="flex items-center gap-2 py-1.5 cursor-pointer select-none" onclick="toggleStep('step2')">
+              <div class="w-[18px] h-[18px] flex items-center justify-center">
+                <i data-lucide="check" class="w-3 h-3 text-gray-500"></i>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[14px] font-medium text-gray-900 dark:text-white">获取世界观设定</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">动态添加</span>
+                <i data-lucide="chevron-up" id="step2-icon" class="w-2.5 h-2.5 text-gray-400 dark:text-gray-600"></i>
+              </div>
+            </div>
+            <div id="step2-content" class="ml-[26px] pt-1">
+              <div class="text-[13px] text-gray-500 dark:text-[#999] my-2 leading-[1.6]">
+                获取到魔法体系设定：元素魔法分为五系，主角擅长风系。
+              </div>
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full my-2">
+                <i data-lucide="wrench" class="w-3 h-3 text-gray-400 dark:text-slate-500"></i>
+                <span class="text-[13px] text-gray-500 dark:text-slate-400">调用工具</span>
+                <span class="font-mono text-[12px] text-gray-600 dark:text-slate-300">get_worldview_summary</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: 续写章节 - 进行中 -->
+          <div class="mb-3">
+            <div class="flex items-center gap-2 py-1.5 cursor-pointer select-none" onclick="toggleStep('step3')">
+              <div class="w-[18px] h-[18px] flex items-center justify-center">
+                <i data-lucide="loader-2" class="w-3 h-3 text-blue-500 animate-spin"></i>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[14px] font-medium text-gray-900 dark:text-white">续写章节内容</span>
+                <i data-lucide="chevron-up" id="step3-icon" class="w-2.5 h-2.5 text-gray-400 dark:text-gray-600"></i>
+              </div>
+            </div>
+            <div id="step3-content" class="ml-[26px] pt-1">
+              <div class="text-[13px] text-gray-500 dark:text-[#999] my-2 leading-[1.6]">
+                正在根据上下文和世界观设定续写...
+              </div>
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full my-2">
+                <i data-lucide="wrench" class="w-3 h-3 text-gray-400 dark:text-slate-500"></i>
+                <span class="text-[13px] text-gray-500 dark:text-slate-400">调用工具</span>
+                <span class="font-mono text-[12px] text-gray-600 dark:text-slate-300">smart_continue</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== AI 思考（普通文本输出，不是专门卡片）========== -->
+        <div class="text-[13px] text-gray-600 dark:text-slate-400 leading-relaxed">
+          <p>我获取了第三章内容（2000字），讲述主角进入森林。分析后发现需要世界观信息来保持一致性，于是动态添加了获取世界观的任务。</p>
+          <p class="mt-2">世界观设定：元素魔法分为五系，主角擅长风系。接下来我会根据这些设定，续写主角在森林中运用风系魔法的冒险经历。</p>
+        </div>
+
+        <!-- ========== 执行结果 ========== -->
+        <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+          <div class="px-3 py-2 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
+            <span class="text-[11px] font-medium text-zinc-600 dark:text-slate-300">回复</span>
+            <button class="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors">
+              <i data-lucide="copy" class="w-3.5 h-3.5 text-zinc-400 dark:text-slate-500"></i>
+            </button>
+          </div>
+          <div class="p-3">
+            <p class="text-[14px] leading-relaxed text-zinc-700 dark:text-slate-300">
+              林间的雾气越来越浓，李明不由得放慢了脚步。他能感受到空气中弥漫着一股奇异的能量波动——这是魔力的气息。
+            </p>
+            <p class="text-[14px] leading-relaxed text-zinc-700 dark:text-slate-300 mt-2">
+              "根据师父教导的感知法则，这种浓度的魔力意味着附近有灵脉存在。"李明心中暗想，同时按照修炼口诀调整呼吸，让自己的感知范围逐渐扩大...
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 底部输入区域 -->
+      <div class="border-t border-gray-200 dark:border-slate-700 p-4">
+        <div class="rounded-3xl bg-white border border-gray-200 px-4 py-3 dark:bg-slate-800 dark:border-slate-700">
+          <textarea placeholder="输入消息..." class="w-full bg-transparent outline-none border-none text-[12px] placeholder:text-gray-400 resize-none dark:text-slate-200" rows="1"></textarea>
+          <div class="flex items-center justify-between gap-2 mt-2">
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-slate-700 text-[11px] text-zinc-600 dark:text-slate-300">
+              <i data-lucide="brain" class="w-3.5 h-3.5"></i>
+              <span>Agent</span>
+            </div>
+            <button class="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center dark:bg-blue-600">
+              <i data-lucide="send" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 说明 -->
+    <div class="mt-6 p-4 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700">
+      <h2 class="text-[14px] font-medium text-zinc-700 dark:text-slate-300 mb-3">UI 元素说明</h2>
+      <div class="space-y-2 text-[12px] text-zinc-600 dark:text-slate-400">
+        <p><strong>任务列表</strong>：可展开/收起，显示任务状态和进度</p>
+        <p><strong>StepCard</strong>：可折叠的执行步骤，显示工具调用</p>
+        <p><strong>AI 思考</strong>：普通文本输出（不是专门卡片）</p>
+        <p><strong>动态添加</strong>：蓝色标签标记反思后新增的任务</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    function toggleTaskList() {
+      const content = document.getElementById('taskListContent');
+      content.style.display = content.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function toggleStep(stepId) {
+      const content = document.getElementById(stepId + '-content');
+      const icon = document.getElementById(stepId + '-icon');
+      if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.setAttribute('data-lucide', 'chevron-up');
+      } else {
+        content.style.display = 'none';
+        icon.setAttribute('data-lucide', 'chevron-down');
+      }
+      lucide.createIcons();
+    }
+  </script>
+</body>
+</html>

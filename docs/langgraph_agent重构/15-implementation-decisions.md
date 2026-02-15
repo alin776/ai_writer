@@ -7,28 +7,29 @@
 
 ---
 
-## ADR-001: 不引入额外代理库
+## ADR-001: 不引入 deepagents 库
 
 ### 状态
 **已决定** - 2025-12-23
 
 ### 背景
-原重构方案（`07-implementation-plan.md`）规划引入额外代理库来实现 interrupt/resume 机制。
+原重构方案（`07-implementation-plan.md`）规划引入 `deepagents` 库（0.3.0 版本）来实现 interrupt/resume 机制。
 
 ### 决策
-**不引入额外代理库**，直接使用 LangGraph 原生的 `interrupt()` 和 `Command`。
+**不引入 deepagents 库**，直接使用 LangGraph 原生的 `interrupt()` 和 `Command`。
 
 ### 理由
-1. **依赖来源相同**: `interrupt` 和 `Command` 实际来自 `langgraph.types`
-2. **减少依赖**: 项目已依赖 langgraph，无需额外引入代理库
-3. **降低风险**: 额外代理库版本演进不确定
+1. **依赖来源相同**: `interrupt` 和 `Command` 实际来自 `langgraph.types`，不是 deepagents 独有
+2. **减少依赖**: 项目已依赖 langgraph，无需额外引入 deepagents
+3. **降低风险**: deepagents 0.3.0 相对较新，稳定性未知
 
 ### 代码示例
 ```python
 # 正确做法
 from langgraph.types import interrupt, Command
 
-# 不需要额外库
+# 不需要
+# from deepagents import ...
 ```
 
 ### 影响
@@ -115,13 +116,13 @@ response = interrupt({"type": "confirmation", "message": "确认执行？"})
 
 ---
 
-## ADR-004: 在反思执行器添加任务确认中断点
+## ADR-004: 在 DeepAgentExecutor 添加任务确认中断点
 
 ### 状态
 **已决定** - 2025-12-23
 
 ### 背景
-现有 `反思执行器.execute_with_reflection()` 只能在任务全部完成后进行反思，无法在执行过程中让用户确认或调整。
+现有 `DeepAgentExecutor.execute_with_reflection()` 只能在任务全部完成后进行反思，无法在执行过程中让用户确认或调整。
 
 ### 决策
 在任务循环中添加 interrupt 中断点，实现**每个任务执行前可确认**。
@@ -300,7 +301,7 @@ POST /api/v1/agent/resume
 
 | ADR | 决策 | 状态 |
 |-----|------|------|
-| 001 | 不引入额外代理库 | ✅ 已决定 |
+| 001 | 不引入 deepagents 库 | ✅ 已决定 |
 | 002 | 增强 PromptManager | ✅ 已决定 |
 | 003 | 使用原生 interrupt | ✅ 已决定 |
 | 004 | 添加任务确认中断点 | ✅ 已决定 |

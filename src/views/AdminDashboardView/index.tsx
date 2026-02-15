@@ -141,11 +141,9 @@ const AdminDashboardView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* 页面标题 */}
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">数据面板</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">系统运营数据总览</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">数据面板</h1>
+        <p className="mt-2 text-gray-600 dark:text-gray-400">系统运营数据总览</p>
       </div>
 
       {/* 统计卡片 */}

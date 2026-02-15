@@ -183,38 +183,36 @@ const AdminCostView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* 页面标题和操作栏 */}
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">成本监控</h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">实时监控 AI 调用成本和使用情况</p>
-          </div>
-            <div className="flex items-center space-x-3">
-              {/* 时间范围选择 */}
-              <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                {(['7d', '30d', '90d'] as const).map((range) => (
-                  <button
-                    key={range}
-                  onClick={() => setTimeRange(range)}
-                  className={`px-4 py-2 text-sm font-medium transition-colors ${
-                    timeRange === range
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                  >
-                    {range === '7d' ? '最近7天' : range === '30d' ? '最近30天' : '最近90天'}
-                  </button>
-                ))}
-              </div>
-              <Button variant="outline" size="sm" disabled title="后端暂未开放自定义日期">
-                <Calendar className="w-4 h-4 mr-2" />
-                自定义日期
-              </Button>
-              <Button variant="outline" size="sm" disabled title="导出报告功能待实现">
-                <Download className="w-4 h-4 mr-2" />
-                导出报告
-              </Button>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">成本监控</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">实时监控 AI 调用成本和使用情况</p>
+        </div>
+          <div className="flex items-center space-x-3">
+            {/* 时间范围选择 */}
+            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+              {(['7d', '30d', '90d'] as const).map((range) => (
+                <button
+                  key={range}
+                onClick={() => setTimeRange(range)}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  timeRange === range
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+                >
+                  {range === '7d' ? '最近7天' : range === '30d' ? '最近30天' : '最近90天'}
+                </button>
+              ))}
             </div>
+            <Button variant="outline" size="sm" disabled title="后端暂未开放自定义日期">
+              <Calendar className="w-4 h-4 mr-2" />
+              自定义日期
+            </Button>
+            <Button variant="outline" size="sm" disabled title="导出报告功能待实现">
+              <Download className="w-4 h-4 mr-2" />
+              导出报告
+            </Button>
           </div>
         </div>
 

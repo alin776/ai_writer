@@ -173,63 +173,61 @@ export default function AdminChannelsView() {
 
   return (
     <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
-        {/* 头部 */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">频道管理</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                管理所有频道，包括官方频道、粉丝群和作品频道
-              </p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="text-sm text-gray-600 dark:text-gray-300">
-                共 <span className="font-semibold text-blue-600">{total}</span> 个频道
-              </div>
+      {/* 头部 */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">频道管理</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              管理所有频道，包括官方频道、粉丝群和作品频道
+            </p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              共 <span className="font-semibold text-blue-600">{total}</span> 个频道
             </div>
           </div>
         </div>
+      </div>
 
-        {/* 搜索和筛选栏 */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-          <div className="flex items-center space-x-4">
-            {/* 搜索框 */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="搜索频道名称..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-
-            {/* 类型筛选 */}
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            >
-              <option value="">所有类型</option>
-              <option value="official">官方频道</option>
-              <option value="fangroup">粉丝群</option>
-              <option value="work">作品频道</option>
-            </select>
-
-            {/* 状态筛选 */}
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            >
-              <option value="">所有状态</option>
-              <option value="active">正常</option>
-              <option value="warning">警告</option>
-              <option value="locked">已折叠</option>
-            </select>
+      {/* 搜索和筛选栏 */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <div className="flex items-center space-x-4">
+          {/* 搜索框 */}
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="搜索频道名称..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
           </div>
+
+          {/* 类型筛选 */}
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          >
+            <option value="">所有类型</option>
+            <option value="official">官方频道</option>
+            <option value="fangroup">粉丝群</option>
+            <option value="work">作品频道</option>
+          </select>
+
+          {/* 状态筛选 */}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          >
+            <option value="">所有状态</option>
+            <option value="active">正常</option>
+            <option value="warning">警告</option>
+            <option value="locked">已折叠</option>
+          </select>
         </div>
       </div>
 

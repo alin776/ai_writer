@@ -51,11 +51,11 @@ resume:   恢复 Agent 执行，传入用户响应
 Deep Agents 主要通过 `interrupt_on` 参数配置哪些工具需要人工确认：
 
 ```python
-from app.services.agent.factory import build_agent_graph
+from deepagents import create_deep_agent
 from langgraph.types import Command
 
 # 配置需要人工确认的工具
-agent = build_agent_graph(
+agent = create_deep_agent(
     tools=[dangerous_operation, smart_rewrite],
     interrupt_on={
         "dangerous_operation": True,  # 简单配置
@@ -114,7 +114,7 @@ def smart_rewrite(text: str, instruction: str) -> dict:
     }
 
 # 配置中断
-agent = build_agent_graph(
+agent = create_deep_agent(
     tools=[smart_rewrite],
     interrupt_on={
         "smart_rewrite": {
@@ -288,7 +288,7 @@ function InterruptDialog({ interrupt, onRespond }) {
 # api/v1/agent.py
 
 from langgraph.types import Command
-from app.services.agent.factory import build_agent_graph
+from deepagents import create_deep_agent
 
 @router.post("/chat")
 async def chat(request: ChatRequest):
@@ -474,7 +474,7 @@ def smart_rewrite_with_confirm(
     }
 
 # 配置 Agent
-agent = build_agent_graph(
+agent = create_deep_agent(
     tools=[smart_rewrite_with_confirm],
     interrupt_on={
         "smart_rewrite_with_confirm": {
@@ -509,7 +509,7 @@ def batch_analyze(chapter_ids: str) -> str:
     return "\n".join(results)
 
 # 如果需要进度控制，可以配置 interrupt_on
-agent = build_agent_graph(
+agent = create_deep_agent(
     tools=[batch_analyze],
     interrupt_on={
         "batch_analyze": True  # 执行前确认

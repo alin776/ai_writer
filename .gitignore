@@ -48,6 +48,8 @@ novelaide.db
 # ==================== Node.js (Frontend) ====================
 # Dependencies
 node_modules/
+node_modules.bak.*
+node_modules.npm.*
 
 # Logs
 logs
@@ -138,6 +140,7 @@ Microsoft/
 # !requirements.txt
 # !package.json
 .npm-cache/
+.yarn/install-state.gz
 
 # WSL虚拟环境
 backend/venv_linux/

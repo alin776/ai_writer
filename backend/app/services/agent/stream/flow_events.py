@@ -168,22 +168,6 @@ class FlowEventBuilder:
         }
 
     @staticmethod
-    def hitl_pending(thread_id: str) -> dict:
-        """构建 HITL 暂停事件（通知前端 Agent 已暂停等待用户确认）
-
-        Args:
-            thread_id: 图的 thread_id（前端调用 /chat/resume 时需要）
-        """
-        return {
-            "type": "hitl_pending",
-            "data": {
-                "thread_id": thread_id,
-                "status": "waiting_for_user"
-            },
-            "timestamp": get_utc_now().isoformat()
-        }
-
-    @staticmethod
     def summarization_start(
         task_classification: Dict[str, List[Dict[str, Any]]],
         context_stats: Dict[str, Any],
@@ -194,7 +178,8 @@ class FlowEventBuilder:
         Args:
             task_classification: 任务分类 {
                 "input_tasks": [{"tool": "...", "description": "..."}],
-                "output_tasks": [...]
+                "output_tasks": [...],
+                "display_tasks": [...]
             }
             context_stats: 上下文统计 {
                 "original_length": 6048,
@@ -387,10 +372,12 @@ TOOL_ICONS = {
     "get_context_tool": "BookOpen",
     # 检索类
     "search_analysis_fragments_tool": "Search",
+    "search_content": "Search",
     "search_memory_tool": "Search",
+    "search_knowledge_advanced": "Search",
     # 写作类
     "smart_continue": "PenTool",
-    "smart_create": "PenTool",
+    "expand_text": "Maximize2",
     # 编辑类
     "smart_rewrite": "Edit3",
     "smart_insert": "Plus",

@@ -174,7 +174,17 @@ class AgentApiService {
       onStep?: (step: any) => void;
       onDone?: (metadata: any, suggestedActions: string[]) => void;
       onError?: (error: string) => void;
-      // 审批/执行轨迹回调
+      // Planning ????
+      onPlan?: (plan: any) => void;
+      onPlanUpdate?: (plan: any) => void;
+      onTaskStart?: (task: any) => void;
+      onTaskProgress?: (progress: any) => void;
+      onTaskDone?: (taskDone: any) => void;
+      onThinking?: (thinking: any) => void;
+      // React ????
+      onProgress?: (progress: any) => void;
+      onToolCall?: (toolCall: any) => void;
+      onActivityComplete?: (activity: any) => void;
       onApprovalRequest?: (approvalReq: any) => void;
       onFlowEvent?: (event: any) => void;  // 执行轨迹事件 (v6.0)
       onReader?: (reader: ReadableStreamDefaultReader<Uint8Array>, controller?: AbortController) => void;
@@ -262,6 +272,43 @@ class AgentApiService {
               callbacks.onError?.(data.error);
               break;
 
+            // Planning ????
+            case 'plan':
+              callbacks.onPlan?.(data.data);
+              break;
+            case 'plan_update':
+              if (callbacks.onPlanUpdate) {
+                callbacks.onPlanUpdate(data.data);
+              } else {
+                callbacks.onPlan?.(data.data);
+              }
+              break;
+            case 'task_start':
+              callbacks.onTaskStart?.(data.data);
+              break;
+            case 'task_progress':
+              callbacks.onTaskProgress?.(data.data);
+              break;
+            case 'task_done':
+              callbacks.onTaskDone?.(data.data);
+              break;
+            case 'task_complete':
+              callbacks.onTaskDone?.(data.data);
+              break;
+            case 'thinking':
+              callbacks.onThinking?.(data.data);
+              break;
+
+            // React ????
+            case 'progress':
+              callbacks.onProgress?.(data.data);
+              break;
+            case 'tool_call':
+              callbacks.onToolCall?.(data.data);
+              break;
+            case 'activity_complete':
+              callbacks.onActivityComplete?.(data.data);
+              break;
             case 'approval_request':
               callbacks.onApprovalRequest?.(data.data);
               break;
@@ -274,7 +321,7 @@ class AgentApiService {
               callbacks.onFlowEvent?.({ type: 'text', data: data.data, timestamp: data.timestamp });
               break;
             case 'step_start':
-              callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, description: data.description, status: data.status, timestamp: data.timestamp });
+              callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, status: data.status, timestamp: data.timestamp });
               break;
             case 'knowledge_loaded':
               callbacks.onFlowEvent?.({ type: 'knowledge_loaded', stepId: data.step_id, knowledgeType: data.knowledge_type, title: data.title, icon: data.icon, items: data.items, timestamp: data.timestamp });
@@ -299,16 +346,23 @@ class AgentApiService {
               break;
             }
             case 'summarization_start':
-              callbacks.onFlowEvent?.({
-                type: 'summarization_start',
-                task_classification: data.task_classification,
-                context_stats: data.context_stats,
-                reason: data.reason,
-                status: data.status,
-                timestamp: data.timestamp
-              });
+              console.log('[AgentApi] Received summarization_start event:', data);
+              console.log('[AgentApi] callbacks.onFlowEvent exists:', !!callbacks.onFlowEvent);
+              if (callbacks.onFlowEvent) {
+                const flowEvent = {
+                  type: 'summarization_start',
+                  task_classification: data.task_classification,
+                  context_stats: data.context_stats,
+                  reason: data.reason,
+                  status: data.status,
+                  timestamp: data.timestamp
+                };
+                console.log('[AgentApi] Calling onFlowEvent with:', flowEvent);
+                callbacks.onFlowEvent(flowEvent);
+              }
               break;
             case 'summarization_complete':
+              console.log('[AgentApi] Received summarization_complete event:', data);
               callbacks.onFlowEvent?.({
                 type: 'summarization_complete',
                 status: data.status,
@@ -592,12 +646,10 @@ class AgentApiService {
     approved: boolean;
     selected_version?: number;
     reason?: string;
-  }): Promise<{
-    success: boolean;
-    request_id: string;
-    action: 'accepted' | 'rejected';
-    apply_state: 'pending' | 'applied' | 'rejected' | 'failed';
-  }> {
+    chapter_id?: string;
+    work_id?: string;
+    conversation_id?: string;
+  }): Promise<{ success: boolean; request_id: string }> {
     const response = await this.client.post('/chat/approval-response', request);
     return response.data;
   }

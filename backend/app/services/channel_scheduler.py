@@ -17,15 +17,7 @@ from app.core.database import AsyncSessionLocal
 from app.utils.datetime_utils import get_utc_now, make_aware
 from app.models.channel import Channel, ChannelType, ChannelStatus
 from app.models.channel_message import ChannelMessage
-from app.models.notification import (
-    Notification,
-    NotificationCategory,
-    NotificationType,
-    NotificationPriority,
-    NotificationStatus,
-    TargetUserType,
-    UserNotification,
-)
+from app.models.notification import Notification, NotificationType, NotificationPriority
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -131,23 +123,11 @@ async def check_work_channel_activity():
                             id=uuid.uuid4(),
                             title="作品频道已折叠",
                             content=f"您的作品频道「{channel.name}」因连续7天无人发言已被自动折叠。在频道内发送消息可重新激活。",
-                            category=NotificationCategory.SYSTEM,
-                            type=NotificationType.INACTIVITY_ALERT,
-                            priority=NotificationPriority.IMPORTANT,
-                            target_users=TargetUserType.CUSTOM,
-                            custom_user_ids=[channel.creator_id],
-                            status=NotificationStatus.ACTIVE,
-                            published_at=now,
-                            display_type=["notification"],
+                            type=NotificationType.SYSTEM,
+                            priority=NotificationPriority.NORMAL,
+                            target_user_id=channel.creator_id,
                         )
                         session.add(notification)
-                        session.add(UserNotification(
-                            user_id=channel.creator_id,
-                            notification_id=notification.id,
-                            is_read=False,
-                            is_dismissed=False,
-                            clicked=False,
-                        ))
 
                 # 规则2: 第5天无消息 -> 预警
                 elif days_since_last_message == 5 and channel.status == ChannelStatus.ACTIVE:
@@ -162,23 +142,11 @@ async def check_work_channel_activity():
                             id=uuid.uuid4(),
                             title="作品频道即将折叠",
                             content=f"您的作品频道「{channel.name}」已连续5天无人发言，还有2天将被自动折叠。快去发送消息唤醒频道吧！",
-                            category=NotificationCategory.SYSTEM,
-                            type=NotificationType.INACTIVITY_ALERT,
-                            priority=NotificationPriority.IMPORTANT,
-                            target_users=TargetUserType.CUSTOM,
-                            custom_user_ids=[channel.creator_id],
-                            status=NotificationStatus.ACTIVE,
-                            published_at=now,
-                            display_type=["notification"],
+                            type=NotificationType.SYSTEM,
+                            priority=NotificationPriority.HIGH,
+                            target_user_id=channel.creator_id,
                         )
                         session.add(notification)
-                        session.add(UserNotification(
-                            user_id=channel.creator_id,
-                            notification_id=notification.id,
-                            is_read=False,
-                            is_dismissed=False,
-                            clicked=False,
-                        ))
 
                 # 规则3: 活跃满30天且成员增长 -> 转正永久
                 elif not channel.is_permanent:
@@ -200,23 +168,11 @@ async def check_work_channel_activity():
                                 id=uuid.uuid4(),
                                 title="作品频道已转正",
                                 content=f"恭喜！您的作品频道「{channel.name}」已活跃满30天并获得「永久频道」资格，不会再被自动折叠！",
-                                category=NotificationCategory.SYSTEM,
-                                type=NotificationType.MILESTONE,
-                                priority=NotificationPriority.NORMAL,
-                                target_users=TargetUserType.CUSTOM,
-                                custom_user_ids=[channel.creator_id],
-                                status=NotificationStatus.ACTIVE,
-                                published_at=now,
-                                display_type=["notification"],
+                                type=NotificationType.SYSTEM,
+                                priority=NotificationPriority.HIGH,
+                                target_user_id=channel.creator_id,
                             )
                             session.add(notification)
-                            session.add(UserNotification(
-                                user_id=channel.creator_id,
-                                notification_id=notification.id,
-                                is_read=False,
-                                is_dismissed=False,
-                                clicked=False,
-                            ))
 
                 # 更新warning_days
                 elif channel.status == ChannelStatus.WARNING:

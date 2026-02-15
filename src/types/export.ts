@@ -29,7 +29,6 @@ export interface ImportOptions {
   includeWorldview: boolean;
   includeGuidelines: boolean;
   autoExtractWorldview?: boolean;
-  worldviewScanMode?: 'incremental' | 'full';
 }
 
 export interface ImportPreviewWork {
@@ -62,10 +61,4 @@ export interface ImportResponse {
   locationsCreated: number;
   settingsCreated: number;
   message: string;
-  importContext?: {
-    chapterIds?: string[];
-    chapterOrderStart?: number;
-    chapterOrderEnd?: number;
-    scanMode?: 'incremental' | 'full';
-  };
 }

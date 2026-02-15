@@ -11,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { OutputFlowData } from '@/types/agent';
 import { ContentPreviewModal } from './ContentPreviewModal';
+import { normalizeAgentMarkdown } from './markdownNormalizer';
 
 interface OutputCardProps extends OutputFlowData {
   onCopy?: () => void;
@@ -49,6 +50,10 @@ function OutputCardInner({
   onAddToKnowledge
 }: OutputCardProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
+  const normalizedContent = useMemo(
+    () => normalizeAgentMarkdown(content, { stripLeadingIndent: true }),
+    [content]
+  );
 
   // 渲染介绍文字，支持高亮
   const renderIntro = () => {
@@ -71,7 +76,7 @@ function OutputCardInner({
   };
 
   return (
-    <div className="mt-2 first:mt-0">
+    <div className="mt-2">
       {/* 输出介绍 */}
       {intro && (
         <div className="text-[14px] text-gray-600 dark:text-[#ccc] mb-3 leading-[1.7]">
@@ -87,8 +92,8 @@ function OutputCardInner({
             <span>正在生成...</span>
           </div>
         ) : (
-          <div className="text-[14px] text-gray-600 dark:text-slate-300 leading-[1.8] [&_p]:mb-2.5 [&_p]:indent-8 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-gray-300 [&_th]:dark:border-slate-600 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-100 [&_th]:dark:bg-slate-700 [&_td]:border [&_td]:border-gray-300 [&_td]:dark:border-slate-600 [&_td]:px-3 [&_td]:py-2">
-            <MemoizedMarkdown content={content} />
+          <div className="text-[14px] text-gray-600 dark:text-slate-300 leading-[1.8] [&_p]:mb-2.5 [&_p]:indent-0 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-[15px] [&_h3]:font-medium [&_h3]:mb-2 [&_h4]:text-[14px] [&_h4]:font-medium [&_h4]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_th]:border [&_th]:border-gray-300 [&_th]:dark:border-slate-600 [&_th]:px-3 [&_th]:py-2 [&_th]:bg-gray-100 [&_th]:dark:bg-slate-700 [&_td]:border [&_td]:border-gray-300 [&_td]:dark:border-slate-600 [&_td]:px-3 [&_td]:py-2">
+            <MemoizedMarkdown content={normalizedContent} />
           </div>
         )}
       </div>

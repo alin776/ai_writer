@@ -5,10 +5,11 @@
 import logging
 import os
 import re
+import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete as sql_delete
+from sqlalchemy import select, delete as sql_delete, func, or_, and_
 
 # 确保在导入 sentence_transformers 前设置好镜像与缓存目录，避免访问 huggingface.co 超时
 _default_hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
@@ -22,13 +23,47 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 
 from app.models.novel_chapter_vector import NovelChapterVector
+from app.models.chapter import Chapter
+from app.models.chapter_content_index import ChapterContentIndex
+from app.services.agent.utils.performance import MemoryCache
 
 logger = logging.getLogger(__name__)
 
+VECTOR_FRESHNESS_CACHE_TTL_SECONDS = 10
+_VECTOR_FRESH_CACHE = MemoryCache(max_size=2000, default_ttl=None)
+
+
+def _get_cached_vector_freshness(cache_key: str) -> Optional[bool]:
+    cached = _VECTOR_FRESH_CACHE.get(cache_key)
+    if not cached:
+        return None
+    expires_at = cached.get("expires_at")
+    if not expires_at or expires_at <= time.time():
+        _VECTOR_FRESH_CACHE.delete(cache_key)
+        return None
+    return cached.get("value")
+
+
+def _set_cached_vector_freshness(cache_key: str, value: bool) -> None:
+    _VECTOR_FRESH_CACHE.set(
+        cache_key,
+        {"value": value, "expires_at": time.time() + VECTOR_FRESHNESS_CACHE_TTL_SECONDS},
+        ttl=None
+    )
+
 
 def invalidate_vector_fresh_cache(work_id: str) -> None:
-    # 兼容保留：当前不再维护额外的新鲜度缓存。
-    return
+    if not work_id:
+        return
+    prefix = f"{work_id}:"
+    try:
+        cache = _VECTOR_FRESH_CACHE
+        with cache._lock:
+            keys = [key for key in cache._cache.keys() if key.startswith(prefix)]
+    except Exception:
+        return
+    for key in keys:
+        _VECTOR_FRESH_CACHE.delete(key)
 
 
 class ChapterVectorService:
@@ -38,6 +73,7 @@ class ChapterVectorService:
     MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
     VECTOR_DIM = 384
     MAX_CHUNKS = 2000  # 保护性上限，防止超大文本生成过多向量
+    MAX_CONTENT_SCAN_LEN = 200_000
 
     def __init__(self, db: AsyncSession):
         """
@@ -350,4 +386,380 @@ class ChapterVectorService:
                 'vector_dimension': self.VECTOR_DIM,
                 'model_name': self.MODEL_NAME
             }
+
+    # ==================== 精确搜索方法（Explore V2）====================
+
+    async def are_vectors_fresh(
+        self,
+        work_id: str,
+        chapter_ranges: Optional[List[Tuple[int, int]]] = None
+    ) -> bool:
+        """
+        判断指定章节范围内的向量是否最新（vector.updated_at >= content_index.updated_at）
+        """
+        from uuid import UUID
+
+        ranges_key = ""
+        if chapter_ranges:
+            ranges_key = ",".join(f"{start}-{end}" for start, end in chapter_ranges)
+        cache_key = f"{work_id}:{ranges_key}"
+        cached = _get_cached_vector_freshness(cache_key)
+        if cached is not None:
+            return cached
+
+        try:
+            work_uuid = UUID(work_id) if isinstance(work_id, str) else work_id
+
+            stmt = select(Chapter.id).where(Chapter.work_id == work_uuid)
+            if chapter_ranges:
+                range_conditions = []
+                for min_order, max_order in chapter_ranges:
+                    conds = []
+                    if min_order is not None:
+                        conds.append(Chapter.order >= min_order)
+                    if max_order is not None:
+                        conds.append(Chapter.order <= max_order)
+                    if conds:
+                        range_conditions.append(and_(*conds))
+                if range_conditions:
+                    stmt = stmt.where(or_(*range_conditions))
+            result = await self.db.execute(stmt)
+            chapter_ids = [row[0] for row in result.all()]
+
+            if not chapter_ids:
+                _set_cached_vector_freshness(cache_key, True)
+                return True
+
+            index_stmt = select(
+                ChapterContentIndex.chapter_id,
+                ChapterContentIndex.updated_at
+            ).where(ChapterContentIndex.chapter_id.in_(chapter_ids))
+            index_result = await self.db.execute(index_stmt)
+            index_map = {row[0]: row[1] for row in index_result}
+
+            vec_stmt = (
+                select(
+                    NovelChapterVector.chapter_id,
+                    func.max(NovelChapterVector.updated_at).label("updated_at"),
+                    func.count(NovelChapterVector.id).label("vector_count")
+                )
+                .where(NovelChapterVector.chapter_id.in_(chapter_ids))
+                .group_by(NovelChapterVector.chapter_id)
+            )
+            vec_result = await self.db.execute(vec_stmt)
+            vector_map = {row[0]: {"updated_at": row[1], "count": row[2]} for row in vec_result}
+
+            stale_count = 0
+            for chapter_id in chapter_ids:
+                content_updated_at = index_map.get(chapter_id)
+                if content_updated_at is None:
+                    stale_count += 1
+                    continue
+                vector_info = vector_map.get(chapter_id)
+                if vector_info is None:
+                    stale_count += 1
+                    continue
+                if vector_info["count"] >= self.MAX_CHUNKS:
+                    stale_count += 1
+                    continue
+                if vector_info["updated_at"] < content_updated_at:
+                    stale_count += 1
+
+            if stale_count > 0:
+                logger.info("[vector_freshness] stale=%s total=%s", stale_count, len(chapter_ids))
+                _set_cached_vector_freshness(cache_key, False)
+                return False
+
+            _set_cached_vector_freshness(cache_key, True)
+            return True
+
+        except Exception as e:
+            logger.error(f"[vector_freshness] 判断失败: {e}", exc_info=True)
+            return False
+
+    async def exact_search_paragraphs(
+        self,
+        work_id: str,
+        keywords: List[str],
+        chapter_range: Optional[tuple] = None,
+        match_mode: str = "any",
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        精确搜索：在段落文本中搜索包含关键词的段落（确定性，不走向量）
+
+        Args:
+            work_id: 作品ID
+            keywords: 关键词列表
+            chapter_range: 章节范围 (min_order, max_order)，None 表示全部
+            match_mode: 匹配模式
+                - "any": 任一关键词匹配（OR）
+                - "all": 所有关键词都匹配（AND）
+                - "phrase": 第一个关键词作为精确短语匹配
+            limit: 返回结果数量上限
+
+        Returns:
+            List[Dict]: 命中的段落列表
+        """
+        from uuid import UUID
+        from sqlalchemy import or_, and_
+
+        try:
+            work_uuid = UUID(work_id) if isinstance(work_id, str) else work_id
+
+            if not keywords:
+                logger.warning("[exact_search] 关键词为空")
+                return []
+            try:
+                limit_val = int(limit)
+            except Exception:
+                limit_val = 0
+            if limit_val <= 0:
+                logger.warning("[exact_search] limit非法(%s)，已回退为1", limit)
+                limit_val = 1
+
+            # 构建基础查询
+            stmt = select(NovelChapterVector).where(
+                NovelChapterVector.work_id == work_uuid
+            )
+
+            # 章节范围约束
+            if chapter_range:
+                min_order, max_order = chapter_range
+                if min_order is not None:
+                    stmt = stmt.where(NovelChapterVector.chapter_order >= min_order)
+                if max_order is not None:
+                    stmt = stmt.where(NovelChapterVector.chapter_order <= max_order)
+
+            # 关键词匹配条件
+            if match_mode == "phrase":
+                # 精确短语匹配（第一个关键词）
+                stmt = stmt.where(
+                    NovelChapterVector.chunk_text.ilike(f"%{keywords[0]}%")
+                )
+            elif match_mode == "all":
+                # AND：所有关键词都必须匹配
+                conditions = [
+                    NovelChapterVector.chunk_text.ilike(f"%{kw}%")
+                    for kw in keywords
+                ]
+                stmt = stmt.where(and_(*conditions))
+            else:
+                # OR：任一关键词匹配（默认）
+                conditions = [
+                    NovelChapterVector.chunk_text.ilike(f"%{kw}%")
+                    for kw in keywords
+                ]
+                stmt = stmt.where(or_(*conditions))
+
+            # 按章节和段落排序
+            stmt = stmt.order_by(
+                NovelChapterVector.chapter_order,
+                NovelChapterVector.chunk_index
+            ).limit(limit_val)
+
+            # 执行查询
+            result = await self.db.execute(stmt)
+            vectors = result.scalars().all()
+
+            # 构建返回结果
+            results = []
+            for v in vectors:
+                # 记录匹配到的关键词
+                matched = [kw for kw in keywords if kw.lower() in v.chunk_text.lower()]
+                results.append({
+                    "chapter_id": str(v.chapter_id),
+                    "chapter_order": v.chapter_order,
+                    "chapter_title": v.chapter_title,
+                    "paragraph_index": v.chunk_index,
+                    "text": v.chunk_text,
+                    "snippet": v.chunk_text[:200] + "..." if len(v.chunk_text) > 200 else v.chunk_text,
+                    "node_id": v.node_id,
+                    "matched_keywords": matched,
+                    "match_count": len(matched)
+                })
+
+            logger.info(
+                f"[exact_search] work={work_id}, keywords={keywords[:3]}..., "
+                f"mode={match_mode}, range={chapter_range}, hits={len(results)}"
+            )
+
+            return results
+
+        except Exception as e:
+            logger.error(f"[exact_search] 精确搜索失败: {e}", exc_info=True)
+            return []
+
+    async def exact_search_paragraphs_from_content(
+        self,
+        work_id: str,
+        keywords: List[str],
+        chapter_range: Optional[tuple] = None,
+        match_mode: str = "any",
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        精确搜索（实时正文版）：直接读取最新章节内容切段后匹配
+
+        Args:
+            work_id: 作品ID
+            keywords: 关键词列表
+            chapter_range: 章节范围 (min_order, max_order)，None 表示全部
+            match_mode: 匹配模式（any/all/phrase）
+            limit: 返回结果数量上限
+
+        Returns:
+            List[Dict]: 命中的段落列表
+        """
+        from uuid import UUID
+        from app.services.chapter_content_provider import ChapterContentProvider
+        from app.services.agent.tools.locate_tools import _split_paragraphs
+
+        try:
+            work_uuid = UUID(work_id) if isinstance(work_id, str) else work_id
+
+            kw_pairs = [(kw, kw.lower()) for kw in (keywords or []) if isinstance(kw, str) and kw.strip()]
+            if not kw_pairs:
+                logger.warning("[exact_search_content] 关键词为空")
+                return []
+            try:
+                limit_val = int(limit)
+            except Exception:
+                limit_val = 0
+            if limit_val <= 0:
+                logger.warning("[exact_search_content] limit非法(%s)，已回退为1", limit)
+                limit_val = 1
+
+            def _iter_paragraphs_stream(html_content: str):
+                index = 0
+                if any(tag in html_content for tag in ("<p", "<li", "<h", "<blockquote", "<pre")):
+                    block_pattern = re.compile(
+                        r"<(p|h[1-6]|blockquote|pre|li)([^>]*)>(.*?)</\1>",
+                        re.DOTALL | re.IGNORECASE
+                    )
+                    matched_any = False
+                    for match in block_pattern.finditer(html_content):
+                        inner_html = match.group(3)
+                        text = re.sub(r"<[^>]+>", "", inner_html).strip()
+                        if not text:
+                            continue
+                        node_id = None
+                        attrs = match.group(2) or ""
+                        id_match = re.search(r'data-id=["\']([^"\']+)["\']', attrs, re.IGNORECASE)
+                        if id_match:
+                            node_id = id_match.group(1)
+                        yield {"index": index, "text": text, "node_id": node_id}
+                        index += 1
+                        matched_any = True
+                    if matched_any:
+                        return
+
+                for para in re.split(r"\n\n+|\n", html_content):
+                    text = para.strip()
+                    if not text:
+                        continue
+                    yield {"index": index, "text": text, "node_id": None}
+                    index += 1
+
+            stmt = select(Chapter).where(Chapter.work_id == work_uuid)
+            if chapter_range:
+                min_order, max_order = chapter_range
+                if min_order is not None:
+                    stmt = stmt.where(Chapter.order >= min_order)
+                if max_order is not None:
+                    stmt = stmt.where(Chapter.order <= max_order)
+            stmt = stmt.order_by(Chapter.order)
+
+            result = await self.db.execute(stmt)
+            chapters = result.scalars().all()
+
+            content_provider = ChapterContentProvider()
+            results: List[Dict[str, Any]] = []
+
+            for chapter in chapters:
+                if len(results) >= limit_val:
+                    break
+                content = content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
+                if not content:
+                    continue
+
+                content_lower = content.lower()
+                if match_mode == "phrase":
+                    if kw_pairs[0][1] not in content_lower:
+                        continue
+                elif match_mode == "all":
+                    if any(kw_lower not in content_lower for _, kw_lower in kw_pairs):
+                        continue
+                else:
+                    if not any(kw_lower in content_lower for _, kw_lower in kw_pairs):
+                        continue
+
+                if len(content) > self.MAX_CONTENT_SCAN_LEN:
+                    paragraph_iter = _iter_paragraphs_stream(content)
+                else:
+                    paragraphs = _split_paragraphs(content)
+                    if not paragraphs:
+                        rough = []
+                        for idx, part in enumerate([p for p in content.split("\n\n") if p.strip()]):
+                            rough.append({"index": idx, "text": part.strip(), "node_id": None})
+                        if not rough:
+                            chunk_size = 500
+                            parts = [
+                                content[i:i + chunk_size]
+                                for i in range(0, len(content), chunk_size)
+                                if content[i:i + chunk_size].strip()
+                            ]
+                            for idx, part in enumerate(parts):
+                                rough.append({"index": idx, "text": part.strip(), "node_id": None})
+                        paragraphs = rough
+                    paragraph_iter = paragraphs
+
+                for para in paragraph_iter:
+                    text = (para.get("text") or "").strip()
+                    if not text:
+                        continue
+                    text_lower = text.lower()
+
+                    matched: List[str] = []
+                    if match_mode == "phrase":
+                        first_kw, first_kw_lower = kw_pairs[0]
+                        if first_kw_lower in text_lower:
+                            matched = [first_kw]
+                    elif match_mode == "all":
+                        if all(kw_lower in text_lower for _, kw_lower in kw_pairs):
+                            matched = [kw for kw, kw_lower in kw_pairs if kw_lower in text_lower]
+                    else:
+                        matched = [kw for kw, kw_lower in kw_pairs if kw_lower in text_lower]
+
+                    if not matched:
+                        continue
+
+                    results.append({
+                        "chapter_id": str(chapter.id),
+                        "chapter_order": chapter.order,
+                        "chapter_title": chapter.title,
+                        "paragraph_index": para.get("index", 0),
+                        "text": text,
+                        "snippet": text[:200] + "..." if len(text) > 200 else text,
+                        "node_id": para.get("node_id"),
+                        "matched_keywords": matched,
+                        "match_count": len(matched)
+                    })
+
+                    if len(results) >= limit_val:
+                        logger.info(
+                            f"[exact_search_content] work={work_id}, keywords={keywords[:3]}..., "
+                            f"mode={match_mode}, range={chapter_range}, hits={len(results)}"
+                        )
+                        return results
+
+            logger.info(
+                f"[exact_search_content] work={work_id}, keywords={keywords[:3]}..., "
+                f"mode={match_mode}, range={chapter_range}, hits={len(results)}"
+            )
+            return results
+
+        except Exception as e:
+            logger.error(f"[exact_search_content] 实时精确搜索失败: {e}", exc_info=True)
+            return []
 

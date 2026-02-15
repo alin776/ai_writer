@@ -84,7 +84,7 @@ def _get_planning_core_rules() -> str:
 
 【⚠️⚠️⚠️ 最重要规则 - CREATIVE 与 OPERATION 工具分离 ⚠️⚠️⚠️】
 
-**创作类工具**（smart_continue, smart_create, smart_rewrite, smart_insert）只生成内容，**绝不直接写入编辑器**！
+**创作类工具**（smart_continue, smart_rewrite, smart_insert）只生成内容，**绝不直接写入编辑器**！
 
 **必须遵循的流程**：
 1. 先用 CREATIVE 工具生成内容
@@ -99,17 +99,16 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 | replace | 改写 | smart_rewrite 后替换指定段落 |
 | insert | 插入 | smart_insert 后在指定位置插入 |
 | content | 整章替换 | 重写整章内容 |
-| create | 创建章节 | smart_create 后写新章节（需要 work_id 和 title） |
+| create | 创建章节 | 写新章节（需要 work_id 和 title） |
 | title | 修改标题 | 改进章节标题 |
 
 **推荐流程（使用 operate_apply）**：
 - smart_continue → operate_apply(operation="append")
-- smart_create → operate_apply(operation="create")
 - smart_rewrite → operate_apply(operation="replace")
 - smart_insert → operate_apply(operation="insert")
 
 ⚠️ **单结果规则**：
-- smart_rewrite/smart_insert/smart_continue/smart_create 只生成**单条内容**
+- smart_rewrite/smart_insert/smart_continue 只生成**单条内容**
 - 即使用户要求“多版本/多候选/两版”，任务描述也必须改成“生成一条内容”
 
 **什么时候需要写入编辑器？**
@@ -185,7 +184,7 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 - "梳理A与B的关系" → explore_content(target_task="梳理A与B的关系发展历程")
 - "找出所有提到XX的地方" → explore_content(target_task="收集所有关于XX的描写")
 
-⚠️ **不要使用旧检索工具、get_writing_context 等工具**，这些是 explore_content 内部调用的工具。
+⚠️ **不要使用 search_content、get_writing_context 等工具**，这些是 explore_content 内部调用的工具。
 
 ## Step 3: 处理方式
 
@@ -217,18 +216,16 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 | 续写 | smart_continue | operate_apply(operation="append") |
 | 改写 | smart_rewrite | operate_apply(operation="replace") |
 | 插入 | smart_insert | operate_apply(operation="insert") |
-| 整章重写 | rewrite_chapter_content | operate_apply(operation="content") |
+| 整章重写 | smart_rewrite | operate_apply(operation="content") |
 
 ⚠️ **operate_apply 不再自动定位**！
 - replace/insert 必须传 node_id 或 paragraph_index
-- 需要先用 locate_content 精确定位（检索证据统一走 explore_content）
+- 需要先用 locate_content 或 list_paragraphs/read_paragraphs 精确定位
 
 ⚠️ **参数引用规则**：后续工具参数只允许引用 explore_content 的 `evidences` / `locate_targets`
 （默认输出完整字段；如需精简，请显式传 output_mode="evidence_only"）
-⚠️ **整章改写例外**：rewrite_chapter_content 可引用 explore_content 的 `chapters[0].chapter_id` / `chapters[0].content`
 ⚠️ smart_* 必须注入 explore 证据（evidence_context），否则不允许创作写入
-⚠️ smart_rewrite 的 text_to_rewrite **必须**引用 `evidences[0].text`（仅限段落级改写，禁止使用 locate_targets[0].text）
-⚠️ **整章改写必须使用 rewrite_chapter_content**，禁止用 smart_rewrite
+⚠️ smart_rewrite 的 text_to_rewrite **必须**引用 `evidences[0].text`（禁止使用 locate_targets[0].text）
 
 ⚠️ **locate_content 输出字段规则**：
 - locate_content 的输出字段在顶层：`chapter_id` / `paragraph_index` / `node_id` / `text` / `before_anchor` / `after_anchor`
@@ -249,8 +246,6 @@ operate_apply 是 Create 工具输出的统一接收者，支持 6 种操作：
 **续写场景** → 用 smart_continue（只生成内容）
   - 用户说"续写第X章"、"继续写"、"往后写" → smart_continue
   - smart_continue 生成内容后，必须调用 operate_apply(operation="append") 应用
-  - ⚠️ 如果续写的章节还不存在（如"续写第6章"但只有5章）→ 用 smart_create（不是 smart_continue）
-    - smart_create 生成内容后，调用 operate_apply(operation="create") 应用
 
 **章节操作场景** → 直接用 operate_apply（无需 smart_* 生成）
   - 用户说"创建新章节" → operate_apply(operation="create", title="标题", content="内容")
@@ -308,48 +303,30 @@ def _get_output_format() -> str:
 
 ⚠️ **【explore_content 专用参数规则】** ⚠️
 
-当使用 explore_content 工具时，**必须**在 params 中提供 `retrieval_intent`（结构化检索意图），
-不要只给关键词数组。
+当使用 explore_content 工具时，**必须**在 params 中提供 search_keywords 数组：
 
 ```json
 {
   "tool": "explore_content",
   "params": {
-    "target_task": "简洁任务描述",
-    "retrieval_intent": {
-      "goal": "要确认的事实/事件",
-      "entities": ["人/地/物"],
-      "actions": ["行为/关系动作"],
-      "relations": [
-        {"left": "主体", "action": "关系", "right": "客体", "window": 18}
-      ],
-      "constraints": {"chapter_scope": [1, 5]},
-      "must_have": ["必须命中的事实锚点"],
-      "nice_to_have": ["可选补充锚点"]
-    }
+    "target_task": "简洁的任务描述",
+    "search_keywords": ["关键词1", "关键词2", "关键词3"]
   }
 }
 ```
 
-`retrieval_intent` 规则：
-- `goal` 写清“要确认什么事实”，不要写工具指令
-- `entities/actions/relations` 用于表达语义关系，不是词面堆砌
-- `must_have` 写“缺了就不能回答”的事实锚点
-- `constraints` 里可写 `chapter_scope`、时序约束等
-- `search_keywords` 仅作兼容兜底，可选；不能替代 `retrieval_intent`
-- 若用户明确要求“重新读取/刷新/重新探索/忽略缓存/最新内容”，可加 `force_refresh: true`
+**search_keywords 规则**：
+- 必须是数组格式，包含 2-10 个关键词
+- 只填写**实际要搜索的内容关键词**（如人名、地名、概念、事件）
+- 禁止填写指令性词语（如"精确"、"段落"、"章节"、"提取"、"检索"）
+- 关键词应从用户请求中提取，而非从任务描述模板中提取
+- 若用户明确要求“重新读取/刷新/重新探索/忽略缓存/最新内容”，在 params 中加入 `force_refresh: true`（可选同时设置 `use_cache: false`）
 
 ✅ 正确示例：
 ```json
 {
-  "target_task": "确认主角第一次吞噬器灵是否有代价",
-  "retrieval_intent": {
-    "goal": "确认首次吞噬事件及其代价",
-    "entities": ["主角", "器灵"],
-    "actions": ["吞噬", "代价"],
-    "relations": [{"left": "主角", "action": "吞噬", "right": "器灵", "window": 18}],
-    "must_have": ["第一次", "吞噬", "代价"]
-  }
+  "target_task": "检索吞噬机制规则",
+  "search_keywords": ["器灵等阶", "吞噬要求", "吞噬效果", "精神力等级"]
 }
 ```
 
@@ -357,7 +334,7 @@ def _get_output_format() -> str:
 ```json
 {
   "target_task": "精确检索并提取所有关于吞噬机制的段落...",
-  "retrieval_intent": {"goal": "精确检索段落提取章节"}
+  "search_keywords": ["精确检索", "段落", "提取", "章节"]
 }
 ```
 
@@ -407,6 +384,8 @@ def _get_output_format() -> str:
 1. **开头用 emoji**：💡（建议）、👋（问候）、😊（感谢）、📌（要点）
 2. **列表带 emoji**：✅（优点）、❌（缺点）、✍️📊📝🔧（功能）
 3. **技巧/对比用表格**：| 技巧 | 说明 |
+   - 表格必须使用标准 Markdown（GFM）格式：`表头行 + 分隔行 + 数据行`
+   - 每行必须真实换行，禁止使用 `||` 伪造换行
 4. **重点用引用块**：> 📌 **核心要点**：...
 5. **禁止纯文字大段落**
 """

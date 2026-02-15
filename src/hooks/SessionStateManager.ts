@@ -2,23 +2,39 @@
  * SessionStateManager - 多会话状态管理器
  *
  * 核心功能:
- * - 每个会话维护独立的状态（messages等）
+ * - 每个会话维护独立的状态（messages, activities, tasks等）
  * - 每个会话维护独立的SSE连接（fetch reader）
  * - 切换会话时不中断后台会话的响应
  * - 限制同时激活的SSE连接数量，防止内存泄漏
  * - 后台会话自动保存到localStorage
  */
 
-import type { Message } from '@/types/agent';
+import type { Message, ActivityItem, ProgressData, FlowItem } from '@/types/agent';
+
+// 任务接口
+interface Task {
+  task_id: number | string;
+  description: string;
+  tool?: string;
+  estimated_time?: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  elapsed_time?: number;
+  progress_status?: string;  // Multi-Agent 内部进度状态
+}
 
 // 会话状态接口
 export interface SessionState {
   sessionId: string;
   conversationId?: string;
   messages: Message[];
+  activities: ActivityItem[];
+  tasks: Task[];
+  flowItems: FlowItem[];  // v5.0: 执行轨迹项
+  progressData: ProgressData | null;
   isLoading: boolean;
   error: string | null;
   suggestedActions: string[];
+  currentTaskId: number | string | null;
   pendingApproval: any | null;
 
   // SSE连接管理
@@ -28,7 +44,7 @@ export interface SessionState {
   // 元数据
   createdAt: number;
   lastActiveAt: number;
-  mode?: 'plan' | 'chat';
+  mode?: 'plan' | 'agent';
 }
 
 // 状态变更监听器
@@ -54,9 +70,14 @@ export class SessionStateManager {
       sessionId,
       conversationId: initialData?.conversationId,
       messages: initialData?.messages || [],
+      activities: initialData?.activities || [],
+      tasks: initialData?.tasks || [],
+      flowItems: initialData?.flowItems || [],  // v5.0: 执行轨迹项
+      progressData: initialData?.progressData || null,
       isLoading: false,
       error: null,
       suggestedActions: [],
+      currentTaskId: null,
       pendingApproval: null,
       reader: null,
       abortController: null,

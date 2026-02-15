@@ -10,10 +10,8 @@ from app.models.ai_guidelines import AIGuidelines
 from app.models.novel_analysis import NovelAnalysis, AnalysisStatus, AnalysisStage
 from app.models.novel_analysis_vector import NovelAnalysisVector
 from app.models.novel_chapter_vector import NovelChapterVector
-from app.models.opensearch_sync_status import OpenSearchSyncStatus, OpenSearchSyncStatusEnum
 from app.models.relationship import EntityRelationship
 from app.models.timeline_event import TimelineEvent
-from app.models.glossary_term import GlossaryTerm
 from app.models.entity_group import EntityGroup, GroupMember
 from app.models.ai_call_log import AICallLog
 from app.models.evaluation_record import EvaluationRecord
@@ -26,7 +24,6 @@ from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory, Knowledg
 from app.models.rewrite_history import RewriteSession, RewriteResult
 from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion, SuggestionType, SuggestionAction, SuggestionStatus
-from app.models.worldview_change import WorldviewChange, WorldviewChangeStatus
 from app.models.chapter_history import ChapterHistory
 from app.models.chapter_revision import ChapterRevision, ChapterRevisionStatus
 from app.models.chapter_word_stat import ChapterWordStat
@@ -76,7 +73,6 @@ from app.models.user_report import UserReport, UserReportReason, UserReportStatu
 from app.models.rating import WorkRating
 from app.models.bookshelf import Bookshelf
 from app.models.worldview_progress import WorldviewExtractionProgress
-from app.models.worldview_scan_progress import WorldviewScanProgress
 
 __all__ = [
     "User",
@@ -96,11 +92,8 @@ __all__ = [
     "AnalysisStage",
     "NovelAnalysisVector",
     "NovelChapterVector",
-    "OpenSearchSyncStatus",
-    "OpenSearchSyncStatusEnum",
     "EntityRelationship",
     "TimelineEvent",
-    "GlossaryTerm",
     "EntityGroup",
     "GroupMember",
     "AICallLog",
@@ -128,8 +121,6 @@ __all__ = [
     "SuggestionType",
     "SuggestionAction",
     "SuggestionStatus",
-    "WorldviewChange",
-    "WorldviewChangeStatus",
     "ChapterHistory",
     "ChapterRevision",
     "ChapterRevisionStatus",
@@ -191,5 +182,4 @@ __all__ = [
     "CommentReport",
     "ReportReason",
     "WorldviewExtractionProgress",
-    "WorldviewScanProgress",
 ]

@@ -35,10 +35,6 @@ class PlanGenerator:
     EDIT_CONTENT_TOOLS = {"smart_rewrite", "smart_insert"}
     EDIT_OPERATION_TOOLS = {"operate_apply", "apply_chapter_edit"}
     EDIT_OPERATIONS = {"replace", "insert"}
-    FRESHNESS_KEYWORDS = (
-        "重新", "最新", "更新", "再查", "再次", "再搜", "再探索", "重新探索",
-        "重新搜索", "重做", "不要复用", "忽略历史", "不使用历史", "不要用历史"
-    )
 
     def __init__(self, agent: "WritingAgentGraph"):
         """
@@ -55,7 +51,8 @@ class PlanGenerator:
         work_id: Optional[str] = None,
         chapter_id: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-        conversation_history: str = ""
+        conversation_history: str = "",
+        enable_reflection: bool = False
     ) -> Dict[str, Any]:
         """
         生成任务规划
@@ -66,6 +63,8 @@ class PlanGenerator:
             chapter_id: 章节ID
             context: 额外上下文
             conversation_history: 对话历史
+            enable_reflection: 是否启用反思模式
+
         Returns:
             规划数据字典，包含 tasks 列表
         """
@@ -96,7 +95,8 @@ class PlanGenerator:
             work_id=work_id,
             chapter_id=chapter_id,
             context=context,
-            conversation_history=conversation_history
+            conversation_history=conversation_history,
+            enable_reflection=enable_reflection
         )
         # 🔧 2026-01-21: 禁用枚举项检测功能
         # 原因：提取算法误判严重，产生大量噪音（如"干了"、"需要回答"），触发无意义重试
@@ -200,12 +200,7 @@ class PlanGenerator:
             logger.info(f"[Planning] 直接回答模式，答案长度: {len(raw_direct_answer)}")
         else:
             # 规划后处理（只对有任务的规划进行）
-            plan_data = self._post_process_plan(
-                plan_data,
-                message,
-                context=context,
-                work_id=work_id
-            )
+            plan_data = self._post_process_plan(plan_data, message)
 
         increment_counter("planning_phase_completed")
         logger.info(f"[Planning] 规划生成成功，共{len(plan_data['tasks'])}个任务")
@@ -218,7 +213,8 @@ class PlanGenerator:
         work_id: Optional[str],
         chapter_id: Optional[str],
         context: Optional[Dict[str, Any]],
-        conversation_history: str
+        conversation_history: str,
+        enable_reflection: bool
     ) -> str:
         """
         异步构建规划 Prompt
@@ -229,10 +225,15 @@ class PlanGenerator:
             chapter_id: 章节ID
             context: 额外上下文
             conversation_history: 对话历史
+            enable_reflection: 是否启用反思模式
+
         Returns:
             规划 prompt 字符串
         """
-        from app.services.agent.prompts import get_planning_static_prompt
+        from app.services.agent.prompts import (
+            get_planning_static_prompt,
+            get_planning_agent_mode_prompt
+        )
 
         # 历史部分
         history_section = ""
@@ -244,7 +245,10 @@ class PlanGenerator:
 """
 
         # 获取静态 Prompt
-        static_prompt = await get_planning_static_prompt()
+        if enable_reflection:
+            static_prompt = await get_planning_agent_mode_prompt()
+        else:
+            static_prompt = await get_planning_static_prompt()
 
         # 知识库文档部分
         knowledge_section = self._build_knowledge_section(context)
@@ -498,13 +502,7 @@ tool_policy: {tool_policy}
             ]
         }
 
-    def _post_process_plan(
-        self,
-        plan_data: Dict[str, Any],
-        message: str,
-        context: Optional[Dict[str, Any]] = None,
-        work_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def _post_process_plan(self, plan_data: Dict[str, Any], message: str) -> Dict[str, Any]:
         """
         规划后处理：补充验收标准与 checkpoint，并进行验证和自动修复
 
@@ -520,7 +518,6 @@ tool_policy: {tool_policy}
         )
 
         tasks = plan_data.get("tasks") or []
-        tasks = self._auto_reuse_explore_artifacts(tasks, message, context, work_id)
         for idx, t in enumerate(tasks):
             if acceptance_hint and not t.get("acceptance"):
                 t["acceptance"] = acceptance_hint
@@ -540,258 +537,7 @@ tool_policy: {tool_policy}
         plan_data["tasks"] = self._ensure_editor_apply_tasks(plan_data.get("tasks", []))
         plan_data["tasks"] = self._ensure_replace_original_text(plan_data.get("tasks", []))
 
-        normalized_plan = self._normalize_plan_schema(plan_data)
-        normalized_plan["tasks"] = self._ensure_replace_original_text(normalized_plan.get("tasks", []))
-        return normalized_plan
-
-    def _auto_reuse_explore_artifacts(
-        self,
-        tasks: List[Dict[str, Any]],
-        message: str,
-        context: Optional[Dict[str, Any]],
-        work_id: Optional[str]
-    ) -> List[Dict[str, Any]]:
-        """自动复用 Explore Artifact，按条目补缺失项（轻量规则）"""
-        if not tasks or not message or not isinstance(context, dict):
-            return tasks
-        if self._message_requires_fresh(message):
-            return tasks
-
-        session_artifacts = context.get("session_artifacts")
-        if not isinstance(session_artifacts, list) or not session_artifacts:
-            return tasks
-
-        requested_items = self._extract_requested_items(message)
-        if not requested_items:
-            return tasks
-
-        artifact = self._select_session_artifact(session_artifacts, work_id)
-        if not artifact:
-            return tasks
-
-        summary_text = str(artifact.get("preview") or "").strip()
-        if not summary_text:
-            return tasks
-
-        covered: List[str] = []
-        missing: List[str] = []
-        for item in requested_items:
-            if self._is_item_covered(item, summary_text):
-                covered.append(item)
-            else:
-                missing.append(item)
-
-        if not covered:
-            return tasks
-
-        # 避免编辑链路误判：存在写回/改写任务时不自动裁剪
-        if self._has_edit_tasks(tasks):
-            return tasks
-
-        tasks = self._ensure_load_explore_task(tasks, artifact, work_id)
-
-        if not missing:
-            # 全部覆盖：可尝试移除无依赖的 explore_content，避免重复探索
-            tasks = self._drop_explore_tasks_if_safe(tasks)
-            return tasks
-
-        tasks = self._adjust_explore_tasks_for_missing(tasks, missing, covered)
-        return tasks
-
-    def _message_requires_fresh(self, message: str) -> bool:
-        if not message:
-            return False
-        return any(keyword in message for keyword in self.FRESHNESS_KEYWORDS)
-
-    @staticmethod
-    def _normalize_text(text: str) -> str:
-        if not text:
-            return ""
-        cleaned = re.sub(r"[\s，,。.;；:：/\\\-—_]", "", str(text))
-        return cleaned.strip().lower()
-
-    @classmethod
-    def _is_item_covered(cls, item: str, summary: str) -> bool:
-        item_norm = cls._normalize_text(item)
-        summary_norm = cls._normalize_text(summary)
-        if not item_norm or not summary_norm:
-            return False
-        if len(item_norm) >= 2 and item_norm in summary_norm:
-            return True
-        for part in re.split(r"[、,，;/\s]+", item):
-            part_norm = cls._normalize_text(part)
-            if len(part_norm) >= 2 and part_norm in summary_norm:
-                return True
-        return False
-
-    @staticmethod
-    def _extract_requested_items(message: str) -> List[str]:
-        if not message:
-            return []
-
-        items: List[str] = []
-
-        def _add_item(text: str) -> None:
-            cleaned = (text or "").strip()
-            if len(cleaned) < 2:
-                return
-            if len(cleaned) > 80:
-                cleaned = cleaned[:80]
-            items.append(cleaned)
-
-        for line in message.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            match = re.match(r"^(?:[-•*]|\d+[.)、]|[一二三四五六七八九十]+[、.])\s*(.+)$", line)
-            if match:
-                _add_item(match.group(1))
-
-            if "：" in line or ":" in line:
-                parts = re.split(r"[：:]", line, maxsplit=1)
-                if len(parts) == 2:
-                    tail = parts[1]
-                    if any(sep in tail for sep in ["、", ",", "，"]):
-                        for seg in re.split(r"[、,，]", tail):
-                            _add_item(seg)
-
-        inline_items = re.findall(r"(?:^|\s)(?:\d+[.)、])\s*([^\d]{2,60})", message)
-        for seg in inline_items:
-            _add_item(seg)
-
-        unique: List[str] = []
-        seen = set()
-        for item in items:
-            key = PlanGenerator._normalize_text(item)
-            if not key or key in seen:
-                continue
-            seen.add(key)
-            unique.append(item)
-
-        return unique[:10]
-
-    @staticmethod
-    def _select_session_artifact(artifacts: List[Dict[str, Any]], work_id: Optional[str]) -> Optional[Dict[str, Any]]:
-        if not artifacts:
-            return None
-        if work_id:
-            for item in artifacts:
-                if str(item.get("work_id")) == str(work_id):
-                    return item
-        return artifacts[0]
-
-    def _ensure_load_explore_task(
-        self,
-        tasks: List[Dict[str, Any]],
-        artifact: Dict[str, Any],
-        work_id: Optional[str]
-    ) -> List[Dict[str, Any]]:
-        artifact_id = str(artifact.get("artifact_id") or "").strip()
-        if not artifact_id:
-            return tasks
-        for task in tasks:
-            if task.get("tool") == "load_explore_artifact":
-                params = task.get("params", {}) or {}
-                if str(params.get("artifact_id") or "") == artifact_id:
-                    return tasks
-
-        new_task_id = self._next_task_id(tasks)
-        new_task = {
-            "task_id": new_task_id,
-            "tool": "load_explore_artifact",
-            "description": "读取最近探索摘要（复用已有信息）",
-            "params": {
-                "artifact_id": artifact_id,
-                "mode": "summary"
-            }
-        }
-        if work_id:
-            new_task["params"]["work_id"] = work_id
-
-        insert_idx = next((i for i, t in enumerate(tasks) if t.get("tool") == "explore_content"), len(tasks))
-        new_tasks = list(tasks)
-        new_tasks.insert(insert_idx, new_task)
-        return new_tasks
-
-    def _adjust_explore_tasks_for_missing(
-        self,
-        tasks: List[Dict[str, Any]],
-        missing: List[str],
-        covered: List[str]
-    ) -> List[Dict[str, Any]]:
-        if not missing:
-            return tasks
-        missing_text = "、".join(missing[:8])
-        covered_text = "、".join(covered[:6])
-        note = f"仅补充缺失项：{missing_text}"
-        if covered_text:
-            note += f"（已覆盖：{covered_text}）"
-
-        for task in tasks:
-            if task.get("tool") != "explore_content":
-                continue
-            params = task.get("params", {}) or {}
-            target_task = str(params.get("target_task") or "").strip()
-            if target_task:
-                params["target_task"] = f"{target_task}\n{note}"
-            else:
-                params["target_task"] = note
-
-            scope_tuple = self._extract_scope_tuple_from_params(params)
-            existing_intent = params.get("retrieval_intent") if isinstance(params.get("retrieval_intent"), dict) else None
-            retrieval_intent = self._build_retrieval_intent_payload(
-                target_task=params["target_task"],
-                keywords=missing[:8],
-                scope=scope_tuple,
-                existing=existing_intent,
-            )
-            params["retrieval_intent"] = retrieval_intent
-            task["params"] = params
-        return tasks
-
-    def _drop_explore_tasks_if_safe(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        from app.services.agent.parameter_resolver import ParameterResolver
-
-        explore_ids = {
-            int(t.get("task_id"))
-            for t in tasks
-            if t.get("tool") == "explore_content" and isinstance(t.get("task_id"), int)
-        }
-        if not explore_ids:
-            return tasks
-
-        for task in tasks:
-            if task.get("tool") == "explore_content":
-                continue
-            deps = ParameterResolver.extract_dependencies(task.get("params", {}))
-            if explore_ids & deps:
-                return tasks
-
-        return [t for t in tasks if t.get("tool") != "explore_content"]
-
-    def _has_edit_tasks(self, tasks: List[Dict[str, Any]]) -> bool:
-        if not tasks:
-            return False
-        edit_tools = {
-            "smart_rewrite",
-            "smart_insert",
-            "smart_continue",
-            "smart_create",
-            "operate_apply",
-            "apply_chapter_edit"
-        }
-        return any(task.get("tool") in edit_tools for task in tasks)
-
-    @staticmethod
-    def _next_task_id(tasks: List[Dict[str, Any]]) -> int:
-        max_task_id = 0
-        for task in tasks:
-            try:
-                task_id = int(task.get("task_id", 0))
-            except (TypeError, ValueError):
-                task_id = 0
-            max_task_id = max(max_task_id, task_id)
-        return max_task_id + 1
+        return self._normalize_plan_schema(plan_data)
 
     def _ensure_explore_strict_locator(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not tasks:
@@ -1430,239 +1176,6 @@ tool_policy: {tool_policy}
             return normalized
         return []
 
-    @staticmethod
-    def _extract_internal_keywords(params: Dict[str, Any]) -> List[str]:
-        intent = params.get("retrieval_intent") if isinstance(params, dict) else None
-        if isinstance(intent, dict):
-            intent_values: List[str] = []
-            for key in ("entities", "actions", "timeline", "risks"):
-                raw_value = intent.get(key)
-                if isinstance(raw_value, list):
-                    intent_values.extend(str(item) for item in raw_value if str(item).strip())
-            if intent_values:
-                chunks = intent_values
-            else:
-                chunks = []
-        else:
-            chunks = []
-
-        raw = params.get("keywords")
-        if raw is None:
-            raw = params.get("keyword")
-        if raw is None:
-            raw = params.get("query")
-
-        if isinstance(raw, list):
-            chunks.extend(str(item) for item in raw if str(item).strip())
-        elif isinstance(raw, str):
-            chunks.append(raw)
-        elif raw is not None:
-            chunks.append(str(raw))
-
-        keywords: List[str] = []
-        seen = set()
-        for chunk in chunks:
-            for part in re.split(r"[,\s，、;；|｜/]+", chunk):
-                kw = str(part).strip().strip("\"'“”‘’《》")
-                if not kw or kw in seen:
-                    continue
-                seen.add(kw)
-                keywords.append(kw)
-                if len(keywords) >= 8:
-                    return keywords
-        return keywords
-
-    @staticmethod
-    def _extract_scope_tuple_from_params(params: Dict[str, Any]) -> Optional[Tuple[int, int]]:
-        if not isinstance(params, dict):
-            return None
-
-        def _coerce(value: Any) -> Optional[int]:
-            if isinstance(value, int):
-                return value
-            if isinstance(value, str):
-                text = value.strip()
-                if text.isdigit():
-                    return int(text)
-            return None
-
-        raw_range = params.get("chapter_range")
-        if isinstance(raw_range, (list, tuple)) and len(raw_range) >= 2:
-            start = _coerce(raw_range[0])
-            end = _coerce(raw_range[1])
-            if isinstance(start, int) and isinstance(end, int):
-                return (min(start, end), max(start, end))
-
-        raw_ranges = params.get("chapter_ranges")
-        if isinstance(raw_ranges, list) and raw_ranges:
-            starts: List[int] = []
-            ends: List[int] = []
-            for item in raw_ranges:
-                if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    start = _coerce(item[0])
-                    end = _coerce(item[1])
-                    if isinstance(start, int) and isinstance(end, int):
-                        starts.append(min(start, end))
-                        ends.append(max(start, end))
-            if starts and ends:
-                return (min(starts), max(ends))
-
-        raw_orders = params.get("chapter_orders") or params.get("chapter_order")
-        numbers: List[int] = []
-        if isinstance(raw_orders, (list, tuple, set)):
-            for item in raw_orders:
-                num = _coerce(item)
-                if isinstance(num, int):
-                    numbers.append(num)
-        elif isinstance(raw_orders, str):
-            numbers.extend(int(n) for n in re.findall(r"\d+", raw_orders))
-        else:
-            num = _coerce(raw_orders)
-            if isinstance(num, int):
-                numbers.append(num)
-        if numbers:
-            return (min(numbers), max(numbers))
-        return None
-
-    def _build_retrieval_intent_payload(
-        self,
-        *,
-        target_task: str,
-        keywords: List[str],
-        scope: Optional[Tuple[int, int]],
-        existing: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
-            "goal": target_task or "",
-            "entities": list(dict.fromkeys((keywords or [])[:8])),
-        }
-
-        if isinstance(existing, dict) and existing:
-            for key, value in existing.items():
-                if value is None:
-                    continue
-                if isinstance(value, list) and value:
-                    payload[key] = value
-                elif isinstance(value, dict) and value:
-                    merged = dict(payload.get(key) or {})
-                    merged.update(value)
-                    payload[key] = merged
-                elif value not in ("", []):
-                    payload[key] = value
-
-        if scope:
-            constraints = dict(payload.get("constraints") or {})
-            constraints["chapter_scope"] = [scope[0], scope[1]]
-            payload["constraints"] = constraints
-        return payload
-
-    def _rewrite_internal_explore_tasks(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """为 explore_content 任务补全 target_task 和 retrieval_intent 参数"""
-        if not tasks:
-            return tasks
-
-        for task in tasks:
-            tool_name = str(task.get("tool") or "").strip()
-            if tool_name != "explore_content":
-                continue
-
-            params = task.get("params") or {}
-            keywords = self._extract_internal_keywords(params)
-
-            target_lines: List[str] = []
-            desc = str(task.get("description") or "").strip()
-            title = str(task.get("title") or "").strip()
-            explicit_target_task = str(params.get("target_task") or "").strip()
-            if explicit_target_task:
-                target_lines.append(explicit_target_task)
-            elif desc:
-                target_lines.append(desc)
-            elif title:
-                target_lines.append(title)
-
-            target_lines.append("收集完成任务所需的原文证据。")
-
-            chapter_scope = (
-                params.get("chapter_range")
-                or params.get("chapter_ranges")
-                or params.get("chapter_orders")
-                or params.get("chapter_order")
-            )
-            if chapter_scope:
-                target_lines.append(f"章节范围：{chapter_scope}")
-            if keywords:
-                target_lines.append(f"关键词：{'、'.join(keywords[:8])}")
-
-            target_task = "\n".join(line for line in target_lines if line).strip()
-            if not target_task:
-                target_task = "收集完成任务所需的原文证据。"
-
-            scope_tuple = self._extract_scope_tuple_from_params(params)
-            retrieval_intent = self._build_retrieval_intent_payload(
-                target_task=target_task,
-                keywords=keywords,
-                scope=scope_tuple,
-                existing=params.get("retrieval_intent") if isinstance(params.get("retrieval_intent"), dict) else None,
-            )
-
-            # 推断下游工具，让 Explore 按需获取上下文
-            downstream = self._infer_downstream_tool(tasks, task)
-            if downstream:
-                retrieval_intent["downstream_tool"] = downstream
-
-            rewritten_params: Dict[str, Any] = {
-                "target_task": target_task,
-                "retrieval_intent": retrieval_intent,
-            }
-
-            for key in (
-                "max_rounds",
-                "max_tool_calls",
-                "max_read_paragraphs",
-                "output_mode",
-                "force_global_search",
-                "use_cache",
-                "force_refresh",
-            ):
-                if key in params:
-                    rewritten_params[key] = params.get(key)
-
-            task["params"] = rewritten_params
-
-        return tasks
-
-    @staticmethod
-    def _infer_downstream_tool(tasks: List[Dict[str, Any]], current_task: Dict[str, Any]) -> Optional[str]:
-        """从任务列表推断当前 explore 任务的下游工具名称。
-
-        查找 depends_on 包含当前 task_id 的下一个任务，返回其 tool 名称。
-        如果找不到依赖关系，按顺序看下一个任务的 tool 名称。
-        """
-        current_id = current_task.get("task_id")
-        if current_id is None:
-            return None
-
-        # 1. 找 depends_on 包含 current_id 的任务
-        for t in tasks:
-            deps = t.get("depends_on") or []
-            if isinstance(deps, list) and current_id in deps:
-                tool = str(t.get("tool") or "").strip()
-                if tool:
-                    return tool
-
-        # 2. 回退：按列表顺序找当前任务后面的第一个非 explore 任务
-        found_current = False
-        for t in tasks:
-            if t is current_task:
-                found_current = True
-                continue
-            if found_current:
-                tool = str(t.get("tool") or "").strip()
-                if tool and tool != "explore_content":
-                    return tool
-
-        return None
-
     def _validate_and_fix_plan(self, plan_data: Dict[str, Any], message: str) -> Dict[str, Any]:
         """
         验证规划并自动修复问题
@@ -1682,9 +1195,6 @@ tool_policy: {tool_policy}
         tasks = plan_data.get("tasks", [])
         if not tasks:
             return plan_data
-
-        # 验证0: 统一检索契约（内部工具全部收敛到 explore_content）
-        tasks = self._rewrite_internal_explore_tasks(tasks)
 
         # 验证1: 人物查询必须先搜索
         tasks = self._validate_search_before_read(tasks, message)
@@ -2027,20 +1537,11 @@ tool_policy: {tool_policy}
             elif tool == "explore_content":
                 last_explore_task_id = task_id
 
-            if tool in {"smart_rewrite", "smart_continue", "smart_insert", "smart_create", "rewrite_chapter_content"} and task_id:
-                # smart_create 用 work_id 而非 chapter_id，单独判断
-                if tool == "smart_create":
-                    if not params.get("work_id"):
-                        idx += 1
-                        continue
-                else:
-                    if not params.get("chapter_id"):
-                        idx += 1
-                        continue
+            if tool in {"smart_rewrite", "smart_continue", "smart_insert"} and task_id:
+                if not params.get("chapter_id"):
+                    idx += 1
+                    continue
                 if self._has_apply_task(tasks, task_id):
-                    # smart_create 的 apply task 需要修正参数（AI 可能生成了错误的 $ref 路径）
-                    if tool == "smart_create":
-                        self._fix_smart_create_apply_params(tasks, task_id)
                     idx += 1
                     continue
 
@@ -2173,31 +1674,25 @@ tool_policy: {tool_policy}
                     last_explore_task_id = task_id
                 continue
 
-            if tool in {"smart_rewrite", "smart_insert", "smart_continue", "smart_create", "operate_apply", "apply_chapter_edit"}:
-                allow_locator_override = True
-                if tool in {"operate_apply", "apply_chapter_edit"}:
-                    operation = str(params.get("operation") or "").strip().lower()
-                    if operation not in {"replace", "insert"}:
-                        allow_locator_override = False
-                if allow_locator_override:
-                    force_override = tool in {"smart_rewrite", "smart_insert", "operate_apply", "apply_chapter_edit"} and (
-                        last_locate_task_id or last_explore_task_id
-                    )
-                    if last_locate_task_id and (force_override or self._should_override_chapter_id(params.get("chapter_id"), last_locate_task_id)):
-                        params["chapter_id"] = {
-                            "$ref": {
-                                "task_id": last_locate_task_id,
-                                "path": "chapter_id"
-                            }
+            if tool in {"smart_rewrite", "smart_insert", "smart_continue", "operate_apply", "apply_chapter_edit"}:
+                force_override = tool in {"smart_rewrite", "smart_insert", "operate_apply", "apply_chapter_edit"} and (
+                    last_locate_task_id or last_explore_task_id
+                )
+                if last_locate_task_id and (force_override or self._should_override_chapter_id(params.get("chapter_id"), last_locate_task_id)):
+                    params["chapter_id"] = {
+                        "$ref": {
+                            "task_id": last_locate_task_id,
+                            "path": "chapter_id"
                         }
-                    elif last_explore_task_id and (force_override or self._should_override_chapter_id(params.get("chapter_id"), last_explore_task_id)):
-                        params["chapter_id"] = {
-                            "$ref": {
-                                "task_id": last_explore_task_id,
-                                "path": self._locate_target_path(params, "chapter_id"),
-                                "default": params.get("chapter_id")
-                            }
+                    }
+                elif last_explore_task_id and (force_override or self._should_override_chapter_id(params.get("chapter_id"), last_explore_task_id)):
+                    params["chapter_id"] = {
+                        "$ref": {
+                            "task_id": last_explore_task_id,
+                            "path": self._locate_target_path(params, "chapter_id"),
+                            "default": params.get("chapter_id")
                         }
+                    }
                 if tool in {"smart_rewrite", "smart_insert"}:
                     if last_locate_task_id:
                         if tool == "smart_rewrite" and not params.get("text_to_rewrite"):
@@ -2261,7 +1756,7 @@ tool_policy: {tool_policy}
                     deps = ParameterResolver.extract_dependencies(params)
                     for dep_id in deps:
                         dep_task = task_by_id.get(dep_id)
-                        if dep_task and dep_task.get("tool") in {"smart_rewrite", "smart_insert", "smart_continue", "smart_create"}:
+                        if dep_task and dep_task.get("tool") in {"smart_rewrite", "smart_insert", "smart_continue"}:
                             source_task_id = dep_id
                             break
                     if params.get("operation") in {"replace", "insert"}:
@@ -2301,36 +1796,6 @@ tool_policy: {tool_policy}
                 task["params"] = params
 
         return tasks
-
-    def _fix_smart_create_apply_params(self, tasks: List[Dict[str, Any]], source_task_id: int) -> None:
-        """修正 AI 生成的 smart_create → operate_apply 参数。
-
-        AI 规划器可能为 operate_apply 生成错误的 $ref 路径（如 locate_targets[0].chapter_id），
-        这里强制覆盖为正确的路径。
-        """
-        from app.services.agent.parameter_resolver import ParameterResolver
-
-        for task in tasks:
-            if task.get("tool") not in {"operate_apply", "apply_chapter_edit"}:
-                continue
-            params = task.get("params", {})
-            if source_task_id not in ParameterResolver.extract_dependencies(params):
-                continue
-            # 强制覆盖为正确的参数
-            params["operation"] = "create"
-            params["work_id"] = {"$ref": {"task_id": source_task_id, "path": "data.work_id"}}
-            params["title"] = {"$ref": {"task_id": source_task_id, "path": "data.title"}}
-            params["content"] = {"$ref": {"task_id": source_task_id, "path": "data.content"}}
-            # 移除不需要的 chapter_id $ref（create 不需要 chapter_id）
-            if "chapter_id" in params:
-                ref_val = params["chapter_id"]
-                if isinstance(ref_val, dict) and "$ref" in ref_val:
-                    del params["chapter_id"]
-            logger.info(
-                "[PlanGenerator] 修正 smart_create→operate_apply 参数: task_id=%s, source=%s",
-                task.get("task_id"), source_task_id
-            )
-            break
 
     def _has_apply_task(self, tasks: List[Dict[str, Any]], source_task_id: int) -> bool:
         from app.services.agent.parameter_resolver import ParameterResolver
@@ -2381,19 +1846,6 @@ tool_policy: {tool_policy}
                 "operation": "append",
                 "content": {"$ref": {"task_id": source_task_id, "path": "data.content"}}
             }
-        elif source_tool == "smart_create":
-            params = {
-                "work_id": {"$ref": {"task_id": source_task_id, "path": "data.work_id"}},
-                "operation": "create",
-                "title": {"$ref": {"task_id": source_task_id, "path": "data.title"}},
-                "content": {"$ref": {"task_id": source_task_id, "path": "data.content"}}
-            }
-        elif source_tool == "rewrite_chapter_content":
-            params = {
-                "chapter_id": chapter_id_ref,
-                "operation": "content",
-                "content": {"$ref": {"task_id": source_task_id, "path": "data.content"}}
-            }
         elif source_tool == "smart_insert":
             params = {
                 "chapter_id": chapter_id_ref,
@@ -2429,21 +1881,19 @@ tool_policy: {tool_policy}
         if target_hint:
             params.setdefault("locate_target_hint", target_hint)
 
-        # 续写 append 与整章改写不应携带定位字段
-        if source_tool not in {"smart_continue", "smart_create", "rewrite_chapter_content"}:
-            if locate_task_id:
-                params.setdefault("node_id", {"$ref": {"task_id": locate_task_id, "path": "node_id"}})
-                params.setdefault("paragraph_index", {"$ref": {"task_id": locate_task_id, "path": "paragraph_index"}})
-            elif explore_task_id:
-                params.setdefault(
-                    "node_id",
-                    {"$ref": {"task_id": explore_task_id, "path": self._locate_target_path_from_index(target_index, "node_id")}}
-                )
-                params.setdefault(
-                    "paragraph_index",
-                    {"$ref": {"task_id": explore_task_id, "path": self._locate_target_path_from_index(target_index, "paragraph_index")}}
-                )
-                params.setdefault("__auto_locator", True)
+        if locate_task_id:
+            params.setdefault("node_id", {"$ref": {"task_id": locate_task_id, "path": "node_id"}})
+            params.setdefault("paragraph_index", {"$ref": {"task_id": locate_task_id, "path": "paragraph_index"}})
+        elif explore_task_id:
+            params.setdefault(
+                "node_id",
+                {"$ref": {"task_id": explore_task_id, "path": self._locate_target_path_from_index(target_index, "node_id")}}
+            )
+            params.setdefault(
+                "paragraph_index",
+                {"$ref": {"task_id": explore_task_id, "path": self._locate_target_path_from_index(target_index, "paragraph_index")}}
+            )
+            params.setdefault("__auto_locator", True)
 
         if source_tool in {"smart_rewrite", "smart_insert"}:
             params.setdefault("__require_source_locator", True)

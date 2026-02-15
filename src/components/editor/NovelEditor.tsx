@@ -25,7 +25,6 @@ import GlobalDragHandle from 'tiptap-extension-global-drag-handle';
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import EditorToolbar from './EditorToolbar';
-import BubbleMenu from './BubbleMenu';
 import AIMenu from './AIMenu';
 import AIRevisionBar, { RevisionData } from './AIRevisionBar'; // 🆕 AI 修订操作栏
 import { SlashCommand } from './SlashCommandExtension';
@@ -113,6 +112,8 @@ type RevisionJumpRequest = {
 };
 
 const CROSS_CHAPTER_REVISION_TTL_MS = 30 * 60 * 1000;
+const REVISION_BAR_MARGIN_PX = 12;
+const REVISION_BAR_OFFSET_PX = 10;
 
 /**
  * Novel 编辑器组件
@@ -171,6 +172,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   const revisionSaveBlockedRef = useRef(false);
   const pendingRevisionJumpRef = useRef<RevisionJumpRequest | null>(null);
   const pendingJumpTimerRef = useRef<number | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     appliedRevisionIdsRef.current.clear();
@@ -188,6 +190,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       .filter((revision) => revision.targetChapterId === targetChapterId)
       .map((revision) => revision.revisionId);
   }, [pendingCrossChapterRevisions]);
+
   const applyRevisionDecisionToHtml = (
     html: string,
     decision: 'accept' | 'discard',
@@ -559,6 +562,87 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     },
   });
 
+  const updateRevisionBarPosition = useCallback((pos: number, revisionId?: string) => {
+    if (!editor || !scrollContainerRef.current) return;
+    try {
+      const container = scrollContainerRef.current;
+      const containerRect = container.getBoundingClientRect();
+      const editorDom = editor.view.dom as HTMLElement;
+
+      const resolveAnchorFromRevision = (targetRevisionId?: string) => {
+        if (!targetRevisionId) return null;
+        const nodes = editorDom.querySelectorAll(`[data-revision-id="${targetRevisionId}"]`);
+        if (!nodes.length) return null;
+        const insertedRects: DOMRect[] = [];
+        nodes.forEach((node) => {
+          const element = node as HTMLElement;
+          const inserted = element.closest('ins.ai-inserted') || element.querySelector('ins.ai-inserted');
+          if (inserted) {
+            const rects = Array.from((inserted as HTMLElement).getClientRects());
+            rects.forEach((rect) => {
+              if (rect.width > 0 && rect.height > 0) {
+                insertedRects.push(rect);
+              }
+            });
+          }
+        });
+
+        if (!insertedRects.length) return null;
+        const rect = insertedRects.reduce((acc, curr) => {
+          if (!acc) return curr;
+          return curr.bottom > acc.bottom ? curr : acc;
+        }, insertedRects[0]);
+        return {
+          top: rect.bottom - containerRect.top + container.scrollTop + REVISION_BAR_OFFSET_PX,
+          left: rect.left - containerRect.left + container.scrollLeft
+        };
+      };
+
+      const revisionAnchor = resolveAnchorFromRevision(revisionId);
+      if (revisionAnchor !== null) {
+        setRevisionBarPosition({
+          top: Math.max(REVISION_BAR_MARGIN_PX, revisionAnchor.top),
+          left: Math.max(REVISION_BAR_MARGIN_PX, revisionAnchor.left)
+        });
+        return;
+      }
+
+      const coords = editor.view.coordsAtPos(pos);
+      const fallbackTop = coords.bottom - containerRect.top + container.scrollTop + REVISION_BAR_OFFSET_PX;
+      const fallbackLeft = coords.left - containerRect.left + container.scrollLeft;
+      setRevisionBarPosition({
+        top: Math.max(REVISION_BAR_MARGIN_PX, fallbackTop),
+        left: Math.max(REVISION_BAR_MARGIN_PX, fallbackLeft)
+      });
+    } catch (error) {
+      console.warn('[NovelEditor] 无法计算修订栏位置:', error);
+    }
+  }, [editor]);
+
+  useEffect(() => {
+    if (!activeRevision) return;
+    const handleReposition = () => {
+      const pos = activeRevision.position?.to ?? activeRevision.position?.from ?? 0;
+      requestAnimationFrame(() => updateRevisionBarPosition(pos, activeRevision.id));
+    };
+
+    handleReposition();
+    window.addEventListener('resize', handleReposition);
+
+    let observer: ResizeObserver | null = null;
+    if (scrollContainerRef.current && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => handleReposition());
+      observer.observe(scrollContainerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleReposition);
+      if (observer) {
+        observer.disconnect();
+      }
+    };
+  }, [activeRevision, updateRevisionBarPosition]);
+
   // 防抖保存函数
   const debouncedSave = useDebouncedCallback(
     (editor) => {
@@ -695,10 +779,6 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         if (cancelled || !revisions || revisions.length === 0) return;
 
         revisions.forEach((revision: ChapterRevision) => {
-          // 章节级替换（replace_all/content）不走段落修订标记展示
-          if (revision.operation === 'replace_all' || revision.operation === 'content') {
-            return;
-          }
           const editorType: 'modify' | 'continue' | 'insert' =
             revision.operation === 'append'
               ? 'continue'
@@ -1121,72 +1201,65 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
       try {
         // 🆕 v8.3: 定位优先级：nodeId > paragraphIndex > 锚点 > position(兜底) > 默认
-        const preferStructuredLocate = type === 'insert';
+        const preferStructuredLocate = type === 'insert' || type === 'continue';
         let resolvedPosition = preferStructuredLocate ? undefined : position;
 
-        // 续写始终追加到末尾，忽略定位字段
-        if (type === 'continue') {
-          resolvedPosition = undefined;
+        // 1. 尝试通过 nodeId 定位（最高优先级）
+        if (!resolvedPosition && nodeId) {
+          const nodeResult = (window as any).__editorNodeAPI?.findByNodeID(nodeId);
+          if (nodeResult?.success) {
+            resolvedPosition = nodeResult.position;
+            console.log('[NovelEditor] nodeId 定位成功:', nodeId, resolvedPosition);
+          }
         }
 
-        if (type !== 'continue') {
-          // 1. 尝试通过 nodeId 定位（最高优先级）
-          if (!resolvedPosition && nodeId) {
-            const nodeResult = (window as any).__editorNodeAPI?.findByNodeID(nodeId);
+        // 2. 尝试通过 paragraphIndex 定位（从 getAllNodes 获取 nodeId）
+        if (!resolvedPosition && paragraphIndex !== undefined) {
+          const nodes = (window as any).__editorNodeAPI?.getAllNodes();
+          if (nodes && nodes[paragraphIndex]) {
+            const targetNodeId = nodes[paragraphIndex].id;
+            const nodeResult = (window as any).__editorNodeAPI?.findByNodeID(targetNodeId);
             if (nodeResult?.success) {
               resolvedPosition = nodeResult.position;
-              console.log('[NovelEditor] nodeId 定位成功:', nodeId, resolvedPosition);
+              console.log('[NovelEditor] paragraphIndex 定位成功:', paragraphIndex, '→', targetNodeId, resolvedPosition);
             }
           }
+        }
 
-          // 2. 尝试通过 paragraphIndex 定位（从 getAllNodes 获取 nodeId）
-          if (!resolvedPosition && paragraphIndex !== undefined) {
-            const nodes = (window as any).__editorNodeAPI?.getAllNodes();
-            if (nodes && nodes[paragraphIndex]) {
-              const targetNodeId = nodes[paragraphIndex].id;
-              const nodeResult = (window as any).__editorNodeAPI?.findByNodeID(targetNodeId);
-              if (nodeResult?.success) {
-                resolvedPosition = nodeResult.position;
-                console.log('[NovelEditor] paragraphIndex 定位成功:', paragraphIndex, '→', targetNodeId, resolvedPosition);
-              }
+        // 3. 如果没有 position 但有锚点，使用锚点定位
+        if (!resolvedPosition && (beforeAnchor || afterAnchor)) {
+          const docText = editor.state.doc.textContent;
+
+          if (type === 'modify' && original) {
+            // 修改模式：定位原文位置
+            const result = locateRevisionPosition(docText, {
+              originalText: original,
+              beforeAnchor,
+              afterAnchor
+            });
+            if (result.success && result.position) {
+              resolvedPosition = result.position;
+              console.log('[NovelEditor] 锚点定位成功 (modify):', result.method, resolvedPosition);
             }
-          }
-
-          // 3. 如果没有 position 但有锚点，使用锚点定位
-          if (!resolvedPosition && (beforeAnchor || afterAnchor)) {
-            const docText = editor.state.doc.textContent;
-
-            if (type === 'modify' && original) {
-              // 修改模式：定位原文位置
-              const result = locateRevisionPosition(docText, {
-                originalText: original,
-                beforeAnchor,
-                afterAnchor
-              });
-              if (result.success && result.position) {
+          } else if (type === 'continue' || type === 'insert') {
+            // 续写/插入模式：定位插入点
+            const result = locateInsertPosition(docText, { beforeAnchor, afterAnchor });
+            if (result.success && result.position) {
+              const isAnchorFallback = (beforeAnchor || afterAnchor) && result.method === 'exact';
+              if (!isAnchorFallback || type === 'continue') {
                 resolvedPosition = result.position;
-                console.log('[NovelEditor] 锚点定位成功 (modify):', result.method, resolvedPosition);
-              }
-            } else if (type === 'insert') {
-              // 插入模式：定位插入点
-              const result = locateInsertPosition(docText, { beforeAnchor, afterAnchor });
-              if (result.success && result.position) {
-                const isAnchorFallback = (beforeAnchor || afterAnchor) && result.method === 'exact';
-                if (!isAnchorFallback) {
-                  resolvedPosition = result.position;
-                  console.log('[NovelEditor] 锚点定位成功 (insert):', result.method, resolvedPosition);
-                } else {
-                  console.warn('[NovelEditor] 锚点定位失败，插入已取消');
-                }
+                console.log('[NovelEditor] 锚点定位成功 (insert):', result.method, resolvedPosition);
+              } else {
+                console.warn('[NovelEditor] 锚点定位失败，插入已取消');
               }
             }
           }
+        }
 
-          // 3.5 insert 下 position 仅作兜底
-          if (!resolvedPosition && preferStructuredLocate && position) {
-            resolvedPosition = position;
-            console.log('[NovelEditor] 使用 position 兜底:', resolvedPosition);
-          }
+        // 3.5 insert/continue 下 position 仅作兜底
+        if (!resolvedPosition && preferStructuredLocate && position) {
+          resolvedPosition = position;
+          console.log('[NovelEditor] 使用 position 兜底:', resolvedPosition);
         }
 
         // 如果仍然没有位置，使用默认值
@@ -1235,15 +1308,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           appliedRevisionIdsRef.current.add(rid);
 
           requestAnimationFrame(() => {
-            try {
-              const coords = editor.view.coordsAtPos(revisionIdPos);
-              setRevisionBarPosition({
-                top: coords.top - 40,
-                left: coords.left
-              });
-            } catch (e) {
-              console.warn('[NovelEditor] 无法计算修订栏位置:', e);
-            }
+            updateRevisionBarPosition(revisionIdPos, rid);
           });
 
           setActiveRevision({
@@ -1275,15 +1340,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
               appliedRevisionIdsRef.current.add(rid);
 
               requestAnimationFrame(() => {
-                try {
-                  const coords = editor.view.coordsAtPos(insertPosForCheck);
-                  setRevisionBarPosition({
-                    top: coords.top - 40,
-                    left: coords.left
-                  });
-                } catch (e) {
-                  console.warn('[NovelEditor] 无法计算修订栏位置:', e);
-                }
+                updateRevisionBarPosition(insertPosForCheck, rid);
               });
 
               setActiveRevision({
@@ -1361,15 +1418,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
           // 3. 计算操作栏位置（使用 requestAnimationFrame 确保 DOM 已重排）
           requestAnimationFrame(() => {
-            try {
-              const coords = view.coordsAtPos(resolvedPosition.to);
-              setRevisionBarPosition({
-                top: coords.top - 40,  // 显示在内容上方，避免遮挡高亮内容
-                left: coords.left
-              });
-            } catch (e) {
-              console.warn('[NovelEditor] 无法计算修订栏位置:', e);
-            }
+            updateRevisionBarPosition(resolvedPosition.to, rid);
           });
 
           // 4. 设置活跃修订
@@ -1438,15 +1487,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
           // 计算操作栏位置（使用 requestAnimationFrame 确保 DOM 已重排）
           requestAnimationFrame(() => {
-            try {
-              const coords = view.coordsAtPos(insertPos);
-              setRevisionBarPosition({
-                top: coords.top - 40,  // 显示在内容上方，避免遮挡高亮内容
-                left: coords.left
-              });
-            } catch (e) {
-              console.warn('[NovelEditor] 无法计算修订栏位置:', e);
-            }
+            updateRevisionBarPosition(insertPos, rid);
           });
 
           // 设置活跃修订
@@ -1513,15 +1554,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
           // 计算操作栏位置（使用 requestAnimationFrame 确保 DOM 已重排）
           requestAnimationFrame(() => {
-            try {
-              const coords = view.coordsAtPos(insertPos);
-              setRevisionBarPosition({
-                top: coords.top - 40,  // 显示在内容上方，避免遮挡高亮内容
-                left: coords.left
-              });
-            } catch (e) {
-              console.warn('[NovelEditor] 无法计算修订栏位置:', e);
-            }
+            updateRevisionBarPosition(insertPos, rid);
           });
 
           // 设置活跃修订
@@ -1559,11 +1592,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         position?: { from: number; to: number };
         action_type?: string;
         skipRevision?: boolean;  // 跳过修订标记，直接替换
-        forceReplaceAll?: boolean;  // 章节级整章替换
-        chapterId?: string;
       }>;
 
-      const { original, replacement, position, action_type, skipRevision, forceReplaceAll, chapterId: targetChapterId } = customEvent.detail;
+      const { original, replacement, position, action_type, skipRevision } = customEvent.detail;
 
       // 如果不是跳过修订标记的请求，转发到显示修订
       if (!skipRevision) {
@@ -1579,17 +1610,11 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         return;
       }
 
-      if (targetChapterId && chapterId && targetChapterId !== chapterId) {
-        console.log('[NovelEditor] 跳过跨章节直接替换:', { targetChapterId, currentChapterId: chapterId });
-        return;
-      }
-
       console.log('[NovelEditor] 收到直接替换请求:', {
         original: original?.substring(0, 50) + '...',
         replacement: replacement?.substring(0, 50) + '...',
         position,
-        action_type,
-        forceReplaceAll
+        action_type
       });
 
       if (!replacement) {
@@ -1598,16 +1623,6 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       }
 
       try {
-        if (forceReplaceAll) {
-          editor.commands.setContent(replacement);
-          setSaveStatus('unsaved');
-          if (autoSave) {
-            debouncedSave(editor);
-          }
-          toast.success(t('editor.aiMenu.appliedRewrite'));
-          return;
-        }
-
         if (position && position.from !== undefined && position.to !== undefined) {
           editor.chain()
             .focus()
@@ -1733,9 +1748,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         detail.requestId,
         detail.revisionId
       ].filter(Boolean) as string[];
-      const cleanupPositions = revisionIds
+      const cleanupPositions: number[] = revisionIds
         .map((revisionId) => findRevisionIdPosition(revisionId))
-        .filter((pos): pos is number => typeof pos === 'number');
+        .filter((pos) => pos !== null) as number[];
 
       if (!isBatch && targetChapterId && chapterId && targetChapterId !== chapterId) {
         if (revisionIds.length > 0) {
@@ -1746,22 +1761,6 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
 
       try {
         const currentHtml = editor.getHTML();
-        const hasTargetMarkers = !isBatch && revisionIds.length > 0
-          ? revisionIds.some((revisionId) =>
-              currentHtml.includes(`data-revision-id="${revisionId}"`)
-            )
-          : true;
-
-        // 章节级修订（无段落标记）不做本地 setContent，避免旧稿覆盖
-        if (!isBatch && revisionIds.length > 0 && !hasTargetMarkers) {
-          clearPendingRevisions(revisionIds);
-          setActiveRevision(null);
-          setRevisionBarPosition(null);
-          revisionSaveBlockedRef.current = false;
-          console.log('[NovelEditor] 采纳请求未找到修订标记，跳过本地内容覆盖');
-          return;
-        }
-
         const nextHtml = applyRevisionDecisionToHtml(
           currentHtml,
           'accept',
@@ -2004,6 +2003,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     getPendingRevisionIdsForChapter,
     applyRevisionDecisionToHtml,
     attemptPendingRevisionJump,
+    updateRevisionBarPosition,
     workId,
     t
   ]);
@@ -2077,6 +2077,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         await agentApi.submitApprovalResponse({
           request_id: requestId,
           approved: true,
+          chapter_id: chapterId,
+          work_id: workId,
         });
       } catch (error) {
         console.error('[NovelEditor] 采纳修订写入失败:', error);
@@ -2090,9 +2092,9 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
     try {
       const currentHtml = editor.getHTML();
       const revisionIds = [requestId, id].filter(Boolean) as string[];
-      const cleanupPositions = revisionIds
+      const cleanupPositions: number[] = revisionIds
         .map((revisionId) => findRevisionIdPosition(revisionId))
-        .filter((pos): pos is number => typeof pos === 'number');
+        .filter((pos) => pos !== null) as number[];
       if (cleanupPositions.length === 0 && position?.from !== undefined) {
         cleanupPositions.push(position.from);
       }
@@ -2138,6 +2140,8 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         await agentApi.submitApprovalResponse({
           request_id: requestId,
           approved: false,
+          chapter_id: chapterId,
+          work_id: workId,
         });
       } catch (error) {
         console.error('[NovelEditor] 弃用修订写入失败:', error);
@@ -2354,7 +2358,10 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
         />
 
         {/* 编辑器内容区域 - 沉浸式画布 */}
-        <div className="flex-1 overflow-y-auto bg-white dark:bg-slate-900">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto overflow-x-hidden bg-white dark:bg-slate-900 relative"
+        >
           <div className="editor-canvas">
             {showChapterHeader && (
               <div className="chapter-header" aria-label="Chapter header">
@@ -2372,24 +2379,22 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
             )}
             <EditorContent editor={editor} className="editor-content-root" />
           </div>
-          {/* 气泡菜单 - 选中文本时显示 */}
-          <BubbleMenu editor={editor} onOpenInlineAI={handleOpenInlineAI} />
-          {/* AI 菜单 - 选中文本时显示 AI 操作 */}
+          {/* AI 菜单 - 选中文本时显示 Ask AI */}
           <AIMenu editor={editor} onOpenInlineAI={handleOpenInlineAI} />
+
+          {/* 🆕 AI 修订操作栏 */}
+          {activeRevision && (
+            <AIRevisionBar
+              revision={activeRevision}
+              position={revisionBarPosition}
+              onRegenerate={handleRegenerateRevision}
+              onDiscard={handleDiscardRevision}
+              onAccept={handleAcceptRevision}
+              isLoading={isRevisionLoading}
+            />
+          )}
         </div>
       </div>
-
-      {/* 🆕 AI 修订操作栏 */}
-      {activeRevision && (
-        <AIRevisionBar
-          revision={activeRevision}
-          position={revisionBarPosition}
-          onRegenerate={handleRegenerateRevision}
-          onDiscard={handleDiscardRevision}
-          onAccept={handleAcceptRevision}
-          isLoading={isRevisionLoading}
-        />
-      )}
     </>
   );
 };

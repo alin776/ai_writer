@@ -376,8 +376,7 @@ async def analyze_content(
     analysis_types: Union[str, List[str]] = "text,style",
     focus: str = "all",
     depth: str = "normal",
-    context: str = "",
-    step_reasoning: Optional[str] = None
+    context: str = ""
 ) -> str:
     """分析工具：一站式内容分析"""
     content_value = content or text
@@ -805,6 +804,70 @@ async def search_analysis_fragments_tool(
 
 
 @tool
+async def search_content(
+    work_id: str,
+    query: str,
+    top_k: int = 10,
+    chapter_id: str = "",
+    look_ahead: int = 0
+) -> str:
+    """搜索多个相关位置（返回位置 + 片段）
+
+    Args:
+        work_id: 作品ID（UUID格式，必需）
+        query: 查询文本（必需）
+        top_k: 返回前K个最相关结果
+        chapter_id: 当前章节ID（可选，用于时序窗口）
+        look_ahead: 允许向后看的章节数（默认0表示不限制）
+
+    Returns:
+        位置 + 片段 JSON
+    """
+    # 复用旧检索实现，统一返回片段字段
+    result_str = await search_analysis_fragments_tool.ainvoke({
+        "work_id": work_id,
+        "query": query,
+        "top_k": top_k,
+        "chapter_id": chapter_id,
+        "include_current": True,
+        "look_ahead": look_ahead,
+        "max_content_length": 200
+    })
+
+    try:
+        result = json.loads(result_str) if isinstance(result_str, str) else result_str
+        if not isinstance(result, dict) or "results" not in result:
+            return result_str
+
+        formatted_results = []
+        for i, item in enumerate(result.get("results", [])):
+            content = item.get("content", "") if isinstance(item, dict) else ""
+            snippet = item.get("snippet", "") if isinstance(item, dict) else ""
+            if not snippet:
+                snippet = content[:200] + "..." if len(content) > 200 else content
+            formatted_results.append({
+                "rank": i + 1,
+                "chapter_id": item.get("chapter_id"),
+                "chapter_order": item.get("chapter_order"),
+                "chapter_title": item.get("chapter_title"),
+                "paragraph_index": item.get("paragraph_index"),
+                "node_id": item.get("node_id"),
+                "snippet": snippet,
+                "similarity": item.get("similarity", 0),
+                "source": item.get("source", "hybrid")
+            })
+
+        return json.dumps({
+            "work_id": result.get("work_id", work_id),
+            "query": result.get("query", query),
+            "total_results": len(formatted_results),
+            "results": formatted_results
+        }, ensure_ascii=False, indent=2)
+    except Exception:
+        return result_str
+
+
+@tool
 async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") -> str:
     """[DEPRECATED] 获取上下文工具 - 请使用 get_writing_context 代替
 
@@ -849,548 +912,10 @@ async def get_context_tool(work_id: Optional[str] = None, chapter_id: str = "") 
     return result_str
 
 
-# ==================== 世界观辅助函数 ====================
-
-def _normalize_worldview_keywords(keywords: Union[str, List[str], None]) -> List[str]:
-    """将关键词参数统一为小写列表"""
-    if not keywords:
-        return []
-    if isinstance(keywords, (list, tuple, set)):
-        items = [str(k).strip() for k in keywords if str(k).strip()]
-    else:
-        raw = str(keywords).strip()
-        if not raw:
-            return []
-        items = re.split(r"[\s,，、]+", raw)
-        items = [i.strip() for i in items if i.strip()]
-    return [i.lower() for i in items if i]
-
-
-def _extract_task_keywords(task_hint: str, max_keywords: int = 12) -> List[str]:
-    """从任务提示中抽取关键词（轻量启发式）"""
-    if not task_hint:
-        return []
-    text = str(task_hint)
-    tokens = re.findall(r"[A-Za-z\u4e00-\u9fff][A-Za-z0-9\u4e00-\u9fff]{1,}", text)
-    cleaned: List[str] = []
-    seen = set()
-    for token in tokens:
-        token = token.strip().lower()
-        if not token or token.isdigit():
-            continue
-        if token in seen:
-            continue
-        seen.add(token)
-        cleaned.append(token)
-        if len(cleaned) >= max_keywords:
-            break
-    return cleaned
-
-
-def _parse_chapter_orders_hint(raw_value: Union[str, List[int], None]) -> List[int]:
-    """解析章节提示（不支持 -N 语义）"""
-    if not raw_value:
-        return []
-    if isinstance(raw_value, list):
-        return [int(v) for v in raw_value if isinstance(v, int) and v > 0]
-    raw = str(raw_value).strip()
-    if not raw:
-        return []
-    orders: List[int] = []
-    seen: set[int] = set()
-    for part in re.split(r"[,\s，、]+", raw):
-        part = part.strip()
-        if not part:
-            continue
-        if re.match(r"^\d+\s*[-~]\s*\d+$", part):
-            start, end = re.split(r"[-~]", part)
-            try:
-                a = int(start.strip())
-                b = int(end.strip())
-            except ValueError:
-                continue
-            if a <= 0 or b <= 0:
-                continue
-            if a <= b:
-                rng = range(a, b + 1)
-            else:
-                rng = range(b, a + 1)
-            for num in rng:
-                if num not in seen:
-                    seen.add(num)
-                    orders.append(num)
-        elif part.isdigit():
-            num = int(part)
-            if num > 0 and num not in seen:
-                seen.add(num)
-                orders.append(num)
-    return orders
-
-
-def _match_worldview_keywords(item: Dict[str, Any], keywords: List[str]) -> bool:
-    """简单关键词匹配（name/title/term/definition/description/content/role/tags/relations）"""
-    if not isinstance(item, dict):
-        return False
-    if not keywords:
-        return True
-    parts: List[str] = []
-    for key in ("name", "title", "term", "definition", "description", "content", "role", "type", "category", "status", "voice"):
-        value = item.get(key)
-        if value:
-            parts.append(str(value))
-    aliases = item.get("aliases")
-    if isinstance(aliases, list):
-        parts.extend([str(a) for a in aliases if a])
-    tags = item.get("tags")
-    if isinstance(tags, list):
-        parts.extend([str(t) for t in tags if t])
-    relations = (
-        item.get("relations")
-        or item.get("relationships")
-        or item.get("related_locations")
-        or item.get("related_items")
-    )
-    if isinstance(relations, list):
-        parts.extend([str(r) for r in relations if r])
-    constraints = item.get("constraints")
-    if isinstance(constraints, list):
-        parts.extend([str(c) for c in constraints if c])
-    evidence = item.get("evidence")
-    if isinstance(evidence, list):
-        for ev in evidence:
-            if isinstance(ev, dict):
-                excerpt = ev.get("excerpt")
-                if excerpt:
-                    parts.append(str(excerpt))
-    text = " ".join(parts).lower()
-    if not text:
-        return False
-    return any(k in text for k in keywords)
-
-
-def _extract_worldview_tokens(item: Dict[str, Any]) -> List[str]:
-    """提取可用于索引的关键词（名称/别名/标签/关系）"""
-    tokens: List[str] = []
-    for key in ("name", "title", "term"):
-        value = item.get(key)
-        if value:
-            tokens.append(str(value))
-    aliases = item.get("aliases")
-    if isinstance(aliases, list):
-        tokens.extend([str(a) for a in aliases if a])
-    status = item.get("status")
-    if status:
-        tokens.append(str(status))
-    voice = item.get("voice")
-    if voice:
-        tokens.append(str(voice))
-    tags = item.get("tags")
-    if isinstance(tags, list):
-        tokens.extend([str(t) for t in tags if t])
-    relations = (
-        item.get("relations")
-        or item.get("relationships")
-        or item.get("related_locations")
-        or item.get("related_items")
-    )
-    if isinstance(relations, list):
-        for rel in relations:
-            if isinstance(rel, dict):
-                rel_name = rel.get("target_name") or rel.get("name") or rel.get("target")
-                if rel_name:
-                    tokens.append(str(rel_name))
-                rel_type = rel.get("relationship_type") or rel.get("type")
-                if rel_type:
-                    tokens.append(str(rel_type))
-            else:
-                tokens.append(str(rel))
-    return [t.strip().lower() for t in tokens if str(t).strip()]
-
-
-def _split_rule_text(value: Any, max_items: int = 20) -> List[str]:
-    """将规则类文本拆为列表（支持换行/分号/项目符号）"""
-    if value is None:
-        return []
-    if isinstance(value, list):
-        items = [str(v).strip() for v in value if str(v).strip()]
-        return items[:max_items]
-    text = str(value).strip()
-    if not text:
-        return []
-    parts = re.split(r"[\n\r]+|[;；]+", text)
-    items: List[str] = []
-    for part in parts:
-        item = part.strip()
-        if not item:
-            continue
-        item = re.sub(r"^[-*•\d\.\)\、\s]+", "", item).strip()
-        if item:
-            items.append(item)
-    if not items:
-        items = [text]
-    # 去重保序
-    seen = set()
-    unique: List[str] = []
-    for item in items:
-        if item in seen:
-            continue
-        seen.add(item)
-        unique.append(item)
-    return unique[:max_items]
-
-
-async def _verify_work_access(
-    db: AsyncSessionLocal,
-    work_id: str,
-    user_id: str,
-    allow_anonymous: bool = False
-) -> Optional[str]:
-    """校验作品归属（返回错误码或 None）"""
-    if not user_id:
-        return None if allow_anonymous else "anonymous"
-    try:
-        from app.services.work_service import WorkService
-        work = await WorkService(db).get_work_by_id(work_id)
-        if not work:
-            return "work_not_found"
-        if str(work.author_id) != str(user_id):
-            return "not_authorized"
-    except Exception as exc:
-        logger.debug(f"[worldview] 权限校验失败: {exc}")
-    return None
-
-
-def _build_worldview_index(worldview: Dict[str, Any]) -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
-    """构建世界观索引（名称/别名/标签/关系）"""
-    index: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
-        "characters": {},
-        "locations": {},
-        "settings": {},
-        "glossary": {}
-    }
-    for category in ("characters", "locations", "settings"):
-        items = worldview.get(category)
-        if not isinstance(items, list):
-            continue
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            for token in _extract_worldview_tokens(item):
-                index[category].setdefault(token, []).append(item)
-    return index
-
-
-def _build_worldview_profile(worldview: Dict[str, Any]) -> Dict[str, Any]:
-    """构建世界观摘要统计"""
-    characters = worldview.get("characters", []) if isinstance(worldview.get("characters"), list) else []
-    locations = worldview.get("locations", []) if isinstance(worldview.get("locations"), list) else []
-    settings = worldview.get("settings", []) if isinstance(worldview.get("settings"), list) else []
-    glossary = worldview.get("glossary", []) if isinstance(worldview.get("glossary"), list) else []
-    guidelines = worldview.get("guidelines")
-    return {
-        "total_characters": len(characters),
-        "total_locations": len(locations),
-        "total_settings": len(settings),
-        "total_glossary": len(glossary),
-        "has_guidelines": bool(guidelines),
-        "top_characters": [c.get("name") for c in characters[:5] if isinstance(c, dict) and c.get("name")],
-        "top_locations": [l.get("name") for l in locations[:5] if isinstance(l, dict) and l.get("name")],
-        "top_settings": [
-            s.get("title") for s in settings[:5] if isinstance(s, dict) and s.get("title")
-        ],
-        "top_glossary": [g.get("term") for g in glossary[:5] if isinstance(g, dict) and g.get("term")]
-    }
-
-
-def _build_worldview_pack(
-    worldview: Dict[str, Any],
-    keywords: List[str],
-    top_k: int = 5,
-    include_guidelines: bool = True,
-    task_hint: str = "",
-    chapter_orders: Optional[List[int]] = None
-) -> Dict[str, Any]:
-    """构建按需世界观包（小包）"""
-    top_k = max(1, min(int(top_k or 5), 20))
-    keyword_list = _normalize_worldview_keywords(keywords)
-    if task_hint:
-        task_keywords = _extract_task_keywords(task_hint)
-        if task_keywords:
-            merged = []
-            seen_kw = set()
-            for item in keyword_list + task_keywords:
-                if item in seen_kw:
-                    continue
-                seen_kw.add(item)
-                merged.append(item)
-            keyword_list = merged[:20]
-
-    if isinstance(chapter_orders, str):
-        chapter_orders = _parse_chapter_orders_hint(chapter_orders)
-    chapter_orders = [int(v) for v in (chapter_orders or []) if isinstance(v, int) and v > 0]
-
-    index = _build_worldview_index(worldview) if keyword_list else {}
-
-    def _select(items: List[Dict[str, Any]], category: str) -> tuple[List[Dict[str, Any]], str]:
-        if not items:
-            return [], "empty"
-        if not isinstance(items, list):
-            return [], "empty"
-        items = [item for item in items if isinstance(item, dict)]
-        if not items:
-            return [], "empty"
-        if not keyword_list:
-            return items[:top_k], "no_keyword"
-        matched: List[Dict[str, Any]] = []
-        cat_index = index.get(category, {})
-        for kw in keyword_list:
-            matched.extend(cat_index.get(kw, []))
-        match_type = "keyword_index" if matched else "keyword_scan"
-        if not matched:
-            matched = [item for item in items if _match_worldview_keywords(item, keyword_list)]
-        if not matched:
-            matched = items[:top_k]
-            match_type = "fallback"
-        seen = set()
-        unique: List[Dict[str, Any]] = []
-        for item in matched:
-            key = item.get("id") or item.get("name") or item.get("title") or item.get("term") or str(item)
-            if key in seen:
-                continue
-            seen.add(key)
-            unique.append(item)
-        return unique[:top_k], match_type
-
-    characters, characters_match = _select(worldview.get("characters", []) or [], "characters")
-    locations, locations_match = _select(worldview.get("locations", []) or [], "locations")
-    settings, settings_match = _select(worldview.get("settings", []) or [], "settings")
-
-    glossary_selected, glossary_match = _select(worldview.get("glossary", []) or [], "glossary")
-    glossary: List[Dict[str, Any]] = []
-    for item in glossary_selected:
-        if not isinstance(item, dict):
-            continue
-        copied = dict(item)
-        if not copied.get("name"):
-            copied["name"] = copied.get("term", "")
-        if not copied.get("description"):
-            copied["description"] = copied.get("definition", "")
-        glossary.append(copied)
-
-    timeline_items = worldview.get("timeline", []) if isinstance(worldview.get("timeline"), list) else []
-    timeline_filtered: List[Dict[str, Any]] = []
-    if timeline_items:
-        if chapter_orders:
-            timeline_filtered = [
-                item for item in timeline_items
-                if isinstance(item, dict) and item.get("chapter_number") in chapter_orders
-            ]
-        elif keyword_list:
-            timeline_filtered = [
-                item for item in timeline_items
-                if isinstance(item, dict) and _match_worldview_keywords(item, keyword_list)
-            ]
-        if not timeline_filtered:
-            timeline_filtered = timeline_items[: min(len(timeline_items), max(6, top_k * 2))]
-
-    pack = {
-        "characters": characters,
-        "locations": locations,
-        "settings": settings
-    }
-    if include_guidelines and worldview.get("guidelines"):
-        pack["guidelines"] = worldview.get("guidelines")
-    rules_list = worldview.get("world_rules")
-    constraints_list = worldview.get("constraints")
-    taboo_list = worldview.get("taboo")
-    if rules_list:
-        pack["world_rules"] = rules_list[:20] if isinstance(rules_list, list) else rules_list
-    if constraints_list:
-        pack["constraints"] = constraints_list[:20] if isinstance(constraints_list, list) else constraints_list
-    if taboo_list:
-        pack["taboo"] = taboo_list[:20] if isinstance(taboo_list, list) else taboo_list
-    if timeline_filtered:
-        pack["timeline"] = timeline_filtered
-    if glossary:
-        pack["glossary"] = glossary
-    if keyword_list:
-        pack["keywords"] = keyword_list
-
-    try:
-        from app.services.agent.utils.monitoring import increment_counter
-        category_stats = [
-            ("characters", characters, characters_match),
-            ("locations", locations, locations_match),
-            ("settings", settings, settings_match),
-            ("glossary", glossary, glossary_match),
-        ]
-        for category, items, match_type in category_stats:
-            increment_counter("worldview_pack_items_total", value=len(items), labels={"category": category})
-            if match_type.startswith("keyword"):
-                increment_counter("worldview_pack_items_hit", value=len(items), labels={"category": category})
-        if timeline_filtered:
-            increment_counter("worldview_pack_timeline_items", value=len(timeline_filtered))
-    except Exception:
-        pass
-    return pack
-
-
-async def _fetch_worldview_data(
-    db: AsyncSessionLocal,
-    work_id: str,
-    character_limit: int = 200,
-    location_limit: int = 200,
-    setting_limit: int = 200,
-    include_guidelines: bool = True
-) -> Dict[str, Any]:
-    """读取并清洗世界观数据（用于世界观/pack/profile）"""
-    from app.services.worldview_service import WorldviewService
-    from app.utils.content_sanitizer import content_sanitizer
-    from app.models.timeline_event import TimelineEvent
-    from sqlalchemy import select
-    from sqlalchemy.sql import nulls_last
-
-    worldview_service = WorldviewService(db)
-    characters = await worldview_service.get_characters_by_work(work_id)
-    locations = await worldview_service.get_locations_by_work(work_id)
-    settings = await worldview_service.get_settings_by_work(work_id)
-
-    raw_worldview = {
-        "characters": [
-            {
-                "id": str(c.id),
-                "entity_id": str(c.id),
-                "name": c.name,
-                "role": c.role or "",
-                "status": c.status or "",
-                "voice": c.voice or "",
-                "description": c.description[:character_limit] if c.description else "",
-                "tags": c.tags or [],
-                "aliases": c.aliases or [],
-                "relationships": c.relationships or [],
-                "relations": c.relationships or [],
-                "constraints": c.constraints or [],
-                "evidence": c.evidence or []
-            }
-            for c in characters
-        ],
-        "locations": [
-            {
-                "id": str(l.id),
-                "entity_id": str(l.id),
-                "name": l.name,
-                "type": l.type or "",
-                "status": l.status or "",
-                "voice": l.voice or "",
-                "description": l.description[:location_limit] if l.description else "",
-                "tags": l.tags or [],
-                "aliases": l.aliases or [],
-                "relations": l.relations or l.related_locations or [],
-                "related_locations": l.related_locations or [],
-                "constraints": l.constraints or [],
-                "evidence": l.evidence or []
-            }
-            for l in locations
-        ],
-        "settings": [
-            {
-                "id": str(s.id),
-                "entity_id": str(s.id),
-                "name": s.title,
-                "title": s.title,
-                "category": s.category or "",
-                "status": s.status or "",
-                "voice": s.voice or "",
-                "content": s.content[:setting_limit] if s.content else "",
-                "description": s.content[:setting_limit] if s.content else "",
-                "tags": s.tags or [],
-                "aliases": s.aliases or [],
-                "relations": s.relations or s.related_items or [],
-                "related_items": s.related_items or [],
-                "constraints": s.constraints or [],
-                "evidence": s.evidence or []
-            }
-            for s in settings
-        ]
-    }
-
-    if include_guidelines:
-        guidelines = await worldview_service.get_guidelines_by_work(work_id)
-        if guidelines:
-            raw_worldview["guidelines"] = {
-                "outline": guidelines.outline or "",
-                "style": guidelines.style or "",
-                "tone": guidelines.tone or "",
-                "words_per_chapter": guidelines.words_per_chapter,
-                "power_system": guidelines.power_system or "",
-                "world_rules": guidelines.world_rules or "",
-                "constraints": guidelines.constraints or "",
-                "taboo": guidelines.taboo or "",
-                "target_audience": guidelines.target_audience or "",
-                "main_theme": guidelines.main_theme or "",
-                "plot_direction": guidelines.plot_direction or "",
-                "notes": guidelines.notes or ""
-            }
-            raw_worldview["world_rules"] = _split_rule_text(guidelines.world_rules)
-            raw_worldview["constraints"] = _split_rule_text(guidelines.constraints)
-            raw_worldview["taboo"] = _split_rule_text(guidelines.taboo)
-
-    try:
-        glossary_items = await worldview_service.get_glossary_by_work(work_id)
-        if glossary_items:
-            raw_worldview["glossary"] = [
-                {
-                    "id": str(item.id),
-                    "entity_id": str(item.id),
-                    "term": item.term,
-                    "definition": (item.definition or "")[:600],
-                    "aliases": item.aliases or [],
-                    "tags": item.tags or [],
-                    "evidence": item.evidence or [],
-                    "name": item.term,
-                    "description": (item.definition or "")[:600]
-                }
-                for item in glossary_items
-            ]
-    except Exception as exc:
-        logger.debug(f"[get_worldview] glossary 加载失败: {exc}")
-
-    try:
-        timeline_stmt = (
-            select(TimelineEvent)
-            .where(TimelineEvent.work_id == work_id)
-            .order_by(nulls_last(TimelineEvent.timestamp.asc()), TimelineEvent.created_at.asc())
-            .limit(200)
-        )
-        timeline_result = await db.execute(timeline_stmt)
-        timeline_items = timeline_result.scalars().all()
-        if timeline_items:
-            raw_worldview["timeline"] = [
-                {
-                    "id": str(item.id),
-                    "entity_id": str(item.entity_id),
-                    "entity_type": getattr(item.entity_type, "value", item.entity_type),
-                    "event_type": getattr(item.event_type, "value", item.event_type),
-                    "title": item.title,
-                    "description": item.description or "",
-                    "icon": item.icon,
-                    "chapter_id": str(item.chapter_id) if item.chapter_id else None,
-                    "chapter_number": item.chapter_number,
-                    "timestamp": item.timestamp,
-                    "color": item.color
-                }
-                for item in timeline_items
-            ]
-    except Exception as exc:
-        logger.debug(f"[get_worldview] timeline 加载失败: {exc}")
-
-    return content_sanitizer.sanitize_worldview_data(raw_worldview)
-
-
 # ==================== 世界观查询工具 ====================
 
 @tool
-async def get_worldview_summary(work_id: str, user_id: str = "") -> str:
+async def get_worldview_summary(work_id: str) -> str:
     """[DEPRECATED] 获取作品的世界观摘要信息 - 请使用 get_writing_context 代替
 
     Args:
@@ -1404,7 +929,6 @@ async def get_worldview_summary(work_id: str, user_id: str = "") -> str:
     logger.warning("[get_worldview_summary] ⚠️ 此工具已废弃，请使用 get_writing_context")
     result_str = await get_writing_context.ainvoke({
         "work_id": work_id,
-        "user_id": user_id,
         "include": "worldview"
     })
     # 格式转换：转为原格式
@@ -1438,10 +962,6 @@ async def get_writing_context(
     include: Union[str, List[str]] = "work,chapter,worldview,style,rag",
     rag_query: str = "",
     rag_top_k: int = 5,
-    worldview_keywords: Union[str, List[str]] = "",
-    worldview_task_hint: str = "",
-    worldview_top_k: int = 5,
-    worldview_include_guidelines: bool = True,
     use_cache: bool = True
 ) -> str:
     """获取创作上下文（一站式聚合工具）
@@ -1454,13 +974,9 @@ async def get_writing_context(
         chapter_id: 章节ID（UUID格式，可选，用于单章节读取）
         chapter_orders: 章节序号（支持 "1" / "1,2,3" / "1-5" / "1-5,7" / "-3"，可选）
         user_id: 用户ID（用于获取风格指导，可选）
-        include: 包含的内容类型，逗号分隔（可选值：work,chapter,worldview,worldview_full,worldview_profile,worldview_pack,style,rag）
+        include: 包含的内容类型，逗号分隔（可选值：work,chapter,worldview,style,rag）
         rag_query: RAG检索查询（可选，默认自动生成）
         rag_top_k: RAG返回数量（默认5）
-        worldview_keywords: 世界观关键词（用于 worldview_pack 过滤）
-        worldview_task_hint: 世界观任务提示（用于按需召回）
-        worldview_top_k: 世界观小包每类返回数量（默认5）
-        worldview_include_guidelines: 是否在世界观中包含规范信息（默认True）
         use_cache: 是否使用章节缓存（默认True）
 
     Returns:
@@ -1475,9 +991,6 @@ async def get_writing_context(
 
         # 只获取世界观
         get_writing_context(work_id="xxx", include="worldview")
-
-        # 获取世界观小包（按需）
-        get_writing_context(work_id="xxx", include="worldview_pack", worldview_keywords="赵穆,浑圆桩", worldview_top_k=3)
     """
     if not work_id:
         return json.dumps({
@@ -1496,15 +1009,13 @@ async def get_writing_context(
         include_value = ",".join([str(i).strip() for i in include_value if str(i).strip()])
     include_value = include_value or "work,chapter,worldview,style,rag"
     include_set = set(i.strip() for i in str(include_value).split(",") if i.strip())
-    if "worldview_full" in include_set:
-        include_set.add("worldview")
 
     result = {"work_id": work_id}
-    parsed_chapter_orders: List[int] = []
 
     async with AsyncSessionLocal() as db:
         try:
             from app.services.work_service import WorkService
+            from app.services.worldview_service import WorldviewService
             from app.services.chapter_vector_service import ChapterVectorService
             from app.utils.text_cleaner import text_cleaner
             from app.utils.chapter_file_storage import chapter_storage
@@ -1512,22 +1023,17 @@ async def get_writing_context(
             work_service = WorkService(db)
             work = None
 
-            # 预先获取 work（用于权限校验或章节/作品读取）
-            need_work = bool(user_id) or "work" in include_set or "chapter" in include_set
-            if need_work:
+            # 预先获取 work（避免重复查询）
+            if "work" in include_set or "chapter" in include_set:
                 work = await _retry_on_failure(
                     work_service.get_work_by_id, work_id, use_cache=use_cache, max_retries=2
                 )
+                # 检查 work 是否存在
                 if not work:
                     return json.dumps({
                         "error": "作品不存在",
                         "work_id": work_id,
                         "message": f"未找到ID为 {work_id} 的作品"
-                    }, ensure_ascii=False, indent=2)
-                if user_id and str(work.author_id) != str(user_id):
-                    return json.dumps({
-                        "error": "not_authorized",
-                        "message": "无权访问该作品"
                     }, ensure_ascii=False, indent=2)
 
             # 1. 获取作品信息
@@ -1552,7 +1058,6 @@ async def get_writing_context(
                         chapter_orders,
                         available_orders=available_orders
                     )
-                    parsed_chapter_orders = orders
                     missing_orders = []
                     selected_chapters = []
 
@@ -1624,32 +1129,32 @@ async def get_writing_context(
 
                 result["chapters"] = chapters
 
-            # 3. 获取世界观（支持 worldview/profile/pack）
-            need_worldview = bool(include_set & {"worldview", "worldview_profile", "worldview_pack"})
-            if need_worldview:
-                worldview_data = await _fetch_worldview_data(
-                    db,
-                    work_id,
-                    include_guidelines=bool(worldview_include_guidelines)
-                )
+            # 3. 获取世界观
+            if "worldview" in include_set:
+                worldview_service = WorldviewService(db)
+                characters = await worldview_service.get_characters_by_work(work_id)
+                locations = await worldview_service.get_locations_by_work(work_id)
+                settings = await worldview_service.get_settings_by_work(work_id)
 
-                if "worldview" in include_set:
-                    result["worldview"] = worldview_data
-
-                if "worldview_profile" in include_set:
-                    result["worldview_profile"] = _build_worldview_profile(worldview_data)
-
-                if "worldview_pack" in include_set:
-                    keywords = _normalize_worldview_keywords(worldview_keywords)
-                    chapter_orders_list = parsed_chapter_orders or _parse_chapter_orders_hint(chapter_orders)
-                    result["worldview_pack"] = _build_worldview_pack(
-                        worldview_data,
-                        keywords,
-                        top_k=worldview_top_k,
-                        include_guidelines=bool(worldview_include_guidelines),
-                        task_hint=worldview_task_hint,
-                        chapter_orders=chapter_orders_list
-                    )
+                result["worldview"] = {
+                    "characters": [
+                        {"name": c.name, "description": c.description[:200] if c.description else ""}
+                        for c in characters
+                    ],
+                    "locations": [
+                        {"name": l.name, "description": l.description[:200] if l.description else ""}
+                        for l in locations
+                    ],
+                    "settings": [
+                        {
+                            "name": s.title,
+                            "description": s.content[:200] if s.content else "",
+                            "title": s.title,
+                            "content": s.content[:200] if s.content else ""
+                        }
+                        for s in settings
+                    ]
+                }
 
             # 4. 获取风格指导
             if "style" in include_set and user_id:
@@ -1690,66 +1195,6 @@ async def get_writing_context(
             logger.error(f"[get_writing_context] 获取创作上下文失败: {e}", exc_info=True)
             return json.dumps({
                 "error": "获取创作上下文失败",
-                "message": str(e)
-            }, ensure_ascii=False, indent=2)
-
-
-# ==================== 世界观按需工具 ====================
-
-@tool
-async def get_worldview_pack(
-    work_id: str,
-    user_id: str = "",
-    keywords: Union[str, List[str]] = "",
-    top_k: int = 5,
-    include_guidelines: bool = True,
-    task_hint: str = "",
-    chapter_orders: Union[str, List[int]] = ""
-) -> str:
-    """按需获取世界观小包（仅返回当前任务相关条目）"""
-    if not work_id:
-        return json.dumps({
-            "error": "缺少必需参数",
-            "missing": "work_id",
-            "message": "需要指定作品ID"
-        }, ensure_ascii=False, indent=2)
-
-    uuid_error = validate_uuid(work_id, "作品ID")
-    if uuid_error:
-        return uuid_error
-
-    async with AsyncSessionLocal() as db:
-        try:
-            anonymous_mode = not bool(user_id)
-            access_error = await _verify_work_access(db, work_id, user_id, allow_anonymous=True)
-            if access_error:
-                return json.dumps({
-                    "error": access_error,
-                    "message": "无权访问该作品"
-                }, ensure_ascii=False, indent=2)
-            if anonymous_mode:
-                include_guidelines = False
-                top_k = min(int(top_k or 5), 3)
-            worldview_data = await _fetch_worldview_data(
-                db,
-                work_id,
-                include_guidelines=bool(include_guidelines)
-            )
-            keyword_list = _normalize_worldview_keywords(keywords)
-            chapter_orders_list = _parse_chapter_orders_hint(chapter_orders)
-            pack = _build_worldview_pack(
-                worldview_data,
-                keyword_list,
-                top_k=top_k,
-                include_guidelines=bool(include_guidelines),
-                task_hint=task_hint,
-                chapter_orders=chapter_orders_list
-            )
-            return json.dumps(pack, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"[get_worldview_pack] 失败: {e}", exc_info=True)
-            return json.dumps({
-                "error": "获取世界观小包失败",
                 "message": str(e)
             }, ensure_ascii=False, indent=2)
 
@@ -1989,12 +1434,438 @@ async def read_paragraph(
             }, ensure_ascii=False, indent=2)
 
 
+# ==================== 章节清单工具 ====================
+
+@tool
+async def list_chapters(
+    work_id: str
+) -> str:
+    """列出作品章节清单（只读）
+
+    Args:
+        work_id: 作品ID（UUID格式，必需）
+
+    Returns:
+        JSON格式章节清单（含 paragraph_count）
+    """
+    if not work_id and not chapter_id:
+        return json.dumps({
+            "success": False,
+            "error": "缺少必需参数 work_id 或 chapter_id"
+        }, ensure_ascii=False, indent=2)
+
+    if work_id:
+        uuid_error = validate_uuid(work_id, "作品ID")
+        if uuid_error:
+            return uuid_error
+
+    async with AsyncSessionLocal() as db:
+        try:
+            from app.services.chapter_service import ChapterService
+            from app.services.chapter_content_provider import ChapterContentProvider
+            from app.services.agent.tools.locate_tools import _split_paragraphs
+            chapter_svc = ChapterService(db)
+            chapters = await chapter_svc.get_chapters_by_work(work_id)
+            content_provider = ChapterContentProvider()
+            result = []
+            for ch in chapters or []:
+                content = content_provider.read_content(str(ch.work_id), str(ch.id)) or ""
+                paragraph_count = len(_split_paragraphs(content)) if content else 0
+                result.append({
+                    "chapter_id": str(ch.id) if ch.id else "",
+                    "id": str(ch.id) if ch.id else "",
+                    "order": ch.order,
+                    "title": ch.title or "",
+                    "word_count": getattr(ch, "word_count", 0) or 0,
+                    "paragraph_count": paragraph_count
+                })
+            result.sort(key=lambda x: x.get("order") or 0)
+            return json.dumps({
+                "success": True,
+                "work_id": work_id,
+                "count": len(result),
+                "chapters": result
+            }, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"list_chapters 失败: {e}")
+            return json.dumps({
+                "success": False,
+                "error": "读取章节清单失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+
+# ==================== 段落清单工具 ====================
+
+@tool
+async def list_paragraphs(
+    work_id: str,
+    chapter_order: int = 0,
+    chapter_id: str = "",
+    offset: int = 0,
+    limit: int = 50,
+    preview_len: int = 80
+) -> str:
+    """列出章节段落索引（只读，支持 offset/limit）
+
+    Args:
+        work_id: 作品ID（UUID格式，必需）
+        chapter_order: 章节序号（优先）
+        chapter_id: 章节ID（可选）
+        offset: 起始段落索引（默认0）
+        limit: 返回段落数量（默认50）
+        preview_len: 预览长度（默认80）
+
+    Returns:
+        JSON格式段落清单
+    """
+    if not work_id:
+        return json.dumps({
+            "success": False,
+            "error": "缺少必需参数 work_id"
+        }, ensure_ascii=False, indent=2)
+
+    uuid_error = validate_uuid(work_id, "作品ID")
+    if uuid_error:
+        return uuid_error
+    if chapter_id:
+        uuid_error = validate_uuid(chapter_id, "章节ID")
+        if uuid_error:
+            return uuid_error
+
+    if limit <= 0:
+        limit = 1
+    if offset < 0:
+        offset = 0
+
+    MAX_CHAPTER_SIZE = 200_000
+
+    async with AsyncSessionLocal() as db:
+        try:
+            from app.services.work_service import WorkService
+            from app.services.chapter_service import ChapterService
+            from app.services.agent.tools.locate_tools import _split_paragraphs
+            from app.services.chapter_content_provider import ChapterContentProvider
+
+            chapter = None
+            if chapter_id:
+                chapter_svc = ChapterService(db)
+                chapter = await chapter_svc.get_chapter_by_id(chapter_id)
+                if chapter:
+                    chapter_order = chapter.order
+            if chapter is None:
+                work_service = WorkService(db)
+                work = await work_service.get_work_by_id(work_id, use_cache=True)
+                if not work or not work.chapters:
+                    return json.dumps({
+                        "success": False,
+                        "error": "作品没有章节"
+                    }, ensure_ascii=False, indent=2)
+                chapter_map = {ch.order: ch for ch in work.chapters}
+                chapter = chapter_map.get(chapter_order)
+            if not chapter:
+                return json.dumps({
+                    "success": False,
+                    "error": f"章节不存在: order={chapter_order} id={chapter_id}"
+                }, ensure_ascii=False, indent=2)
+
+            content_provider = ChapterContentProvider()
+            content = content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
+            if len(content) > MAX_CHAPTER_SIZE:
+                window_size = 800
+                total = (len(content) + window_size - 1) // window_size
+                end = min(total, offset + limit)
+                sliced = []
+                for i in range(offset, end):
+                    start_pos = i * window_size
+                    end_pos = min(len(content), start_pos + window_size)
+                    preview = content[start_pos:end_pos]
+                    sliced.append({
+                        "index": i,
+                        "display_index": i + 1,
+                        "preview": preview[:preview_len] + ("..." if len(preview) > preview_len else ""),
+                        "node_id": ""
+                    })
+
+                return json.dumps({
+                    "success": True,
+                    "work_id": work_id,
+                    "chapter_id": str(chapter.id) if chapter.id else "",
+                    "chapter_order": chapter.order,
+                    "chapter_title": chapter.title or "",
+                    "total_paragraphs": total,
+                    "offset": offset,
+                    "limit": limit,
+                    "approximate": True,
+                    "paragraphs": sliced
+                }, ensure_ascii=False, indent=2)
+
+            paragraphs = _split_paragraphs(content)
+            total = len(paragraphs)
+            end = min(total, offset + limit)
+            sliced = []
+            for i in range(offset, end):
+                para = paragraphs[i]
+                text = para.get("text", "")
+                index_val = para.get("index", i)
+                if not isinstance(index_val, int):
+                    index_val = i
+                sliced.append({
+                    "index": index_val,
+                    "paragraph_index": index_val,
+                    "display_index": index_val + 1,
+                    "preview": text[:preview_len] + ("..." if len(text) > preview_len else ""),
+                    "node_id": para.get("node_id") or ""
+                })
+
+            return json.dumps({
+                "success": True,
+                "work_id": work_id,
+                "chapter_id": str(chapter.id) if chapter.id else "",
+                "chapter_order": chapter.order,
+                "chapter_title": chapter.title or "",
+                "total_paragraphs": total,
+                "offset": offset,
+                "limit": limit,
+                "paragraphs": sliced
+            }, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"list_paragraphs 失败: {e}")
+            return json.dumps({
+                "success": False,
+                "error": "读取段落清单失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+
+# ==================== 批量段落读取工具 ====================
+
+@tool
+async def read_paragraphs(
+    work_id: str,
+    items: Optional[List[Dict[str, Any]]] = None,
+    context_before: int = 2,
+    context_after: int = 2,
+    index_base: str = "one",
+    chapter_order: int = 0,
+    chapter_id: str = "",
+    offset: int = 0,
+    limit: int = 50
+) -> str:
+    """批量读取段落原文
+
+    Args:
+        work_id: 作品ID（UUID格式，必需）
+        items: 段落列表 [{"chapter_order": 3, "paragraph_index": 18}, ...]（可选）
+        context_before: 默认前文段落数
+        context_after: 默认后文段落数
+        index_base: 段落索引基准（默认 1-based）
+        chapter_order: 章节序号（分页模式使用）
+        chapter_id: 章节ID（分页模式使用）
+        offset: 起始段落索引（分页模式使用）
+        limit: 读取段落数量（分页模式使用）
+
+    Returns:
+        JSON格式段落原文列表
+    """
+    if not work_id:
+        return json.dumps({
+            "success": False,
+            "error": "缺少必需参数 work_id"
+        }, ensure_ascii=False, indent=2)
+
+    uuid_error = validate_uuid(work_id, "作品ID")
+    if uuid_error:
+        return uuid_error
+
+    if items is None:
+        items = []
+    if not isinstance(items, list):
+        items = []
+    range_mode = False
+    range_meta: Dict[str, Any] = {}
+    if not items and (chapter_order or chapter_id):
+        range_mode = True
+        if chapter_id:
+            uuid_error = validate_uuid(chapter_id, "章节ID")
+            if uuid_error:
+                return uuid_error
+        if offset < 0:
+            offset = 0
+        if limit <= 0:
+            limit = 1
+        try:
+            from app.services.chapter_service import ChapterService
+            if chapter_id and (not isinstance(chapter_order, int) or chapter_order <= 0):
+                async with AsyncSessionLocal() as db:
+                    chapter_svc = ChapterService(db)
+                    chapter = await chapter_svc.get_chapter_by_id(chapter_id)
+                    if not chapter:
+                        return json.dumps({
+                            "success": False,
+                            "error": f"章节ID不存在: {chapter_id}"
+                        }, ensure_ascii=False, indent=2)
+                    if work_id and str(chapter.work_id) != str(work_id):
+                        return json.dumps({
+                            "success": False,
+                            "error": "chapter_id 与 work_id 不匹配"
+                        }, ensure_ascii=False, indent=2)
+                    chapter_order = chapter.order
+        except Exception as e:
+            return json.dumps({
+                "success": False,
+                "error": "解析章节失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+        if not isinstance(chapter_order, int):
+            return json.dumps({
+                "success": False,
+                "error": "缺少 chapter_order 或 chapter_id"
+            }, ensure_ascii=False, indent=2)
+
+        try:
+            list_result = await list_paragraphs.ainvoke({
+                "work_id": work_id,
+                "chapter_order": chapter_order,
+                "chapter_id": chapter_id,
+                "offset": offset,
+                "limit": limit,
+                "preview_len": 0
+            })
+            list_data = json.loads(list_result) if isinstance(list_result, str) else list_result
+        except Exception as e:
+            return json.dumps({
+                "success": False,
+                "error": "读取段落清单失败",
+                "message": str(e)
+            }, ensure_ascii=False, indent=2)
+
+        if not isinstance(list_data, dict) or not list_data.get("success"):
+            return json.dumps({
+                "success": False,
+                "error": list_data.get("error") if isinstance(list_data, dict) else "读取段落清单失败",
+                "message": list_data.get("message") if isinstance(list_data, dict) else ""
+            }, ensure_ascii=False, indent=2)
+
+        if list_data.get("approximate"):
+            return json.dumps({
+                "success": False,
+                "error": "章节过大，段落索引为 approximate，无法分页读取原文",
+                "approximate": True
+            }, ensure_ascii=False, indent=2)
+
+        paragraphs = list_data.get("paragraphs") or []
+        if isinstance(paragraphs, list):
+            for para in paragraphs:
+                if not isinstance(para, dict):
+                    continue
+                idx = para.get("paragraph_index")
+                if idx is None:
+                    idx = para.get("index")
+                if isinstance(idx, str) and idx.isdigit():
+                    idx = int(idx)
+                if isinstance(idx, int):
+                    items.append({
+                        "chapter_order": chapter_order,
+                        "paragraph_index": idx
+                    })
+        range_meta = {
+            "mode": "range",
+            "chapter_order": chapter_order,
+            "chapter_id": list_data.get("chapter_id") or chapter_id,
+            "offset": offset,
+            "limit": limit,
+            "total_paragraphs": list_data.get("total_paragraphs")
+        }
+        index_base = "zero"
+        range_meta["index_base"] = "zero"
+        if not items:
+            total_paragraphs = range_meta.get("total_paragraphs")
+            if isinstance(total_paragraphs, int) and total_paragraphs > 0 and offset >= total_paragraphs:
+                range_meta["empty_reason"] = "offset 超出段落总数"
+            elif isinstance(total_paragraphs, int) and total_paragraphs == 0:
+                range_meta["empty_reason"] = "章节无段落"
+            else:
+                range_meta["empty_reason"] = "范围内未读取到段落"
+
+    if not isinstance(items, list) or not items:
+        empty_reason = range_meta.get("empty_reason") if range_mode else "items 不能为空"
+        return json.dumps({
+            "success": True if range_mode else False,
+            "error": "" if range_mode else "items 不能为空",
+            "empty_reason": empty_reason,
+            "work_id": work_id,
+            "count": 0,
+            "errors": 0,
+            "invalid_items": 0,
+            "index_base": index_base,
+            "results": [],
+            **range_meta
+        }, ensure_ascii=False, indent=2)
+
+    results = []
+    errors = 0
+    invalid_items = 0
+    logger.info(
+        "[read_paragraphs] start items=%s index_base=%s",
+        len(items),
+        index_base
+    )
+    for item in items:
+        if not isinstance(item, dict):
+            errors += 1
+            invalid_items += 1
+            continue
+        chapter_order = item.get("chapter_order") or item.get("chapter")
+        paragraph_index = item.get("paragraph_index") or item.get("paragraph") or item.get("index")
+        if isinstance(chapter_order, str) and chapter_order.isdigit():
+            chapter_order = int(chapter_order)
+        if isinstance(paragraph_index, str) and paragraph_index.isdigit():
+            paragraph_index = int(paragraph_index)
+        if not isinstance(chapter_order, int) or not isinstance(paragraph_index, int):
+            errors += 1
+            invalid_items += 1
+            continue
+        cb = item.get("context_before", context_before)
+        ca = item.get("context_after", context_after)
+        item_base = item.get("index_base", index_base)
+        try:
+            result = await read_paragraph.ainvoke({
+                "work_id": work_id,
+                "chapter_order": chapter_order,
+                "paragraph_index": paragraph_index,
+                "context_before": cb,
+                "context_after": ca,
+                "index_base": item_base
+            })
+            result_data = json.loads(result) if isinstance(result, str) else result
+            results.append(result_data)
+        except Exception as e:
+            errors += 1
+            results.append({
+                "success": False,
+                "error": str(e),
+                "chapter_order": chapter_order,
+                "paragraph_index": paragraph_index
+            })
+
+    return json.dumps({
+        "success": True,
+        "work_id": work_id,
+        "count": len(results),
+        "errors": errors,
+        "invalid_items": invalid_items,
+        "index_base": index_base,
+        "results": results,
+        **range_meta
+    }, ensure_ascii=False, indent=2)
+
 # ==================== 工具列表 ====================
 
 # 导入编辑器工具
 from app.services.agent.tools.editor_tools import (
     smart_continue,
-    smart_create,
     smart_rewrite,
     smart_insert,
     apply_chapter_edit
@@ -2009,25 +1880,32 @@ from app.services.agent.tools.chapter_tools import (
 # 导入统一操作工具（2026-01-23）
 from app.services.agent.tools.operate_tools import operate_apply
 
+# 导入辅助工具（2026-01-09）
+from app.services.agent.tools.consistency_checker import check_story_consistency_tool
+from app.services.agent.tools.show_dont_tell import show_emotion_tool, enhance_scene_tool
+from app.services.agent.tools.style_learning import learn_style_tool, get_style_guidance_tool, analyze_style_tool
+
 # 导入探索工具（2026-01-17）
-from app.services.agent.tools.explore_v6 import explore_content, load_explore_artifact
+from app.services.agent.tools.explore_tools import explore_content
 
 LANGGRAPH_TOOLS = [
     # 统一信息获取入口（2026-01-18 更新）
-    explore_content,  # 深度探索 - 替代旧检索与读取组合链路
-    load_explore_artifact,  # 读取已保存的探索结果
+    explore_content,  # 深度探索 - 替代 search_content 和 get_writing_context
     # 分析工具
     analyze_content,
     # 创作工具
     smart_continue,
-    smart_create,
     smart_rewrite,
     smart_insert,
+    show_emotion_tool,
+    enhance_scene_tool,
+    learn_style_tool,
     # 操作工具（统一入口）
     operate_apply,
     delete_chapter,
     update_chapter_content,
     # 内部工具（不暴露给 AI 规划器，但保留以供 explore_content 内部调用）
+    # search_content,      # 内部工具
     # get_writing_context, # 内部工具
     # read_paragraph,      # 内部工具
 ]
@@ -2048,11 +1926,11 @@ __all__ = [
     # 章节工具
     "read_chapter_tool",
     "get_chapter_by_order_tool",
+    "search_content",
     "search_analysis_fragments_tool",
     "get_context_tool",
     # 世界观工具
     "get_worldview_summary",
-    "get_worldview_pack",
     # 聚合工具（2026-01-12）
     "get_writing_context",
     # 段落读取工具（2026-01-17）
@@ -2065,6 +1943,7 @@ __all__ = [
     "get_context_tool_st",
     "read_chapter_tool_st",
     "get_chapter_by_order_tool_st",
+    "search_content_tool_st",
     "search_analysis_fragments_tool_st",
     "get_worldview_summary_tool_st",
 ]
@@ -2293,12 +2172,66 @@ search_analysis_fragments_tool_st = StandardTool(
 )
 
 
-# ==================== 5. GetWorldviewSummaryTool StandardTool ====================
+# ==================== 5. SearchContentTool StandardTool ====================
+
+class SearchContentInput(ToolInput):
+    """搜索内容工具输入"""
+    work_id: str = Field(..., description="作品ID（必需）")
+    query: str = Field(..., description="查询文本（必需）")
+    top_k: int = Field(default=10, description="返回前K个最相关结果", ge=1, le=50)
+    chapter_id: str = Field(default="", description="当前章节ID（可选）")
+    look_ahead: int = Field(default=0, description="允许向后看的章节数（0表示不限制）", ge=0)
+
+
+class SearchContentOutput(ToolOutput):
+    """搜索内容工具输出"""
+    pass
+
+
+async def search_content_executor(input_data: SearchContentInput) -> SearchContentOutput:
+    """搜索内容执行器（包装 @tool 版本）"""
+    try:
+        result_str = await search_content.ainvoke({
+            "work_id": input_data.work_id,
+            "query": input_data.query,
+            "top_k": input_data.top_k,
+            "chapter_id": input_data.chapter_id,
+            "look_ahead": input_data.look_ahead
+        })
+
+        return SearchContentOutput(
+            success=True,
+            message="搜索成功",
+            data={"results": result_str},
+            metadata={"tool": "search_content", "query": input_data.query}
+        )
+    except Exception as e:
+        logger.error(f"search_content_executor 失败: {e}")
+        return SearchContentOutput(
+            success=False,
+            message=f"搜索失败: {str(e)}",
+            data=None,
+            metadata={"error": str(e)}
+        )
+
+
+search_content_tool_st = StandardTool(
+    name="search_content",
+    description="搜索多个相关位置，返回位置+片段（snippet）",
+    category=ToolCategory.UTILITY,
+    input_schema=SearchContentInput,
+    output_schema=SearchContentOutput,
+    executor=search_content_executor,
+    tags=["chapter", "search", "snippet"],
+    version="1.0.0"
+)
+
+
+# ==================== 6. GetWorldviewSummaryTool StandardTool ====================
 
 class GetWorldviewSummaryInput(ToolInput):
     """获取世界观摘要工具输入"""
     work_id: str = Field(..., description="作品ID")
-    user_id: str = Field(default="", description="用户ID（可选，用于权限校验）")
 
 
 class GetWorldviewSummaryOutput(ToolOutput):
@@ -2310,8 +2243,7 @@ async def get_worldview_summary_executor(input_data: GetWorldviewSummaryInput) -
     """获取世界观摘要执行器（包装 @tool 版本）"""
     try:
         result_str = await get_worldview_summary.ainvoke({
-            "work_id": input_data.work_id,
-            "user_id": input_data.user_id
+            "work_id": input_data.work_id
         })
 
         return GetWorldviewSummaryOutput(
@@ -2350,16 +2282,9 @@ class GetWritingContextInput(ToolInput):
     chapter_id: str = Field(default="", description="章节ID（可选）")
     chapter_orders: str = Field(default="", description="章节序号，支持批量：1 / 1,2,3 / 1-5")
     user_id: str = Field(default="", description="用户ID（用于获取风格）")
-    include: Union[str, List[str]] = Field(
-        default="work,chapter,worldview,style,rag",
-        description="包含内容类型（worldview_full/worldview_profile/worldview_pack）"
-    )
+    include: Union[str, List[str]] = Field(default="work,chapter,worldview,style,rag", description="包含内容类型")
     rag_query: str = Field(default="", description="RAG检索查询")
     rag_top_k: int = Field(default=5, description="RAG返回数量")
-    worldview_keywords: Union[str, List[str]] = Field(default="", description="世界观关键词（用于pack过滤）")
-    worldview_task_hint: str = Field(default="", description="世界观任务提示（用于按需召回）")
-    worldview_top_k: int = Field(default=5, description="世界观小包每类数量")
-    worldview_include_guidelines: bool = Field(default=True, description="是否包含规范信息")
     use_cache: bool = Field(default=True, description="是否使用缓存")
 
 
@@ -2379,10 +2304,6 @@ async def get_writing_context_executor(input_data: GetWritingContextInput) -> Ge
             "include": input_data.include,
             "rag_query": input_data.rag_query,
             "rag_top_k": input_data.rag_top_k,
-            "worldview_keywords": input_data.worldview_keywords,
-            "worldview_task_hint": input_data.worldview_task_hint,
-            "worldview_top_k": input_data.worldview_top_k,
-            "worldview_include_guidelines": input_data.worldview_include_guidelines,
             "use_cache": input_data.use_cache
         })
 
@@ -2417,73 +2338,6 @@ get_writing_context_tool_st = StandardTool(
     output_schema=GetWritingContextOutput,
     executor=get_writing_context_executor,
     tags=["chapter", "context", "worldview", "rag"],
-    version="1.0.0"
-)
-
-
-# ==================== 7. GetWorldviewPackTool StandardTool (2026-02-04) ====================
-
-class GetWorldviewPackInput(ToolInput):
-    """按需获取世界观小包输入"""
-    work_id: str = Field(..., description="作品ID")
-    user_id: str = Field(default="", description="用户ID（可选，用于权限校验）")
-    keywords: Union[str, List[str]] = Field(default="", description="关键词（用于过滤）")
-    top_k: int = Field(default=5, description="每类返回数量", ge=1, le=20)
-    include_guidelines: bool = Field(default=True, description="是否包含规范信息")
-    task_hint: str = Field(default="", description="任务提示（用于按需召回）")
-    chapter_orders: Union[str, List[int]] = Field(default="", description="章节序号提示（可选）")
-
-
-class GetWorldviewPackOutput(ToolOutput):
-    """按需获取世界观小包输出"""
-    pass
-
-
-async def get_worldview_pack_executor(input_data: GetWorldviewPackInput) -> GetWorldviewPackOutput:
-    """按需获取世界观小包执行器（包装 @tool 版本）"""
-    try:
-        result_str = await get_worldview_pack.ainvoke({
-            "work_id": input_data.work_id,
-            "user_id": input_data.user_id,
-            "keywords": input_data.keywords,
-            "top_k": input_data.top_k,
-            "include_guidelines": input_data.include_guidelines,
-            "task_hint": input_data.task_hint,
-            "chapter_orders": input_data.chapter_orders
-        })
-        pack_data = result_str
-        if isinstance(result_str, str):
-            try:
-                pack_data = json.loads(result_str)
-            except Exception:
-                pack_data = result_str
-        return GetWorldviewPackOutput(
-            success=True,
-            message="获取世界观小包成功",
-            data={
-                "worldview_pack": pack_data,
-                "pack": pack_data
-            },
-            metadata={"tool": "get_worldview_pack"}
-        )
-    except Exception as e:
-        logger.error(f"get_worldview_pack_executor 失败: {e}")
-        return GetWorldviewPackOutput(
-            success=False,
-            message=f"获取世界观小包失败: {str(e)}",
-            data=None,
-            metadata={"error": str(e)}
-        )
-
-
-get_worldview_pack_tool_st = StandardTool(
-    name="get_worldview_pack",
-    description="按需获取世界观小包（仅返回当前任务相关条目）",
-    category=ToolCategory.UTILITY,
-    input_schema=GetWorldviewPackInput,
-    output_schema=GetWorldviewPackOutput,
-    executor=get_worldview_pack_executor,
-    tags=["worldview", "pack", "context"],
     version="1.0.0"
 )
 

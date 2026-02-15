@@ -53,7 +53,6 @@ import { NotificationType } from '../../types/notification';
 import type { Work, WorkStatus, WorkGenre, WorkSummary } from '../../types';
 import type { ImportOptions, ImportPreviewResponse } from '../../types/export';
 import type { UserNotification } from '../../types/notification';
-import type { WorldviewScanProgress } from '../../types/novel';
 
 // 默认封面路径
 const DEFAULT_COVER_IMAGE = '/default-cover.jpg';
@@ -102,20 +101,11 @@ const WorksView: React.FC = () => {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importFormat, setImportFormat] = useState<'json' | 'markdown' | 'txt'>('json');
   const [importPreview, setImportPreview] = useState<ImportPreviewResponse | null>(null);
-  const [autoExtractWorldview, setAutoExtractWorldview] = useState(true);
-  const [worldviewScanMode, setWorldviewScanMode] = useState<'incremental' | 'full'>('incremental');
   const [isImporting, setIsImporting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
-  const [importCompleted, setImportCompleted] = useState(false);
-  const [importedWorkId, setImportedWorkId] = useState<string | null>(null);
-  const [importedChaptersCount, setImportedChaptersCount] = useState<number | null>(null);
-  const [importAutoExtracted, setImportAutoExtracted] = useState(false);
-  const [scanProgress, setScanProgress] = useState<WorldviewScanProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
-  const autoNavigateEnabledRef = useRef(true);
-  const hasAutoNavigatedRef = useRef(false);
 
   // 导出弹窗状态
   const [exportingWork, setExportingWork] = useState<Work | null>(null);
@@ -301,11 +291,9 @@ const WorksView: React.FC = () => {
   };
 
 
-  const loadWorks = async (silent = false) => {
+  const loadWorks = async () => {
     try {
-      if (!silent) {
-        setIsLoading(true);
-      }
+      setIsLoading(true);
       const data = await DataService.getWorks();
       setWorks(data.items || []);
       setSummary(data.summary || null);
@@ -314,9 +302,7 @@ const WorksView: React.FC = () => {
       console.error('加载作品失败:', error);
       showToast('error', t('works.messages.loadError'));
     } finally {
-      if (!silent) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   };
 
@@ -529,15 +515,6 @@ const WorksView: React.FC = () => {
     setImportFile(null);
     setImportPreview(null);
     setImportFormat('json');
-    setAutoExtractWorldview(true);
-    setWorldviewScanMode('incremental');
-    setImportCompleted(false);
-    setImportedWorkId(null);
-    setImportedChaptersCount(null);
-    setImportAutoExtracted(false);
-    setScanProgress(null);
-    autoNavigateEnabledRef.current = true;
-    hasAutoNavigatedRef.current = false;
   };
 
   // 关闭导入弹窗
@@ -547,13 +524,6 @@ const WorksView: React.FC = () => {
     setImportPreview(null);
     setIsDraggingFile(false);
     dragCounterRef.current = 0;
-    setImportCompleted(false);
-    setImportedWorkId(null);
-    setImportedChaptersCount(null);
-    setImportAutoExtracted(false);
-    setScanProgress(null);
-    autoNavigateEnabledRef.current = false;
-    hasAutoNavigatedRef.current = false;
   };
 
   // 处理文件选择
@@ -639,7 +609,7 @@ const WorksView: React.FC = () => {
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isImporting || isPreviewing || importCompleted) return;
+    if (isImporting || isPreviewing) return;
 
     dragCounterRef.current++;
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
@@ -672,7 +642,7 @@ const WorksView: React.FC = () => {
     setIsDraggingFile(false);
     dragCounterRef.current = 0;
 
-    if (isImporting || isPreviewing || importCompleted) return;
+    if (isImporting || isPreviewing) return;
 
     const droppedFile = e.dataTransfer?.files?.[0];
     if (droppedFile) {
@@ -686,59 +656,46 @@ const WorksView: React.FC = () => {
       showToast('error', t('works.import.selectFileError'));
       return;
     }
-    if (importCompleted) return;
 
     try {
       setIsImporting(true);
-      setImportCompleted(false);
-      setScanProgress(null);
-      const shouldAutoExtractWorldview = importFormat !== 'json' && autoExtractWorldview;
+      const shouldAutoExtractWorldview = importFormat !== 'json';
       const options: ImportOptions = {
         format: importFormat,
         createNew: true,
         includeWorldview: true,
         includeGuidelines: true,
         autoExtractWorldview: shouldAutoExtractWorldview,
-        worldviewScanMode: shouldAutoExtractWorldview ? worldviewScanMode : undefined,
       };
 
       const result = await DataService.importWork(importFile, options);
       console.log('[导入结果]', result);
       const chaptersCount = result.chaptersCreated ?? 0;
       const workId = result.workId;
-      autoNavigateEnabledRef.current = shouldAutoExtractWorldview;
-      hasAutoNavigatedRef.current = false;
 
-      // 导入成功提示改为静默，避免弹窗遮挡进度
-      loadWorks(true); // 静默刷新作品列表，避免全屏 loading 覆盖弹窗
-      setImportCompleted(true);
-      setImportedWorkId(workId);
-      setImportedChaptersCount(chaptersCount);
-      setImportAutoExtracted(shouldAutoExtractWorldview);
+      // 预加载作品详情页需要的数据，避免跳转后再等待
+      console.log('[导入] 预加载作品数据...');
+      const [workData, chaptersData, worldData] = await Promise.all([
+        DataService.getWork(workId),
+        DataService.getChapters(workId),
+        DataService.getWorldData(workId),
+      ]);
 
-      if (!shouldAutoExtractWorldview) {
-        // 预加载作品详情页需要的数据，避免跳转后再等待
-        console.log('[导入] 预加载作品数据...');
-        const [workData, chaptersData, worldData] = await Promise.all([
-          DataService.getWork(workId),
-          DataService.getChapters(workId),
-          DataService.getWorldData(workId),
-        ]);
+      showToast('success', t('works.import.success', { count: chaptersCount }));
+      closeImportModal();
+      loadWorks(); // 后台刷新作品列表，不阻塞跳转
 
-        closeImportModal();
-        // 携带预加载数据跳转，作品详情页可直接使用
-        navigate(`/works/${workId}`, {
-          state: {
-            preloadedData: {
-              work: workData,
-              chapters: chaptersData,
-              worldData: worldData,
-            },
-            autoExtractWorldview: shouldAutoExtractWorldview,
-            worldviewScanMode,
-          }
-        });
-      }
+      // 携带预加载数据跳转，作品详情页可直接使用
+      navigate(`/works/${workId}`, {
+        state: {
+          preloadedData: {
+            work: workData,
+            chapters: chaptersData,
+            worldData: worldData,
+          },
+          autoExtractWorldview: shouldAutoExtractWorldview,
+        }
+      });
     } catch (error: any) {
       console.error('导入失败:', error);
       showToast('error', error?.message || t('works.import.error'));
@@ -746,102 +703,6 @@ const WorksView: React.FC = () => {
       setIsImporting(false);
     }
   };
-
-  const handleCloseAfterImport = () => {
-    autoNavigateEnabledRef.current = false;
-    closeImportModal();
-  };
-
-  const handleGoToImportedWork = () => {
-    if (!importedWorkId) return;
-    autoNavigateEnabledRef.current = false;
-    hasAutoNavigatedRef.current = true;
-    closeImportModal();
-    navigate(`/works/${importedWorkId}`, {
-      state: {
-        autoExtractWorldview: importAutoExtracted,
-        worldviewScanMode,
-      }
-    });
-  };
-
-  useEffect(() => {
-    if (!showImportModal || !importCompleted || !importAutoExtracted || !importedWorkId) return;
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const poll = async () => {
-      if (cancelled) return;
-      try {
-        const progress = await DataService.getWorldviewScanProgress(importedWorkId);
-        if (cancelled) return;
-        setScanProgress(progress);
-        if (progress?.status === 'completed' && autoNavigateEnabledRef.current && !hasAutoNavigatedRef.current) {
-          hasAutoNavigatedRef.current = true;
-          handleGoToImportedWork();
-        }
-        return progress;
-      } catch (error) {
-        console.warn('[WorksView] 获取世界观解析进度失败:', error);
-        return null;
-      }
-    };
-
-    const scheduleNext = async () => {
-      const progress = await poll();
-      if (cancelled) return;
-      const status = progress?.status || 'idle';
-      if (status === 'completed' || status === 'failed') {
-        return;
-      }
-      const delay = (status === 'running' || status === 'preparing' || status === 'applying') ? 5000 : 8000;
-      timer = setTimeout(scheduleNext, delay);
-    };
-
-    scheduleNext();
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [showImportModal, importCompleted, importAutoExtracted, importedWorkId]);
-
-  const isImportLocked = isPreviewing || isImporting || importCompleted;
-  const shouldShowScanProgress = importCompleted && importAutoExtracted && Boolean(importedWorkId);
-  const scanStatus = scanProgress?.status ?? 'idle';
-  const scanPercent = Math.min(Math.max(scanProgress?.progressPercentage ?? 0, 0), 100);
-  const scanChaptersTotal = scanProgress?.chaptersTotal || importedChaptersCount || 0;
-  const scanChaptersProcessed = scanProgress?.chaptersProcessed ?? 0;
-  const scanBatchesTotal = scanProgress?.batchesTotal ?? 0;
-  const scanBatchesCompleted = scanProgress?.batchesCompleted ?? 0;
-  const scanStatusLabel =
-    scanStatus === 'completed'
-      ? '解析完成'
-      : scanStatus === 'failed'
-        ? '解析失败'
-        : scanStatus === 'applying'
-          ? '应用中'
-          : scanStatus === 'running'
-            ? '解析中'
-            : scanStatus === 'preparing'
-              ? '准备中'
-              : '排队中';
-  const scanStatusColor =
-    scanStatus === 'completed'
-      ? 'bg-green-500'
-      : scanStatus === 'failed'
-        ? 'bg-red-500'
-        : scanStatus === 'applying'
-          ? 'bg-indigo-500'
-          : 'bg-blue-500';
-  const scanChaptersLabel =
-    scanChaptersTotal
-      ? `已处理 ${scanChaptersProcessed}/${scanChaptersTotal} 章`
-      : scanStatus === 'preparing'
-        ? '准备中'
-        : '等待开始';
-  const hasBatchInfo = scanBatchesCompleted > 0 || scanBatchesTotal > 0;
 
   // 筛选和排序
   const filteredWorks = works
@@ -1372,8 +1233,8 @@ const WorksView: React.FC = () => {
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
         >
-          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[80vh] overflow-hidden rounded-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 overflow-y-auto scrollbar-hide">
+          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[700px] overflow-y-auto scrollbar-hide rounded-2xl" style={{ transform: 'skewX(-2deg)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ transform: 'skewX(2deg)' }} className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base text-gray-900 dark:text-gray-100">{t('works.import.title')}</h2>
@@ -1390,19 +1251,19 @@ const WorksView: React.FC = () => {
                   accept=".json,.md,.markdown,.txt"
                   onChange={handleFileSelect}
                   className="hidden"
-                  disabled={isImportLocked}
+                  disabled={isPreviewing || isImporting}
                 />
                 <div
                   onClick={() => {
-                    if (isImportLocked) return;
+                    if (isPreviewing || isImporting) return;
                     fileInputRef.current?.click();
                   }}
                   onDragEnter={handleDragEnter}
                   onDragLeave={handleDragLeave}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${
-                    isImportLocked
+                  className={`border-2 border-dashed p-8 text-center transition-colors ${
+                    isPreviewing || isImporting
                       ? 'opacity-50 cursor-not-allowed border-gray-300 dark:border-gray-600'
                       : isDraggingFile
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 cursor-pointer'
@@ -1435,48 +1296,6 @@ const WorksView: React.FC = () => {
                 <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>Markdown</strong>：{t('works.import.markdownFormat').replace('Markdown格式：', '').replace('Markdown: ', '')}</p>
                 <p className="text-gray-600 dark:text-gray-400"><strong>TXT</strong>：{t('works.import.txtFormat').replace('TXT格式：', '').replace('TXT: ', '')}</p>
               </div>
-
-              {(importFormat === 'markdown' || importFormat === 'txt') && (
-                <div className="mb-3 p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
-                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300" style={{ fontSize: '12px' }}>
-                    <input
-                      type="checkbox"
-                      checked={autoExtractWorldview}
-                      onChange={(e) => setAutoExtractWorldview(e.target.checked)}
-                    />
-                    自动解析世界观（AI 提取人物/地点/设定）
-                  </div>
-                  <p className="text-gray-400 dark:text-gray-500 mt-1" style={{ fontSize: '11px' }}>
-                    开启后将使用 AI 分析章节内容，自动创建人物、地点、设定卡片
-                  </p>
-
-                  <div className={`mt-2 space-y-1 ${autoExtractWorldview ? '' : 'opacity-50 pointer-events-none'}`}>
-                    <label className="flex items-start gap-2 text-gray-600 dark:text-gray-400" style={{ fontSize: '12px' }}>
-                      <input
-                        type="radio"
-                        name="worldviewScanMode"
-                        checked={worldviewScanMode === 'incremental'}
-                        onChange={() => setWorldviewScanMode('incremental')}
-                      />
-                      <span>仅解析本次新增章节（推荐）</span>
-                    </label>
-                    <p className="text-gray-400 dark:text-gray-500 ml-6" style={{ fontSize: '11px' }}>成本更低，追加导入不会漏新章。</p>
-
-                    <label className="flex items-start gap-2 text-gray-600 dark:text-gray-400 mt-1" style={{ fontSize: '12px' }}>
-                      <input
-                        type="radio"
-                        name="worldviewScanMode"
-                        checked={worldviewScanMode === 'full'}
-                        onChange={() => setWorldviewScanMode('full')}
-                      />
-                      <span>解析全书（耗时更久）</span>
-                    </label>
-                    <p className="text-gray-400 dark:text-gray-500 ml-6" style={{ fontSize: '11px' }}>
-                      按章节分批解析，不截断；适合首次整书导入。
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {/* 预览加载中 */}
               {isPreviewing && (
@@ -1539,91 +1358,38 @@ const WorksView: React.FC = () => {
                 </div>
               )}
 
-              {shouldShowScanProgress && (
-                <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-gray-900 dark:text-gray-100 font-medium" style={{ fontSize: '12px' }}>世界观解析进度</h3>
-                    <span className="text-gray-500 dark:text-gray-400" style={{ fontSize: '11px' }}>{scanStatusLabel}</span>
-                  </div>
-                  <div className="mt-2 w-full bg-gray-200 dark:bg-gray-600 h-2 rounded-full overflow-hidden">
-                    <div
-                      className={`h-2 transition-all ${scanStatusColor}`}
-                      style={{ width: `${scanStatus === 'completed' ? 100 : scanPercent}%` }}
-                    ></div>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-gray-500 dark:text-gray-400" style={{ fontSize: '11px' }}>
-                    <span>{scanChaptersLabel}</span>
-                    {hasBatchInfo && (
-                      <span>
-                        {scanBatchesTotal > 0
-                          ? `批次 ${scanBatchesCompleted}/${scanBatchesTotal}`
-                          : `批次 ${scanBatchesCompleted}`}
-                      </span>
-                    )}
-                  </div>
-                  {scanStatus === 'failed' && scanProgress?.lastError && (
-                    <div className="mt-1 text-red-500" style={{ fontSize: '11px' }}>
-                      {scanProgress.lastError}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* 底部按钮 */}
               <div className="flex items-center gap-2 mt-4">
-                {importCompleted && importAutoExtracted ? (
-                  <>
-                    <button
-                      onClick={handleCloseAfterImport}
-                      className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors rounded-lg"
-                      style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
-                    >
-                      <span style={{ transform: 'skewX(2deg)' }}>继续后台解析</span>
-                    </button>
-                    <button
-                      onClick={handleGoToImportedWork}
-                      className="flex-1 px-4 py-2.5 transition-colors flex items-center justify-center gap-2 bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white rounded-lg"
-                      style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
-                      disabled={!importedWorkId}
-                    >
-                      <EyeIcon className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
-                      <span style={{ transform: 'skewX(2deg)' }}>查看作品详情</span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={closeImportModal}
-                      className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors rounded-lg"
-                      style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
-                      disabled={isImporting}
-                    >
-                      <span style={{ transform: 'skewX(2deg)' }}>{t('works.import.cancel')}</span>
-                    </button>
-                    <button
-                      onClick={handleImport}
-                      disabled={!importFile || !importPreview || isImporting}
-                      className={`flex-1 px-4 py-2.5 transition-colors flex items-center justify-center gap-2 ${
-                        !importFile || !importPreview || isImporting
-                          ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                          : 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white'
-                      } rounded-lg`}
-                      style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
-                    >
-                      {isImporting ? (
-                        <>
-                          <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div>
-                          <span style={{ transform: 'skewX(2deg)' }}>{t('works.import.importing')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
-                          <span style={{ transform: 'skewX(2deg)' }}>{t('works.import.confirm')}</span>
-                        </>
-                      )}
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={closeImportModal}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:border-gray-900 dark:hover:border-gray-400 transition-colors rounded-lg"
+                  style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
+                  disabled={isImporting}
+                >
+                  <span style={{ transform: 'skewX(2deg)' }}>{t('works.import.cancel')}</span>
+                </button>
+                <button
+                  onClick={handleImport}
+                  disabled={!importFile || !importPreview || isImporting}
+                  className={`flex-1 px-4 py-2.5 transition-colors flex items-center justify-center gap-2 ${
+                    !importFile || !importPreview || isImporting
+                      ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                      : 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white'
+                  } rounded-lg`}
+                  style={{ transform: 'skewX(-2deg)', fontSize: '12px' }}
+                >
+                  {isImporting ? (
+                    <>
+                      <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div>
+                      <span style={{ transform: 'skewX(2deg)' }}>{t('works.import.importing')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" style={{ transform: 'skewX(2deg)' }} />
+                      <span style={{ transform: 'skewX(2deg)' }}>{t('works.import.confirm')}</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>

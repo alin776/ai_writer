@@ -16,13 +16,12 @@ ContentOperator - Create 工具输出的统一接收者
 """
 import json
 import logging
-from typing import Optional, Dict, Any, Tuple, Annotated
+from typing import Optional, Dict, Any, Tuple
 from dataclasses import dataclass, asdict
 from enum import Enum
 
 from pydantic import Field
 from langchain_core.tools import tool
-from langgraph.prebuilt import InjectedState
 
 from .tool_registry import register_as_tool
 from .tool_types import ToolInput, ToolOutput, ToolCategory, StandardTool
@@ -322,7 +321,7 @@ class ContentOperator:
 
         return {
             "success": False,
-            "message": f"{operation} 操作必须提供 node_id 或 paragraph_index（请先用 locate_content/read_paragraph 定位）"
+            "message": f"{operation} 操作必须提供 node_id 或 paragraph_index（请先用 list_paragraphs/read_paragraphs/locate_content 定位）"
         }
 
     async def _execute_operation(
@@ -481,8 +480,6 @@ async def operate_apply(
     allow_append_fallback: bool = False,
     user_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
-    step_reasoning: Optional[str] = None,
-    state: Annotated[dict, InjectedState] = None,
 ) -> str:
     """
     统一应用 AI 生成的内容
@@ -508,40 +505,6 @@ async def operate_apply(
         JSON 格式的操作结果
     """
     operator = get_operator()
-
-    # ── 参数类型修正：LLM 可能传入字符串类型的 paragraph_index ──
-    if paragraph_index is not None and not isinstance(paragraph_index, int):
-        try:
-            paragraph_index = int(paragraph_index)
-        except (ValueError, TypeError):
-            paragraph_index = None
-
-    # ── InjectedState：自动从 explore 结果补全定位信息 ──
-    if state and paragraph_index is None and node_id is None and operation in ("replace", "insert"):
-        explore = (state.get("tool_results") or {}).get("explore_content")
-        if isinstance(explore, dict):
-            for lt in explore.get("locate_targets", []):
-                if lt.get("chapter_id") == chapter_id:
-                    raw_pi = lt.get("paragraph_index")
-                    if raw_pi is not None:
-                        try:
-                            paragraph_index = int(raw_pi)
-                        except (ValueError, TypeError):
-                            paragraph_index = None
-                    node_id = lt.get("node_id") or node_id
-                    logger.info("[operate_apply] InjectedState 补全定位: para=%s, node=%s", paragraph_index, node_id)
-                    break
-
-    # ── InjectedState：自动从 smart_* 结果补全 content ──
-    if state and not content:
-        tr = state.get("tool_results") or {}
-        for key in ("smart_rewrite", "smart_insert", "smart_continue", "smart_create"):
-            r = tr.get(key)
-            if isinstance(r, dict) and r.get("content"):
-                content = r["content"]
-                logger.info("[operate_apply] InjectedState 补全 content from %s (%d字)", key, len(content))
-                break
-
     content_to_apply = content
     if use_optimization and content and operation in {"append", "replace", "insert", "content", "create"}:
         intensity = _normalize_intensity(optimization_intensity)

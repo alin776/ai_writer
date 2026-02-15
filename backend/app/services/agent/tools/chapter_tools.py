@@ -196,8 +196,7 @@ async def delete_chapter(
     chapter_id: str,
     chapter_title: Optional[str] = None,
     conversation_id: Optional[str] = None,
-    work_id: Optional[str] = None,  # v8.0: 添加 work_id 用于章节序号解析
-    step_reasoning: Optional[str] = None
+    work_id: Optional[str] = None  # v8.0: 添加 work_id 用于章节序号解析
 ) -> str:
     """
     删除章节（直接执行）
@@ -285,8 +284,7 @@ async def update_chapter_content(
     operation: str = "replace",
     position: Optional[dict] = None,
     conversation_id: Optional[str] = None,
-    work_id: Optional[str] = None,  # v8.0: 添加 work_id 用于章节序号解析
-    step_reasoning: Optional[str] = None
+    work_id: Optional[str] = None  # v8.0: 添加 work_id 用于章节序号解析
 ) -> str:
     """
     更新章节内容（直接执行）
