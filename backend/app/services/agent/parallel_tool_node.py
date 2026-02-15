@@ -1,16 +1,7 @@
-"""并行工具节点 - 复用Planning模式的并行执行框架
-
-本模块实现了支持并行执行的工具节点，直接复用Planning模式的核心逻辑：
-- 智能分组（并行安全工具 vs 串行工具）
-- Semaphore限流机制（max_concurrent=5）
-- 自动重试机制（网络/超时错误，指数退避）
-- 优雅降级（return_exceptions=True）
-
-代码复用来源：
-- backend/app/services/agent/langgraph_agent.py:3080-3389 (Planning并行执行框架)
-"""
+"""Parallel tool execution node for LangGraph."""
 
 import asyncio
+import json
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -19,251 +10,176 @@ from langgraph.prebuilt.tool_node import ToolNode
 
 logger = logging.getLogger(__name__)
 
-# 🟢 直接复用Planning的定义：可以并行执行的独立数据获取工具
 PARALLEL_SAFE_TOOLS = {
     "get_context_tool",
     "read_chapter_tool",
     "get_chapter_by_order_tool",
     "search_analysis_fragments_tool",
     "search_content",
-    "analyze_content"
-    # 注意：以下工具不能并行
-    # - smart_continue/smart_rewrite/smart_insert: 数据写入，必须串行
-    # - analyze_text_tool: 可能依赖其他工具结果，应串行
+    "analyze_content",
+}
+
+SERIAL_ONLY_TOOLS = {
+    "smart_continue",
+    "smart_rewrite",
+    "smart_insert",
+    "analyze_text_tool",
 }
 
 
 class ParallelToolNode(ToolNode):
-    """支持并行执行的工具节点
-
-    核心功能（95%复用Planning模式）:
-    1. 智能分类工具调用（并行安全 vs 串行）
-    2. Semaphore限流（避免数据库连接池耗尽）
-    3. 自动重试机制（网络/超时错误）
-    4. 优雅降级（一个工具失败不影响其他）
-
-    Args:
-        tools: 工具列表
-        max_concurrent: 最大并发数（默认5，基于数据库连接池大小）
-    """
+    """Tool node that runs safe calls concurrently and unsafe calls serially."""
 
     def __init__(self, tools, max_concurrent: int = 5):
         super().__init__(tools)
         self.max_concurrent = max_concurrent
         logger.info(
-            f"[ParallelToolNode] 初始化完成，最大并发数={max_concurrent}，"
-            f"并行安全工具={len(PARALLEL_SAFE_TOOLS)}个"
+            "[ParallelToolNode] initialized, max_concurrent=%s, safe_tools=%s",
+            max_concurrent,
+            len(PARALLEL_SAFE_TOOLS),
         )
 
     async def ainvoke(self, input: Dict[str, Any], config: Optional[Dict] = None):
-        """异步调用（支持并行）
-
-        🟢 核心逻辑复用自Planning模式的_execute_tasks_in_parallel方法
-
-        Args:
-            input: 输入状态，包含messages
-            config: 配置参数
-
-        Returns:
-            包含ToolMessage列表的字典
-        """
-        # 提取工具调用
         tool_calls = self._extract_tool_calls(input.get("messages", []))
-
         if not tool_calls:
-            logger.debug("[ParallelToolNode] 无工具调用")
             return {"messages": []}
 
-        # 🟢 复用：智能分类工具调用（并行 vs 串行）
         parallel_calls = [
-            call for call in tool_calls
-            if call["name"] in PARALLEL_SAFE_TOOLS
+            call for call in tool_calls if self._is_parallel_safe(call["name"])
         ]
         serial_calls = [
-            call for call in tool_calls
-            if call["name"] not in PARALLEL_SAFE_TOOLS
+            call for call in tool_calls if not self._is_parallel_safe(call["name"])
         ]
 
         logger.info(
-            f"[ParallelToolNode] 工具分组: "
-            f"并行={len(parallel_calls)}, 串行={len(serial_calls)}"
+            "[ParallelToolNode] grouped tool calls: parallel=%s serial=%s",
+            len(parallel_calls),
+            len(serial_calls),
         )
 
-        results = []
+        results: List[ToolMessage] = []
 
-        # 🟢 第1批：并行执行安全工具（带限流）
         if parallel_calls:
-            logger.info(f"[ParallelToolNode] 开始并行执行{len(parallel_calls)}个工具")
-
-            # 🟢 复用：Semaphore限流
             semaphore = asyncio.Semaphore(self.max_concurrent)
 
-            async def execute_with_semaphore(call):
-                """限流执行（复用Planning的Semaphore模式）"""
+            async def execute_with_semaphore(call: Dict[str, Any]) -> ToolMessage:
                 async with semaphore:
                     return await self._execute_tool_with_retry(call)
 
-            # 🟢 复用：asyncio.gather + return_exceptions
             parallel_results = await asyncio.gather(
                 *[execute_with_semaphore(call) for call in parallel_calls],
-                return_exceptions=True  # ← 优雅降级：一个失败不影响其他
+                return_exceptions=True,
             )
 
-            # 🟢 复用：处理异常结果
-            # ✅ P0-6修复：正确判断并处理异常对象
             for i, result in enumerate(parallel_results):
-                # 关键修复：Exception是对象，不是结果本身
-                # 正确的判断应该是检查result是否为Exception实例
                 if isinstance(result, Exception):
+                    call = parallel_calls[i]
                     logger.error(
-                        f"[ParallelToolNode] 工具{parallel_calls[i]['name']}失败: {result}"
+                        "[ParallelToolNode] tool %s failed: %s", call["name"], result
                     )
-                    # ✅ P0-6修复：创建包含错误信息的ToolMessage
-                    # 确保LangGraph能正确序列化
-                    error_msg = f"工具执行失败: {type(result).__name__}: {str(result)}"
-                    results.append(ToolMessage(
-                        content=error_msg,
-                        tool_call_id=parallel_calls[i]["id"],
-                        name=parallel_calls[i]["name"]
-                    ))
+                    results.append(
+                        ToolMessage(
+                            content=f"tool execution failed: {type(result).__name__}: {result}",
+                            tool_call_id=call["id"],
+                            name=call["name"],
+                        )
+                    )
                 else:
-                    # 正常结果，直接添加
                     results.append(result)
 
-            # 统计成功和失败数量
-            failed_count = sum(1 for r in parallel_results if isinstance(r, Exception))
-            success_count = len(parallel_results) - failed_count
-
-            logger.info(
-                f"[ParallelToolNode] 并行执行完成，"
-                f"成功={success_count}，"
-                f"失败={failed_count}"
-            )
-
-        # 🟢 第2批：串行执行不安全工具
         if serial_calls:
-            logger.info(f"[ParallelToolNode] 开始串行执行{len(serial_calls)}个工具")
             for call in serial_calls:
-                logger.info(f"[ParallelToolNode] 串行执行工具: {call['name']}")
-                result = await self._execute_tool_with_retry(call)
-                results.append(result)
+                results.append(await self._execute_tool_with_retry(call))
 
         return {"messages": results}
 
-    async def _execute_tool_with_retry(self, tool_call: Dict) -> ToolMessage:
-        """执行工具（带重试机制）
-
-        🟢 直接复用Planning的重试逻辑（langgraph_agent.py:3178-3248）
-
-        Args:
-            tool_call: 工具调用信息，包含name, args, id
-
-        Returns:
-            ToolMessage（成功或失败）
-        """
-        # 🟢 复用：重试配置
+    async def _execute_tool_with_retry(self, tool_call: Dict[str, Any]) -> ToolMessage:
         max_retries = 2
         tool_name = tool_call["name"]
         tool_id = tool_call["id"]
 
         for retry_count in range(max_retries + 1):
             try:
-                # 执行工具
                 result = await self._execute_tool(tool_call)
-
                 if retry_count > 0:
                     logger.info(
-                        f"[ParallelToolNode] 工具{tool_name}重试{retry_count}次后成功"
+                        "[ParallelToolNode] tool %s succeeded after retry %s",
+                        tool_name,
+                        retry_count,
                     )
-
                 return result
-
             except Exception as e:
-                # 🟢 复用：判断是否为可重试的错误
-                is_retryable = any(keyword in str(e).lower() for keyword in [
-                    "timeout", "connection", "network", "网络", "连接", "超时"
-                ])
+                is_retryable = any(
+                    keyword in str(e).lower()
+                    for keyword in (
+                        "timeout",
+                        "connection",
+                        "network",
+                        "connect",
+                        "timed out",
+                    )
+                )
 
                 if is_retryable and retry_count < max_retries:
-                    # 🟢 复用：指数退避（2, 4, 8秒）
                     wait_time = 2 ** (retry_count + 1)
                     logger.warning(
-                        f"[ParallelToolNode] 工具{tool_name}失败，"
-                        f"{wait_time}秒后重试（{retry_count + 1}/{max_retries}）: {e}"
+                        "[ParallelToolNode] tool %s failed, retrying in %ss (%s/%s): %s",
+                        tool_name,
+                        wait_time,
+                        retry_count + 1,
+                        max_retries,
+                        e,
                     )
                     await asyncio.sleep(wait_time)
-                else:
-                    # 不可重试或已达最大次数
-                    logger.error(
-                        f"[ParallelToolNode] 工具{tool_name}最终失败: {e}"
-                    )
-                    return ToolMessage(
-                        content=f"错误: {str(e)}",
-                        tool_call_id=tool_id,
-                        name=tool_name
-                    )
+                    continue
 
-        # 理论上不会到这里（for循环已处理所有情况）
+                logger.error("[ParallelToolNode] tool %s final failure: %s", tool_name, e)
+                return ToolMessage(
+                    content=f"error: {e}",
+                    tool_call_id=tool_id,
+                    name=tool_name,
+                )
+
         return ToolMessage(
-            content=f"错误: 工具执行失败（已重试{max_retries}次）",
+            content=f"error: tool execution failed after {max_retries} retries",
             tool_call_id=tool_id,
-            name=tool_name
+            name=tool_name,
         )
 
-    async def _execute_tool(self, tool_call: Dict) -> ToolMessage:
-        """执行单个工具（调用实际的工具函数）
+    def _is_parallel_safe(self, tool_name: str) -> bool:
+        if tool_name in SERIAL_ONLY_TOOLS:
+            return False
+        if tool_name in PARALLEL_SAFE_TOOLS:
+            return True
 
-        Args:
-            tool_call: 工具调用信息
+        normalized = tool_name.lower()
+        if any(k in normalized for k in ("read_", "get_", "search_")):
+            return True
+        if "analyze" in normalized:
+            return False
+        if any(k in normalized for k in ("write", "insert", "rewrite", "update", "delete")):
+            return False
+        return False
 
-        Returns:
-            ToolMessage
-
-        Raises:
-            ValueError: 工具不存在
-            Exception: 工具执行失败
-        """
+    async def _execute_tool(self, tool_call: Dict[str, Any]) -> ToolMessage:
         tool_name = tool_call["name"]
         tool_input = tool_call["args"]
         tool_id = tool_call["id"]
 
-        # 🟢 从父类ToolNode获取tools_by_name
         tool_obj = self.tools_by_name.get(tool_name)
         if not tool_obj:
-            raise ValueError(f"工具 {tool_name} 不存在")
+            raise ValueError(f"tool not found: {tool_name}")
 
-        # 执行工具（异步）
-        try:
-            result = await tool_obj.ainvoke(tool_input)
-        except Exception as e:
-            logger.error(f"[ParallelToolNode] 工具{tool_name}执行失败: {e}")
-            raise
-
-        # ✅ P0-6修复：使用json.dumps()而非str()，确保返回有效JSON
-        import json
+        result = await tool_obj.ainvoke(tool_input)
         if isinstance(result, dict):
             content = json.dumps(result, ensure_ascii=False)
         else:
             content = str(result)
 
-        # 返回ToolMessage
-        return ToolMessage(
-            content=content,
-            tool_call_id=tool_id,
-            name=tool_name
-        )
+        return ToolMessage(content=content, tool_call_id=tool_id, name=tool_name)
 
-    def _extract_tool_calls(self, messages: List) -> List[Dict]:
-        """从消息列表中提取工具调用
-
-        Args:
-            messages: 消息列表
-
-        Returns:
-            工具调用列表，每个包含name, args, id
-        """
-        # 从最后一条AIMessage中提取tool_calls
+    def _extract_tool_calls(self, messages: List[Any]) -> List[Dict[str, Any]]:
         for msg in reversed(messages):
-            if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
+            if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
                 return msg.tool_calls
         return []

@@ -46,31 +46,60 @@ class IntentClassifier:
         Returns:
             tuple[str, float]: (intent类型, 置信度)
         """
-        msg = message.lower().strip()
-
-        # ========== 极简快速通道（只处理极端情况）==========
-        # 这里只处理明显不需要AI判断的情况，其他全部交给AI
+        msg = (message or "").lower().strip()
 
         # 1. 空消息或纯空白
-        if not msg or len(msg.strip()) == 0:
+        if not msg:
             logger.info("[Intent] 空消息，判定为 general")
             return "general", 0.99
 
         # 2. 纯标点/表情（长度<=3且无中文字母数字）
-        if len(msg) <= 3 and not re.search(r'[\u4e00-\u9fa5a-zA-Z0-9]', msg):
-            logger.info(f"[Intent] 纯标点/表情: {msg}，判定为 general")
+        if len(msg) <= 3 and not re.search(r"[\u4e00-\u9fa5a-zA-Z0-9]", msg):
+            logger.info("[Intent] 纯标点/表情，判定为 general")
             return "general", 0.99
 
-        # 3. 章节模式强匹配（这是明确的写作意图，可以快速判断）
-        chapter_pattern = r'第[一二三四五六七八九十\d]+章|chapter\s*\d+'
-        if re.search(chapter_pattern, msg, re.IGNORECASE):
-            logger.info(f"[Intent] 匹配章节模式: {re.findall(chapter_pattern, msg, re.IGNORECASE)}")
-            return "writing", 0.98
+        # 3. general（先处理高确定性闲聊，避免被 analysis 关键词误伤）
+        if msg in {"你好", "您好", "hello", "hi", "谢谢", "感谢", "多谢"}:
+            return "general", 0.90
+        if "天气" in msg:
+            return "general", 0.90
 
-        # ========== 其他情况交给AI判断 ==========
-        # 不再使用硬编码关键词列表，让AI做语义理解
-        logger.info("[Intent] 交给AI进行语义分类")
-        return "unknown", 0.3  # 低置信度，强制触发AI判断
+        # 4. stuck
+        stuck_keywords = (
+            "卡文", "写不下去", "没思路", "没灵感", "写不出来", "卡住了", "瓶颈"
+        )
+        if any(k in msg for k in stuck_keywords):
+            return "stuck", 0.95
+
+        # 5. planning
+        planning_keywords = (
+            "规划", "大纲", "设定", "世界观", "角色", "主角", "背景", "人物关系", "故事线"
+        )
+        if any(k in msg for k in planning_keywords):
+            return "planning", 0.93
+
+        # 6. analysis（放在 writing 前，避免“评估第3章质量”被章节规则误判）
+        analysis_keywords = (
+            "分析", "评估", "评价", "检查", "审阅", "诊断", "质量", "总结", "复盘"
+        )
+        if any(k in msg for k in analysis_keywords):
+            return "analysis", 0.92
+
+        # 7. writing
+        writing_keywords = (
+            "续写", "继续写", "扩写", "改写", "重写", "润色", "优化", "补充", "创作",
+            "帮我写", "写一下", "接着写", "往后写"
+        )
+        if any(k in msg for k in writing_keywords):
+            return "writing", 0.92
+
+        chapter_pattern = r"第[一二三四五六七八九十百千\d]+章|chapter\s*\d+"
+        if re.search(chapter_pattern, msg, re.IGNORECASE):
+            return "writing", 0.90
+
+        # 8. 其他情况交给 AI
+        logger.info("[Intent] 规则匹配低置信，交给 AI 语义分类")
+        return "unknown", 0.30
 
     # ==================== AI 分类 ====================
 

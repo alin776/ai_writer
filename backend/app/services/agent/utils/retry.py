@@ -59,6 +59,18 @@ def classify_error(error: Exception) -> ErrorType:
     error_str = str(error).lower()
     error_type_name = type(error).__name__.lower()
 
+    # 优先看异常类型名，兼容自定义异常（如 NetworkError）
+    if "network" in error_type_name:
+        return ErrorType.NETWORK
+    if "connection" in error_type_name or "connect" in error_type_name:
+        return ErrorType.CONNECTION
+    if "timeout" in error_type_name:
+        return ErrorType.TIMEOUT
+    if "database" in error_type_name or "sql" in error_type_name:
+        return ErrorType.DATABASE
+    if any(token in error_type_name for token in ("value", "type", "parameter", "argument")):
+        return ErrorType.PARAMETER
+
     # 网络相关错误
     if any(keyword in error_str for keyword in ["network", "网络"]):
         return ErrorType.NETWORK
@@ -82,12 +94,6 @@ def classify_error(error: Exception) -> ErrorType:
     # 业务相关错误
     if any(keyword in error_str for keyword in ["章节不存在", "作品不存在", "权限不足", "not found"]):
         return ErrorType.BUSINESS
-
-    # 根据异常类型判断
-    if "timeout" in error_type_name:
-        return ErrorType.TIMEOUT
-    if "value" in error_type_name or "type" in error_type_name:
-        return ErrorType.PARAMETER
 
     return ErrorType.UNKNOWN
 
@@ -127,12 +133,12 @@ def retry_on_failure(
 
     为异步函数添加自动重试功能，支持：
     - 智能错误分类（可重试 vs 不可重试）
-    - 指数退避策略（2, 4, 8秒...）
+    - 指数退避策略（base, 2*base, 4*base...）
     - 详细的重试日志
 
     Args:
         max_retries: 最大重试次数（默认2次，总共3次尝试）
-        backoff_base: 退避基数（默认2，即2^1, 2^2, 2^3秒）
+        backoff_base: 首次重试等待秒数（默认2，后续按2倍递增）
         retryable_errors: 可重试的异常类型（None则自动判断）
 
     Returns:
@@ -177,8 +183,8 @@ def retry_on_failure(
                     error_type = classify_error(e)
 
                     if is_retryable and retry_count < max_retries:
-                        # 🟢 复用：指数退避策略
-                        wait_time = backoff_base ** (retry_count + 1)
+                        # 指数退避：base, 2*base, 4*base...
+                        wait_time = backoff_base * (2 ** retry_count)
                         logger.warning(
                             f"[Retry] {func_name} 失败 (错误类型: {error_type.value})，"
                             f"{wait_time}秒后重试 ({retry_count + 1}/{max_retries}): {e}"
