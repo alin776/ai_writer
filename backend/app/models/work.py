@@ -26,6 +26,9 @@ class WorkGenre(str, enum.Enum):
     GAME = "game"  # 游戏
     HISTORY = "history"  # 历史
     MILITARY = "military"  # 军事
+    SUSPENSE = "suspense"  # 悬疑
+    WESTERN_FANTASY = "western_fantasy"  # 西幻
+    APOCALYPSE = "apocalypse"  # 末世
     OTHER = "other"  # 其他
 
 

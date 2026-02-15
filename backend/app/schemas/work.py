@@ -9,12 +9,12 @@ class WorkBase(BaseModel):
     """作品基础模型"""
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
-    genre: WorkGenre = WorkGenre.OTHER
     status: WorkStatus = WorkStatus.DRAFT
 
 
 class WorkCreate(WorkBase):
     """创建作品"""
+    genre: WorkGenre
     cover_image: Optional[str] = None
 
 
@@ -31,6 +31,7 @@ class WorkResponse(WorkBase):
     """作品响应"""
     id: UUID
     author_id: UUID
+    genre: WorkGenre
     cover_image: Optional[str] = None
     total_words: int
     total_chapters: int

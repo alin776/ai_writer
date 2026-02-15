@@ -102,8 +102,6 @@ const WorksView: React.FC = () => {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importFormat, setImportFormat] = useState<'json' | 'markdown' | 'txt'>('json');
   const [importPreview, setImportPreview] = useState<ImportPreviewResponse | null>(null);
-  const [autoExtractWorldview, setAutoExtractWorldview] = useState(true);
-  const [worldviewScanMode, setWorldviewScanMode] = useState<'incremental' | 'full'>('incremental');
   const [isImporting, setIsImporting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -529,8 +527,6 @@ const WorksView: React.FC = () => {
     setImportFile(null);
     setImportPreview(null);
     setImportFormat('json');
-    setAutoExtractWorldview(true);
-    setWorldviewScanMode('incremental');
     setImportCompleted(false);
     setImportedWorkId(null);
     setImportedChaptersCount(null);
@@ -692,21 +688,17 @@ const WorksView: React.FC = () => {
       setIsImporting(true);
       setImportCompleted(false);
       setScanProgress(null);
-      const shouldAutoExtractWorldview = importFormat !== 'json' && autoExtractWorldview;
       const options: ImportOptions = {
         format: importFormat,
         createNew: true,
-        includeWorldview: true,
         includeGuidelines: true,
-        autoExtractWorldview: shouldAutoExtractWorldview,
-        worldviewScanMode: shouldAutoExtractWorldview ? worldviewScanMode : undefined,
       };
 
       const result = await DataService.importWork(importFile, options);
       console.log('[导入结果]', result);
       const chaptersCount = result.chaptersCreated ?? 0;
       const workId = result.workId;
-      autoNavigateEnabledRef.current = shouldAutoExtractWorldview;
+      autoNavigateEnabledRef.current = false;
       hasAutoNavigatedRef.current = false;
 
       // 导入成功提示改为静默，避免弹窗遮挡进度
@@ -714,31 +706,26 @@ const WorksView: React.FC = () => {
       setImportCompleted(true);
       setImportedWorkId(workId);
       setImportedChaptersCount(chaptersCount);
-      setImportAutoExtracted(shouldAutoExtractWorldview);
+      setImportAutoExtracted(false);
 
-      if (!shouldAutoExtractWorldview) {
-        // 预加载作品详情页需要的数据，避免跳转后再等待
-        console.log('[导入] 预加载作品数据...');
-        const [workData, chaptersData, worldData] = await Promise.all([
-          DataService.getWork(workId),
-          DataService.getChapters(workId),
-          DataService.getWorldData(workId),
-        ]);
+      // 预加载作品详情页需要的数据，避免跳转后再等待
+      console.log('[导入] 预加载作品数据...');
+      const [workData, chaptersData, worldData] = await Promise.all([
+        DataService.getWork(workId),
+        DataService.getChapters(workId),
+        DataService.getWorldData(workId),
+      ]);
 
-        closeImportModal();
-        // 携带预加载数据跳转，作品详情页可直接使用
-        navigate(`/works/${workId}`, {
-          state: {
-            preloadedData: {
-              work: workData,
-              chapters: chaptersData,
-              worldData: worldData,
-            },
-            autoExtractWorldview: shouldAutoExtractWorldview,
-            worldviewScanMode,
-          }
-        });
-      }
+      closeImportModal();
+      navigate(`/works/${workId}`, {
+        state: {
+          preloadedData: {
+            work: workData,
+            chapters: chaptersData,
+            worldData: worldData,
+          },
+        }
+      });
     } catch (error: any) {
       console.error('导入失败:', error);
       showToast('error', error?.message || t('works.import.error'));
@@ -758,10 +745,7 @@ const WorksView: React.FC = () => {
     hasAutoNavigatedRef.current = true;
     closeImportModal();
     navigate(`/works/${importedWorkId}`, {
-      state: {
-        autoExtractWorldview: importAutoExtracted,
-        worldviewScanMode,
-      }
+      state: {}
     });
   };
 
@@ -1435,48 +1419,6 @@ const WorksView: React.FC = () => {
                 <p className="text-gray-600 dark:text-gray-400 mb-1"><strong>Markdown</strong>：{t('works.import.markdownFormat').replace('Markdown格式：', '').replace('Markdown: ', '')}</p>
                 <p className="text-gray-600 dark:text-gray-400"><strong>TXT</strong>：{t('works.import.txtFormat').replace('TXT格式：', '').replace('TXT: ', '')}</p>
               </div>
-
-              {(importFormat === 'markdown' || importFormat === 'txt') && (
-                <div className="mb-3 p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
-                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300" style={{ fontSize: '12px' }}>
-                    <input
-                      type="checkbox"
-                      checked={autoExtractWorldview}
-                      onChange={(e) => setAutoExtractWorldview(e.target.checked)}
-                    />
-                    自动解析世界观（AI 提取人物/地点/设定）
-                  </div>
-                  <p className="text-gray-400 dark:text-gray-500 mt-1" style={{ fontSize: '11px' }}>
-                    开启后将使用 AI 分析章节内容，自动创建人物、地点、设定卡片
-                  </p>
-
-                  <div className={`mt-2 space-y-1 ${autoExtractWorldview ? '' : 'opacity-50 pointer-events-none'}`}>
-                    <label className="flex items-start gap-2 text-gray-600 dark:text-gray-400" style={{ fontSize: '12px' }}>
-                      <input
-                        type="radio"
-                        name="worldviewScanMode"
-                        checked={worldviewScanMode === 'incremental'}
-                        onChange={() => setWorldviewScanMode('incremental')}
-                      />
-                      <span>仅解析本次新增章节（推荐）</span>
-                    </label>
-                    <p className="text-gray-400 dark:text-gray-500 ml-6" style={{ fontSize: '11px' }}>成本更低，追加导入不会漏新章。</p>
-
-                    <label className="flex items-start gap-2 text-gray-600 dark:text-gray-400 mt-1" style={{ fontSize: '12px' }}>
-                      <input
-                        type="radio"
-                        name="worldviewScanMode"
-                        checked={worldviewScanMode === 'full'}
-                        onChange={() => setWorldviewScanMode('full')}
-                      />
-                      <span>解析全书（耗时更久）</span>
-                    </label>
-                    <p className="text-gray-400 dark:text-gray-500 ml-6" style={{ fontSize: '11px' }}>
-                      按章节分批解析，不截断；适合首次整书导入。
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {/* 预览加载中 */}
               {isPreviewing && (

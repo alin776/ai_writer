@@ -68,13 +68,12 @@ async def stage_import() -> dict:
         options = ImportOptions(
             format="txt",
             create_new=True,
-            include_worldview=False,
             include_guidelines=False,
         )
 
         _print_step("1.3", "调用 ImportService.import_work() ...")
         t0 = time.time()
-        result, vectorize_jobs, import_context = await service.import_work(
+        result = await service.import_work(
             content=raw_text.encode("utf-8"),
             user_id=TEST_USER_ID,
             options=options,

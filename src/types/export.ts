@@ -26,10 +26,8 @@ export interface ImportOptions {
   format: 'json' | 'markdown' | 'txt';
   createNew: boolean;
   workId?: string;
-  includeWorldview: boolean;
   includeGuidelines: boolean;
-  autoExtractWorldview?: boolean;
-  worldviewScanMode?: 'incremental' | 'full';
+  genre?: string;
 }
 
 export interface ImportPreviewWork {
@@ -58,14 +56,5 @@ export interface ImportPreviewResponse {
 export interface ImportResponse {
   workId: string;
   chaptersCreated: number;
-  charactersCreated: number;
-  locationsCreated: number;
-  settingsCreated: number;
   message: string;
-  importContext?: {
-    chapterIds?: string[];
-    chapterOrderStart?: number;
-    chapterOrderEnd?: number;
-    scanMode?: 'incremental' | 'full';
-  };
 }

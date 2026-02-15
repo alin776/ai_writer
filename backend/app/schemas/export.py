@@ -32,17 +32,8 @@ class ImportOptions(BaseModel):
     format: str = Field(..., description="导入格式: json/markdown/txt")
     create_new: bool = Field(True, description="是否创建新作品")
     work_id: Optional[UUID] = Field(None, description="导入到现有作品的ID")
-    include_worldview: bool = Field(True, description="是否导入世界观")
     include_guidelines: bool = Field(True, description="是否导入规范")
-    worldview_scan_mode: Optional[str] = Field("incremental", description="世界观扫描模式: incremental/full")
-
-
-class ImportContext(BaseModel):
-    """导入上下文信息（用于世界观解析）"""
-    chapter_ids: List[UUID] = Field(default_factory=list)
-    chapter_order_start: Optional[int] = None
-    chapter_order_end: Optional[int] = None
-    scan_mode: Optional[str] = None
+    genre: Optional[str] = Field(None, description="作品类型（新建时可指定）")
 
 
 class ImportPreviewWork(BaseModel):
@@ -75,11 +66,7 @@ class ImportResponse(BaseModel):
     """导入响应"""
     work_id: UUID
     chapters_created: int
-    characters_created: int = 0
-    locations_created: int = 0
-    settings_created: int = 0
     message: str = "导入成功"
-    import_context: Optional[ImportContext] = None
 
 
 # ============= 导出数据结构 =============
@@ -99,7 +86,7 @@ class ExportWork(BaseModel):
 
 class ExportChapter(BaseModel):
     """导出的章节数据"""
-    id: UUID
+    id: Optional[UUID] = None
     title: str
     content: str
     summary: Optional[str] = None

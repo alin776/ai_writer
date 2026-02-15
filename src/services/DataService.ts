@@ -1149,11 +1149,9 @@ class DataServiceClass {
     formData.append('file', file);
     formData.append('format', options.format);
     formData.append('create_new', String(options.createNew));
-    formData.append('include_worldview', String(options.includeWorldview));
     formData.append('include_guidelines', String(options.includeGuidelines));
-    formData.append('auto_extract_worldview', String(options.autoExtractWorldview ?? false));
-    if (options.worldviewScanMode) {
-      formData.append('worldview_scan_mode', options.worldviewScanMode);
+    if (options.genre) {
+      formData.append('genre', options.genre);
     }
 
     if (options.workId) {

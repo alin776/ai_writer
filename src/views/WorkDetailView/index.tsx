@@ -58,14 +58,11 @@ const WorkDetailView: React.FC = () => {
   const autoExtractWorkIdRef = useRef<string | undefined>(undefined);
   // 检测是否从新建或导入进入（用于设置初始收起状态）
   const isFromCreateOrImport = Boolean(
-    (location.state as Record<string, any> | null)?.fromCreate ||
-    (location.state as Record<string, any> | null)?.autoExtractWorldview
+    (location.state as Record<string, any> | null)?.fromCreate
   );
 
   if (workId && autoExtractWorkIdRef.current !== workId) {
-    autoExtractFromImportRef.current = Boolean(
-      (location.state as Record<string, any> | null)?.autoExtractWorldview
-    );
+    autoExtractFromImportRef.current = false;
     autoExtractWorkIdRef.current = workId;
   }
   // 获取章节记忆功能
@@ -463,7 +460,6 @@ const WorkDetailView: React.FC = () => {
           openWorldview?: boolean;
           worldviewTab?: 'characters' | 'locations' | 'settings';
           targetItemId?: string;
-          autoExtractWorldview?: boolean;
         } | null;
 
         // 如果有章节，处理章节选择逻辑
@@ -515,19 +511,15 @@ const WorkDetailView: React.FC = () => {
             setWorldviewTargetItemId(searchNavState.targetItemId);
           }
           console.log('[WorkDetailView] 从搜索导航打开世界观面板:', mappedTab, searchNavState.targetItemId);
-        } else if (searchNavState?.autoExtractWorldview) {
-          // 导入后默认回到 agent 面板
-          setRightSidebarType('agent');
         }
 
         // 清除 location.state 中的搜索导航参数，避免刷新时重复执行
-        if (searchNavState?.targetChapterId || searchNavState?.openWorldview || searchNavState?.autoExtractWorldview) {
+        if (searchNavState?.targetChapterId || searchNavState?.openWorldview) {
           if (nextLocationState) {
             delete (nextLocationState as Record<string, unknown>).targetChapterId;
             delete (nextLocationState as Record<string, unknown>).openWorldview;
             delete (nextLocationState as Record<string, unknown>).worldviewTab;
             delete (nextLocationState as Record<string, unknown>).targetItemId;
-            delete (nextLocationState as Record<string, unknown>).autoExtractWorldview;
           }
           shouldReplaceLocationState = true;
         }

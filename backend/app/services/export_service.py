@@ -3,13 +3,11 @@ import json
 import logging
 from typing import Optional, List
 from uuid import UUID
-from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.models.work import Work
-from app.models.chapter import Chapter
 from app.models.character import Character
 from app.models.location import Location
 from app.models.setting import Setting
@@ -28,9 +26,9 @@ from app.schemas.export import (
     ExportGuidelines
 )
 from app.utils.markdown_generator import MarkdownGenerator
-from app.utils.file_storage import temp_storage
 from app.utils.datetime_utils import get_utc_now
-from app.services.chapter_content_provider import ChapterContentProvider
+from app.services.agent.deep_agent import DATA_ROOT
+from app.services.agent.deep_agent.frontmatter import parse_chapter
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +38,6 @@ class ExportService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.content_provider = ChapterContentProvider()
     
     async def export_work(
         self, 
@@ -81,7 +78,6 @@ class ExportService:
             Work.id == work_id,
             Work.author_id == user_id
         ).options(
-            selectinload(Work.chapters),
             selectinload(Work.characters),
             selectinload(Work.locations),
             selectinload(Work.settings),
@@ -145,21 +141,9 @@ class ExportService:
         
         # 添加章节
         if options.include_chapters:
-            chapters = work.chapters
-            
-            # 如果指定了章节ID，只导出这些章节
-            if options.chapter_ids:
-                chapter_ids_set = set(options.chapter_ids)
-                chapters = [c for c in chapters if c.id in chapter_ids_set]
-            
-            # 按order排序
-            chapters = sorted(chapters, key=lambda c: c.order)
-            
-            for chapter in chapters:
-                content = self.content_provider.read_content(
-                    str(chapter.work_id), str(chapter.id)
-                ) or ""
-                md.add_chapter(chapter.title, content)
+            fs_chapters = self._read_chapters_from_fs(work)
+            for ch in fs_chapters:
+                md.add_chapter(ch['title'], ch['content'])
         
         # 添加世界观附录
         if options.include_worldview:
@@ -192,37 +176,46 @@ class ExportService:
             updated_at=work.updated_at
         )
     
+    @staticmethod
+    def _read_chapters_from_fs(work: Work) -> List[dict]:
+        """从文件系统读取章节列表"""
+        chapters_dir = DATA_ROOT / str(work.author_id) / "works" / str(work.id) / "chapters"
+        if not chapters_dir.exists():
+            return []
+
+        result = []
+        for md_file in sorted(chapters_dir.glob("*.md")):
+            if not md_file.stem.isdigit():
+                continue
+            raw = md_file.read_text(encoding="utf-8")
+            parsed = parse_chapter(raw)
+            parsed['order'] = int(md_file.stem)
+            result.append(parsed)
+        return result
+
     def _serialize_chapters(
-        self, 
-        work: Work, 
+        self,
+        work: Work,
         options: ExportOptions
     ) -> List[ExportChapter]:
-        """序列化章节列表"""
-        chapters = work.chapters
-        
-        # 如果指定了章节ID，只导出这些章节
-        if options.chapter_ids:
-            chapter_ids_set = set(options.chapter_ids)
-            chapters = [c for c in chapters if c.id in chapter_ids_set]
-        
-        # 按order排序
-        chapters = sorted(chapters, key=lambda c: c.order)
-        
+        """序列化章节列表（从文件系统读取）
+
+        注意：options.chapter_ids 在文件系统方案下不再支持（无 UUID），全量导出。
+        """
+        fs_chapters = self._read_chapters_from_fs(work)
+
+        now = get_utc_now()
         return [
             ExportChapter(
-                id=c.id,
-                title=c.title,
-                content=self.content_provider.read_content(
-                    str(c.work_id), str(c.id)
-                ) or "",
-                summary=c.summary,
-                order=c.order,
-                word_count=c.word_count,
-                is_published=c.is_published,
-                created_at=c.created_at,
-                updated_at=c.updated_at
+                title=ch['title'],
+                content=ch['content'],
+                order=ch['order'],
+                word_count=ch['word_count'],
+                is_published=ch.get('status') in ('published', 'completed'),
+                created_at=now,
+                updated_at=now
             )
-            for c in chapters
+            for ch in fs_chapters
         ]
     
     def _serialize_worldview(self, work: Work) -> ExportWorldview:

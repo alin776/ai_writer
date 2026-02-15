@@ -38,10 +38,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
   const [format, setFormat] = useState<'json' | 'markdown' | 'txt'>('json');
   const [preview, setPreview] = useState<ImportPreviewResponse | null>(null);
   const [options, setOptions] = useState({
-    includeWorldview: true,
     includeGuidelines: true,
-    autoExtractWorldview: true,
-    worldviewScanMode: 'incremental' as 'incremental' | 'full',
   });
   const [importMode, setImportMode] = useState<'new' | 'existing'>('new');
   const [targetWorkId, setTargetWorkId] = useState<string>('');
@@ -146,10 +143,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
       const importOptions: ImportOptions = {
         format,
         createNew: importMode === 'new',
-        includeWorldview: options.includeWorldview,
         includeGuidelines: options.includeGuidelines,
-        autoExtractWorldview: options.autoExtractWorldview,
-        worldviewScanMode: options.autoExtractWorldview ? options.worldviewScanMode : undefined,
         workId: importMode === 'existing' ? targetWorkId : undefined,
       };
 
@@ -411,16 +405,6 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
               <label>
                 <input
                   type="checkbox"
-                  checked={options.includeWorldview}
-                  onChange={e =>
-                    setOptions({ ...options, includeWorldview: e.target.checked })
-                  }
-                />
-                导入世界观数据（人物/地点/设定）
-              </label>
-              <label>
-                <input
-                  type="checkbox"
                   checked={options.includeGuidelines}
                   onChange={e =>
                     setOptions({ ...options, includeGuidelines: e.target.checked })
@@ -428,54 +412,6 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
                 />
                 导入创作规范
               </label>
-            </div>
-          </div>
-        )}
-
-        {/* 自动解析选项（仅 Markdown/TXT 格式） */}
-        {(format === 'markdown' || format === 'txt') && file && (
-          <div className="form-section">
-            <h3>智能解析</h3>
-            <div className="import-options">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={options.autoExtractWorldview}
-                  onChange={e =>
-                    setOptions({ ...options, autoExtractWorldview: e.target.checked })
-                  }
-                />
-                自动解析世界观（AI 提取人物/地点/设定）
-              </label>
-              <p className="option-hint">
-                开启后将使用 AI 分析章节内容，自动创建人物、地点、设定卡片
-              </p>
-            </div>
-            <div className="import-options" style={{ opacity: options.autoExtractWorldview ? 1 : 0.5, pointerEvents: options.autoExtractWorldview ? 'auto' : 'none' }}>
-              <label>
-                <input
-                  type="radio"
-                  name="worldviewScanMode"
-                  checked={options.worldviewScanMode === 'incremental'}
-                  onChange={() =>
-                    setOptions({ ...options, worldviewScanMode: 'incremental' })
-                  }
-                />
-                仅解析本次新增章节（推荐）
-              </label>
-              <p className="option-hint">成本更低，追加导入不会漏新章。</p>
-              <label>
-                <input
-                  type="radio"
-                  name="worldviewScanMode"
-                  checked={options.worldviewScanMode === 'full'}
-                  onChange={() =>
-                    setOptions({ ...options, worldviewScanMode: 'full' })
-                  }
-                />
-                解析全书（耗时更久）
-              </label>
-              <p className="option-hint">按章节分批解析，不截断；适合首次整书导入。</p>
             </div>
           </div>
         )}
