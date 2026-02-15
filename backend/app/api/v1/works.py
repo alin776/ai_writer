@@ -176,6 +176,12 @@ async def create_work(
     """
     work_service = WorkService(db)
     work = await work_service.create_work(str(current_user.id), work_data)
+
+    # V2：初始化作品工作目录（Agent + 文件系统 API 共用）
+    from app.services.agent.deep_agent import DATA_ROOT
+    work_dir = DATA_ROOT / str(current_user.id) / "works" / str(work.id)
+    work_dir.mkdir(parents=True, exist_ok=True)
+
     return work
 
 

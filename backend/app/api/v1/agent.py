@@ -2647,3 +2647,246 @@ async def get_agent_session_messages(
 # ==================== 辅助函数 ====================
 # 注意: 原有的意图检测和处理逻辑已迁移到 LangGraph 框架中
 # 详见: app/services/agent/langgraph_agent.py
+
+
+# ══════════════════════════════════════════════════════════════════
+# V2 端点 — DeepAgents 引擎（Strangler Fig 模式，与旧端点共存）
+# ══════════════════════════════════════════════════════════════════
+
+import asyncio as _asyncio
+
+# 待审批 backend 缓存："{user_id}:{conversation_id}" → BufferedFilesystemBackend
+_pending_backends: dict[str, Any] = {}
+# 并发锁：防止同一 work 的并发写入冲突
+_work_locks: dict[str, _asyncio.Lock] = {}
+
+
+class V2ChatRequest(BaseModel):
+    """V2 Agent 对话请求"""
+    message: str = Field(..., min_length=1)
+    work_id: str = Field(...)
+    conversation_id: Optional[str] = Field(None)
+
+
+class V2ChangesResponse(BaseModel):
+    """待审批改动响应"""
+    conversation_id: str
+    changes: List[Dict[str, Any]]
+
+
+@router.post("/v2/chat/stream", summary="V2 Agent 对话（DeepAgents 引擎）")
+async def agent_v2_chat_stream(
+    request: V2ChatRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """使用 DeepAgents 引擎的流式对话端点。"""
+    from app.services.agent.deep_agent.agent_factory import create_writing_agent
+    from app.services.agent.deep_agent.event_translator import (
+        StepCounter,
+        translate_event,
+        make_completion_event,
+        make_revision_event,
+    )
+
+    user_id = str(current_user.id)
+    conversation_id = request.conversation_id or str(uuid.uuid4())
+
+    # 查询 Work
+    from app.models.work import Work
+    stmt = select(Work).where(
+        Work.id == request.work_id,
+        Work.author_id == current_user.id,
+    )
+    result = await db.execute(stmt)
+    work = result.scalar_one_or_none()
+    if not work:
+        raise HTTPException(status_code=404, detail="Work not found")
+
+    async def event_generator():
+        try:
+            counter = StepCounter()
+
+            # 获取 per-work 锁
+            work_key = f"{user_id}:{request.work_id}"
+            if work_key not in _work_locks:
+                _work_locks[work_key] = _asyncio.Lock()
+
+            async with _work_locks[work_key]:
+                # 创建 Agent + Backend
+                agent, backend = create_writing_agent(work, user_id)
+
+                # 构建输入
+                input_msg = {"messages": [{"role": "user", "content": request.message}]}
+                config = {
+                    "configurable": {"thread_id": conversation_id},
+                    "recursion_limit": 150,
+                }
+
+                # 发送 agent_header
+                header = {
+                    "type": "agent_header",
+                    "data": {"name": "文枢AI", "badge": "v2"},
+                    "timestamp": get_utc_now().isoformat(),
+                }
+                yield f"data: {json.dumps(header, ensure_ascii=False)}\n\n"
+
+                # 流式运行 Agent
+                async for event in agent.astream_events(
+                    input_msg, config=config, version="v2"
+                ):
+                    translated = translate_event(event, counter)
+                    if translated:
+                        yield f"data: {json.dumps(translated, ensure_ascii=False)}\n\n"
+
+                # Agent 完成：获取改动列表
+                changes = backend.get_changes()
+
+                # 发送每条 revision 事件
+                for op in changes:
+                    rev = make_revision_event(op)
+                    yield f"data: {json.dumps(rev, ensure_ascii=False)}\n\n"
+
+                # 发送 completion 事件
+                completion = make_completion_event(changes)
+                yield f"data: {json.dumps(completion, ensure_ascii=False)}\n\n"
+
+                # 缓存 backend 待审批（绑定 user_id 隔离）
+                if changes:
+                    backend_key = f"{user_id}:{conversation_id}"
+                    _pending_backends[backend_key] = backend
+
+                # 发送 done 事件
+                done_event = {
+                    "type": "done",
+                    "conversation_id": conversation_id,
+                    "has_changes": len(changes) > 0,
+                }
+                yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
+
+        except Exception as e:
+            logger.error(f"[V2 Agent] Error: {e}", exc_info=True)
+            error_event = {
+                "type": "error",
+                "error": str(e),
+                "error_type": type(e).__name__,
+            }
+            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Conversation-Id": conversation_id,
+        },
+    )
+
+
+@router.get("/v2/changes/{conversation_id}", summary="获取待审批改动")
+async def get_v2_changes(
+    conversation_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """获取指定对话的待审批改动列表。"""
+    backend_key = f"{current_user.id}:{conversation_id}"
+    backend = _pending_backends.get(backend_key)
+    if not backend:
+        return V2ChangesResponse(conversation_id=conversation_id, changes=[])
+    return V2ChangesResponse(
+        conversation_id=conversation_id,
+        changes=backend.get_changes(),
+    )
+
+
+@router.post("/v2/changes/{conversation_id}/accept", summary="全部接受改动")
+async def accept_v2_changes(
+    conversation_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """全部接受：将缓冲区写入磁盘。"""
+    backend_key = f"{current_user.id}:{conversation_id}"
+    backend = _pending_backends.pop(backend_key, None)
+    if not backend:
+        raise HTTPException(status_code=404, detail="No pending changes")
+
+    affected = backend.flush()
+
+    # flush 后更新向量索引（直接读磁盘文件，而非 backend.read()）
+    from app.services.agent.deep_agent.rag_tool import update_chapter_vectors
+    from app.services.agent.deep_agent.frontmatter import parse_chapter
+
+    for path in affected:
+        if "/chapters/" in path:
+            try:
+                disk_path = backend._resolve_path(path)
+                raw = disk_path.read_text(encoding="utf-8")
+                parsed = parse_chapter(raw)
+                work_id = Path(str(backend.cwd)).name
+                update_chapter_vectors(work_id, path, parsed["content"])
+            except Exception as e:
+                logger.warning(f"[V2] Failed to update vectors for {path}: {e}")
+
+    return {"status": "accepted", "affected_paths": affected}
+
+
+@router.post("/v2/changes/{conversation_id}/reject", summary="全部拒绝改动")
+async def reject_v2_changes(
+    conversation_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """全部拒绝：丢弃缓冲区。"""
+    backend_key = f"{current_user.id}:{conversation_id}"
+    backend = _pending_backends.pop(backend_key, None)
+    if not backend:
+        raise HTTPException(status_code=404, detail="No pending changes")
+    backend.discard()
+    return {"status": "rejected"}
+
+
+@router.post("/v2/changes/{conversation_id}/accept/{index}", summary="单个接受改动")
+async def accept_v2_single_change(
+    conversation_id: str,
+    index: int,
+    current_user: User = Depends(get_current_active_user),
+):
+    """单个接受：将指定操作写入磁盘。"""
+    backend_key = f"{current_user.id}:{conversation_id}"
+    backend = _pending_backends.get(backend_key)
+    if not backend:
+        raise HTTPException(status_code=404, detail="No pending changes")
+
+    path = backend.flush_single(index)
+    if path is None:
+        raise HTTPException(status_code=400, detail="Invalid change index or has unresolved dependencies")
+
+    # 缓冲区清空后移除
+    if not backend.get_changes():
+        _pending_backends.pop(backend_key, None)
+
+    return {"status": "accepted", "path": path}
+
+
+@router.post("/v2/changes/{conversation_id}/reject/{index}", summary="单个拒绝改动")
+async def reject_v2_single_change(
+    conversation_id: str,
+    index: int,
+    current_user: User = Depends(get_current_active_user),
+):
+    """单个拒绝：丢弃指定操作。"""
+    backend_key = f"{current_user.id}:{conversation_id}"
+    backend = _pending_backends.get(backend_key)
+    if not backend:
+        raise HTTPException(status_code=404, detail="No pending changes")
+
+    ok = backend.discard_single(index)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Invalid change index")
+
+    # 缓冲区清空后移除
+    if not backend.get_changes():
+        _pending_backends.pop(backend_key, None)
+
+    return {"status": "rejected"}

@@ -157,8 +157,10 @@ Backend.md
 
 # ChromaDB数据文件
 backend/data/
+data/
 
 backend/nul
+nul
 
 # 任务分析和报告文件
 tasks/

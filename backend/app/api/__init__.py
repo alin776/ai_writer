@@ -35,6 +35,7 @@ from app.api.v1 import (
     chapter_comments,
     stickers,
     friends,
+    chapters_fs,
 )
 from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
@@ -88,3 +89,4 @@ api_router.include_router(channels.router, prefix="/channels", tags=["channels"]
 api_router.include_router(chapter_comments.router, tags=["chapter-comments"])
 api_router.include_router(stickers.router, tags=["stickers"])
 api_router.include_router(friends.router, prefix="/friends", tags=["friends"])
+api_router.include_router(chapters_fs.router, prefix="/v2", tags=["chapters-fs"])
