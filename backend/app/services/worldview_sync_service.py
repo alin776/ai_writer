@@ -24,7 +24,6 @@ from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType
 from app.core.redis_client import redis_client
 from app.schemas.worldview import CharacterCreate, CharacterUpdate, LocationCreate, SettingCreate
-from app.services.chapter_content_provider import ChapterContentProvider
 from app.utils.text_cleaner import TextCleaner
 from app.core.config import settings
 
@@ -38,7 +37,6 @@ class WorldviewSyncService:
         self.db = db
         self.user_id = user_id
         self.worldview_service = WorldviewService(db)
-        self.content_provider = ChapterContentProvider()
 
     async def extract_changes_from_chapter(
         self,
@@ -606,7 +604,7 @@ class WorldviewSyncService:
                 current_len += len(block)
 
         for chapter in chapters:
-            content = self.content_provider.read_content(str(chapter.work_id), str(chapter.id)) or ""
+            content = chapter.content or ""
             if not content:
                 continue
             clean_content = TextCleaner.html_to_clean_text(content, preserve_structure=True)

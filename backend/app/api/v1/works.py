@@ -16,16 +16,14 @@ from app.models.channel_member import ChannelMember
 from app.schemas.work import WorkCreate, WorkUpdate, WorkResponse, WorkListResponse, WorkSummary
 from app.services.work_service import WorkService
 from app.services.cos_service import get_cos_service
-from app.services.chapter_word_stat_service import ChapterWordStatService
 from app.schemas.worldview import WorldviewScanProgressResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 async def _calculate_weekly_new_words(db: AsyncSession, author_id: str) -> int:
-    """计算本周新增字数：自然周（周一00:00 ~ 周日23:59，中国时区），只计正增量"""
-    stat_service = ChapterWordStatService(db)
-    return await stat_service.sum_positive_delta_for_author_this_week(author_id)
+    """计算本周新增字数 — 废弃卫星表已删除，暂返回 0"""
+    return 0
 
 
 class CoverUploadResponse(BaseModel):
@@ -255,10 +253,8 @@ async def delete_work(
 
     # 失效相关缓存（缓存失效失败不影响删除）
     try:
-        from app.api.v1.chapters import _invalidate_chapter_cache
         from app.api.v1.worldview import _invalidate_worldview_cache
 
-        _invalidate_chapter_cache(work_id)
         _invalidate_worldview_cache(work_id, [
             "characters",
             "locations",

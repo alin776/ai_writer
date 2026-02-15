@@ -6,6 +6,8 @@
  */
 
 import { DataService } from './DataService';
+import { chaptersFs } from './chaptersFs';
+import { fsToChapter } from '@/utils/fsChapterAdapter';
 import type { Work, Chapter } from '@/types';
 import { htmlToPlainText } from '@/utils/wordCount';
 
@@ -67,8 +69,9 @@ class TxtExportServiceClass {
   async export(work: Work, options: TxtExportOptions = {}): Promise<TxtExportResult> {
     const mergedOptions: ResolvedTxtExportOptions = { ...DEFAULT_OPTIONS, ...options };
 
-    // 1. 获取所有章节
-    const chapters = await DataService.getChapters(work.id);
+    // 1. 获取所有章节（不含正文）
+    const fsList = await chaptersFs.list(work.id);
+    const chapters = fsList.map(fs => fsToChapter(fs, work.id));
 
     // 2. 按 order 排序
     let sortedChapters = [...chapters].sort((a, b) => a.order - b.order);
@@ -88,8 +91,16 @@ class TxtExportServiceClass {
       }
     }
 
+    // 2.2 逐章获取正文（list 接口不含 content）
+    const chaptersWithContent = await Promise.all(
+      sortedChapters.map(async (ch) => {
+        const full = await chaptersFs.get(work.id, ch.order);
+        return { ...ch, content: full.content || '' };
+      })
+    );
+
     // 3. 格式化内容
-    const content = this.formatContent(work, sortedChapters, mergedOptions);
+    const content = this.formatContent(work, chaptersWithContent, mergedOptions);
 
     // 4. 清理文件名并触发下载
     const safeFilename = this.sanitizeFilename(work.title);
@@ -98,8 +109,8 @@ class TxtExportServiceClass {
     // 5. 返回导出结果
     return {
       success: true,
-      chapterCount: sortedChapters.length,
-      totalWords: sortedChapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
+      chapterCount: chaptersWithContent.length,
+      totalWords: chaptersWithContent.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
     };
   }
 

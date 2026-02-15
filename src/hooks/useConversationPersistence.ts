@@ -55,8 +55,8 @@ function generateSessionId(): string {
 }
 
 function generateContextKey(workId?: string, chapterId?: string): string | null {
-  if (chapterId) return `chapter_${chapterId}`;
   if (workId) return `work_${workId}`;
+  if (chapterId) return `chapter_${chapterId}`;
   return null;
 }
 

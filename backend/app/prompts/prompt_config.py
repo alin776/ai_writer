@@ -86,14 +86,6 @@ class PromptConfig:
             version="1.0.0"
         ),
 
-        # Agent Prompt
-        "prompt_cache": PromptModuleInfo(
-            path="app.services.agent.prompt_cache",
-            description="Prompt 缓存系统",
-            category=PromptCategory.AGENT,
-            version="1.0.0"
-        ),
-
         # 配置类 Prompt
         "agent_config": PromptModuleInfo(
             path="app.core.agent_config",

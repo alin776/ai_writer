@@ -3,7 +3,6 @@ from app.api.v1 import (
     auth,
     users,
     works,
-    chapters,
     ai,
     worldview,
     novel_analysis,
@@ -14,7 +13,6 @@ from app.api.v1 import (
     groups,
     rewrite_history,
     humanize,
-    review,
     ws,
     knowledge,
     agent,
@@ -52,7 +50,6 @@ api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monito
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(works.router, prefix="/works", tags=["works"])
-api_router.include_router(chapters.router, prefix="/chapters", tags=["chapters"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(worldview.router, prefix="/worldview", tags=["worldview"])
 api_router.include_router(relationships.router, prefix="/relationships", tags=["relationships"])
@@ -63,7 +60,6 @@ api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(rewrite_history.router, prefix="/rewrite-history", tags=["rewrite-history"])
 api_router.include_router(humanize.router, prefix="/humanize", tags=["humanize"])
-api_router.include_router(review.router, prefix="/review", tags=["review"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
 api_router.include_router(agent.router, prefix="/agent", tags=["agent"])
 api_router.include_router(books.router, prefix="/books", tags=["books"])

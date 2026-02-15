@@ -1,6 +1,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { agentApi } from '@/services/agentApi';
+import { changesApi } from '@/services/changesApi';
 import { DataService } from '@/services/DataService';
 import { useConversationPersistence } from './useConversationPersistence';
 import { getGlobalSessionManager } from '@/contexts/SessionContext';
@@ -1548,10 +1549,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     [updateRevisionStatus]
   );
 
-  // v8.0: 批量操作管理 - 检查是否有待确认的操作
+  // v8.0 → v3.3: 使用 V2 Changes API 检查待审批变更
   const [hasOperations, setHasOperations] = useState(false);
 
-  // 检查操作日志
   useEffect(() => {
     const checkOperations = async () => {
       if (!sessionState.conversationId) {
@@ -1559,63 +1559,44 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         return;
       }
       try {
-        const result = await agentApi.getOperations(sessionState.conversationId);
-        setHasOperations(result.operations && result.operations.length > 0);
+        const result = await changesApi.list(sessionState.conversationId);
+        setHasOperations(result.changes && result.changes.length > 0);
       } catch {
         setHasOperations(false);
       }
     };
-    // 只在 isLoading 变为 false 时检查（即流式响应结束后）
     if (!sessionState.isLoading && sessionState.conversationId) {
       checkOperations();
     }
   }, [sessionState.isLoading, sessionState.conversationId]);
 
-  // v8.0: 采纳所有操作
+  // v3.3: 采纳所有操作 — 使用 V2 Changes API
   const acceptAllOperations = useCallback(async () => {
-    console.log('[useAgentChat] acceptAllOperations 被调用, conversationId:', sessionState.conversationId);
-    if (!sessionState.conversationId) {
-      console.warn('[useAgentChat] acceptAllOperations: conversationId 为空，操作取消');
-      return;
-    }
+    if (!sessionState.conversationId) return;
     try {
-      console.log('[useAgentChat] 正在调用 API acceptOperations...');
-      await agentApi.acceptOperations(sessionState.conversationId);
+      await changesApi.acceptAll(sessionState.conversationId);
       setHasOperations(false);
-      console.log('[useAgentChat] 所有操作已采纳');
 
-      // v8.1: 派发采纳事件到编辑器，清除修订标记并保留新内容
       window.dispatchEvent(new CustomEvent('agent-accept-all-revisions', {
         detail: { conversationId: sessionState.conversationId }
       }));
-      console.log('[useAgentChat] ✅ 派发采纳事件到编辑器');
     } catch (error) {
       console.error('[useAgentChat] 采纳操作失败:', error);
     }
   }, [sessionState.conversationId]);
 
-  // v8.0: 回滚所有操作
+  // v3.3: 回滚所有操作 — 使用 V2 Changes API
   const rollbackAllOperations = useCallback(async () => {
-    console.log('[useAgentChat] rollbackAllOperations 被调用, conversationId:', sessionState.conversationId);
-    if (!sessionState.conversationId) {
-      console.warn('[useAgentChat] rollbackAllOperations: conversationId 为空，操作取消');
-      return;
-    }
+    if (!sessionState.conversationId) return;
     try {
-      console.log('[useAgentChat] 正在调用 API rollbackOperations...');
-      const result = await agentApi.rollbackOperations(sessionState.conversationId);
+      await changesApi.rejectAll(sessionState.conversationId);
       setHasOperations(false);
-      console.log(`[useAgentChat] 已回滚 ${result.rolled_back} 个操作`);
 
-      // v8.1: 派发撤销事件到编辑器，清除修订标记并恢复原文
       window.dispatchEvent(new CustomEvent('agent-discard-all-revisions', {
-        detail: { conversationId: sessionState.conversationId, rolledBack: result.rolled_back }
+        detail: { conversationId: sessionState.conversationId }
       }));
-      console.log('[useAgentChat] ❌ 派发撤销事件到编辑器');
-
-      // 触发刷新事件，通知编辑器重新加载数据
       window.dispatchEvent(new CustomEvent('agent-operations-rollback', {
-        detail: { conversationId: sessionState.conversationId, rolledBack: result.rolled_back }
+        detail: { conversationId: sessionState.conversationId }
       }));
     } catch (error) {
       console.error('[useAgentChat] 回滚操作失败:', error);

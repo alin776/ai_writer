@@ -5,6 +5,7 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import { useAuthStore } from '@/store/authStore';
 import type {
   AgentChatRequest,
   AgentChatResponse,
@@ -16,7 +17,7 @@ import type {
 } from '../types/agent';
 
 class AgentApiService {
-  private client: AxiosInstance;
+  public readonly client: AxiosInstance;
 
   constructor() {
     // 使用本地后端API基础URL，而不是OpenAI代理URL
@@ -72,6 +73,90 @@ class AgentApiService {
       }
     }
     return null;
+  }
+
+  /**
+   * 获取有效的 token，如果快过期则先刷新
+   * 复用 ApiAdapter 的刷新逻辑，保持一致性
+   */
+  private async ensureValidToken(): Promise<string | null> {
+    const { tokenExpiresAt, refreshToken } = useAuthStore.getState();
+
+    // token 还有 30 秒以上有效期，直接用
+    if (tokenExpiresAt && Date.now() < tokenExpiresAt - 30_000) {
+      return this.getToken();
+    }
+
+    // token 快过期或已过期，尝试刷新
+    if (refreshToken) {
+      try {
+        const newToken = await this.refreshAccessToken();
+        if (newToken) return newToken;
+      } catch (e) {
+        console.error('[AgentApi] Token refresh failed:', e);
+      }
+    }
+
+    // 刷新失败，返回当前 token（可能已过期，但让后端决定）
+    return this.getToken();
+  }
+
+  /**
+   * 使用 refresh token 获取新的 access token
+   */
+  private refreshPromise: Promise<string | null> | null = null;
+
+  private async refreshAccessToken(): Promise<string | null> {
+    // 防抖：多个并发请求只刷新一次
+    if (this.refreshPromise) return this.refreshPromise;
+
+    this.refreshPromise = (async () => {
+      const { refreshToken, login, user, logout } = useAuthStore.getState();
+      if (!refreshToken) return null;
+
+      try {
+        const baseURL = import.meta.env.DEV ? '/api/v1' : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1');
+        const resp = await fetch(`${baseURL}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+
+        if (!resp.ok) {
+          // 401/403 表示 refresh token 无效，需要重新登录
+          if (resp.status === 401 || resp.status === 403) {
+            logout();
+            localStorage.removeItem('auth-storage');
+          }
+          throw new Error(`Refresh failed: ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        const newAccessToken = data.access_token || data.accessToken;
+        const newRefreshToken = data.refresh_token || data.refreshToken || refreshToken;
+        const expiresAt = data.expires_at || data.expiresAt;
+        const refreshExpiresAt = data.refresh_expires_at || data.refreshExpiresAt;
+
+        if (!newAccessToken) return null;
+
+        const tokenExpiresAt = expiresAt ? expiresAt * 1000 : null;
+        const refreshTokenExpiresAt = refreshExpiresAt ? refreshExpiresAt * 1000 : null;
+
+        if (user) {
+          login(user, newAccessToken, newRefreshToken, tokenExpiresAt, refreshTokenExpiresAt);
+        }
+
+        return newAccessToken;
+      } catch (error) {
+        console.error('[AgentApi] refreshAccessToken error:', error);
+        // logout 已在上面 401/403 分支处理，此处仅返回 null
+        return null;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   private handleUnauthorized(): void {
@@ -185,7 +270,8 @@ class AgentApiService {
     }
   ): Promise<void> {
     const finalRequest = this.withToolPolicy(request);
-    const token = this.getToken();
+    // ✅ 修复：发请求前检查 token 有效性，必要时自动刷新
+    const token = await this.ensureValidToken();
     const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
     const defaultBase = rawBase.replace(/\/api\/v1\/?$/, '');
     const streamBaseRaw =
@@ -194,24 +280,52 @@ class AgentApiService {
     const streamBase = streamBaseRaw
       .replace(/\/api\/v1\/?$/, '')
       .replace(/\/$/, '');
-    const url = `${streamBase}/api/v1/agent/chat/stream`;
+    const streamUrls = [
+      `${streamBase}/api/v1/agent/v2/chat/stream`,
+      `${streamBase}/api/v1/agent/chat/stream`,
+    ];
 
     // ✅ 真正的流式输出：直接传递后端返回的内容，不再拆分和模拟
     // 后端现在会以小块（5字符）的粒度发送内容，前端直接展示即可
 
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify(finalRequest),
-        signal: options?.signal,
-      });
+    const doFetch = async (authToken: string | null): Promise<Response | null> => {
+      let response: Response | null = null;
+      for (let idx = 0; idx < streamUrls.length; idx += 1) {
+        const candidate = streamUrls[idx];
+        const resp = await fetch(candidate, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authToken ? `Bearer ${authToken}` : '',
+          },
+          body: JSON.stringify(finalRequest),
+          signal: options?.signal,
+        });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // 新后端走 /v2，若目标服务仍是旧版本，则 404 后自动回退。
+        if (resp.status === 404 && idx < streamUrls.length - 1) {
+          continue;
+        }
+
+        response = resp;
+        break;
+      }
+      return response;
+    };
+
+    try {
+      let response = await doFetch(token);
+
+      // ✅ 修复：401 时自动刷新 token 并重试一次
+      if (response?.status === 401) {
+        const refreshedToken = await this.refreshAccessToken();
+        if (refreshedToken) {
+          response = await doFetch(refreshedToken);
+        }
+      }
+
+      if (!response || !response.ok) {
+        throw new Error(`HTTP error! status: ${response?.status ?? 'unknown'}`);
       }
 
       const reader = response.body?.getReader();
@@ -253,6 +367,9 @@ class AgentApiService {
               break;
             case 'done':
               receivedDone = true;
+              if (data.conversation_id) {
+                callbacks.onStart?.(data.conversation_id);
+              }
               doneMetadata = data.metadata;
               doneActions = Array.isArray(data.suggested_actions) ? data.suggested_actions : [];
               callbacks.onDone?.(doneMetadata, doneActions);
@@ -272,6 +389,10 @@ class AgentApiService {
               break;
             case 'text':
               callbacks.onFlowEvent?.({ type: 'text', data: data.data, timestamp: data.timestamp });
+              // V2 后端用 text 事件传输 LLM 流式 token，转发给 onContent 填充 message.content
+              if (data.data?.content) {
+                callbacks.onContent?.(data.data.content);
+              }
               break;
             case 'step_start':
               callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, description: data.description, status: data.status, timestamp: data.timestamp });
@@ -503,8 +624,8 @@ class AgentApiService {
       .map((s) => this.normalizeHistorySession(s))
       .filter((s): s is HistorySessionItem => Boolean(s))
       .filter((s) => {
-        if (workId && s.workId && s.workId !== workId) return false;
-        if (chapterId && s.chapterId && s.chapterId !== chapterId) return false;
+        if (workId && s.workId !== workId) return false;
+        if (chapterId && s.chapterId !== chapterId) return false;
         return true;
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -602,55 +723,6 @@ class AgentApiService {
     return response.data;
   }
 
-  // ==================== 操作日志管理（批量操作回滚） ====================
-
-  /**
-   * 获取会话的操作日志
-   */
-  async getOperations(conversationId: string): Promise<{
-    success: boolean;
-    conversation_id: string;
-    operations: Array<{
-      op_id: string;
-      op_type: string;
-      chapter_id?: string;
-      work_id?: string;
-      description: string;
-      timestamp: string;
-    }>;
-  }> {
-    const response = await this.client.get(`/operations/${conversationId}`);
-    return response.data;
-  }
-
-  /**
-   * 回滚会话的所有操作（弃用时调用）
-   */
-  async rollbackOperations(conversationId: string): Promise<{
-    success: boolean;
-    conversation_id: string;
-    rolled_back: number;
-    errors: Array<{ op_id: string; error: string }>;
-  }> {
-    const response = await this.client.post('/operations/rollback', {
-      conversation_id: conversationId
-    });
-    return response.data;
-  }
-
-  /**
-   * 采纳会话的所有操作
-   */
-  async acceptOperations(conversationId: string): Promise<{
-    success: boolean;
-    conversation_id: string;
-    message: string;
-  }> {
-    const response = await this.client.post('/operations/accept', {
-      conversation_id: conversationId
-    });
-    return response.data;
-  }
 }
 
 // 导出单例

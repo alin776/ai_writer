@@ -416,6 +416,7 @@ export interface ToolFlowData {
   title: string;          // 工具标题
   description: string;    // 工具描述
   status: 'running' | 'done' | 'error';
+  output?: string;        // 工具执行输出
 }
 
 /**

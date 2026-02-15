@@ -41,15 +41,17 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
   const genreRef = useRef<HTMLDivElement>(null);
 
   const GENRE_OPTIONS = [
-    { value: 'xuanhuan', label: '玄幻' },
-    { value: 'xianxia', label: '仙侠' },
+    { value: 'fantasy', label: '玄幻' },
+    { value: 'urban', label: '都市' },
+    { value: 'romance', label: '言情' },
+    { value: 'scifi', label: '科幻' },
     { value: 'wuxia', label: '武侠' },
-    { value: 'dushi', label: '都市' },
-    { value: 'lishi', label: '历史' },
-    { value: 'junshi', label: '军事' },
-    { value: 'kehuan', label: '科幻' },
-    { value: 'youxi', label: '游戏' },
-    { value: 'qihuan', label: '奇幻' },
+    { value: 'game', label: '游戏' },
+    { value: 'history', label: '历史' },
+    { value: 'military', label: '军事' },
+    { value: 'suspense', label: '悬疑' },
+    { value: 'western_fantasy', label: '西幻' },
+    { value: 'apocalypse', label: '末世' },
     { value: 'other', label: '其他' },
   ];
 

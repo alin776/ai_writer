@@ -12,6 +12,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { chaptersFs } from '../../services/chaptersFs';
+import { fsToChapter } from '../../utils/fsChapterAdapter';
 import { useTranslation } from 'react-i18next';
 import {
   Plus,
@@ -206,7 +208,8 @@ const WorksView: React.FC = () => {
 
     try {
       // 从后端加载该作品的所有章节
-      const chapters = await DataService.getChapters(work.id);
+      const fsList = await chaptersFs.list(work.id);
+      const chapters = fsList.map(fs => fsToChapter(fs, work.id));
       setChaptersForPublish(chapters);
 
       // 如果作品已发布，预选已发布的章节
@@ -710,11 +713,12 @@ const WorksView: React.FC = () => {
 
       // 预加载作品详情页需要的数据，避免跳转后再等待
       console.log('[导入] 预加载作品数据...');
-      const [workData, chaptersData, worldData] = await Promise.all([
+      const [workData, fsList, worldData] = await Promise.all([
         DataService.getWork(workId),
-        DataService.getChapters(workId),
+        chaptersFs.list(workId),
         DataService.getWorldData(workId),
       ]);
+      const chaptersData = fsList.map(fs => fsToChapter(fs, workId));
 
       closeImportModal();
       navigate(`/works/${workId}`, {

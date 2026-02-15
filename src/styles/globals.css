@@ -966,3 +966,69 @@ select option {
   box-shadow: none !important;
   outline: none !important;
 }
+
+/* ========================================
+ * Milkdown Crepe 编辑器样式
+ * ======================================== */
+
+/* a) 编辑器填满容器高度 */
+.milkdown {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  height: 100%;
+}
+
+.milkdown .ProseMirror.ProseMirror {
+  flex: 1;
+  min-height: 100%;
+  padding: 12px 20px;
+  outline: none;
+}
+
+/* b) 字体对齐 - 与 app 全局字体一致 */
+.milkdown {
+  --crepe-font-title: 'Noto Serif SC', serif;
+  --crepe-font-default: 'Noto Serif SC', sans-serif;
+}
+
+/* c) 暗色主题 - 映射到 app 的 Slate 色板 */
+.dark .milkdown {
+  --crepe-color-background: #0f172a;       /* slate-900 */
+  --crepe-color-on-background: #e2e8f0;    /* slate-200 */
+  --crepe-color-surface: #1e293b;          /* slate-800 */
+  --crepe-color-on-surface: #cbd5e1;       /* slate-300 */
+  --crepe-color-primary: #93c5fd;          /* blue-300 */
+  --crepe-color-on-primary: #0f172a;       /* slate-900 */
+  --crepe-color-secondary: #334155;        /* slate-700 */
+  --crepe-color-on-secondary: #e2e8f0;     /* slate-200 */
+  --crepe-color-outline: #475569;          /* slate-600 */
+  --crepe-color-surface-variant: #1e293b;  /* slate-800 */
+  --crepe-color-on-surface-variant: #94a3b8; /* slate-400 */
+  --crepe-color-inverse-surface: #f1f5f9;  /* slate-100 */
+  --crepe-color-inverse-on-surface: #0f172a; /* slate-900 */
+  --crepe-color-shadow: rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+/* 暗色模式下 ProseMirror 编辑区域的基础文字颜色 */
+.dark .milkdown .ProseMirror {
+  color: #e2e8f0; /* slate-200 */
+  caret-color: #f8fafc; /* slate-50 */
+}
+
+/* 暗色模式下代码块背景 */
+.dark .milkdown pre {
+  background: #1e293b; /* slate-800 */
+}
+
+/* 暗色模式下引用块边框 */
+.dark .milkdown blockquote {
+  border-left-color: #475569; /* slate-600 */
+  color: #94a3b8; /* slate-400 */
+}
+
+/* 暗色模式下分割线 */
+.dark .milkdown hr {
+  border-color: #334155; /* slate-700 */
+}

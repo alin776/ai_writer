@@ -24,49 +24,6 @@ class Settings(BaseSettings):
     # Redis 配置
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # OpenSearch 配置（Explore 精确检索）
-    OPENSEARCH_HOSTS: str = "http://localhost:9200"
-    OPENSEARCH_INDEX_NAME: str = "novel_chapter_vectors"
-    OPENSEARCH_USERNAME: Optional[str] = None
-    OPENSEARCH_PASSWORD: Optional[str] = None
-    OPENSEARCH_USE_SSL: bool = False
-    OPENSEARCH_VERIFY_CERTS: bool = False
-    OPENSEARCH_TIMEOUT_SECONDS: int = 10
-    OPENSEARCH_REINDEX_ON_STARTUP: bool = False
-    OPENSEARCH_REINDEX_RECREATE_INDEX: bool = False
-    OPENSEARCH_SYNC_AUDIT_ON_STARTUP: bool = True
-    OPENSEARCH_SYNC_AUDIT_WORK_LIMIT: int = 0
-    OPENSEARCH_SYNC_AUDIT_CHAPTER_LIMIT_PER_WORK: int = 0
-    OPENSEARCH_SYNC_RETRY_BATCH_SIZE: int = 20
-    OPENSEARCH_SYNC_RETRY_MAX_ATTEMPTS: int = 6
-    OPENSEARCH_SYNC_RETRY_BASE_DELAY_SECONDS: int = 30
-    OPENSEARCH_SYNC_RETRY_MAX_DELAY_SECONDS: int = 900
-    OPENSEARCH_RUNTIME_SYNC_CHECK_ENABLED: bool = True
-    OPENSEARCH_RUNTIME_SYNC_CHECK_INTERVAL_SECONDS: int = 180
-    EXPLORE_INTENT_RETRIEVAL_V2: bool = True
-    # 探针对 AI 查询参数的介入模式：
-    # - suggest_only: 默认，仅在 AI 未提供有效结构化查询时才采用探针参数
-    # - force: 总是采用探针参数（旧行为，容易出现“机械改写查询”）
-    EXPLORE_PROBE_OVERRIDE_MODE: str = "suggest_only"
-
-    # 事实检索后端配置（固定为 LightRAG）
-    FACT_RETRIEVAL_BACKEND: str = "lightrag"
-
-    # LightRAG 外部检索配置
-    LIGHTRAG_BASE_URL: str = "http://127.0.0.1:9621"
-    LIGHTRAG_QUERY_PATH: str = "/query"
-    LIGHTRAG_INSERT_PATH: str = "/documents/text"
-    LIGHTRAG_API_KEY: Optional[str] = None
-    LIGHTRAG_TIMEOUT_SECONDS: int = 300
-    LIGHTRAG_MODE: str = "hybrid"
-    LIGHTRAG_TOP_K: int = 20
-    LIGHTRAG_MAX_RETRIES: int = 3
-    LIGHTRAG_RETRY_DELAY: float = 2.0
-    LIGHTRAG_ENABLE_RERANK: bool = True
-
-    # Reranker 服务配置（bge-reranker，Explore 段落精确定位）
-    RERANKER_BASE_URL: str = "http://localhost:7997"
-
     # JWT 配置
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7

@@ -16,12 +16,14 @@ import {
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog';
 import { DataService } from '../../services/DataService';
+import { chaptersFs } from '../../services/chaptersFs';
+import { fsToChapter, chapterIdToNum } from '../../utils/fsChapterAdapter';
 import { useGlobalStore } from '../../store/globalStore';
 import { useAuthStore } from '../../store/authStore';
 import type { Work, Chapter, CreateChapterData } from '../../types';
 import type { Chapter as NovelChapter, WorldData, Character, Location, Setting, WorkGuidelines } from '../../types/novel';
 import { formatDate } from '../../utils/formatDate';
-import NovelEditor from '../../components/editor/NovelEditor';
+import EditorWrapper from '../../components/editor/EditorWrapper';
 import { WorldviewPanel } from '../../components/editor/WorldviewPanel';
 import { AIPanel } from '../../components/editor/AIPanel';
 import SessionTabBar from '../../components/editor/SessionTabBar';
@@ -229,7 +231,7 @@ const WorkDetailView: React.FC = () => {
     updateTabTitle,
     replaceTabSession,
     attachSessionTab
-  } = useTabManager(currentChapterId || '', workId);
+  } = useTabManager(workId || '', workId);
 
   const currentChapterMeta = chapters.find((chapter) => chapter.id === currentChapterId);
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
@@ -442,11 +444,14 @@ const WorkDetailView: React.FC = () => {
           }
         } else {
           // 正常从服务器获取数据
-          [workData, chaptersData, worldDataFromServer] = await Promise.all([
+          const [workDataResult, fsChapters, worldDataFromServerResult] = await Promise.all([
             DataService.getWork(workId),
-            DataService.getChapters(workId),
+            chaptersFs.list(workId),
             DataService.getWorldData(workId),
           ]);
+          workData = workDataResult;
+          chaptersData = fsChapters.map(fs => fsToChapter(fs, workId));
+          worldDataFromServer = worldDataFromServerResult;
         }
 
         setLastWork(workId, workData?.title);
@@ -489,9 +494,22 @@ const WorkDetailView: React.FC = () => {
           }
 
           setCurrentChapterId(targetChapter.id);
-          setCurrentChapterContent(targetChapter.content);
-          editorChapterIdRef.current = targetChapter.id;
           setLastChapter(workId, targetChapter.id);
+
+          // FS API: list 不含正文，需要单独加载内容
+          try {
+            const num = chapterIdToNum(targetChapter.id);
+            if (num === null) return;
+            const full = await chaptersFs.get(workId, num);
+            const content = full.content || '';
+            setCurrentChapterContent(content);
+            // 更新本地缓存
+            setChapters(prev => prev.map(c =>
+              c.id === targetChapter.id ? { ...c, content } : c
+            ));
+          } catch {
+            setCurrentChapterContent('');
+          }
         }
 
         // 处理世界观面板定位（角色/地点/设定搜索）
@@ -535,18 +553,13 @@ const WorkDetailView: React.FC = () => {
         // 如果没有章节，自动创建默认章节
         if (chaptersData.length === 0) {
           try {
-            const defaultChapterData = {
-              work_id: workId,
+            const fsDefault = await chaptersFs.create(workId, {
               title: t('workDetail.chapter.firstChapter'),
-              content: '',
-              order: 1,
-              edit_event_id: crypto.randomUUID(),
-            };
-            const defaultChapter = await DataService.createChapter(defaultChapterData);
+            });
+            const defaultChapter = fsToChapter(fsDefault, workId);
             setChapters([defaultChapter]);
             setCurrentChapterId(defaultChapter.id);
             setCurrentChapterContent('');
-            editorChapterIdRef.current = defaultChapter.id;
             // 保存默认章节ID到 store
             setLastChapter(workId, defaultChapter.id);
             showToast('info', t('workDetail.toast.autoCreatedFirstChapter'));
@@ -600,10 +613,17 @@ const WorkDetailView: React.FC = () => {
     // 避免因函数引用变化导致的重复触发。
   }, [workId]);
 
+  // 通过 useEffect 同步 editorChapterIdRef，确保卸载时 cleanup 仍能用旧 ID 保存
+  useEffect(() => {
+    if (currentChapterId) {
+      editorChapterIdRef.current = currentChapterId;
+    }
+  }, [currentChapterId]);
+
   /**
    * 处理章节选择
    */
-  const handleChapterSelect = useCallback((chapterId: string) => {
+  const handleChapterSelect = useCallback(async (chapterId: string) => {
     const chapter = chapters.find((c) => c.id === chapterId);
     if (chapter) {
       // 取消正在进行的章节重命名编辑
@@ -612,21 +632,34 @@ const WorkDetailView: React.FC = () => {
         setEditingChapterTitle('');
       }
 
-      // 先更新章节ID，再更新内容，确保编辑器使用正确的章节数据
+      // 先清空内容，避免新编辑器用旧章节内容初始化（消除闪烁）
+      setCurrentChapterContent('');
+      // 再更新章节ID（触发 EditorWrapper 通过 key 重新挂载）
       setCurrentChapterId(chapterId);
-      setCurrentChapterContent(chapter.content);
-      editorChapterIdRef.current = chapterId; // 更新 ref
+
+      // 从 FS API 加载完整内容（list 不含正文）
+      try {
+        const num = chapterIdToNum(chapterId);
+        if (num === null) return;
+        const full = await chaptersFs.get(workId!, num);
+        const content = full.content || '';
+        setCurrentChapterContent(content);
+        // 更新本地缓存
+        setChapters(prev => prev.map(c =>
+          c.id === chapterId ? { ...c, content } : c
+        ));
+      } catch {
+        setCurrentChapterContent(chapter.content || '');
+      }
 
       // 保存当前章节ID到 store，用于下次返回时恢复
       if (workId) {
         setLastChapter(workId, chapterId);
       }
 
-      // 调试日志
       console.log('[WorkDetailView] 切换章节:', {
         chapterId,
         title: chapter.title,
-        contentLength: chapter.content?.length || 0,
       });
     }
   }, [chapters, editingChapterId, workId, setLastChapter]);
@@ -650,20 +683,11 @@ const WorkDetailView: React.FC = () => {
     }
 
     try {
-      // 生成唯一的编辑事件ID（用于幂等性）
-      const editEventId = crypto.randomUUID();
-
-      // 只发送后端需要的字段
-      const chapterData = {
-        work_id: workId,
+      // 使用 FS API 创建章节
+      const fsChapter = await chaptersFs.create(workId, {
         title: newChapterTitle.trim(),
-        content: '',
-        order: chapters.length + 1,
-        edit_event_id: editEventId,
-      };
-
-      // 调用后端接口，后端会生成 ID
-      const savedChapter = await DataService.createChapter(chapterData);
+      });
+      const savedChapter = fsToChapter(fsChapter, workId);
 
       // 使用后端返回的完整章节对象
       setChapters((prev) => [...prev, savedChapter]);
@@ -680,7 +704,6 @@ const WorkDetailView: React.FC = () => {
       setTimeout(() => {
         setCurrentChapterId(savedChapter.id);
         setCurrentChapterContent('');
-        editorChapterIdRef.current = savedChapter.id; // 更新 ref
         // 保存新章节ID到 store
         setLastChapter(workId, savedChapter.id);
       }, 0);
@@ -743,10 +766,13 @@ const WorkDetailView: React.FC = () => {
         return;
       }
 
-      // 更新后端
-      const updatedChapter = await DataService.updateChapter(editingChapterId, {
+      // 更新后端（FS API）
+      const num = chapterIdToNum(editingChapterId);
+      if (num === null) return;
+      const updatedFs = await chaptersFs.update(workId!, num, {
         title: editingChapterTitle.trim(),
       });
+      const updatedChapter = fsToChapter(updatedFs, workId!);
 
       // 更新本地状态
       setChapters((prev) =>
@@ -786,16 +812,12 @@ const WorkDetailView: React.FC = () => {
       const isNew = !chapterData.id || chapterData.id.startsWith('temp-');
 
       if (isNew) {
-        // 新增章节
-        const newChapterData = {
-          work_id: workId,
+        // 新增章节（FS API）
+        const fsChapter = await chaptersFs.create(workId, {
           title: chapterData.title.trim(),
           content: chapterData.content || '',
-          order: chapters.length + 1,
-          edit_event_id: crypto.randomUUID(),
-        };
-
-        const savedChapter = await DataService.createChapter(newChapterData);
+        });
+        const savedChapter = fsToChapter(fsChapter, workId);
 
         // 更新章节列表
         setChapters((prev) => [...prev, savedChapter]);
@@ -806,26 +828,22 @@ const WorkDetailView: React.FC = () => {
 
         showToast('success', t('workDetail.toast.chapterAddSuccess'));
       } else {
-        // 编辑章节
+        // 编辑章节（FS API）
         const chapter = chapters.find((c) => c.id === chapterData.id);
         if (!chapter) return;
 
-        const updatedChapter = {
-          ...chapter,
+        const num = chapterIdToNum(chapterData.id!);
+        if (num === null) return;
+        const updatedFs = await chaptersFs.update(workId, num, {
           title: chapterData.title.trim(),
           content: chapterData.content || chapter.content,
-          updated_at: new Date().toISOString(),
-        };
+        });
+        const updatedChapter = fsToChapter(updatedFs, workId);
 
         // 更新状态
         setChapters((prev) =>
           prev.map((c) => (c.id === chapterData.id ? updatedChapter : c))
         );
-
-        // 保存到后端
-        if (chapterData.id) {
-          await DataService.updateChapter(chapterData.id, updatedChapter);
-        }
 
         showToast('success', t('workDetail.toast.chapterUpdateSuccess'));
       }
@@ -846,8 +864,10 @@ const WorkDetailView: React.FC = () => {
     if (!workId) return;
 
     try {
-      // 先从后端删除（确保操作成功后再更新前端状态）
-      await DataService.deleteChapter(chapterId);
+      // 从 FS API 删除
+      const num = chapterIdToNum(chapterId);
+      if (num === null) return;
+      await chaptersFs.remove(workId, num);
 
       // 如果正在编辑被删除的章节名称，取消编辑
       if (editingChapterId === chapterId) {
@@ -866,18 +886,13 @@ const WorkDetailView: React.FC = () => {
       if (needsNewChapter) {
         // 删除了最后一个章节，自动创建新章节
         try {
-          const defaultChapterData = {
-            work_id: workId,
+          const fsDefault = await chaptersFs.create(workId, {
             title: t('workDetail.chapter.firstChapter'),
-            content: '',
-            order: 1,
-            edit_event_id: crypto.randomUUID(),
-          };
-          const defaultChapter = await DataService.createChapter(defaultChapterData);
+          });
+          const defaultChapter = fsToChapter(fsDefault, workId);
           setChapters([defaultChapter]);
           setCurrentChapterId(defaultChapter.id);
           setCurrentChapterContent('');
-          editorChapterIdRef.current = defaultChapter.id;
           // 保存新章节ID到 store
           setLastChapter(workId, defaultChapter.id);
           showToast('info', t('workDetail.toast.autoCreatedNewChapter'));
@@ -892,7 +907,6 @@ const WorkDetailView: React.FC = () => {
         // 删除的是当前章节，切换到第一个剩余章节
         setCurrentChapterId(remainingChapters[0].id);
         setCurrentChapterContent(remainingChapters[0].content);
-        editorChapterIdRef.current = remainingChapters[0].id;
         // 保存新章节ID到 store
         setLastChapter(workId, remainingChapters[0].id);
       }
@@ -930,114 +944,58 @@ const WorkDetailView: React.FC = () => {
    * 处理章节移动/排序
    */
   const handleChapterMove = useCallback(async (chapterId: string, newOrder: number) => {
-    try {
-      // 更新章节顺序
-      const updatedChapters = [...chapters];
-      const chapterIndex = updatedChapters.findIndex((c) => c.id === chapterId);
-
-      if (chapterIndex === -1) return;
-
-      const [movedChapter] = updatedChapters.splice(chapterIndex, 1);
-      updatedChapters.splice(newOrder, 0, movedChapter);
-
-      // 重新分配 order
-      const reorderedChapters = updatedChapters.map((chapter, index) => ({
-        ...chapter,
-        order: index,
-        updateTime: new Date().toISOString(),
-      }));
-
-      // 更新状态
-      setChapters(reorderedChapters);
-
-      // 保存到后端
-      await Promise.all(
-        reorderedChapters.map((chapter) =>
-          DataService.updateChapter(chapter.id, chapter)
-        )
-      );
-
-      showToast('success', t('workDetail.toast.chapterOrderUpdateSuccess'));
-    } catch (error) {
-      showToast('error', t('workDetail.toast.chapterOrderUpdateFailed'));
-      console.error('Failed to move chapter:', error);
-    }
-  }, [chapters, showToast]);
+    showToast('info', '文件系统模式暂不支持拖拽排序');
+  }, [showToast]);
 
   /**
    * 处理编辑器保存
    */
   const handleEditorSave = useCallback(async (content: string, json: any) => {
-    if (!currentChapterId) {
+    if (!currentChapterId || !workId) {
       console.warn('[WorkDetailView] 保存失败：没有选中的章节');
       return;
     }
 
-    // 验证：确保保存的是当前编辑器正在编辑的章节
-    // 防止章节切换时的竞态条件导致保存到错误的章节
     const chapterIdToSave = editorChapterIdRef.current;
     if (!chapterIdToSave || chapterIdToSave !== currentChapterId) {
-      console.warn('[WorkDetailView] 保存失败：章节ID不匹配', {
-        editorChapterId: chapterIdToSave,
-        currentChapterId,
-      });
+      console.warn('[WorkDetailView] 保存失败：章节ID不匹配');
       return;
     }
 
-    // 生成唯一的编辑事件ID（用于幂等性）
-    const editEventId = crypto.randomUUID();
-
     try {
-      // 调试日志
+      const num = chapterIdToNum(currentChapterId);
+      if (num === null) return;
+
+      // 乐观更新本地状态
+      setChapters((prev) =>
+        prev.map((c) =>
+          c.id === currentChapterId
+            ? { ...c, content, updatedAt: new Date().toISOString() }
+            : c
+        )
+      );
+
+      // 异步保存到 FS API
+      const saved = await chaptersFs.update(workId, num, { content });
+      // 用后端返回的数据更新字数
+      setChapters((prev) =>
+        prev.map((c) =>
+          c.id === currentChapterId
+            ? { ...c, wordCount: saved.wordCount }
+            : c
+        )
+      );
+
       console.log('[WorkDetailView] 保存章节:', {
         chapterId: currentChapterId,
-        editEventId,
+        num,
         contentPreview: content.substring(0, 50) + '...',
-      });
-
-      // 更新章节内容
-      setChapters((prevChapters) => {
-        const chapter = prevChapters.find((c) => c.id === currentChapterId);
-        if (!chapter) {
-          console.warn('[WorkDetailView] 保存失败：章节不存在', currentChapterId);
-          return prevChapters;
-        }
-
-        // 发送content和edit_event_id，让后端自动计算字数
-        const updateData = {
-          content,
-          edit_event_id: editEventId,
-        };
-
-        // 先乐观更新本地状态
-        const optimisticChapter = {
-          ...chapter,
-          content,
-          updatedAt: new Date().toISOString(),
-        };
-
-        // 异步保存到后端，获取后端返回的完整数据（包括计算后的字数）
-        DataService.updateChapter(currentChapterId, updateData)
-          .then((savedChapter) => {
-            // 使用后端返回的数据更新状态（包含准确的wordCount）
-            setChapters((prev) =>
-              prev.map((c) => (c.id === currentChapterId ? savedChapter : c))
-            );
-          })
-          .catch((error) => {
-            console.error('Failed to save chapter:', error);
-          });
-
-        // 先返回乐观更新的状态
-        return prevChapters.map((c) =>
-          c.id === currentChapterId ? optimisticChapter : c
-        );
       });
     } catch (error) {
       showToast('error', t('workDetail.toast.saveFailed'));
       console.error('Failed to save chapter:', error);
     }
-  }, [currentChapterId, showToast]);
+  }, [currentChapterId, workId, showToast]);
 
   /**
    * 处理编辑作品
@@ -1582,15 +1540,13 @@ const WorkDetailView: React.FC = () => {
     const handleChapterConfirm = async (e: Event) => {
       const customEvent = e as CustomEvent;
       const { work_id } = customEvent.detail;
-      // 只处理当前作品的事件
       if (work_id !== workId) return;
-
-      // 从数据库重新加载章节列表
       if (!workId) return;
       try {
-        const freshChapters = await DataService.getChapters(workId);
+        const fsList = await chaptersFs.list(workId);
+        const freshChapters = fsList.map(fs => fsToChapter(fs, workId));
         setChapters(freshChapters);
-        console.log('[WorkDetailView] 🔄 从数据库刷新章节列表');
+        console.log('[WorkDetailView] 🔄 从 FS 刷新章节列表');
       } catch (err) {
         console.error('[WorkDetailView] 刷新章节列表失败:', err);
       }
@@ -1599,14 +1555,19 @@ const WorkDetailView: React.FC = () => {
     const refreshChaptersAndContent = async () => {
       if (!workId) return;
       try {
-        const freshChapters = await DataService.getChapters(workId);
+        const fsList = await chaptersFs.list(workId);
+        const freshChapters = fsList.map(fs => fsToChapter(fs, workId));
         setChapters(freshChapters);
 
         const activeChapterId = editorChapterIdRef.current || currentChapterId;
         if (activeChapterId) {
-          const activeChapter = freshChapters.find(ch => ch.id === activeChapterId);
-          if (activeChapter) {
-            setCurrentChapterContent(activeChapter.content || '');
+          try {
+            const num = chapterIdToNum(activeChapterId);
+            if (num === null) return;
+            const full = await chaptersFs.get(workId, num);
+            setCurrentChapterContent(full.content || '');
+          } catch {
+            // 章节可能已被删除
           }
         }
 
@@ -1974,14 +1935,11 @@ const WorkDetailView: React.FC = () => {
           )}
 
             <div className={`flex flex-col h-full min-h-0 ${isRightCollapsed ? 'opacity-0 pointer-events-none select-none' : ''}`}>
-            {/* SessionTabBar - 始终占满宽度 */}
+            {/* SessionTabBar - 功能按钮栏 */}
             <SessionTabBar
-              tabs={tabs}
               activeTabId={activeTabId}
               isReady={isTabReady}
-              onSwitchTab={switchTab}
               onCreateTab={createTab}
-              onCloseTab={closeTab}
               onOpenHistory={handleOpenHistory}
               isLeftPanelCollapsed={isLeftCollapsed}
               onExpandLeftPanel={() => setIsLeftCollapsed(false)}
@@ -2037,7 +1995,7 @@ const WorkDetailView: React.FC = () => {
                 onWorldDataUpdate={refreshWorldData}
               />
             ) : (
-              <NovelEditor
+              <EditorWrapper
                 key={currentChapterId}
                 content={currentChapterContent}
                 onSave={handleEditorSave}
@@ -2048,17 +2006,12 @@ const WorkDetailView: React.FC = () => {
                 chapterOrder={currentChapterMeta?.order}
                 workId={workId}
                 chapterId={currentChapterId || undefined}
-                aiAutoCompleteEnabled={aiAutoCompleteEnabled}
-                onToggleAIAutoComplete={handleToggleAIAutoComplete}
                 isLeftPanelCollapsed={isLeftCollapsed}
                 onExpandLeftPanel={() => setIsLeftCollapsed(false)}
                 onCollapseLeftPanel={() => setIsLeftCollapsed(true)}
                 isRightPanelCollapsed={isEditorCollapsed}
                 onExpandRightPanel={() => setIsEditorCollapsed(false)}
                 onCollapseRightPanel={() => setIsEditorCollapsed(true)}
-                isAIPanelCollapsed={isRightCollapsed}
-                onToggleAIPanel={() => setIsRightCollapsed(false)}
-                onCollapseAIPanel={() => setIsRightCollapsed(true)}
               />
             )}
           </div>

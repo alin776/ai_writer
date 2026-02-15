@@ -369,7 +369,8 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
         if (detailRes) {
           const genreMap: { [key: string]: string } = {
             fantasy: '玄幻', urban: '都市', romance: '言情', scifi: '科幻',
-            wuxia: '武侠', game: '游戏', history: '历史', military: '军事', other: '其他',
+            wuxia: '武侠', game: '游戏', history: '历史', military: '军事',
+            suspense: '悬疑', western_fantasy: '西幻', apocalypse: '末世', other: '其他',
           };
           const statusMap: { [key: string]: string } = {
             writing: '连载中', completed: '已完结', draft: '草稿', abandoned: '已弃坑',

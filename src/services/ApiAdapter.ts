@@ -348,3 +348,6 @@ case 403:
   }
 }
 
+/** 共享 ApiAdapter 单例（避免多实例的 token 刷新竞态） */
+export const sharedApi = new ApiAdapter();
+

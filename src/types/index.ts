@@ -141,10 +141,10 @@ export type WorkGenre =
   | 'game'
   | 'history'
   | 'military'
-  | 'other'
-  | '仙侠'
-  | '科幻'
-  | '都市';
+  | 'suspense'
+  | 'western_fantasy'
+  | 'apocalypse'
+  | 'other';
 
 /**
  * 作品接口

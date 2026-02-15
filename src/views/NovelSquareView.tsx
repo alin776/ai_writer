@@ -19,6 +19,9 @@ const GENRE_MAP: Record<string, string> = {
   '游戏': 'game',
   '历史': 'history',
   '军事': 'military',
+  '悬疑': 'suspense',
+  '西幻': 'western_fantasy',
+  '末世': 'apocalypse',
   '其他': 'other',
 };
 

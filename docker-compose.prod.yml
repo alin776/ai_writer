@@ -41,21 +41,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ==================== OpenSearch ====================
-  opensearch:
-    image: opensearchproject/opensearch:2.11.1
-    container_name: wenshu_opensearch
-    restart: always
-    environment:
-      - discovery.type=single-node
-      - DISABLE_SECURITY_PLUGIN=true
-      - DISABLE_INSTALL_DEMO_CONFIG=true
-      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
-    volumes:
-      - opensearch_data:/usr/share/opensearch/data
-    networks:
-      - wenshu_network
-
   # ==================== 后端API ====================
   backend:
     build:
@@ -68,47 +53,17 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://${DB_USER:-novelaide}:${DB_PASSWORD:-novelaide_password}@postgres:5432/${DB_NAME:-novelaide}
       - REDIS_URL=redis://redis:6379/0
-      - OPENSEARCH_HOSTS=http://opensearch:9200
       - ENABLE_SCHEDULER=false
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      opensearch:
-        condition: service_started
     networks:
       - wenshu_network
     volumes:
       - backend_logs:/app/logs
       - backend_uploads:/app/uploads
-
-  # ==================== 定时任务 ====================
-  scheduler:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: wenshu_scheduler
-    restart: always
-    command: ["python", "-m", "app.tasks.scheduler_runner"]
-    env_file:
-      - ./backend/.env.prod
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-novelaide}:${DB_PASSWORD:-novelaide_password}@postgres:5432/${DB_NAME:-novelaide}
-      - REDIS_URL=redis://redis:6379/0
-      - OPENSEARCH_HOSTS=http://opensearch:9200
-      - ENABLE_SCHEDULER=true
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      opensearch:
-        condition: service_started
-    networks:
-      - wenshu_network
-    volumes:
-      - backend_logs:/app/logs
 
   # ==================== 前端 + Nginx ====================
   frontend:
@@ -132,8 +87,6 @@ volumes:
     name: wenshu_postgres_data
   redis_data:
     name: wenshu_redis_data
-  opensearch_data:
-    name: wenshu_opensearch_data
   backend_logs:
     name: wenshu_backend_logs
   backend_uploads:

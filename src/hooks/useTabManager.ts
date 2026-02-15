@@ -35,6 +35,12 @@ const DEFAULT_TITLE = '新会话';
  */
 export function useTabManager(chapterId: string, workId?: string): UseTabManagerReturn {
   const resolvedChapterId = chapterId || '';
+  // fs-N 格式的 chapterId 跨作品重复，加 workId 前缀做存储隔离
+  // UUID 格式天然唯一，无需前缀，保持向后兼容
+  const storageChapterId =
+    workId && resolvedChapterId.startsWith('fs-')
+      ? `${workId}:${resolvedChapterId}`
+      : resolvedChapterId;
   const isReady = Boolean(resolvedChapterId);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>('');
@@ -56,7 +62,7 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
       const resp = await agentApi.createSession({
         title: DEFAULT_TITLE,
         work_id: workId,
-        chapter_id: resolvedChapterId !== 'default' ? resolvedChapterId : undefined,
+        chapter_id: undefined,  // 会话与作品绑定，不绑章节
         conversation_id: sessionId
       });
       sessionId = resp.session_id || sessionId;
@@ -69,7 +75,7 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
 
     const newTab: Tab = {
       id: `tab_${timestamp}_${random}`,
-      chapterId: resolvedChapterId,
+      chapterId: storageChapterId,
       title,
       sessionId,
       conversationId: conversationId || sessionId,
@@ -78,9 +84,9 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
     };
 
     saveTab(newTab);
-    addTabToChapter(resolvedChapterId, newTab.id);
+    addTabToChapter(storageChapterId, newTab.id);
     return newTab;
-  }, [isReady, resolvedChapterId, workId]);
+  }, [isReady, resolvedChapterId, storageChapterId, workId]);
 
   // Load tabs for the chapter and bootstrap a first tab when empty.
   useEffect(() => {
@@ -93,24 +99,24 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
         setActiveTabId('');
         return;
       }
-      let chapterTabs = getChapterTabs(resolvedChapterId);
+      let chapterTabs = getChapterTabs(storageChapterId);
 
       if (chapterTabs.length === 0) {
-        const recovered = recoverChapterTabsFromStorage(resolvedChapterId);
+        const recovered = recoverChapterTabsFromStorage(storageChapterId);
         if (recovered.length > 0) {
           chapterTabs = recovered;
         }
       }
 
       if (chapterTabs.length === 0 && workId) {
-        const migrated = migrateChapterTabs(workId, resolvedChapterId);
+        const migrated = migrateChapterTabs(workId, storageChapterId);
         if (migrated.length > 0) {
           chapterTabs = migrated;
         }
       }
 
       if (chapterTabs.length === 0) {
-        const rebuilt = rebuildChapterTabsFromSessions(resolvedChapterId);
+        const rebuilt = rebuildChapterTabsFromSessions(storageChapterId);
         if (rebuilt.length > 0) {
           chapterTabs = rebuilt;
         }
@@ -121,19 +127,19 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
         if (!mounted) return;
         setTabs([newTab]);
         setActiveTabId(newTab.id);
-        saveChapterActiveTab(resolvedChapterId, newTab.id);
+        saveChapterActiveTab(storageChapterId, newTab.id);
         return;
       }
 
       if (!mounted) return;
       setTabs(chapterTabs);
-      const storedActiveId = getChapterActiveTab(resolvedChapterId);
+      const storedActiveId = getChapterActiveTab(storageChapterId);
       const fallbackId = chapterTabs[0].id;
       const activeId =
         storedActiveId && chapterTabs.some((t) => t.id === storedActiveId) ? storedActiveId : fallbackId;
       setActiveTabId(activeId);
       if (activeId !== storedActiveId) {
-        saveChapterActiveTab(resolvedChapterId, activeId);
+        saveChapterActiveTab(storageChapterId, activeId);
       }
     };
 
@@ -141,7 +147,7 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
     return () => {
       mounted = false;
     };
-  }, [isReady, resolvedChapterId, workId, createNewTab]);
+  }, [isReady, storageChapterId, workId, createNewTab]);
 
   const createTab = useCallback(
     async (afterTabId?: string): Promise<Tab> => {
@@ -151,17 +157,17 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
       const newTab = await createNewTab();
 
       if (afterTabId) {
-        insertTabAfter(resolvedChapterId, newTab.id, afterTabId);
-        setTabs(getChapterTabs(resolvedChapterId));
+        insertTabAfter(storageChapterId, newTab.id, afterTabId);
+        setTabs(getChapterTabs(storageChapterId));
       } else {
         setTabs((prev) => [...prev, newTab]);
       }
 
       setActiveTabId(newTab.id);
-      saveChapterActiveTab(resolvedChapterId, newTab.id);
+      saveChapterActiveTab(storageChapterId, newTab.id);
       return newTab;
     },
-    [createNewTab, isReady, resolvedChapterId]
+    [createNewTab, isReady, storageChapterId]
   );
 
   const refreshTabsFromStorage = useCallback(() => {
@@ -170,16 +176,16 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
       setActiveTabId('');
       return;
     }
-    const storedTabs = getChapterTabs(resolvedChapterId);
+    const storedTabs = getChapterTabs(storageChapterId);
     setTabs(storedTabs);
-    const storedActiveId = getChapterActiveTab(resolvedChapterId);
+    const storedActiveId = getChapterActiveTab(storageChapterId);
     if (storedActiveId && storedTabs.some((t) => t.id === storedActiveId)) {
       setActiveTabId(storedActiveId);
     } else if (storedTabs.length > 0) {
       setActiveTabId(storedTabs[0].id);
-      saveChapterActiveTab(resolvedChapterId, storedTabs[0].id);
+      saveChapterActiveTab(storageChapterId, storedTabs[0].id);
     }
-  }, [isReady, resolvedChapterId]);
+  }, [isReady, storageChapterId]);
 
   const closeTab = useCallback(
     (tabId: string) => {
@@ -189,28 +195,28 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
       }
 
       deleteTab(tabId);
-      removeTabFromChapter(resolvedChapterId, tabId);
+      removeTabFromChapter(storageChapterId, tabId);
 
       if (tabId === activeTabId) {
         const index = tabs.findIndex((t) => t.id === tabId);
         const nextTab = tabs[index + 1] || tabs[index - 1];
         if (nextTab) {
           setActiveTabId(nextTab.id);
-          saveChapterActiveTab(resolvedChapterId, nextTab.id);
+          saveChapterActiveTab(storageChapterId, nextTab.id);
         }
       }
 
       setTabs((prev) => prev.filter((t) => t.id !== tabId));
     },
-    [activeTabId, resolvedChapterId, tabs]
+    [activeTabId, storageChapterId, tabs]
   );
 
   const switchTab = useCallback(
     (tabId: string) => {
       setActiveTabId(tabId);
-      saveChapterActiveTab(resolvedChapterId, tabId);
+      saveChapterActiveTab(storageChapterId, tabId);
     },
-    [resolvedChapterId]
+    [storageChapterId]
   );
 
   const updateTabTitle = useCallback((tabId: string, title: string) => {
@@ -251,14 +257,14 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
       const existing = tabs.find((t) => t.sessionId === sessionId);
       if (existing) {
         setActiveTabId(existing.id);
-        saveChapterActiveTab(resolvedChapterId, existing.id);
+        saveChapterActiveTab(storageChapterId, existing.id);
         return existing;
       }
 
       const now = new Date().toISOString();
       const newTab: Tab = {
         id: `tab_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        chapterId: resolvedChapterId,
+        chapterId: storageChapterId,
         title: title || DEFAULT_TITLE,
         sessionId,
         conversationId: conversationId || sessionId,
@@ -267,13 +273,13 @@ export function useTabManager(chapterId: string, workId?: string): UseTabManager
       };
 
       saveTab(newTab);
-      addTabToChapter(resolvedChapterId, newTab.id);
+      addTabToChapter(storageChapterId, newTab.id);
       setTabs((prev) => [...prev, newTab]);
       setActiveTabId(newTab.id);
-      saveChapterActiveTab(resolvedChapterId, newTab.id);
+      saveChapterActiveTab(storageChapterId, newTab.id);
       return newTab;
     },
-    [resolvedChapterId, tabs]
+    [storageChapterId, tabs]
   );
 
   useEffect(() => {

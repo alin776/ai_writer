@@ -7,9 +7,9 @@ import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
 import { DataService } from '../../services/DataService';
+import BatchActions from '../agent/BatchActions';
 import type { AgentChatRequest, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
 import { ExecutionFlow } from '../agent/ExecutionFlow';  // v5.0: 执行轨迹可视化
-import AgentEditConfirmDialog from '../agent/AgentEditConfirmDialog';  // 编辑确认对话框
 import {
   Dialog,
   DialogContent,
@@ -337,6 +337,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     hasOperations,
     acceptAllOperations,
     rollbackAllOperations,
+    conversationId,
   } = useAgentChat({ workId, chapterId, sessionId });  // 传入 workId 和 chapterId 进行会话隔离
 
   // 获取当前章节内容，用 @optimization 直接调用去痕迹接口
@@ -1941,29 +1942,31 @@ ${selectionContext.selected_text}
 
       <div className={`flex w-full ${expandedMode ? 'justify-center' : ''}`}>
         <div className={`${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
-          {/* v8.0: 批量操作确认（采纳/弃用）- 放在任务列表上方 */}
-          {hasOperations && !isLoading && (
-            <div className="mb-2 p-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <p className="text-[12px] text-zinc-600 dark:text-slate-300 mb-2">
-                Agent 已执行章节操作，请确认是否保留这些修改：
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={rollbackAllOperations}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-zinc-100 hover:bg-zinc-200 text-zinc-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded-full border border-zinc-200 dark:border-slate-600 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  弃用
-                </button>
-                <button
-                  onClick={acceptAllOperations}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-green-50 hover:bg-green-100 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 rounded-full border border-green-200 dark:border-green-800 transition-colors"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  采纳
-                </button>
-              </div>
-            </div>
+          {/* v8.0 → v3.3: 批量审批面板（BatchActions 替代旧的简单按钮） */}
+          {hasOperations && !isLoading && conversationId && (
+            <BatchActions
+              conversationId={conversationId}
+              onAllAccepted={() => {
+                // BatchActions 已调过 changesApi.acceptAll，这里只同步状态 + 派发事件
+                // 不调 acceptAllOperations() 以避免双重 API 调用
+                window.dispatchEvent(new CustomEvent('agent-accept-all-revisions', {
+                  detail: { conversationId }
+                }));
+              }}
+              onAllRejected={() => {
+                window.dispatchEvent(new CustomEvent('agent-discard-all-revisions', {
+                  detail: { conversationId }
+                }));
+                window.dispatchEvent(new CustomEvent('agent-operations-rollback', {
+                  detail: { conversationId }
+                }));
+              }}
+              onRefreshChapters={() => {
+                window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
+                  detail: { work_id: workId }
+                }));
+              }}
+            />
           )}
 
           {/* 建议操作 */}

@@ -89,8 +89,6 @@ async def lifespan(app: FastAPI):
 
     await init_db()
 
-    # OpenSearch 同步链路已停用：启动阶段不再执行重建/审计。
-
     # 初始化官方频道
     try:
         from init_official_channels_sql import init_channels
@@ -107,45 +105,6 @@ async def lifespan(app: FastAPI):
         scheduler_started = True
     else:
         logger.info("[STARTUP] 跳过启动定时任务调度器（ENABLE_SCHEDULER=false）")
-
-    # 🔧 修复：预初始化同步Redis连接池（避免首次请求慢）
-    try:
-        from app.api.v1.agent import get_redis_client
-        import asyncio
-        logger.info("[STARTUP] 开始预初始化同步Redis连接...")
-        # 在线程中执行同步Redis操作
-        await asyncio.to_thread(lambda: get_redis_client().ping())
-        logger.info("[STARTUP] ✅ 同步Redis连接池预初始化完成")
-    except Exception as e:
-        logger.warning(f"[STARTUP] ⚠️ 同步Redis连接池预初始化失败: {e}")
-
-    # 预初始化AsyncRedisSaver索引（性能优化）- 暂时禁用，避免启动超时
-    try:
-        from app.services.agent.langgraph_agent import WritingAgentGraph
-        logger.info("[STARTUP] 开始初始化AsyncRedisSaver索引...")
-        await WritingAgentGraph.setup_checkpointer()
-        logger.info("[STARTUP] AsyncRedisSaver索引初始化完成")
-    except Exception as e:
-        logger.warning(f"[STARTUP] AsyncRedisSaver索引初始化失败: {e}")
-
-    # 预加载Embedding模型（性能优化）- 暂时禁用，避免启动超时
-    try:
-        from app.services.vector_store_service import VectorStoreService
-        logger.info("[STARTUP] 开始预加载Embedding模型...")
-        VectorStoreService.preload_model()
-        logger.info("[STARTUP] Embedding模型预加载完成")
-    except Exception as e:
-        logger.warning(f"[STARTUP] Embedding模型预加载失败: {e}")
-        logger.warning("[STARTUP] 首次向量化时将自动加载模型")
-
-    # 预加载 SentenceTransformer（VectorMemoryStore 单例，避免首次请求 12s 阻塞）
-    try:
-        from app.services.context.vector_memory_store import get_vector_memory_store
-        logger.info("[STARTUP] 开始预加载 SentenceTransformer 模型...")
-        get_vector_memory_store()
-        logger.info("[STARTUP] ✅ SentenceTransformer 模型预加载完成")
-    except Exception as e:
-        logger.warning(f"[STARTUP] SentenceTransformer 预加载失败: {e}")
 
     logger.info("[STARTUP] 应用启动完成")
 

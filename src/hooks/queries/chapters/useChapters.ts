@@ -1,5 +1,6 @@
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
-import { DataService } from '@/services/DataService';
+import { chaptersFs } from '@/services/chaptersFs';
+import { fsToChapter } from '@/utils/fsChapterAdapter';
 import { queryKeys } from '../queryKeys';
 import { queryOptions } from '@/config/queryClient';
 import type { Chapter } from '@/types';
@@ -24,7 +25,8 @@ export const useChapters = (
     queryKey: queryKeys.chapters.list(workId!),
     queryFn: async () => {
       if (!workId) throw new Error('Work ID is required');
-      return await DataService.getChapters(workId);
+      const fsList = await chaptersFs.list(workId);
+      return fsList.map(fs => fsToChapter(fs, workId));
     },
     enabled: !!workId,
     ...queryOptions.static,

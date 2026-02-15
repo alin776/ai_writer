@@ -73,7 +73,6 @@ class Work(Base):
     ai_guidelines = relationship("AIGuidelines", back_populates="work", cascade="all, delete-orphan", uselist=False)
     novel_analysis = relationship("NovelAnalysis", back_populates="work", cascade="all, delete-orphan", uselist=False)
     analysis_vectors = relationship("NovelAnalysisVector", back_populates="work", cascade="all, delete-orphan")
-    chapter_vectors = relationship("NovelChapterVector", back_populates="work", cascade="all, delete-orphan")
     knowledge_items = relationship("KnowledgeItem", back_populates="work", cascade="all, delete-orphan")
     bookshelf_items = relationship("Bookshelf", back_populates="work", cascade="all, delete-orphan", passive_deletes=True)
     entity_relationships = relationship("EntityRelationship", back_populates="work", cascade="all, delete-orphan")

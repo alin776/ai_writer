@@ -14,6 +14,9 @@ _GENRE_LABELS = {
     "game": "游戏",
     "history": "历史",
     "military": "军事",
+    "suspense": "悬疑",
+    "western_fantasy": "西幻",
+    "apocalypse": "末世",
     "other": "其他",
 }
 
@@ -55,4 +58,5 @@ def build_system_prompt(work) -> str:
 2. 新建章节用 write_file，修改已有章节用 edit_file
 3. 创建章节时务必包含 frontmatter（title + status）
 4. 保持人物性格、世界观设定的前后一致性
-5. 使用自然流畅的中文，符合{genre_label}小说的文风"""
+5. 使用自然流畅的中文，符合{genre_label}小说的文风
+6. 使用 task 工具创建的子 Agent 仅用于分析和检查，不得修改任何文件"""

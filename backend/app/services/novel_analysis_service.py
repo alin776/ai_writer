@@ -12,7 +12,6 @@ import logging
 from app.models.novel_analysis import NovelAnalysis, AnalysisStatus, AnalysisStage
 from app.models.work import Work
 from app.models.chapter import Chapter
-from app.services.chapter_content_provider import ChapterContentProvider
 from app.schemas.novel_analysis import (
     NovelAnalysisCreate,
     NovelAnalysisUpdate,
@@ -413,7 +412,4 @@ class NovelAnalysisService:
             .order_by(Chapter.order)
         )
         chapters = result.scalars().all()
-        content_provider = ChapterContentProvider()
-        for chapter in chapters:
-            content_provider.hydrate_chapter(chapter)
         return chapters

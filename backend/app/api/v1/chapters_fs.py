@@ -127,6 +127,24 @@ def _next_chapter_num(chapters_dir: Path) -> int:
     return existing[-1][0] + 1
 
 
+def _resolve_chapter_path(chapters_dir: Path, num: int) -> Optional[Path]:
+    """Resolve chapter path with compatibility for legacy filename formats."""
+    preferred_candidates = (
+        chapters_dir / f"{num:02d}.md",
+        chapters_dir / f"{num:04d}.md",
+        chapters_dir / f"{num}.md",
+    )
+    for candidate in preferred_candidates:
+        if candidate.exists():
+            return candidate
+
+    for chapter_num, chapter_path in _list_chapter_files(chapters_dir):
+        if chapter_num == num:
+            return chapter_path
+
+    return None
+
+
 # ─── 章节端点 ───
 
 
@@ -181,9 +199,10 @@ async def get_chapter(
 ):
     """读取单个章节（含正文内容）。"""
     _, work_dir = await _get_work_and_dir(work_id, current_user, db)
-    chapter_path = work_dir / "chapters" / f"{num:02d}.md"
+    chapters_dir = work_dir / "chapters"
+    chapter_path = _resolve_chapter_path(chapters_dir, num)
 
-    if not chapter_path.exists():
+    if chapter_path is None:
         raise HTTPException(status_code=404, detail=f"Chapter {num} not found")
 
     raw = await asyncio.to_thread(chapter_path.read_text, "utf-8")
@@ -244,9 +263,10 @@ async def update_chapter(
 ):
     """更新章节（标题/内容/状态）。"""
     _, work_dir = await _get_work_and_dir(work_id, current_user, db)
-    chapter_path = work_dir / "chapters" / f"{num:02d}.md"
+    chapters_dir = work_dir / "chapters"
+    chapter_path = _resolve_chapter_path(chapters_dir, num)
 
-    if not chapter_path.exists():
+    if chapter_path is None:
         raise HTTPException(status_code=404, detail=f"Chapter {num} not found")
 
     raw = await asyncio.to_thread(chapter_path.read_text, "utf-8")
@@ -282,9 +302,10 @@ async def delete_chapter(
 ):
     """删除章节文件。"""
     _, work_dir = await _get_work_and_dir(work_id, current_user, db)
-    chapter_path = work_dir / "chapters" / f"{num:02d}.md"
+    chapters_dir = work_dir / "chapters"
+    chapter_path = _resolve_chapter_path(chapters_dir, num)
 
-    if not chapter_path.exists():
+    if chapter_path is None:
         raise HTTPException(status_code=404, detail=f"Chapter {num} not found")
 
     await asyncio.to_thread(chapter_path.unlink)

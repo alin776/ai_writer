@@ -2,17 +2,13 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { SquarePen, Globe2, Clock3, List, FileEdit } from 'lucide-react';
 import { useEditorStore, type RightSidebarType } from '../../store/editorStore';
-import type { Tab } from '@/utils/tabStorage';
 import clsx from 'clsx';
 
 interface SessionTabBarProps {
-  tabs: Tab[];
-  activeTabId: string;
   isReady?: boolean;
-  onSwitchTab: (tabId: string) => void;
   onCreateTab: (afterTabId?: string) => Promise<any>;
-  onCloseTab: (tabId: string) => void;
   onOpenHistory?: () => void;
+  activeTabId?: string;
   // 左侧面板（目录）展开/收缩
   isLeftPanelCollapsed?: boolean;
   onExpandLeftPanel?: () => void;
@@ -23,18 +19,15 @@ interface SessionTabBarProps {
 }
 
 /**
- * SessionTabBar 组件 - 会话标签栏
+ * SessionTabBar 组件 - 功能按钮栏
  *
- * 布局: [目录] [+] [🌍] [🕐] [📖] ... [会话标签...]
+ * 布局: [目录] [🕐] [🌍] [📖] [+]
  */
 export const SessionTabBar: React.FC<SessionTabBarProps> = ({
-  tabs,
-  activeTabId,
   isReady = true,
-  onSwitchTab,
   onCreateTab,
-  onCloseTab,
   onOpenHistory,
+  activeTabId,
   isLeftPanelCollapsed = false,
   onExpandLeftPanel,
   onCollapseLeftPanel,
@@ -44,7 +37,6 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   const { t } = useTranslation();
   const { rightSidebarType, toggleRightSidebar, closeRightSidebar } = useEditorStore();
   const [creating, setCreating] = React.useState(false);
-  const tabsContainerRef = React.useRef<HTMLDivElement>(null);
   // 记录打开世界观前编辑器是否收缩
   const editorWasCollapsedRef = React.useRef<boolean | null>(null);
 
@@ -65,18 +57,9 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
     { type: 'worldview' as RightSidebarType, icon: Globe2, title: t('editor.sessionTab.worldview') },
   ];
 
-  const handleTabsWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    const container = tabsContainerRef.current;
-    if (!container) return;
-    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    if (delta === 0) return;
-    container.scrollLeft += delta;
-    e.preventDefault();
-  };
-
   return (
-    <div className="flex items-center justify-between h-10 px-3 bg-white dark:bg-slate-900">
-      {/* 左侧：功能按钮组 */}
+    <div className="flex items-center h-10 px-3 bg-white dark:bg-slate-900">
+      {/* 功能按钮组 */}
       <div className="flex items-center gap-1">
         {/* 1. 目录展开/收缩按钮 */}
         {isLeftPanelCollapsed ? (
@@ -111,20 +94,17 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
           <button
             key={type}
             onClick={() => {
-              // 判断当前是否正在打开世界观面板（而非关闭）
               const isOpening = rightSidebarType !== type;
 
               if (type === 'worldview' && onToggleEditor) {
                 if (isOpening) {
-                  // 打开世界观：记录当前编辑器状态，如果收缩则展开
                   editorWasCollapsedRef.current = isEditorCollapsed;
                   if (isEditorCollapsed) {
-                    onToggleEditor(); // 展开
+                    onToggleEditor();
                   }
                 } else {
-                  // 关闭世界观：恢复到之前的状态
                   if (editorWasCollapsedRef.current === true && !isEditorCollapsed) {
-                    onToggleEditor(); // 收缩回去
+                    onToggleEditor();
                   }
                   editorWasCollapsedRef.current = null;
                 }
@@ -169,57 +149,6 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
         >
           <SquarePen className="w-4 h-4" />
         </button>
-      </div>
-
-      {/* 右侧：会话标签区域 */}
-      <div
-        ref={tabsContainerRef}
-        onWheel={handleTabsWheel}
-        className="flex items-center gap-1 flex-1 overflow-x-auto overflow-y-hidden justify-end"
-      >
-        {tabs.map((tab) => {
-          const isActive = tab.id === activeTabId;
-          const title = tab.title?.trim() || t('editor.sessionTab.newSession');
-
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onSwitchTab(tab.id)}
-              className={clsx(
-                'group flex items-center gap-1.5 px-2.5 h-8 rounded-md border transition-all text-sm max-w-[100px]',
-                isActive
-                  ? 'bg-slate-100 dark:bg-slate-800 border-gray-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
-                  : 'bg-white dark:bg-slate-900 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-gray-200 dark:hover:border-slate-600'
-              )}
-              title={title}
-            >
-              <span className="truncate text-[13px]">{title}</span>
-              {tabs.length > 1 && (
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCloseTab(tab.id);
-                  }}
-                  className="ml-1 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 text-xs transition-colors"
-                  title={t('editor.sessionTab.closeSession')}
-                >
-                  ×
-                </span>
-              )}
-            </button>
-          );
-        })}
-
-        {!isReady && (
-          <span className="text-sm text-slate-400 dark:text-slate-500 px-2">
-            {t('common.loading')}
-          </span>
-        )}
-        {isReady && tabs.length === 0 && (
-          <span className="text-sm text-slate-400 dark:text-slate-500 px-2">
-            {t('editor.sessionTab.noSessions')}
-          </span>
-        )}
       </div>
     </div>
   );

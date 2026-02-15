@@ -1,21 +1,13 @@
 from typing import List, Optional
-import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update as sql_update
+from sqlalchemy import select, func
 from sqlalchemy.orm.attributes import set_committed_value
 import re
 import logging
 
 from app.models.chapter import Chapter, ChapterStatus
-from app.models.novel_chapter_vector import NovelChapterVector
 from app.schemas.chapter import ChapterCreate, ChapterUpdate
 from app.utils.cache import CacheInvalidator
-from app.core.redis import redis_client, CacheKey, CacheExpire
-from app.services.chapter_history_service import ChapterHistoryService
-from app.services.chapter_word_stat_service import ChapterWordStatService
-from app.services.chapter_content_provider import ChapterContentProvider
-from app.services.chapter_content_index_service import ChapterContentIndexService
-from app.utils.chapter_file_storage import chapter_storage
 from app.utils.html_block_ids import ensure_block_ids
 
 logger = logging.getLogger(__name__)
@@ -56,59 +48,6 @@ class ChapterService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.content_provider = ChapterContentProvider()
-        self.index_service = ChapterContentIndexService(db)
-
-    def _schedule_vectorization(self, chapter: Chapter, content: str) -> None:
-        if not content or not content.strip():
-            return
-
-        expected_version = getattr(chapter, "version", None)
-
-        async def _run_vectorization():
-            try:
-                from app.core.database import async_session_maker
-                from app.services.chapter_vector_service import ChapterVectorService
-                from app.models.chapter import Chapter
-
-                async with async_session_maker() as db:
-                    if expected_version is not None:
-                        result = await db.execute(
-                            select(Chapter.version).where(Chapter.id == chapter.id)
-                        )
-                        current_version = result.scalar_one_or_none()
-                        if current_version is None or current_version != expected_version:
-                            logger.info(
-                                "[ChapterService] 向量化跳过: 版本已更新 chapter_id=%s expected=%s current=%s",
-                                chapter.id,
-                                expected_version,
-                                current_version
-                            )
-                            return
-                    service = ChapterVectorService(db)
-                    await service.store_chapter_vector(
-                        work_id=str(chapter.work_id),
-                        chapter_id=str(chapter.id),
-                        chapter_order=chapter.order,
-                        chapter_title=chapter.title,
-                        content=content
-                    )
-            except Exception as exc:
-                logger.error(f"[ChapterService] 自动向量化失败: {exc}", exc_info=True)
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            logger.warning("[ChapterService] 未找到运行中的事件循环，跳过自动向量化")
-            return
-        loop.create_task(_run_vectorization())
-
-    def _invalidate_vector_fresh_cache(self, work_id: str) -> None:
-        try:
-            from app.services.chapter_vector_service import invalidate_vector_fresh_cache
-            invalidate_vector_fresh_cache(work_id)
-        except Exception as exc:
-            logger.warning(f"[ChapterService] 向量新鲜度缓存失效失败: {exc}")
 
     async def _invalidate_explore_result_cache(self, work_id: str) -> None:
         try:
@@ -123,8 +62,6 @@ class ChapterService:
             select(Chapter).where(Chapter.id == chapter_id)
         )
         chapter = result.scalar_one_or_none()
-        if chapter:
-            self.content_provider.hydrate_chapter(chapter)
         return chapter
     
     async def get_chapters_by_work(
@@ -162,9 +99,6 @@ class ChapterService:
                 logger.info(f"  - ... ({len(chapters) - 2} more chapters)")
             if len(chapters) > 1:
                 logger.info(f"  - Chapter: {chapters[-1].title}, order={chapters[-1].order}")
-
-        for chapter in chapters:
-            self.content_provider.hydrate_chapter(chapter)
 
         return chapters
     
@@ -215,45 +149,7 @@ class ChapterService:
         await self.db.refresh(chapter)
         set_committed_value(chapter, "content", content_text)
 
-        try:
-            chapter_storage.write_content(
-                str(chapter.work_id), str(chapter.id), content_text
-            )
-            index_updated = await self.index_service.upsert_from_content(
-                str(chapter.work_id), str(chapter.id), content_text
-            )
-            if index_updated:
-                self._invalidate_vector_fresh_cache(str(chapter.work_id))
-        except Exception as exc:
-            logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
-
-        self._schedule_vectorization(chapter, content_text)
         await self._invalidate_explore_result_cache(str(chapter.work_id))
-
-        # 记录历史，便于后续增量统计
-        history_service = ChapterHistoryService(self.db)
-        try:
-            await history_service.save_history(
-                chapter_id=str(chapter.id),
-                content=content_text,
-                version=chapter.version,
-                modified_by="user",
-                operation="create",
-                description="初始创建快照"
-            )
-        except Exception:
-            # 不影响主流程
-            pass
-
-        # 记录增量（新建章节，delta = 总字数）
-        try:
-            stat_service = ChapterWordStatService(self.db)
-            # 获取 edit_event_id（如果前端传递了）
-            edit_event_id = getattr(chapter_data, 'edit_event_id', None)
-            await stat_service.add_delta(chapter.id, word_count, edit_event_id=edit_event_id)
-        except Exception as e:
-            logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
-            pass
 
         return chapter
 
@@ -317,18 +213,6 @@ class ChapterService:
             await self.db.commit()
             await self.db.refresh(chapter)
             set_committed_value(chapter, "content", content_text)
-            try:
-                chapter_storage.write_content(
-                    str(chapter.work_id), str(chapter.id), content_text
-                )
-                index_updated = await self.index_service.upsert_from_content(
-                    str(chapter.work_id), str(chapter.id), content_text
-                )
-                if index_updated:
-                    self._invalidate_vector_fresh_cache(str(chapter.work_id))
-            except Exception as exc:
-                logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
-            self._schedule_vectorization(chapter, content_text)
             await self._invalidate_explore_result_cache(str(chapter.work_id))
             return chapter
 
@@ -340,14 +224,9 @@ class ChapterService:
         chapter = await self.get_chapter_by_id(chapter_id)
         if not chapter:
             return None
-        
+
         work_id = str(chapter.work_id)
-        original_content = chapter.content or ""
-        original_version = chapter.version
-        original_word_count = chapter.word_count or 0
-        history_service = ChapterHistoryService(self.db)
-        stat_service = ChapterWordStatService(self.db)
-        
+
         # 更新字段
         update_data = chapter_data.model_dump(exclude_unset=True)
         content_updated = "content" in update_data
@@ -382,59 +261,12 @@ class ChapterService:
         if content_updated:
             set_committed_value(chapter, "content", new_content)
 
-        if content_updated:
-            try:
-                chapter_storage.write_content(
-                    str(chapter.work_id), str(chapter.id), new_content
-                )
-                index_updated = await self.index_service.upsert_from_content(
-                    str(chapter.work_id), str(chapter.id), new_content
-                )
-                if index_updated:
-                    self._invalidate_vector_fresh_cache(str(chapter.work_id))
-            except Exception as exc:
-                logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
-            self._schedule_vectorization(chapter, new_content)
-        
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
         await self._invalidate_explore_result_cache(work_id)
 
-        # 记录历史，便于后续增量统计：先保存旧版本，再保存新版本
-        try:
-            await history_service.save_history(
-                chapter_id=str(chapter.id),
-                content=original_content,
-                version=original_version,
-                modified_by="user",
-                operation="before_update",
-                description="更新前快照"
-            )
-            await history_service.save_history(
-                chapter_id=str(chapter.id),
-                content=new_content if content_updated else original_content,
-                version=chapter.version,
-                modified_by="user",
-                operation="update",
-                description="自动保存快照"
-            )
-        except Exception:
-            # 不影响主流程
-            pass
-
-        # 记录增量（delta = 新旧字数差）
-        try:
-            new_word_count = chapter.word_count or 0
-            delta = new_word_count - original_word_count
-            # 获取 edit_event_id（如果前端传递了）
-            edit_event_id = getattr(chapter_data, 'edit_event_id', None)
-            await stat_service.add_delta(chapter.id, delta, edit_event_id=edit_event_id)
-        except Exception as e:
-            logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
-            pass
-        
         return chapter
-    
+
     async def delete_chapter(self, chapter_id: str) -> bool:
         """删除章节"""
         chapter = await self.get_chapter_by_id(chapter_id)
@@ -460,13 +292,6 @@ class ChapterService:
         
         await self.db.commit()
 
-        try:
-            chapter_storage.delete_content(str(work_id), chapter_id)
-            await self.index_service.delete_index(chapter_id)
-        except Exception as exc:
-            logger.warning(f"[ChapterService] 删除章节文件或索引失败: {exc}")
-        self._invalidate_vector_fresh_cache(str(work_id))
-        
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id_str)
         await self._invalidate_explore_result_cache(work_id_str)
@@ -484,20 +309,6 @@ class ChapterService:
 
         await self.db.commit()
 
-        if updated_pairs:
-            try:
-                for chapter_id, chapter_order in updated_pairs:
-                    stmt = (
-                        sql_update(NovelChapterVector)
-                        .where(NovelChapterVector.chapter_id == chapter_id)
-                        .values(chapter_order=chapter_order)
-                    )
-                    await self.db.execute(stmt)
-                await self.db.commit()
-            except Exception as exc:
-                await self.db.rollback()
-                logger.warning(f"[ChapterService] 重排向量顺序失败: {exc}")
-        self._invalidate_vector_fresh_cache(str(work_id))
         await self._invalidate_explore_result_cache(str(work_id))
         return True
 
@@ -531,7 +342,6 @@ class ChapterService:
             return (None, "conflict")
 
         work_id = str(chapter.work_id)
-        original_word_count = chapter.word_count or 0
 
         # 更新数据
         update_data = chapter_data.model_dump(exclude_unset=True)
@@ -567,35 +377,9 @@ class ChapterService:
         if content_updated:
             set_committed_value(chapter, "content", new_content)
 
-        if content_updated:
-            try:
-                chapter_storage.write_content(
-                    str(chapter.work_id), str(chapter.id), new_content
-                )
-                index_updated = await self.index_service.upsert_from_content(
-                    str(chapter.work_id), str(chapter.id), new_content
-                )
-                if index_updated:
-                    self._invalidate_vector_fresh_cache(str(chapter.work_id))
-            except Exception as exc:
-                logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
-            self._schedule_vectorization(chapter, new_content)
-
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, work_id)
         await self._invalidate_explore_result_cache(work_id)
-
-        # 记录增量（delta = 新旧字数差）
-        try:
-            stat_service = ChapterWordStatService(self.db)
-            new_word_count = chapter.word_count or 0
-            delta = new_word_count - original_word_count
-            # 获取 edit_event_id（如果前端传递了）
-            edit_event_id = getattr(chapter_data, 'edit_event_id', None)
-            await stat_service.add_delta(chapter.id, delta, edit_event_id=edit_event_id)
-        except Exception as e:
-            logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
-            pass
 
         return (chapter, "")
 
@@ -622,8 +406,6 @@ class ChapterService:
         if not chapter:
             return None
 
-        original_word_count = chapter.word_count or 0
-
         base_content = chapter.content or ""
 
         # 根据操作类型构建新内容
@@ -648,32 +430,8 @@ class ChapterService:
         await self.db.refresh(chapter)
         set_committed_value(chapter, "content", new_content)
 
-        try:
-            chapter_storage.write_content(
-                str(chapter.work_id), str(chapter.id), new_content
-            )
-            index_updated = await self.index_service.upsert_from_content(
-                str(chapter.work_id), str(chapter.id), new_content
-            )
-            if index_updated:
-                self._invalidate_vector_fresh_cache(str(chapter.work_id))
-        except Exception as exc:
-            logger.error(f"[ChapterService] 写入章节文件或索引失败: {exc}")
-
         # 使缓存失效
         await CacheInvalidator.invalidate_chapter(chapter_id, str(chapter.work_id))
         await self._invalidate_explore_result_cache(str(chapter.work_id))
-
-        # 记录增量（delta = 新旧字数差）
-        try:
-            stat_service = ChapterWordStatService(self.db)
-            new_word_count = chapter.word_count or 0
-            delta = new_word_count - original_word_count
-            # 为 Agent 编辑生成唯一的事件 ID（基于章节 ID + 版本号）
-            agent_event_id = f"agent:{chapter_id}:v{chapter.version}"
-            await stat_service.add_delta(chapter.id, delta, edit_event_id=agent_event_id)
-        except Exception as e:
-            logger.warning(f"Failed to record word count delta for chapter {chapter.id}: {e}")
-            pass
 
         return chapter

@@ -16,6 +16,9 @@ const GENRE_MAP: { [key: string]: string } = {
   游戏: 'game',
   历史: 'history',
   军事: 'military',
+  悬疑: 'suspense',
+  西幻: 'western_fantasy',
+  末世: 'apocalypse',
   其他: 'other',
 };
 
@@ -29,6 +32,9 @@ const GENRE_REVERSE_MAP: { [key: string]: string } = {
   game: '游戏',
   history: '历史',
   military: '军事',
+  suspense: '悬疑',
+  western_fantasy: '西幻',
+  apocalypse: '末世',
   other: '其他',
 };
 

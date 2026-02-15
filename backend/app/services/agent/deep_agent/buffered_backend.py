@@ -202,31 +202,37 @@ class BufferedFilesystemBackend(FilesystemBackend):
 
     def flush(self) -> list[str]:
         """审批通过：将缓冲区全部写入磁盘。返回受影响的文件路径列表。"""
+        import logging
+        logger = logging.getLogger(__name__)
+
         affected = set()
         for op in self._buffer:
-            if op.op_type == "write":
-                # 用父类的 write 落盘
-                resolved = self._resolve_path(op.path)
-                resolved.parent.mkdir(parents=True, exist_ok=True)
-                flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-                if hasattr(os, "O_NOFOLLOW"):
-                    flags |= os.O_NOFOLLOW
-                fd = os.open(resolved, flags, 0o644)
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(op.content or "")
-            elif op.op_type == "edit":
-                # 读取当前磁盘内容（或之前 flush 的结果）做替换
-                resolved = self._resolve_path(op.path)
-                content = resolved.read_text(encoding="utf-8")
-                result = perform_string_replacement(
-                    content, op.old_string or "", op.new_string or "", op.replace_all
-                )
-                if not isinstance(result, str):
-                    new_content, _ = result
-                    fd = os.open(resolved, os.O_WRONLY | os.O_TRUNC, 0o644)
+            try:
+                if op.op_type == "write":
+                    # 用父类的 write 落盘
+                    resolved = self._resolve_path(op.path)
+                    resolved.parent.mkdir(parents=True, exist_ok=True)
+                    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+                    if hasattr(os, "O_NOFOLLOW"):
+                        flags |= os.O_NOFOLLOW
+                    fd = os.open(resolved, flags, 0o644)
                     with os.fdopen(fd, "w", encoding="utf-8") as f:
-                        f.write(new_content)
-            affected.add(op.path)
+                        f.write(op.content or "")
+                elif op.op_type == "edit":
+                    # 读取当前磁盘内容（或之前 flush 的结果）做替换
+                    resolved = self._resolve_path(op.path)
+                    content = resolved.read_text(encoding="utf-8")
+                    result = perform_string_replacement(
+                        content, op.old_string or "", op.new_string or "", op.replace_all
+                    )
+                    if not isinstance(result, str):
+                        new_content, _ = result
+                        fd = os.open(resolved, os.O_WRONLY | os.O_TRUNC, 0o644)
+                        with os.fdopen(fd, "w", encoding="utf-8") as f:
+                            f.write(new_content)
+                affected.add(op.path)
+            except Exception as e:
+                logger.error(f"[BufferedBackend] flush 操作失败: {op.op_type} {op.path}: {e}")
         self._buffer.clear()
         return list(affected)
 

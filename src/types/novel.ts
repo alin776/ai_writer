@@ -206,6 +206,15 @@ export interface RelationshipChangeItem {
   reason?: string;
 }
 
+// 文件系统章节（匹配后端 ChapterResponse）
+export interface FSChapter {
+  num: number;
+  title: string;
+  status: string;
+  wordCount: number;
+  content?: string;
+}
+
 // 世界观变化响应
 export interface WorldviewChanges {
   newCharacters: NewCharacterItem[];
@@ -228,7 +237,7 @@ export interface ApplyChangesResult {
 // 世界观扫描进度（导入解析）
 export interface WorldviewScanProgress {
   workId: string;
-  status: 'idle' | 'pending' | 'running' | 'completed' | 'failed';
+  status: 'idle' | 'pending' | 'running' | 'completed' | 'failed' | 'preparing' | 'applying';
   scanMode?: 'incremental' | 'full';
   chaptersTotal: number;
   chaptersProcessed: number;

@@ -239,7 +239,7 @@ class ImportService:
             if status not in ('draft', 'completed', 'published'):
                 status = 'draft'
             md_content = build_chapter(chapter_data['title'], status, content_text)
-            chapter_file = chapters_dir / f"{num:04d}.md"
+            chapter_file = chapters_dir / f"{num:02d}.md"
             chapter_file.write_text(md_content, encoding="utf-8")
             chapters_created += 1
 
@@ -378,7 +378,7 @@ class ImportService:
 
             num = starting_order + idx + 1
             md_content = build_chapter(chapter_data['title'], "draft", content_text)
-            chapter_file = chapters_dir / f"{num:04d}.md"
+            chapter_file = chapters_dir / f"{num:02d}.md"
             chapter_file.write_text(md_content, encoding="utf-8")
             chapters_created += 1
 
@@ -544,6 +544,8 @@ class ImportService:
         start_line = metadata.get('content_start_line', 0)
 
         for idx, line in enumerate(lines):
+            if idx < start_line:
+                continue
             stripped = line.strip()
 
             # 检查是否匹配章节标题
@@ -553,24 +555,24 @@ class ImportService:
                 if match:
                     if pattern_type == 'bracket':
                         # 【第X章 标题】格式，group(1)是完整标题
-                        chapter_title = match.group(1).strip()
-                        # 如果】后还有内容，可能是副标题
+                        full_title = match.group(1).strip()
+                        # 去掉章节号前缀，只保留标题名
+                        title_only = re.sub(r'^第[零一二三四五六七八九十百千万\d]+[章回节]\s*', '', full_title).strip()
                         suffix = match.group(2).strip() if match.group(2) else ''
                         if suffix:
-                            chapter_title = f"{chapter_title} {suffix}"
+                            chapter_title = f"{title_only} {suffix}".strip() if title_only else suffix
+                        else:
+                            chapter_title = title_only or full_title
                     elif pattern_type == 'chinese_with_title':
-                        # 第X章 标题 格式
-                        chapter_num = match.group(1)
-                        title_part = match.group(2).strip()
-                        chapter_title = f"{chapter_num} {title_part}"
+                        # 第X章 标题 格式 → 只保留标题部分
+                        chapter_title = match.group(2).strip()
                     elif pattern_type == 'chinese_only':
-                        # 第X章 单独格式
+                        # 第X章 单独格式（无标题名），保留完整作为标题
                         chapter_title = match.group(1)
                     elif pattern_type == 'english':
-                        # Chapter X 格式
-                        chapter_num = match.group(1)
+                        # Chapter X 格式 → 只保留标题部分
                         title_part = match.group(2).strip() if match.group(2) else ''
-                        chapter_title = f"{chapter_num} {title_part}".strip()
+                        chapter_title = title_part or match.group(1)
                     elif pattern_type == 'markdown':
                         # Markdown格式
                         chapter_title = match.group(1).strip()
@@ -579,7 +581,7 @@ class ImportService:
             if chapter_title:
                 # 保存上一章节
                 if current_chapter:
-                    raw_content = '\n'.join(current_content).strip()
+                    raw_content = '\n'.join(current_content).strip('\n\r\t ')
                     chapters.append({
                         'title': current_chapter,
                         'content': raw_content
@@ -595,7 +597,7 @@ class ImportService:
 
         # 保存最后一章
         if current_chapter and current_content:
-            raw_content = '\n'.join(current_content).strip()
+            raw_content = '\n'.join(current_content).strip('\n\r\t ')
             chapters.append({
                 'title': current_chapter,
                 'content': raw_content
