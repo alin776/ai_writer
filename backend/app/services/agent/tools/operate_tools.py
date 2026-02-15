@@ -251,7 +251,8 @@ class ContentOperator:
                 message=description or "操作完成",
                 operation=operation,
                 target_operation=target_operation,
-                chapter_id=chapter_id or result.get("chapter_id"),
+                # 优先使用底层工具返回的 chapter_id（可能已将章节序号解析为 UUID）
+                chapter_id=result.get("chapter_id") or chapter_id,
                 chapter_title=result.get("chapter_title"),
                 tool_used=tool_name,
                 located=needs_locate,

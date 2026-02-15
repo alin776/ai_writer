@@ -59,6 +59,9 @@ export interface ApprovalRequest {
   original_content?: string;
   new_content?: string;
   description?: string;
+  chapter_title?: string;
+  chapter_order?: string | number;
+  order?: string | number;
   versions?: Array<{
     style?: string;
     style_name: string;
@@ -324,7 +327,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           content:
             'Sorry, something went wrong: ' +
             errorMessage +
-            '\\n\\nPlease try again later or contact support.',
+            '\n\nPlease try again later or contact support.',
           timestamp: new Date().toISOString()
         };
         const updated = [...withUser, errorAgentMessage];
@@ -633,6 +636,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       conversation_id: approvalReq.conversation_id,
                       chapter_id: approvalReq.chapter_id,
                       chapter_title: approvalReq.chapter_title,
+                      chapter_order: approvalReq.chapter_order ?? approvalReq.order,
                       new_title: approvalReq.new_title,
                       old_title: approvalReq.old_title,
                       order: approvalReq.order,
@@ -775,6 +779,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       conversation_id: approvalReq.conversation_id,
                       chapter_id: approvalReq.chapter_id,
                       chapter_title: approvalReq.chapter_title,
+                      chapter_order: approvalReq.chapter_order ?? approvalReq.order,
                       new_title: approvalReq.new_title,
                       old_title: approvalReq.old_title,
                       order: approvalReq.order,
@@ -1462,7 +1467,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   role: 'agent',
                   content: isAbort
                     ? '对话已停止。'
-                    : '抱歉，遇到了问题：' + errorMessage + '\\n\\n请稍后重试，或联系管理员。',
+                    : '抱歉，遇到了问题：' + errorMessage + '\n\n请稍后重试，或联系管理员。',
                   timestamp: new Date().toISOString(),
                   flowItems: existingFlowItems,  // v5.1: 保留执行轨迹
                   tasksSnapshot  // v6.2: 保存任务列表快照
@@ -1502,7 +1507,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             ...updated[updated.length - 1],
             content: isAbort
               ? '对话已停止。'
-              : '抱歉，遇到了问题：' + errorMessage + '\\n\\n请稍后重试，或联系管理员。',
+              : '抱歉，遇到了问题：' + errorMessage + '\n\n请稍后重试，或联系管理员。',
             timestamp: new Date().toISOString(),
             tasksSnapshot
           };
@@ -1658,18 +1663,32 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         ]);
         const currentChapterId = chapterId;
         const targetChapterId = pending.chapter_id;
-        const resolvedTargetChapterId = targetChapterId || currentChapterId;
-        const chapterMismatch = Boolean(
-          currentChapterId &&
+        const targetChapterTitle = pending.chapter_title;
+        const targetChapterOrder = pending.chapter_order ?? pending.order;
+        const hasChapterHint = Boolean(
+          targetChapterTitle ||
+          targetChapterOrder !== undefined && targetChapterOrder !== null
+        );
+        const shouldJumpById = Boolean(
           targetChapterId &&
           chapterBoundActions.has(pending.action_type) &&
-          currentChapterId !== targetChapterId
+          (!currentChapterId || currentChapterId !== targetChapterId)
         );
-        if (chapterMismatch && targetChapterId) {
-          console.info('[useAgentChat] 检测到跨章节审批', {
+        const shouldJumpByHint = Boolean(
+          !targetChapterId &&
+          chapterBoundActions.has(pending.action_type) &&
+          hasChapterHint
+        );
+        const shouldJumpAfterApprove = shouldJumpById || shouldJumpByHint;
+        const resolvedTargetChapterId = targetChapterId || undefined;
+        const shouldDispatchLocalRevisionEvent = Boolean(resolvedTargetChapterId || !shouldJumpByHint);
+        if (shouldJumpAfterApprove) {
+          console.info('[useAgentChat] 采纳后尝试定位目标章节', {
             requestId: pending.request_id,
             currentChapterId,
             targetChapterId,
+            targetChapterTitle,
+            targetChapterOrder,
             actionType: pending.action_type
           });
         }
@@ -1703,11 +1722,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         }
 
         if (chapterBoundActions.has(pending.action_type)) {
-          window.dispatchEvent(
-            new CustomEvent(approved ? 'agent-accept-revision' : 'agent-discard-revision', {
-              detail: { request_id: pending.request_id, chapter_id: resolvedTargetChapterId }
-            })
-          );
+          if (shouldDispatchLocalRevisionEvent) {
+            window.dispatchEvent(
+              new CustomEvent(approved ? 'agent-accept-revision' : 'agent-discard-revision', {
+                detail: { request_id: pending.request_id, chapter_id: resolvedTargetChapterId }
+              })
+            );
+          } else {
+            console.info('[useAgentChat] 跳过本地修订事件，等待章节定位/刷新', {
+              requestId: pending.request_id
+            });
+          }
         }
 
         // 章节操作撤销（create/rename/delete）需在后端确认拒绝后再回滚预览
@@ -1733,12 +1758,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               detail: { work_id: targetWorkId }
             })
           );
-          if (chapterMismatch && targetChapterId) {
+          if (shouldJumpAfterApprove) {
             window.dispatchEvent(
               new CustomEvent('agent-jump-revision', {
                 detail: {
                   workId: pending.work_id || workId,
                   chapterId: targetChapterId,
+                  chapterTitle: targetChapterTitle,
+                  chapterOrder: targetChapterOrder,
                   requestId: pending.request_id,
                   revisionId: pending.request_id,
                 }
@@ -1757,12 +1784,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         const detail = err?.response?.data?.detail || err.message || 'Approval failed';
         const isRecoverableConflict = statusCode === 409;
         if (isRecoverableConflict) {
-          if (pending.chapter_id) {
+          if (pending.chapter_id || pending.chapter_title || pending.chapter_order !== undefined || pending.order !== undefined) {
             window.dispatchEvent(
               new CustomEvent('agent-jump-revision', {
                 detail: {
                   workId: pending.work_id || workId,
                   chapterId: pending.chapter_id,
+                  chapterTitle: pending.chapter_title,
+                  chapterOrder: pending.chapter_order ?? pending.order,
                   requestId: pending.request_id,
                   revisionId: pending.request_id,
                 }
@@ -1991,7 +2020,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     const collectRevision = (revision: RevisionFlowData | undefined | null, fallbackId?: string) => {
       if (!revision) return;
       if (revision.status !== 'pending') return;
-      const revisionChapterId = (revision.chapterId || (revision as any).chapter_id) as string | undefined;
+      const anyRevision = revision as any;
+      const revisionChapterId = (
+        revision.chapterId ||
+        anyRevision.chapter_id ||
+        anyRevision.targetChapterId ||
+        anyRevision.target_chapter_id
+      ) as string | undefined;
       if (!revisionChapterId || revisionChapterId === chapterId) return;
       const id = (revision.requestId || (revision as any).request_id || fallbackId) as string | undefined;
       if (id) pendingIds.add(id);

@@ -6,10 +6,11 @@ import logging
 import os
 import re
 import time
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete as sql_delete, func, or_, and_
+from sqlalchemy import select, delete as sql_delete, func, or_, and_, text
 
 # 确保在导入 sentence_transformers 前设置好镜像与缓存目录，避免访问 huggingface.co 超时
 _default_hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
@@ -74,6 +75,9 @@ class ChapterVectorService:
     VECTOR_DIM = 384
     MAX_CHUNKS = 2000  # 保护性上限，防止超大文本生成过多向量
     MAX_CONTENT_SCAN_LEN = 200_000
+    _node_id_column_checked = False
+    _node_id_column_lock: Optional[asyncio.Lock] = None
+    _node_id_lock_loop_id: Optional[int] = None
 
     def __init__(self, db: AsyncSession):
         """
@@ -102,6 +106,67 @@ class ChapterVectorService:
             logger.info("Embedding模型加载成功")
 
         return VectorStoreService._global_model
+
+    async def _ensure_node_id_column(self) -> None:
+        """兼容旧库结构：确保 novel_chapter_vectors.node_id 存在。"""
+        if ChapterVectorService._node_id_column_checked:
+            return
+
+        current_loop = asyncio.get_running_loop()
+        if (
+            ChapterVectorService._node_id_column_lock is None
+            or ChapterVectorService._node_id_lock_loop_id != id(current_loop)
+        ):
+            ChapterVectorService._node_id_column_lock = asyncio.Lock()
+            ChapterVectorService._node_id_lock_loop_id = id(current_loop)
+
+        async with ChapterVectorService._node_id_column_lock:
+            if ChapterVectorService._node_id_column_checked:
+                return
+            try:
+                check_stmt = text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'novel_chapter_vectors'
+                      AND column_name = 'node_id'
+                    LIMIT 1
+                    """
+                )
+                exists = (await self.db.execute(check_stmt)).scalar()
+                if not exists:
+                    logger.warning(
+                        "[chapter_vector] missing column node_id on novel_chapter_vectors; applying compatibility alter"
+                    )
+                    await self.db.execute(
+                        text("ALTER TABLE novel_chapter_vectors ADD COLUMN IF NOT EXISTS node_id VARCHAR(64)")
+                    )
+                    await self.db.commit()
+                ChapterVectorService._node_id_column_checked = True
+            except Exception as exc:
+                logger.warning("[chapter_vector] ensure node_id column failed: %s", exc)
+                await self.db.rollback()
+
+    def _is_missing_node_id_error(self, exc: Exception) -> bool:
+        message = str(exc).lower()
+        return (
+            "novel_chapter_vectors" in message
+            and "node_id" in message
+            and ("does not exist" in message or "undefinedcolumnerror" in message)
+        )
+
+    async def _emergency_add_node_id_column(self) -> bool:
+        try:
+            await self.db.execute(
+                text("ALTER TABLE novel_chapter_vectors ADD COLUMN IF NOT EXISTS node_id VARCHAR(64)")
+            )
+            await self.db.commit()
+            ChapterVectorService._node_id_column_checked = True
+            return True
+        except Exception as alter_exc:
+            logger.error("[chapter_vector] emergency add node_id column failed: %s", alter_exc, exc_info=True)
+            await self.db.rollback()
+            return False
 
     def _split_by_paragraphs(self, content: str, max_paragraphs: Optional[int] = None) -> List[str]:
         """
@@ -183,13 +248,15 @@ class ChapterVectorService:
         chapter_title: str,
         content: str,
         chunk_size: int = 500,
-        max_chunks: Optional[int] = None
+        max_chunks: Optional[int] = None,
+        _retry_on_missing_node_id: bool = True
     ) -> int:
         """
         Store chapter content embeddings (idempotent).
         按段落生成向量，chunk_index 即为 paragraph_index。
         """
         try:
+            await self._ensure_node_id_column()
             logger.debug(f"Vectorizing chapter: {chapter_title} (order={chapter_order})")
 
             # 1) delete old vectors (idempotent)
@@ -244,6 +311,19 @@ class ChapterVectorService:
         except Exception as e:
             logger.error(f"store_chapter_vector failed: {e}", exc_info=True)
             await self.db.rollback()
+            if _retry_on_missing_node_id and self._is_missing_node_id_error(e):
+                logger.warning("[chapter_vector] detected missing node_id column, applying emergency schema fix and retry")
+                if await self._emergency_add_node_id_column():
+                    return await self.store_chapter_vector(
+                        work_id=work_id,
+                        chapter_id=chapter_id,
+                        chapter_order=chapter_order,
+                        chapter_title=chapter_title,
+                        content=content,
+                        chunk_size=chunk_size,
+                        max_chunks=max_chunks,
+                        _retry_on_missing_node_id=False,
+                    )
             raise
     async def retrieve_for_writing(
         self,
@@ -262,6 +342,7 @@ class ChapterVectorService:
         返回 chapter_id 和 paragraph_index（chunk_index），支持精确定位。
         """
         try:
+            await self._ensure_node_id_column()
             logger.info(
                 f"RAG retrieve work_id={work_id}, current_order={current_chapter_order}, query={query[:50]}..."
             )
@@ -329,6 +410,7 @@ class ChapterVectorService:
             int: 删除的记录数
         """
         try:
+            await self._ensure_node_id_column()
             from uuid import UUID
             chapter_uuid = UUID(chapter_id) if isinstance(chapter_id, str) else chapter_id
 
@@ -358,6 +440,7 @@ class ChapterVectorService:
             Dict: 统计信息
         """
         try:
+            await self._ensure_node_id_column()
             from uuid import UUID
             from sqlalchemy import func
 
@@ -408,6 +491,7 @@ class ChapterVectorService:
             return cached
 
         try:
+            await self._ensure_node_id_column()
             work_uuid = UUID(work_id) if isinstance(work_id, str) else work_id
 
             stmt = select(Chapter.id).where(Chapter.work_id == work_uuid)
@@ -505,6 +589,7 @@ class ChapterVectorService:
         from sqlalchemy import or_, and_
 
         try:
+            await self._ensure_node_id_column()
             work_uuid = UUID(work_id) if isinstance(work_id, str) else work_id
 
             if not keywords:

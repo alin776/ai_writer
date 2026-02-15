@@ -1,5 +1,5 @@
 /**
- * 真实 API 适配器（预留�? *
+ * 真实 API 适配器（预留）
  * 用于生产环境，调用真实的后端 API
  * 使用 Axios 进行 HTTP 请求
  */
@@ -17,7 +17,7 @@ export class ApiAdapter implements IDataAdapter {
     this.axiosInstance = axios.create({
       baseURL,
       withCredentials: true,
-      timeout: 180000, // 180秒超时（3分钟），适配AI长文本生�?
+      timeout: 180000, // 180秒超时（3分钟），适配AI长文本生成
       headers: {
         'Content-Type': 'application/json',
       },
@@ -26,7 +26,7 @@ export class ApiAdapter implements IDataAdapter {
     // 请求拦截器：添加 Token
     this.axiosInstance.interceptors.request.use(
       async (config) => {
-        // 登录/注册无需附带 Authorization，避免预检导致�?CORS 异常
+        // 登录/注册无需附带 Authorization，避免预检导致 CORS 异常
         const url = config.url || '';
         const skipAuthHeader = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh');
         if (skipAuthHeader) {
@@ -43,7 +43,7 @@ export class ApiAdapter implements IDataAdapter {
           }
         }
 
-        // �?Zustand persist 存储中读�?token
+        // 从 Zustand persist 存储中读取 token
         const storeToken = useAuthStore.getState().token;
         let token = storeToken;
 
@@ -77,10 +77,10 @@ export class ApiAdapter implements IDataAdapter {
       }
     );
 
-    // 响应拦截器：处理错误和数据转�?
+    // 响应拦截器：处理错误和数据转换
     this.axiosInstance.interceptors.response.use(
       (response) => {
-        // 在这里统一进行 snake_case �?camelCase 的转�?
+        // 在这里统一进行 snake_case 到 camelCase 的转换
         const camelCaseData = this.convertKeysToCamelCase(response.data);
 
         return { ...response, data: camelCaseData };
@@ -121,16 +121,16 @@ export class ApiAdapter implements IDataAdapter {
           );
 
           if (isWorldviewNotFound) {
-            // 返回空数组，不中断应�?
+            // 返回空数组，不中断应用
             return Promise.resolve([]);
           }
 
-          // 特殊处理：guidelines相关�?04是正常情况（可能还未创建�?
+          // 特殊处理：guidelines 相关 404 是正常情况（可能还未创建）
           const isGuidelinesNotFound = status === 404 && 
             (url.includes('/guidelines') || url.includes('/ai-guidelines'));
           
           if (isGuidelinesNotFound) {
-            // 静默处理 guidelines �?04，这是正常情�?
+            // 静默处理 guidelines 404，这是正常情况
           }
 
           switch (status) {
@@ -315,7 +315,7 @@ case 403:
    * PUT 请求
    */
   async put<T>(url: string, data?: any): Promise<T> {
-    // 将请求体�?camelCase 转换�?snake_case
+    // 将请求体从 camelCase 转换为 snake_case
     const snakeCaseData = this.convertKeysToSnakeCase(data);
     // 响应拦截器已经处理了 camelCase 转换
     const response = await this.axiosInstance.put(url, snakeCaseData);
@@ -338,10 +338,10 @@ case 403:
    * PATCH 请求
    */
   async patch<T>(url: string, data?: any): Promise<T> {
-    // 将请求体�?camelCase 转换�?snake_case
+    // 将请求体从 camelCase 转换为 snake_case
     const snakeCaseData = this.convertKeysToSnakeCase(data);
 
-    // 响应拦截器已经处理了 camelCase 转换，直接返�?
+    // 响应拦截器已经处理了 camelCase 转换，直接返回
     const response = await this.axiosInstance.patch(url, snakeCaseData);
 
     return (response as any)?.data ?? (response as any as T);

@@ -156,6 +156,19 @@ app = FastAPI(
 )
 
 # 全局异常处理
+def _sanitize_for_json(value):
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, dict):
+        return {str(_sanitize_for_json(k)): _sanitize_for_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_sanitize_for_json(item) for item in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    # Last-resort fallback for non-JSON-serializable objects in validation ctx.
+    return str(value)
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """捕获422参数验证错误，详细记录"""
@@ -176,7 +189,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": exc.errors()}
+        content={"detail": _sanitize_for_json(exc.errors())}
     )
 
 @app.exception_handler(Exception)

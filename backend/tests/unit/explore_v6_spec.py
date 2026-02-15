@@ -272,7 +272,59 @@ def test_build_result_dedup_same_paragraph():
 
 
 # ================================================================
-# 测试 7：worldview 摘要
+# 测试 7：目标章节解析
+# ================================================================
+
+def test_resolve_target_chapter_prefers_action_target_over_current_context():
+    """“我在第2章，请续写第1章”应命中第1章，而非当前第2章。"""
+    v6 = _build_v6(
+        target_task="我在第2章，请续写第1章结尾120字，要求自然承接后续剧情，不要改动前文。",
+        retrieval_intent={"constraints": {"chapter_scope": [2]}},
+    )
+    chapters = [
+        {"id": "ch-1", "order": 1, "title": "第一章"},
+        {"id": "ch-2", "order": 2, "title": "第二章"},
+    ]
+
+    chapter_id, chapter_order = v6._resolve_target_chapter(chapters)
+    assert chapter_id == "ch-1"
+    assert chapter_order == 1
+
+
+def test_resolve_target_chapter_supports_chinese_numerals():
+    """“第一章结尾续写”应正确解析中文数字章节。"""
+    v6 = _build_v6(
+        target_task="请给第一章结尾续写120字，保持语气一致。",
+        retrieval_intent={"constraints": {"chapter_scope": [3]}},
+    )
+    chapters = [
+        {"id": "ch-1", "order": 1, "title": "第一章"},
+        {"id": "ch-3", "order": 3, "title": "第三章"},
+    ]
+
+    chapter_id, chapter_order = v6._resolve_target_chapter(chapters)
+    assert chapter_id == "ch-1"
+    assert chapter_order == 1
+
+
+def test_resolve_target_chapter_falls_back_to_constraints():
+    """无显式目标章节时，回退使用 retrieval_intent.chapter_scope。"""
+    v6 = _build_v6(
+        target_task="继续写这一章，保持紧张节奏。",
+        retrieval_intent={"constraints": {"chapter_scope": [2]}},
+    )
+    chapters = [
+        {"id": "ch-1", "order": 1, "title": "第一章"},
+        {"id": "ch-2", "order": 2, "title": "第二章"},
+    ]
+
+    chapter_id, chapter_order = v6._resolve_target_chapter(chapters)
+    assert chapter_id == "ch-2"
+    assert chapter_order == 2
+
+
+# ================================================================
+# 测试 8：worldview 摘要
 # ================================================================
 
 def test_summarize_worldview():
@@ -290,7 +342,7 @@ def test_summarize_worldview():
 
 
 # ================================================================
-# 测试 8：源码中关键方法存在
+# 测试 9：源码中关键方法存在
 # ================================================================
 
 def test_source_has_expected_methods():

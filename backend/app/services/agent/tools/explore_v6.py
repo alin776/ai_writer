@@ -576,12 +576,124 @@ class ExploreV6:
     # 辅助方法
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _chinese_numeral_to_int(value: str) -> Optional[int]:
+        if not value:
+            return None
+        value = str(value).strip()
+        if not value:
+            return None
+        if value.isdigit():
+            return int(value)
+        mapping = {
+            "零": 0,
+            "一": 1,
+            "二": 2,
+            "两": 2,
+            "三": 3,
+            "四": 4,
+            "五": 5,
+            "六": 6,
+            "七": 7,
+            "八": 8,
+            "九": 9,
+            "十": 10,
+            "百": 100,
+        }
+        if value in mapping:
+            return mapping[value]
+        total = 0
+        if "百" in value:
+            parts = value.split("百", 1)
+            hundreds = mapping.get(parts[0], 1 if parts[0] == "" else None)
+            if hundreds is None:
+                return None
+            total += hundreds * 100
+            value = parts[1]
+        if not value:
+            return total if total > 0 else None
+        if value == "十":
+            return total + 10
+        if "十" in value:
+            parts = value.split("十", 1)
+            tens = mapping.get(parts[0], 1 if parts[0] == "" else None)
+            ones = mapping.get(parts[1], 0 if parts[1] == "" else None)
+            if tens is None or ones is None:
+                return None
+            return total + tens * 10 + ones
+        ones = mapping.get(value)
+        if ones is None:
+            return None
+        return total + ones
+
+    @classmethod
+    def _extract_target_order_from_task(cls, target_task: str) -> Optional[int]:
+        text = str(target_task or "").strip()
+        if not text:
+            return None
+
+        action_pattern = r"(?:续写|继续写|接着写|往后写|补写|承接|改写|润色|优化|扩写|插入|替换|修改|重写|改标题|改名|命名)"
+        chapter_num_pattern = r"([0-9一二两三四五六七八九十百]{1,4})"
+
+        def _order(raw: Any) -> Optional[int]:
+            return cls._chinese_numeral_to_int(str(raw or "").strip())
+
+        # 动作在前："续写第1章"
+        action_after_pattern = rf"{action_pattern}[^。！？\n，,;；]{{0,18}}?第\s*{chapter_num_pattern}\s*章"
+        m = re.search(action_after_pattern, text)
+        if m:
+            order = _order(m.group(1))
+            if isinstance(order, int) and order > 0:
+                return order
+
+        # 动作在后："第1章结尾续写"
+        action_before_pattern = rf"第\s*{chapter_num_pattern}\s*章[^。！？\n，,;；]{{0,18}}?(?:{action_pattern}|结尾|末尾|收尾)"
+        m = re.search(action_before_pattern, text)
+        if m:
+            order = _order(m.group(1))
+            if isinstance(order, int) and order > 0:
+                return order
+
+        # 兜底：排除“我在第X章/当前第X章”上下文提示，优先剩余章节。
+        current_orders = set()
+        current_pattern = rf"(?:我在|当前在|当前|现在在|目前在|本|这|该)\s*第\s*{chapter_num_pattern}\s*章"
+        for cm in re.finditer(current_pattern, text):
+            order = _order(cm.group(1))
+            if isinstance(order, int) and order > 0:
+                current_orders.add(order)
+
+        mentions: List[int] = []
+        mention_pattern = rf"第\s*{chapter_num_pattern}\s*章"
+        for mm in re.finditer(mention_pattern, text):
+            order = _order(mm.group(1))
+            if isinstance(order, int) and order > 0:
+                mentions.append(order)
+
+        if not mentions:
+            return None
+        if len(mentions) == 1:
+            return mentions[0]
+
+        non_current = [order for order in mentions if order not in current_orders]
+        if len(set(non_current)) == 1:
+            return non_current[0]
+        if non_current:
+            return non_current[-1]
+        return mentions[-1]
+
     def _resolve_target_chapter(self, chapters: List[Dict[str, Any]]) -> Tuple[str, Optional[int]]:
-        """从 retrieval_intent 或 target_task 推断目标章节。
+        """从 target_task / retrieval_intent 推断目标章节。
 
         返回 (chapter_id, chapter_order)。找不到返回 ("", None)。
         """
-        # 1. 检查 constraints.chapter_scope
+        # 1. 优先从 target_task 提取“动作对应章节”，避免“我在第2章，请续写第1章”误判。
+        order_from_task = self._extract_target_order_from_task(self.target_task)
+        if isinstance(order_from_task, int):
+            ch = next((c for c in chapters if c.get("order") == order_from_task), None)
+            if ch:
+                return str(ch["id"]), order_from_task
+
+        # 2. 回退到 constraints.chapter_scope
         scope = (self.retrieval_intent.get("constraints") or {}).get("chapter_scope")
         if scope and isinstance(scope, list) and len(scope) >= 1:
             order = scope[0] if isinstance(scope[0], int) else None
@@ -589,14 +701,6 @@ class ExploreV6:
                 ch = next((c for c in chapters if c.get("order") == order), None)
                 if ch:
                     return str(ch["id"]), order
-
-        # 2. 从 target_task 提取"第X章"
-        m = re.search(r'第(\d+)章', self.target_task)
-        if m:
-            order = int(m.group(1))
-            ch = next((c for c in chapters if c.get("order") == order), None)
-            if ch:
-                return str(ch["id"]), order
 
         return "", None
 

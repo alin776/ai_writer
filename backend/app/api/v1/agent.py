@@ -17,6 +17,7 @@ import logging
 import json
 import hashlib
 import uuid
+import time
 from datetime import datetime, timedelta
 from app.utils.datetime_utils import get_utc_now
 
@@ -39,6 +40,7 @@ from app.core.config import settings
 from app.core.humanize_config import get_config
 # ✅ 2025-12-01: 支持Agent成本追踪（通过请求上下文传递user_id）
 from app.core.request_context import set_request_context
+from app.core.redis import redis_client
 import redis
 
 router = APIRouter()
@@ -182,6 +184,51 @@ def generate_explanation(task_index: int, task: dict) -> str:
         suffix = "："
 
     return f"{prefix}{desc}{suffix}"
+
+
+# 审批/校验链路会同时收到 UUID 与章节序号，统一标准化避免误判冲突
+def _normalize_uuid_like(value: Optional[Any]) -> Optional[str]:
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    try:
+        return str(uuid.UUID(raw))
+    except (ValueError, AttributeError, TypeError):
+        return raw
+
+
+async def _normalize_chapter_ref_for_compare(
+    chapter_ref: Optional[Any],
+    work_id: Optional[Any],
+    db_session: Optional[AsyncSession] = None
+) -> Optional[str]:
+    normalized_chapter_ref = _normalize_uuid_like(chapter_ref)
+    if not normalized_chapter_ref:
+        return None
+
+    normalized_work_id = _normalize_uuid_like(work_id)
+    if normalized_work_id and normalized_chapter_ref.isdigit():
+        try:
+            from app.services.agent.langgraph_tools import resolve_chapter_id
+
+            resolved_chapter_id, _ = await resolve_chapter_id(
+                normalized_work_id,
+                normalized_chapter_ref,
+                db_session
+            )
+            if resolved_chapter_id:
+                return _normalize_uuid_like(resolved_chapter_id) or str(resolved_chapter_id)
+        except Exception as exc:
+            logger.warning(
+                "[Approval] 章节引用解析失败，回退原值: chapter_ref=%s work_id=%s error=%s",
+                normalized_chapter_ref,
+                normalized_work_id,
+                exc
+            )
+
+    return normalized_chapter_ref
 
 
 # ════════════════════════════════════════════════════════════════
@@ -464,8 +511,6 @@ async def reset_conversation(
         logger.info(f"[Reset Conversation] User: {user_id}, Old Conv ID: {old_conversation_id}")
 
         # ✅ 验证会话归属
-        from app.core.redis import redis_client
-
         stored_user_id = await redis_client.get(
             f"conversation:{old_conversation_id}:owner"
         )
@@ -1045,8 +1090,6 @@ async def agent_chat_stream(
                 set_request_context(db, user_id)
 
                 # ✅ 会话归属验证（简化版Redis方案）
-                from app.core.redis import redis_client
-
                 if request.conversation_id:
                     # 验证现有会话的归属
                     stored_user_id = await redis_client.get(
@@ -1371,11 +1414,20 @@ async def agent_chat_stream(
                         logger.warning(f"[agent_chat_stream] 世界观数据加载失败: {worldview_err}")
 
                 # ✅ use_optimization 仅作为“写入前去痕”的标记，未开启 humanize-only 时继续走规划链路
-                if context.get("use_optimization") and not context.get("optimization_only"):
+                use_optimization = bool(context.get("use_optimization"))
+                optimization_only_raw = context.get("optimization_only")
+                if isinstance(optimization_only_raw, str):
+                    optimization_only = optimization_only_raw.strip().lower() in {"1", "true", "yes", "on"}
+                elif optimization_only_raw is None:
+                    optimization_only = True
+                else:
+                    optimization_only = bool(optimization_only_raw)
+
+                if use_optimization and not optimization_only:
                     logger.info("[agent_chat_stream] use_optimization enabled; continue planning chain (optimization_only=False)")
 
-                # ✨ 仅在显式 humanize-only 时才走去痕迹短路
-                if context.get("use_optimization") and context.get("optimization_only"):
+                # ✨ 仅在显式 humanize-only 时才走去痕迹短路（未显式设置时保持兼容并默认进入）
+                if use_optimization and optimization_only:
                     # 优先使用选中文本，其次使用整章内容
                     humanize_text = context.get("selected_text") or context.get("current_content") or context.get("text") or ""
 
@@ -1667,6 +1719,8 @@ async def agent_chat_stream(
 
                 # 启动 Agent 任务
                 agent_task = asyncio.create_task(run_agent())
+                heartbeat_interval_seconds = 10.0
+                last_heartbeat_at = time.monotonic()
 
                 # 实时从队列中取出事件并发送
                 while True:
@@ -1689,6 +1743,16 @@ async def agent_chat_stream(
                     try:
                         event_type, event_data = await asyncio.wait_for(event_queue.get(), timeout=0.5)
                     except asyncio.TimeoutError:
+                        now = time.monotonic()
+                        if now - last_heartbeat_at >= heartbeat_interval_seconds:
+                            heartbeat_event = {
+                                'type': 'ping',
+                                'timestamp': datetime.utcnow().isoformat(),
+                                'mode': str(actual_mode),
+                                'conversation_id': conversation_id
+                            }
+                            yield f"data: {json.dumps(heartbeat_event, ensure_ascii=False)}\n\n"
+                            last_heartbeat_at = now
                         # 周期性轮询断开状态
                         continue
 
@@ -1724,6 +1788,7 @@ async def agent_chat_stream(
                         event_payload['mode'] = str(actual_mode)
                         event_payload['conversation_id'] = conversation_id
                     yield f"data: {json.dumps(event_payload, ensure_ascii=False)}\n\n"
+                    last_heartbeat_at = time.monotonic()
 
                 # 等待 Agent 任务完成
                 await agent_task
@@ -1910,25 +1975,38 @@ async def submit_approval_response(
                 detail="无权限操作该修订请求。"
             )
         if revision and not revision.user_id and not approval_request:
-            logger.warning(
-                "[Approval] 修订缺少 owner 且审批记录已失效: request=%s",
-                request.request_id
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="审批记录已失效，请重新生成修订后再操作。"
-            )
+            # 兼容历史数据: 某些修订未写入 owner 时，退化为作品归属校验
+            from app.services.work_service import WorkService
 
-        def _normalize_uuid_like(value: Optional[Any]) -> Optional[str]:
-            if value is None:
-                return None
-            raw = str(value).strip()
-            if not raw:
-                return None
-            try:
-                return str(uuid.UUID(raw))
-            except (ValueError, AttributeError, TypeError):
-                return raw
+            fallback_work_id = _normalize_uuid_like(revision.work_id) or _normalize_uuid_like(request.work_id)
+            allow_without_owner = False
+
+            if fallback_work_id:
+                work_service = WorkService(db)
+                work = await work_service.get_work_by_id(fallback_work_id)
+                if work and str(work.author_id) == current_user_id:
+                    allow_without_owner = True
+
+            if not allow_without_owner:
+                logger.warning(
+                    "[Approval] 修订缺少 owner 且审批记录已失效: request=%s",
+                    request.request_id
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="审批记录已失效，请重新生成修订后再操作。"
+                )
+
+            # 自愈: 补齐 owner，避免后续同一修订再次被拒绝
+            revision.user_id = current_user.id
+            await db.commit()
+            await db.refresh(revision)
+            logger.warning(
+                "[Approval] 修订缺少 owner，按作品归属放行并补齐 owner: request=%s work=%s user=%s",
+                request.request_id,
+                fallback_work_id,
+                current_user_id
+            )
 
         client_chapter_id = _normalize_uuid_like(request.chapter_id)
         client_work_id = _normalize_uuid_like(request.work_id)
@@ -1958,45 +2036,65 @@ async def submit_approval_response(
             if not expected_conversation_id and approval_context.get("conversation_id"):
                 expected_conversation_id = str(approval_context.get("conversation_id")).strip()
 
-        if client_chapter_id and expected_chapter_id and client_chapter_id != expected_chapter_id:
-            logger.warning(
-                "[Approval] 章节不一致: request=%s client=%s expected=%s",
-                request.request_id,
+        compare_work_id = expected_work_id or client_work_id
+        if request.approved:
+            client_chapter_compare = await _normalize_chapter_ref_for_compare(
                 client_chapter_id,
-                expected_chapter_id
+                compare_work_id,
+                db_session=db
             )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="采纳失败：当前章节与修订目标章节不一致，请切换到目标章节后重试。"
-            )
-
-        if client_work_id and expected_work_id and client_work_id != expected_work_id:
-            logger.warning(
-                "[Approval] 作品不一致: request=%s client=%s expected=%s",
-                request.request_id,
-                client_work_id,
-                expected_work_id
-            )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="采纳失败：当前作品与修订目标作品不一致，请刷新后重试。"
+            expected_chapter_compare = await _normalize_chapter_ref_for_compare(
+                expected_chapter_id,
+                compare_work_id,
+                db_session=db
             )
 
-        if (
-            client_conversation_id
-            and expected_conversation_id
-            and client_conversation_id != expected_conversation_id
-        ):
-            logger.warning(
-                "[Approval] 会话不一致: request=%s client=%s expected=%s",
-                request.request_id,
-                client_conversation_id,
-                expected_conversation_id
-            )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="采纳失败：会话已切换，请在正确会话中重试。"
-            )
+            if (
+                client_chapter_id
+                and expected_chapter_id
+                and client_chapter_compare != expected_chapter_compare
+            ):
+                logger.warning(
+                    "[Approval] 章节不一致: request=%s client=%s expected=%s resolved_client=%s resolved_expected=%s work=%s",
+                    request.request_id,
+                    client_chapter_id,
+                    expected_chapter_id,
+                    client_chapter_compare,
+                    expected_chapter_compare,
+                    compare_work_id
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="采纳失败：当前章节与修订目标章节不一致，请切换到目标章节后重试。"
+                )
+
+            if client_work_id and expected_work_id and client_work_id != expected_work_id:
+                logger.warning(
+                    "[Approval] 作品不一致: request=%s client=%s expected=%s",
+                    request.request_id,
+                    client_work_id,
+                    expected_work_id
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="采纳失败：当前作品与修订目标作品不一致，请刷新后重试。"
+                )
+
+            if (
+                client_conversation_id
+                and expected_conversation_id
+                and client_conversation_id != expected_conversation_id
+            ):
+                logger.warning(
+                    "[Approval] 会话不一致: request=%s client=%s expected=%s",
+                    request.request_id,
+                    client_conversation_id,
+                    expected_conversation_id
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="采纳失败：会话已切换，请在正确会话中重试。"
+                )
 
         # 如果是采纳，需要写入数据库
         if request.approved:
@@ -2021,6 +2119,11 @@ async def submit_approval_response(
                 action_type = approval_data.get("action_type")
                 chapter_id = approval_data.get("chapter_id") or expected_chapter_id
                 work_id = approval_data.get("work_id") or expected_work_id
+                chapter_id = await _normalize_chapter_ref_for_compare(
+                    chapter_id,
+                    work_id or compare_work_id,
+                    db_session=db
+                ) or _normalize_uuid_like(chapter_id)
 
                 # 处理章节创建
                 if action_type == "create" and work_id:

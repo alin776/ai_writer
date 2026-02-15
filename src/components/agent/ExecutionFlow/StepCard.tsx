@@ -1,6 +1,6 @@
 ﻿/**
- * StepCard - 鎵ц姝ラ鍗＄墖缁勪欢
- * 鍙姌鍙狅紝鏄剧ず鐘舵€佸浘鏍囥€佺煡璇嗚皟鍙栥€佸伐鍏疯皟鐢ㄣ€佸唴宓屼慨璁㈣兌鍥?
+ * StepCard component for each execution step.
+ * Supports collapse/expand, status icon, knowledge/tool blocks, and embedded revision card.
  */
 
 import { useState, type ReactNode } from 'react';
@@ -41,12 +41,12 @@ export function StepCard({
 
   return (
     <div className="mb-3">
-      {/* 姝ラ澶撮儴 */}
+      {/* Step header */}
       <div
         className="flex items-center gap-2 py-1.5 cursor-pointer select-none"
         onClick={() => setExpanded(!expanded)}
       >
-        {/* 鐘舵€佸浘鏍?*/}
+        {/* Status icon */}
         <div className="w-[18px] h-[18px] flex items-center justify-center">
           {status === 'running' ? (
             <Loader2 size={12} className="text-blue-500 animate-spin" />
@@ -57,7 +57,7 @@ export function StepCard({
           )}
         </div>
 
-        {/* 鏍囬鍖哄煙 */}
+        {/* Title area */}
         <div className="flex items-center gap-1.5">
           <span className="text-[14px] font-medium text-gray-900 dark:text-white">{title}</span>
           <span className="text-gray-400 dark:text-slate-600 text-[10px]">

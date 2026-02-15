@@ -1,8 +1,7 @@
 ﻿/**
- * ExecutionFlow - 鎵ц杞ㄨ抗鍙鍖栫粍浠?(v7.1)
+ * ExecutionFlow component (v7.1)
  *
- * 鏄剧ず AI 璇存槑鏂囧瓧 + 鎵ц姝ラ + 宸ュ叿鍗＄墖 + 鏈€缁堣緭鍑?+ 淇鍗＄墖
- * 鏀寔鐭ヨ瘑璋冨彇瀹瑰櫒銆佸彲鎶樺彔姝ラ銆佽緭鍑哄崱鐗囥€佷慨璁㈣兌鍥娿€佹壒閲忎慨璁㈢鐞?
+ * Renders step cards and related flow cards in execution order.
  */
 
 import type { FlowItem, TextFlowData, ToolFlowData, ContentFlowData, StepFlowData, OutputFlowData, AgentHeaderFlowData, CompletionFlowData, SummarizationFlowData, RevisionFlowData, ExploreRoundFlowData, ExploreSummaryFlowData, OperateFlowData } from '@/types/agent';
@@ -27,7 +26,7 @@ interface ExecutionFlowProps {
   onJumpRevision?: (itemId: string, requestId: string | undefined) => void;
   onAcceptAllRevisions?: (itemIds: string[]) => void;
   onDiscardAllRevisions?: (itemIds: string[]) => void;
-  // v7.2: 鎾ら攢/閲嶅仛鍥炶皟
+  // v7.2: undo/redo callbacks
   onUndoRevision?: (itemId: string) => void;
   onRedoRevision?: (itemId: string) => void;
 }
@@ -73,10 +72,10 @@ export function ExecutionFlow({
       {items.map((item) => {
         switch (item.type) {
           case 'text':
-            // 涓嶆覆鏌?TextBlock锛屽彧淇濈暀 StepCard
+            // Do not render TextBlock here; StepCard carries the context.
             return null;
           case 'tool':
-            // 涓嶆覆鏌?ToolCard锛屽彧淇濈暀 StepCard
+            // Do not render ToolCard here; StepCard is the single timeline unit.
             return null;
           case 'content':
             return (
@@ -90,7 +89,7 @@ export function ExecutionFlow({
             const exploreItems = exploreItemsByStep.get(stepData.stepId) || [];
             const isExploreStep = exploreItemsByStep.has(stepData.stepId)
               || stepData.toolCall?.name === 'explore_content';
-            // v7.4: 浣跨敤 item.id 浣滀负 fallback锛岀‘淇濆洖璋冨嚱鏁板缁堟湁鏁?
+            // v7.4: fallback to item.id to keep callbacks stable.
             const revisionId = stepData.revisionItemId || item.id;
             return (
               <StepCard

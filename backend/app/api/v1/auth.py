@@ -52,6 +52,18 @@ class VerifyEmailRequest(BaseModel):
     code: str
 
 
+def _parse_bool(value) -> bool:
+    """Best-effort bool parsing for login payloads."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        return normalized in {"1", "true", "yes", "on", "y"}
+    return False
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 async def register(
     user_data: UserCreate,
@@ -187,7 +199,6 @@ async def register(
 @router.post("/login", response_model=Token)
 async def login(
     request: Request,
-    login_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -207,6 +218,43 @@ async def login(
     logger = logging.getLogger(__name__)
 
     from app.services.login_rate_limit_service import get_login_rate_limit_service
+
+    raw_username = None
+    raw_password = None
+    raw_remember_me = False
+    content_type = (request.headers.get("content-type") or "").lower()
+
+    try:
+        if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+            form_data = await request.form()
+            raw_username = form_data.get("username")
+            raw_password = form_data.get("password")
+            raw_remember_me = form_data.get("remember_me", False)
+        else:
+            payload = await request.json()
+            if isinstance(payload, dict):
+                raw_username = payload.get("username")
+                raw_password = payload.get("password")
+                raw_remember_me = payload.get("remember_me", False)
+    except Exception:
+        # 交给下方统一参数校验
+        pass
+
+    username = str(raw_username or "").strip()
+    password = str(raw_password or "")
+    remember_me = _parse_bool(raw_remember_me)
+
+    if not username or not password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="username and password are required"
+        )
+
+    login_data = LoginRequest(
+        username=username,
+        password=password,
+        remember_me=remember_me
+    )
 
     logger.info(f"[LOGIN] 尝试登录: {login_data.username} (记住我: {login_data.remember_me})")
 

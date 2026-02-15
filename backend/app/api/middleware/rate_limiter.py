@@ -23,6 +23,7 @@ class RateLimiter:
     def __init__(self):
         # key: (identifier, endpoint) -> deque of timestamps
         self._requests: Dict[Tuple[str, str], deque] = defaultdict(deque)
+        self._window_seconds: Dict[Tuple[str, str], int] = {}
         self._last_cleanup = time.time()
 
     def check_rate_limit(
@@ -46,6 +47,7 @@ class RateLimiter:
         """
         current_time = time.time()
         key = (identifier, endpoint)
+        self._window_seconds[key] = window_seconds
 
         # 定期清理旧数据（每5分钟）
         if current_time - self._last_cleanup > 300:
@@ -96,15 +98,21 @@ class RateLimiter:
 
     def _cleanup_old_entries(self, current_time: float):
         """清理5分钟以上没有请求的条目"""
-        cutoff = current_time - 300
         keys_to_delete = []
 
         for key, requests in self._requests.items():
-            if not requests or requests[-1] < cutoff:
+            window_seconds = self._window_seconds.get(key, 300)
+            cutoff = current_time - window_seconds
+
+            while requests and requests[0] < cutoff:
+                requests.popleft()
+
+            if not requests:
                 keys_to_delete.append(key)
 
         for key in keys_to_delete:
             del self._requests[key]
+            self._window_seconds.pop(key, None)
 
         if keys_to_delete:
             logger.debug(f"清理了 {len(keys_to_delete)} 个过期限流条目")

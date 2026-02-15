@@ -6,7 +6,7 @@ Create Date: 2026-02-04 12:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM
 
 
 # revision identifiers, used by Alembic.
@@ -41,17 +41,20 @@ def upgrade() -> None:
     # 检查表是否存在
     tables = inspector.get_table_names()
     if 'worldview_changes' not in tables:
+        status_enum = ENUM(
+            "pending",
+            "applied",
+            "rejected",
+            name="worldviewchangestatus",
+            create_type=False,
+        )
         op.create_table(
             "worldview_changes",
             sa.Column("id", UUID(as_uuid=True), primary_key=True, nullable=False),
             sa.Column("work_id", UUID(as_uuid=True), nullable=False),
             sa.Column("user_id", UUID(as_uuid=True), nullable=False),
             sa.Column("applied_by", UUID(as_uuid=True), nullable=True),
-            sa.Column(
-                "status",
-                sa.Enum("pending", "applied", "rejected", name="worldviewchangestatus", create_type=False),
-                nullable=False,
-            ),
+            sa.Column("status", status_enum, nullable=False),
             sa.Column("source", sa.String(length=50), nullable=True),
             sa.Column("changes", JSONB, nullable=False),
             sa.Column("selected_items", JSONB, nullable=True),

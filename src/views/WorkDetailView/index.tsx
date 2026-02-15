@@ -1606,14 +1606,94 @@ const WorkDetailView: React.FC = () => {
       const customEvent = e as CustomEvent<{
         workId?: string;
         chapterId?: string;
+        chapterTitle?: string;
+        chapterOrder?: string | number;
+        __normalized?: boolean;
+        [key: string]: unknown;
       }>;
-      const { workId: targetWorkId, chapterId: targetChapterId } = customEvent.detail || {};
+      const detail = customEvent.detail || {};
+      const {
+        workId: targetWorkId,
+        chapterId: targetChapterId,
+        chapterTitle: targetChapterTitle,
+        chapterOrder: targetChapterOrder,
+        __normalized,
+      } = detail;
       if (targetWorkId && targetWorkId !== workId) return;
       if (isEditorCollapsed) {
         setIsEditorCollapsed(false);
       }
-      if (!targetChapterId || targetChapterId === currentChapterId) return;
-      handleChapterSelect(targetChapterId);
+
+      const resolveByOrder = (orderHint?: string | number): string | undefined => {
+        if (orderHint === undefined || orderHint === null) return undefined;
+        const orderNum = typeof orderHint === 'number' ? orderHint : Number(String(orderHint).trim());
+        if (!Number.isFinite(orderNum)) return undefined;
+        const rounded = Math.trunc(orderNum);
+        const exact = chapters.find((c) => c.order === rounded);
+        if (exact) return exact.id;
+        const oneBased = chapters.find((c) => c.order === rounded - 1);
+        if (oneBased) return oneBased.id;
+        return undefined;
+      };
+
+      const resolveTargetChapterId = (): string | undefined => {
+        let byId: string | undefined;
+        let byOrderFromId: string | undefined;
+        if (targetChapterId) {
+          byId = chapters.find((c) => c.id === targetChapterId)?.id;
+          byOrderFromId = resolveByOrder(targetChapterId);
+        }
+
+        const byOrder = resolveByOrder(targetChapterOrder);
+        let byTitle: string | undefined;
+        if (targetChapterTitle) {
+          const normalizedTitle = targetChapterTitle.trim();
+          if (normalizedTitle) {
+            byTitle = chapters.find((c) => c.title.trim() === normalizedTitle)?.id;
+          }
+        }
+
+        if (byId) {
+          // 兼容旧链路：仅在 chapterId 疑似回退为当前章时，才用更可靠的序号/标题线索覆盖
+          if (!__normalized && currentChapterId && byId === currentChapterId) {
+            const alternative = byOrder || byTitle;
+            if (alternative && alternative !== byId) {
+              return alternative;
+            }
+          }
+          return byId;
+        }
+
+        if (byOrderFromId) return byOrderFromId;
+        if (byOrder) return byOrder;
+        if (byTitle) return byTitle;
+        return targetChapterId || undefined;
+      };
+
+      const resolvedTargetChapterId = resolveTargetChapterId();
+
+      // 标准化章节ID并二次派发，确保 NovelEditor 拿到可用 chapterId（避免“章节序号/弱标识”导致跳转失效）
+      if (
+        resolvedTargetChapterId &&
+        (!targetChapterId || resolvedTargetChapterId !== targetChapterId) &&
+        !__normalized
+      ) {
+        // 阻断原始弱标识事件继续传播，避免后续监听器消费到旧 chapterId 覆盖规范化结果
+        e.stopImmediatePropagation();
+        window.dispatchEvent(
+          new CustomEvent('agent-jump-revision', {
+            detail: {
+              ...detail,
+              chapterId: resolvedTargetChapterId,
+              __normalized: true,
+            }
+          })
+        );
+        return;
+      }
+
+      if (!resolvedTargetChapterId || resolvedTargetChapterId === currentChapterId) return;
+      handleChapterSelect(resolvedTargetChapterId);
     };
 
     window.addEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
@@ -1631,7 +1711,7 @@ const WorkDetailView: React.FC = () => {
       window.removeEventListener('agent-operations-applied', handleOperationsApplied as EventListener);
       window.removeEventListener('agent-jump-revision', handleJumpRevision as EventListener);
     };
-  }, [workId, currentChapterId, handleChapterSelect, isEditorCollapsed]);
+  }, [workId, currentChapterId, handleChapterSelect, isEditorCollapsed, chapters]);
 
   // 如果 workId 不存在，不渲染任何内容（路由已切换到其他页面）
   if (!workId) {

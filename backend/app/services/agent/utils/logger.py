@@ -120,7 +120,7 @@ class AgentLogger:
             self.logger.error(message)
 
     def debug(self, message: str, **kwargs):
-        """记录���试日志"""
+        """记录调试日志"""
         if self.structured:
             self._log_structured("DEBUG", message, **kwargs)
         else:

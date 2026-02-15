@@ -9,7 +9,7 @@
 - 降级兜底
 """
 
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 import json
 import logging
 import re
@@ -379,6 +379,7 @@ class ToolExecutor:
         elif tool_name == "smart_rewrite":
             # P1修复：从 state 获取上下文信息作为兜底，避免参数全为 None
             current_chapter_id = state.get("chapter_id", "")
+            expected_chapter_id, expected_source = self._get_target_chapter_id(state)
             context_data = state.get("context", {}) if isinstance(state.get("context"), dict) else {}
             selected_text = context_data.get("selected_text", "")
             locate_original_text = context_data.get("locate_original_text", "")
@@ -387,7 +388,8 @@ class ToolExecutor:
             # 如果 chapter_id 是 None（不是空字符串或未设置），说明 $ref 解析越界
             # 此时应该报错而不是静默使用当前章节
             param_chapter_id = params.get("chapter_id")
-            if param_chapter_id is None:
+            chapter_source = "explicit"
+            if param_chapter_id is None or (isinstance(param_chapter_id, str) and not param_chapter_id.strip()):
                 if "chapter_id" in params:
                     # 参数中明确有 chapter_id 但值为 None，说明引用解析失败
                     logger.error(
@@ -397,10 +399,40 @@ class ToolExecutor:
                     logger.warning(
                         "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致修改位置错误"
                     )
-                # 强制设置 chapter_id（setdefault 不会覆盖 None 值）
-                params["chapter_id"] = current_chapter_id
+                if expected_chapter_id:
+                    params["chapter_id"] = expected_chapter_id
+                    chapter_source = expected_source
+                    logger.info(
+                        "[ToolExecutor] smart_rewrite chapter_id 使用目标章节: %s (source=%s)",
+                        expected_chapter_id,
+                        expected_source
+                    )
+                else:
+                    params["chapter_id"] = current_chapter_id
+                    chapter_source = "state_fallback"
             else:
                 params.setdefault("chapter_id", current_chapter_id)
+                if expected_chapter_id and str(param_chapter_id) != str(expected_chapter_id):
+                    logger.warning(
+                        "[ToolExecutor] smart_rewrite chapter_id 与目标章节不一致: actual=%s expected=%s source=%s",
+                        param_chapter_id,
+                        expected_chapter_id,
+                        expected_source
+                    )
+                    if self._is_user_message_target_source(expected_source):
+                        params["chapter_id"] = expected_chapter_id
+                        chapter_source = f"override:{expected_source}"
+                        logger.info(
+                            "[ToolExecutor] smart_rewrite chapter_id 覆盖为目标章节: actual=%s expected=%s source=%s",
+                            param_chapter_id,
+                            expected_chapter_id,
+                            expected_source
+                        )
+            logger.info(
+                "[ToolExecutor] smart_rewrite chapter_id 来源=%s value=%s",
+                chapter_source,
+                params.get("chapter_id")
+            )
 
             # text_to_rewrite: 优先使用参数值，其次使用选中文本
             if not params.get("text_to_rewrite"):
@@ -497,6 +529,15 @@ class ToolExecutor:
                         expected_chapter_id,
                         expected_source
                     )
+                    if self._is_user_message_target_source(expected_source):
+                        params["chapter_id"] = expected_chapter_id
+                        chapter_source = f"override:{expected_source}"
+                        logger.info(
+                            "[ToolExecutor] smart_continue chapter_id 覆盖为目标章节: actual=%s expected=%s source=%s",
+                            param_chapter_id,
+                            expected_chapter_id,
+                            expected_source
+                        )
             logger.info(
                 "[ToolExecutor] smart_continue chapter_id 来源=%s value=%s",
                 chapter_source,
@@ -523,8 +564,10 @@ class ToolExecutor:
         elif tool_name == "smart_insert":
             # 2026-01-27: 检测 chapter_id 是否为 None（引用解析失败）
             current_chapter_id = state.get("chapter_id", "")
+            expected_chapter_id, expected_source = self._get_target_chapter_id(state)
             param_chapter_id = params.get("chapter_id")
-            if param_chapter_id is None:
+            chapter_source = "explicit"
+            if param_chapter_id is None or (isinstance(param_chapter_id, str) and not param_chapter_id.strip()):
                 if "chapter_id" in params:
                     logger.error(
                         "[ToolExecutor] smart_insert chapter_id 引用解析失败（越界或路径错误），"
@@ -533,9 +576,40 @@ class ToolExecutor:
                     logger.warning(
                         "[ToolExecutor] 降级使用当前章节作为 chapter_id，可能导致插入位置错误"
                     )
-                params["chapter_id"] = current_chapter_id
+                if expected_chapter_id:
+                    params["chapter_id"] = expected_chapter_id
+                    chapter_source = expected_source
+                    logger.info(
+                        "[ToolExecutor] smart_insert chapter_id 使用目标章节: %s (source=%s)",
+                        expected_chapter_id,
+                        expected_source
+                    )
+                else:
+                    params["chapter_id"] = current_chapter_id
+                    chapter_source = "state_fallback"
             else:
                 params.setdefault("chapter_id", current_chapter_id)
+                if expected_chapter_id and str(param_chapter_id) != str(expected_chapter_id):
+                    logger.warning(
+                        "[ToolExecutor] smart_insert chapter_id 与目标章节不一致: actual=%s expected=%s source=%s",
+                        param_chapter_id,
+                        expected_chapter_id,
+                        expected_source
+                    )
+                    if self._is_user_message_target_source(expected_source):
+                        params["chapter_id"] = expected_chapter_id
+                        chapter_source = f"override:{expected_source}"
+                        logger.info(
+                            "[ToolExecutor] smart_insert chapter_id 覆盖为目标章节: actual=%s expected=%s source=%s",
+                            param_chapter_id,
+                            expected_chapter_id,
+                            expected_source
+                        )
+            logger.info(
+                "[ToolExecutor] smart_insert chapter_id 来源=%s value=%s",
+                chapter_source,
+                params.get("chapter_id")
+            )
             params.setdefault("work_id", state.get("work_id", ""))
             # 🔧 2026-01-12: 确保 chapter_content 是字符串类型，避免 AI 传入列表导致验证失败
             chapter_content = params.get("chapter_content")
@@ -768,6 +842,8 @@ class ToolExecutor:
                     force_target = operation in {"replace", "insert"} and bool(
                         params.get("__auto_locator") or params.get("__require_source_locator")
                     )
+                    if self._is_user_message_target_source(expected_source):
+                        force_target = operation in {"append", "content", "replace", "insert", "replace_all", "title"}
                     if force_target:
                         params["chapter_id"] = expected_chapter_id
                         chapter_source = f"override:{expected_source}"
@@ -1219,9 +1295,140 @@ class ToolExecutor:
                 return str(entry.get("id")), "explore.chapters"
         return "", ""
 
+    @staticmethod
+    def _is_user_message_target_source(source: Any) -> bool:
+        if not source:
+            return False
+        text = str(source).strip().lower()
+        return text.startswith("user_message.")
+
+    @staticmethod
+    def _chinese_numeral_to_int(value: str) -> Optional[int]:
+        if not value:
+            return None
+        value = str(value).strip()
+        if not value:
+            return None
+        if value.isdigit():
+            try:
+                return int(value)
+            except ValueError:
+                return None
+        mapping = {
+            "零": 0,
+            "一": 1,
+            "二": 2,
+            "两": 2,
+            "三": 3,
+            "四": 4,
+            "五": 5,
+            "六": 6,
+            "七": 7,
+            "八": 8,
+            "九": 9,
+            "十": 10,
+            "百": 100,
+        }
+        if value in mapping:
+            return mapping[value]
+        total = 0
+        if "百" in value:
+            parts = value.split("百", 1)
+            hundreds = mapping.get(parts[0], 1 if parts[0] == "" else None)
+            if hundreds is None:
+                return None
+            total += hundreds * 100
+            value = parts[1]
+        if value == "":
+            return total if total > 0 else None
+        if value == "十":
+            return total + 10
+        if "十" in value:
+            parts = value.split("十", 1)
+            tens = mapping.get(parts[0], 1 if parts[0] == "" else None)
+            ones = mapping.get(parts[1], 0 if parts[1] == "" else None)
+            if tens is None or ones is None:
+                return None
+            total += tens * 10 + ones
+            return total
+        ones = mapping.get(value)
+        if ones is None:
+            return None
+        return total + ones
+
+    @classmethod
+    def _extract_requested_chapter_order(cls, message: str) -> Optional[int]:
+        if not isinstance(message, str):
+            return None
+        text = message.strip()
+        if not text:
+            return None
+
+        # 仅在涉及章节操作意图时启用，避免干扰普通问答。
+        intent_keywords = (
+            "续写", "继续写", "接着写", "往后写", "补写", "承接",
+            "改写", "润色", "优化", "扩写", "插入", "替换", "修改", "重写",
+            "改标题", "标题", "命名"
+        )
+        if not any(keyword in text for keyword in intent_keywords):
+            return None
+
+        chapter_num_pattern = r"([0-9一二两三四五六七八九十百]{1,4})"
+        action_pattern = r"(?:续写|继续写|接着写|往后写|补写|承接|改写|润色|优化|扩写|插入|替换|修改|重写|改标题|改名|命名)"
+
+        def _order(raw: Any) -> Optional[int]:
+            return cls._chinese_numeral_to_int(str(raw or "").strip())
+
+        # 情况1：动作词在前，如“续写第1章”
+        action_after_pattern = rf"{action_pattern}[^。！？\n，,;；]{{0,18}}?第\s*{chapter_num_pattern}\s*章"
+        match = re.search(action_after_pattern, text)
+        if match:
+            order = _order(match.group(1))
+            if isinstance(order, int) and order > 0:
+                return order
+
+        # 情况2：章节在前，如“第1章结尾续写”
+        action_before_pattern = rf"第\s*{chapter_num_pattern}\s*章[^。！？\n，,;；]{{0,18}}?(?:{action_pattern}|结尾|末尾|收尾)"
+        match = re.search(action_before_pattern, text)
+        if match:
+            order = _order(match.group(1))
+            if isinstance(order, int) and order > 0:
+                return order
+
+        # 兜底：多章节时优先排除“我在第X章/当前第X章”这类上下文章节。
+        current_order_set = set()
+        current_pattern = rf"(?:我在|当前在|当前|现在在|目前在|本|这|该)\s*第\s*{chapter_num_pattern}\s*章"
+        for m in re.finditer(current_pattern, text):
+            order = _order(m.group(1))
+            if isinstance(order, int) and order > 0:
+                current_order_set.add(order)
+
+        mentions: List[int] = []
+        mention_pattern = rf"第\s*{chapter_num_pattern}\s*章"
+        for m in re.finditer(mention_pattern, text):
+            order = _order(m.group(1))
+            if isinstance(order, int) and order > 0:
+                mentions.append(order)
+
+        if not mentions:
+            return None
+        if len(mentions) == 1:
+            return mentions[0]
+
+        non_current = [order for order in mentions if order not in current_order_set]
+        if len(set(non_current)) == 1:
+            return non_current[0]
+        if non_current:
+            return non_current[-1]
+        return mentions[-1]
+
     def _get_target_chapter_id(self, state: dict) -> tuple[str, str]:
         if not isinstance(state, dict):
             return "", ""
+        message = state.get("last_user_message", "")
+        explicit_order = self._extract_requested_chapter_order(str(message or ""))
+        if isinstance(explicit_order, int) and explicit_order > 0:
+            return str(explicit_order), "user_message.chapter_order"
         target_id = state.get("target_chapter_id")
         if isinstance(target_id, str) and target_id:
             source = state.get("target_chapter_source") or "state"

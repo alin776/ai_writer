@@ -82,7 +82,7 @@ class RetryStrategy:
 
 
 class FallbackStrategy:
-    """���级策略配置"""
+    """降级策略配置"""
 
     def __init__(
         self,
@@ -219,7 +219,7 @@ def robust_retry(
 
     Args:
         max_attempts: 最大重试次数
-        delay: 初��延迟秒数
+        delay: 初始延迟秒数
         backoff: 延迟倍数
         exceptions: 需要重试的异常类型
         fallback_result: 重试失败时的降级返回值

@@ -16,13 +16,21 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_index(
-        "ix_agent_session_messages_session_id_created_at",
-        "agent_session_messages",
-        ["session_id", "created_at"],
-        unique=False
-    )
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    indexes = {idx.get("name") for idx in inspector.get_indexes("agent_session_messages")}
+    if "ix_agent_session_messages_session_id_created_at" not in indexes:
+        op.create_index(
+            "ix_agent_session_messages_session_id_created_at",
+            "agent_session_messages",
+            ["session_id", "created_at"],
+            unique=False
+        )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_agent_session_messages_session_id_created_at", table_name="agent_session_messages")
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    indexes = {idx.get("name") for idx in inspector.get_indexes("agent_session_messages")}
+    if "ix_agent_session_messages_session_id_created_at" in indexes:
+        op.drop_index("ix_agent_session_messages_session_id_created_at", table_name="agent_session_messages")

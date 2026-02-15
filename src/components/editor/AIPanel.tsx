@@ -491,7 +491,49 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   }, []);
   const resolveRevisionChapterId = useCallback((revision?: RevisionFlowData | null) => {
     if (!revision) return undefined;
-    return (revision.chapterId || (revision as any).chapter_id) as string | undefined;
+    const anyRevision = revision as any;
+    const editorAction = anyRevision.editorAction || anyRevision.editor_action || {};
+    return (
+      revision.chapterId ||
+      anyRevision.chapter_id ||
+      anyRevision.targetChapterId ||
+      anyRevision.target_chapter_id ||
+      editorAction.chapterId ||
+      editorAction.chapter_id
+    ) as string | undefined;
+  }, []);
+  const resolveRevisionChapterTitle = useCallback((revision?: RevisionFlowData | null) => {
+    if (!revision) return undefined;
+    const anyRevision = revision as any;
+    return (
+      revision.chapterTitle ||
+      anyRevision.chapter_title ||
+      anyRevision.targetChapterTitle ||
+      anyRevision.target_chapter_title
+    ) as string | undefined;
+  }, []);
+  const resolveRevisionChapterOrder = useCallback((revision?: RevisionFlowData | null) => {
+    if (!revision) return undefined;
+    const anyRevision = revision as any;
+    const editorAction = anyRevision.editorAction || anyRevision.editor_action || {};
+    const rawOrder =
+      anyRevision.chapterOrder ??
+      anyRevision.chapter_order ??
+      anyRevision.targetChapterOrder ??
+      anyRevision.target_chapter_order ??
+      editorAction.chapterOrder ??
+      editorAction.chapter_order;
+    if (rawOrder === undefined || rawOrder === null) return undefined;
+    if (typeof rawOrder === 'number') {
+      return Number.isFinite(rawOrder) ? rawOrder : undefined;
+    }
+    if (typeof rawOrder === 'string') {
+      const trimmed = rawOrder.trim();
+      if (!trimmed) return undefined;
+      const numeric = Number(trimmed);
+      return Number.isNaN(numeric) ? trimmed : numeric;
+    }
+    return undefined;
   }, []);
   const resolveRevisionPosition = useCallback((revision?: RevisionFlowData | null) => {
     if (!revision) return undefined;
@@ -505,7 +547,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     const collectRevision = (revision: RevisionFlowData | undefined | null, fallbackId?: string) => {
       if (!revision) return;
       if (revision.status !== 'pending') return;
-      const revisionChapterId = (revision.chapterId || (revision as any).chapter_id) as string | undefined;
+      const revisionChapterId = resolveRevisionChapterId(revision);
       if (!revisionChapterId || revisionChapterId === chapterId) return;
       const id = (revision.requestId || (revision as any).request_id || fallbackId) as string | undefined;
       if (id) pendingIds.add(id);
@@ -526,7 +568,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     });
 
     return pendingIds.size;
-  }, [chapterId, messages]);
+  }, [chapterId, messages, resolveRevisionChapterId]);
   const disableBatchOperationControls = crossChapterPendingCount > 0;
 
   // 🔧 expandedMode 切换时保存/恢复滚动位置，避免跳动
@@ -1829,17 +1871,28 @@ ${selectionContext.selected_text}
                               updateRevisionStatus(itemId, success ? 'accepted' : 'pending', snapshot);
                             });
                           } else if (resolvedRequestId) {
-                            const effectiveChapterId = targetChapterId || chapterId;
-                            const chapterMismatch = Boolean(
-                              chapterId &&
+                            const targetChapterTitle = resolveRevisionChapterTitle(revisionData);
+                            const targetChapterOrder = resolveRevisionChapterOrder(revisionData);
+                            const hasOrderHint =
+                              targetChapterOrder !== undefined && targetChapterOrder !== null;
+                            const shouldJumpById = Boolean(
                               targetChapterId &&
-                              chapterId !== targetChapterId
+                              (!chapterId || chapterId !== targetChapterId)
                             );
-                            if (chapterMismatch && targetChapterId) {
-                              console.info('[AIPanel] 跨章节采纳，等待确认后自动跳转', {
+                            const shouldJumpByHint = Boolean(
+                              !targetChapterId &&
+                              (targetChapterTitle || hasOrderHint)
+                            );
+                            const shouldJumpAfterAccept = shouldJumpById || shouldJumpByHint;
+                            const shouldDispatchLocalAcceptEvent = Boolean(targetChapterId || !shouldJumpByHint);
+                            const effectiveChapterId = targetChapterId;
+                            if (shouldJumpAfterAccept) {
+                              console.info('[AIPanel] 采纳后尝试定位目标章节', {
                                 requestId: resolvedRequestId,
                                 currentChapterId: chapterId,
-                                targetChapterId
+                                targetChapterId,
+                                targetChapterTitle,
+                                targetChapterOrder
                               });
                             }
                             // v7.5: 非阻塞式修订 - 直接调用后端 API 写入数据
@@ -1858,21 +1911,29 @@ ${selectionContext.selected_text}
                                 }));
                                 console.log('[AIPanel] ✅ 派发章节确认事件，刷新列表');
                               }
-                              window.dispatchEvent(
-                                new CustomEvent('agent-accept-revision', {
-                                  detail: {
-                                    request_id: resolvedRequestId,
-                                    revision_id: itemId,
-                                    chapter_id: effectiveChapterId
-                                  }
-                                })
-                              );
-                              if (chapterMismatch && targetChapterId) {
+                              if (shouldDispatchLocalAcceptEvent) {
+                                window.dispatchEvent(
+                                  new CustomEvent('agent-accept-revision', {
+                                    detail: {
+                                      request_id: resolvedRequestId,
+                                      revision_id: itemId,
+                                      chapter_id: targetChapterId
+                                    }
+                                  })
+                                );
+                              } else {
+                                console.info('[AIPanel] 跳过本地采纳事件，等待章节定位后刷新内容', {
+                                  requestId: resolvedRequestId
+                                });
+                              }
+                              if (shouldJumpAfterAccept) {
                                 window.dispatchEvent(
                                   new CustomEvent('agent-jump-revision', {
                                     detail: {
                                       workId,
                                       chapterId: targetChapterId,
+                                      chapterTitle: targetChapterTitle,
+                                      chapterOrder: targetChapterOrder,
                                       requestId: resolvedRequestId,
                                       revisionId: resolvedRequestId,
                                       position: resolveRevisionPosition(revisionData)
@@ -1928,7 +1989,14 @@ ${selectionContext.selected_text}
                               updateRevisionStatus(itemId, success ? 'discarded' : 'pending', snapshot);
                             });
                           } else if (resolvedRequestId) {
-                            const effectiveChapterId = targetChapterId || chapterId;
+                            const targetChapterTitle = resolveRevisionChapterTitle(revisionData);
+                            const targetChapterOrder = resolveRevisionChapterOrder(revisionData);
+                            const hasOrderHint =
+                              targetChapterOrder !== undefined && targetChapterOrder !== null;
+                            const shouldDeferLocalDiscard = Boolean(
+                              !targetChapterId && (targetChapterTitle || hasOrderHint)
+                            );
+                            const effectiveChapterId = targetChapterId;
                             const chapterMismatch = Boolean(
                               chapterId &&
                               targetChapterId &&
@@ -1949,15 +2017,21 @@ ${selectionContext.selected_text}
                               chapter_id: effectiveChapterId,
                               work_id: workId
                             }).then(() => {
-                              window.dispatchEvent(
-                                new CustomEvent('agent-discard-revision', {
-                                  detail: {
-                                    request_id: resolvedRequestId,
-                                    revision_id: itemId,
-                                    chapter_id: effectiveChapterId
-                                  }
-                                })
-                              );
+                              if (!shouldDeferLocalDiscard) {
+                                window.dispatchEvent(
+                                  new CustomEvent('agent-discard-revision', {
+                                    detail: {
+                                      request_id: resolvedRequestId,
+                                      revision_id: itemId,
+                                      chapter_id: effectiveChapterId
+                                    }
+                                  })
+                                );
+                              } else {
+                                console.info('[AIPanel] 跳过本地弃用事件，等待章节定位/刷新后同步状态', {
+                                  requestId: resolvedRequestId
+                                });
+                              }
                               updateRevisionStatus(itemId, 'discarded', snapshot);
                             }).catch((err) => {
                               console.error('[AIPanel] 弃用请求失败:', err);
@@ -1973,13 +2047,17 @@ ${selectionContext.selected_text}
                           console.log('[AIPanel] RevisionCard jump:', { itemId, requestId });
                           const revisionData = findRevisionByItemId(itemId);
                           const resolvedRequestId = requestId || resolveRevisionRequestId(revisionData);
-                          const targetChapterId = resolveRevisionChapterId(revisionData) || chapterId;
+                          const targetChapterId = resolveRevisionChapterId(revisionData);
+                          const targetChapterTitle = resolveRevisionChapterTitle(revisionData);
+                          const targetChapterOrder = resolveRevisionChapterOrder(revisionData);
                           const targetRevisionId = resolvedRequestId || itemId;
                           window.dispatchEvent(
                             new CustomEvent('agent-jump-revision', {
                               detail: {
                                 workId,
                                 chapterId: targetChapterId,
+                                chapterTitle: targetChapterTitle,
+                                chapterOrder: targetChapterOrder,
                                 revisionId: targetRevisionId,
                                 requestId: resolvedRequestId,
                                 position: resolveRevisionPosition(revisionData)

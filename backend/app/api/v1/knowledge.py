@@ -3,6 +3,7 @@
 """
 import json
 import io
+import inspect
 from typing import Optional, List
 from uuid import UUID
 
@@ -27,6 +28,13 @@ from app.services.knowledge_service import KnowledgeService
 
 router = APIRouter()
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
+
+
+async def _fetch_all_rows(result):
+    rows = result.fetchall()
+    if inspect.isawaitable(rows):
+        rows = await rows
+    return rows
 
 
 @router.post("", response_model=KnowledgeItemResponse, status_code=status.HTTP_201_CREATED)
@@ -109,7 +117,8 @@ async def get_knowledge_tags(
         .where(KnowledgeItem.user_id == current_user.id)
     )
     result = await db.execute(stmt)
-    tags = [row[0] for row in result.fetchall() if row[0]]
+    rows = await _fetch_all_rows(result)
+    tags = [row[0] for row in rows if row[0]]
     return tags
 
 
@@ -125,7 +134,8 @@ async def get_knowledge_titles(
         .order_by(KnowledgeItem.updated_at.desc())
     )
     result = await db.execute(stmt)
-    docs = [{"id": str(row[0]), "title": row[1]} for row in result.fetchall()]
+    rows = await _fetch_all_rows(result)
+    docs = [{"id": str(row[0]), "title": row[1]} for row in rows]
     return docs
 
 

@@ -1,5 +1,5 @@
 ﻿/**
- * ReflectCard - Agentic 鍙嶆€濆崱鐗?
+ * ReflectCard for agent reflection output.
  */
 
 import type { ReflectFlowData } from '@/types/agent';

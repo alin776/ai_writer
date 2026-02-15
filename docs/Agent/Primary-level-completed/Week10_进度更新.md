@@ -207,7 +207,7 @@ async def process_batch(items):
 
 ## 🚀 集成效果
 
-### 与现有系统的无��集成
+### 与现有系统的无缝集成
 - ✅ **EnhancedMemoryManager**: 集成缓存优化
 - ✅ **HTTPAIService**: 增强性能追踪
 - ✅ **工具系统**: 统一性能接口
@@ -261,7 +261,7 @@ async def process_batch(items):
 
 ---
 
-## 📝 后续建��
+## 📝 后续建议
 
 ### 生产环境部署
 1. **逐步部署**: 建议分阶段部署到生产环境

@@ -245,6 +245,21 @@ class AgentApiService {
         }
         try {
           const data = JSON.parse(line.substring(6));
+          const getStreamErrorMessage = (payload: any): string => {
+            const candidates = [
+              payload?.error,
+              payload?.message,
+              payload?.data?.error,
+              payload?.data?.message,
+              typeof payload?.data === 'string' ? payload.data : null
+            ];
+            for (const candidate of candidates) {
+              if (typeof candidate === 'string' && candidate.trim()) {
+                return candidate;
+              }
+            }
+            return 'Stream connection failed';
+          };
 
           switch (data.type) {
             // ????
@@ -269,7 +284,7 @@ class AgentApiService {
               break;
             case 'error':
               receivedError = true;
-              callbacks.onError?.(data.error);
+              callbacks.onError?.(getStreamErrorMessage(data));
               break;
 
             // Planning ????

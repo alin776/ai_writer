@@ -1314,6 +1314,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           setActiveRevision({
             id: rid,
             requestId: requestIdValue,
+            chapterId: resolvedChapterId,
             type,
             position: resolvedPosition,
             original,
@@ -1346,6 +1347,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
               setActiveRevision({
                 id: rid,
                 requestId: requestIdValue,
+                chapterId: resolvedChapterId,
                 type,
                 position: resolvedPosition,
                 original,
@@ -1425,6 +1427,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           setActiveRevision({
             id: rid,
             requestId: requestIdValue,
+            chapterId: resolvedChapterId,
             type: 'modify',
             position: resolvedPosition,
             original,
@@ -1494,6 +1497,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           setActiveRevision({
             id: rid,
             requestId: requestIdValue,
+            chapterId: resolvedChapterId,
             type: 'continue',
             position: resolvedPosition || { from: insertPos, to: insertPos },
             replacement,
@@ -1561,6 +1565,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
           setActiveRevision({
             id: rid,
             requestId: requestIdValue,
+            chapterId: resolvedChapterId,
             type: 'insert',
             position: insertPosition,
             replacement,
@@ -2070,14 +2075,15 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
   const handleAcceptRevision = useCallback(async () => {
     if (!activeRevision || !editor) return;
 
-    const { id, requestId, type, position } = activeRevision;
+    const { id, requestId, chapterId: revisionChapterId, type, position } = activeRevision;
+    const targetChapterId = revisionChapterId || chapterId;
 
     if (requestId) {
       try {
         await agentApi.submitApprovalResponse({
           request_id: requestId,
           approved: true,
-          chapter_id: chapterId,
+          chapter_id: targetChapterId,
           work_id: workId,
         });
       } catch (error) {
@@ -2127,20 +2133,21 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       console.error('[NovelEditor] 采纳修订失败:', error);
       toast.error(t('editor.aiMenu.applyFailed'));
     }
-  }, [activeRevision, editor, autoSave, debouncedSave, toast, chapterId, getPendingRevisionIdsForChapter, clearPendingRevisions, t]);
+  }, [activeRevision, editor, autoSave, debouncedSave, toast, chapterId, workId, getPendingRevisionIdsForChapter, clearPendingRevisions, t]);
 
   // 🆕 弃用修订 - 移除新内容，恢复原文
   const handleDiscardRevision = useCallback(async () => {
     if (!activeRevision || !editor) return;
 
-    const { id, requestId, type, position } = activeRevision;
+    const { id, requestId, chapterId: revisionChapterId, type, position } = activeRevision;
+    const targetChapterId = revisionChapterId || chapterId;
 
     if (requestId) {
       try {
         await agentApi.submitApprovalResponse({
           request_id: requestId,
           approved: false,
-          chapter_id: chapterId,
+          chapter_id: targetChapterId,
           work_id: workId,
         });
       } catch (error) {
@@ -2177,7 +2184,7 @@ const NovelEditor: React.FC<NovelEditorProps> = ({
       console.error('[NovelEditor] 弃用修订失败:', error);
       toast.error(t('editor.aiMenu.applyFailed'));
     }
-  }, [activeRevision, editor, toast, chapterId, getPendingRevisionIdsForChapter, clearPendingRevisions, t]);
+  }, [activeRevision, editor, toast, chapterId, workId, getPendingRevisionIdsForChapter, clearPendingRevisions, t]);
 
   // 🆕 重新生成修订
   const handleRegenerateRevision = useCallback(() => {

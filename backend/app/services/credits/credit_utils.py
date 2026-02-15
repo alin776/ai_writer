@@ -12,7 +12,7 @@ def calculate_credits_from_cost(cost_usd: float) -> Decimal:
         cost_usd: 美元成本
 
     Returns:
-        Decimal: 积分数量（两��小数）
+        Decimal: 积分数量（两位小数）
     """
     credits = Decimal(str(cost_usd)) * Decimal(str(settings.CREDITS_PER_DOLLAR))
     return credits.quantize(Decimal("0.01"))

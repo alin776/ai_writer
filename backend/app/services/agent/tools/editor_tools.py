@@ -614,11 +614,20 @@ async def apply_chapter_edit(
 
             revision_request_id = str(uuid.uuid4())
             revision_service = ChapterRevisionService(db)
+            # 兜底：优先使用显式 user_id，其次从请求上下文获取，避免 revision owner 为空
+            effective_user_id = user_id
+            if not effective_user_id:
+                try:
+                    from app.core.request_context import get_request_user_id
+
+                    effective_user_id = get_request_user_id()
+                except Exception:
+                    effective_user_id = None
             revision = await revision_service.create_revision(
                 request_id=revision_request_id,
                 work_id=str(chapter.work_id),
                 chapter_id=str(chapter.id),
-                user_id=str(user_id) if user_id else None,
+                user_id=str(effective_user_id) if effective_user_id else None,
                 operation=operation,
                 new_text=actual_content,
                 original_text=original_text,
