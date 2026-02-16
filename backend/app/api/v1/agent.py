@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
 import json
+import re
 import uuid
 import redis
 from pathlib import Path
@@ -201,6 +202,15 @@ def _message_to_response(message: AgentSessionMessage) -> Dict[str, Any]:
     }
 
 
+def _is_valid_uuid(val: str) -> bool:
+    """检查字符串是否为合法 UUID 格式"""
+    try:
+        uuid.UUID(val)
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
 async def _find_session_by_conversation(db: AsyncSession, user_id: str, conversation_id: Optional[str]) -> Optional[AgentSession]:
     if not conversation_id:
         return None
@@ -210,6 +220,21 @@ async def _find_session_by_conversation(db: AsyncSession, user_id: str, conversa
     ).limit(1)
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def _find_session(db: AsyncSession, user_id: str, session_id: str) -> Optional[AgentSession]:
+    """按 UUID 主键或 conversation_id 查找会话（自动跳过非法 UUID）"""
+    session = None
+    if _is_valid_uuid(session_id):
+        stmt = select(AgentSession).where(
+            AgentSession.id == session_id,
+            AgentSession.user_id == user_id,
+        )
+        result = await db.execute(stmt)
+        session = result.scalar_one_or_none()
+    if not session:
+        session = await _find_session_by_conversation(db, user_id, session_id)
+    return session
 
 
 async def _persist_message(
@@ -402,16 +427,12 @@ async def get_agent_session_detail(
     except Exception as e:
         logger.warning(f"[Redis] read session detail cache failed: {e}")
 
-    stmt = select(AgentSession).where(
-        AgentSession.id == session_id,
-        AgentSession.user_id == current_user.id,
-    )
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
-
+    session = await _find_session(db, str(current_user.id), session_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
+    # 统一用真实 UUID 作为缓存 key，避免同一 session 产生多个缓存条目
+    cache_key = _session_detail_cache_key(str(session.id))
     redis_client = get_redis_client()
     response = _session_to_response(session)
     lock_redis = _get_title_lock(redis_client, response["session_id"])
@@ -435,14 +456,7 @@ async def update_agent_session(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    stmt = select(AgentSession).where(
-        AgentSession.id == session_id,
-        AgentSession.user_id == current_user.id,
-    )
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
-    if not session:
-        session = await _find_session_by_conversation(db, str(current_user.id), session_id)
+    session = await _find_session(db, str(current_user.id), session_id)
 
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
@@ -472,7 +486,7 @@ async def update_agent_session(
 
         try:
             redis_client = get_redis_client()
-            redis_client.delete(_session_detail_cache_key(session_id))
+            redis_client.delete(_session_detail_cache_key(str(session.id)))
             _invalidate_session_caches(redis_client, str(current_user.id))
         except Exception as e:
             logger.warning(f"[Redis] invalidate session caches failed: {e}")
@@ -489,25 +503,19 @@ async def delete_agent_session(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    stmt = select(AgentSession).where(
-        AgentSession.id == session_id,
-        AgentSession.user_id == current_user.id,
-    )
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
-    if not session:
-        session = await _find_session_by_conversation(db, str(current_user.id), session_id)
+    session = await _find_session(db, str(current_user.id), session_id)
 
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
+    real_id = str(session.id)
     await db.delete(session)
     await db.commit()
 
     try:
         redis_client = get_redis_client()
-        redis_client.delete(_session_detail_cache_key(session_id))
-        redis_client.delete(_session_title_lock_key(session_id))
+        redis_client.delete(_session_detail_cache_key(real_id))
+        redis_client.delete(_session_title_lock_key(real_id))
         _invalidate_session_caches(redis_client, str(current_user.id))
     except Exception as e:
         logger.warning(f"[Redis] invalidate session caches failed: {e}")
@@ -524,18 +532,16 @@ async def get_agent_session_messages(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    stmt_session = select(AgentSession).where(
-        AgentSession.id == session_id,
-        AgentSession.user_id == current_user.id,
-    )
-    result_session = await db.execute(stmt_session)
-    if result_session.scalar_one_or_none() is None:
+    session = await _find_session(db, str(current_user.id), session_id)
+    if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
+    # 用实际的 session.id（UUID）查询消息
+    actual_session_id = str(session.id)
     order_by = AgentSessionMessage.created_at.asc() if order == "asc" else AgentSessionMessage.created_at.desc()
     stmt = (
         select(AgentSessionMessage)
-        .where(AgentSessionMessage.session_id == session_id)
+        .where(AgentSessionMessage.session_id == actual_session_id)
         .order_by(order_by)
         .offset(offset)
         .limit(limit)
@@ -639,8 +645,11 @@ async def agent_v2_chat_stream(
                 # Agent 完成：获取改动列表
                 changes = backend.get_changes()
 
-                # 发送每条 revision 事件
+                # 发送每条 revision 事件（补充 chapter_id）
                 for op in changes:
+                    m = re.search(r'chapters/(\d+)-[^/]+\.md', op["path"])
+                    if m:
+                        op["chapter_id"] = f"fs-{int(m.group(1))}"
                     rev = make_revision_event(op)
                     yield f"data: {json.dumps(rev, ensure_ascii=False)}\n\n"
 

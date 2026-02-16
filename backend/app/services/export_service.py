@@ -1,6 +1,7 @@
 """导出服务"""
 import json
 import logging
+import re
 from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -185,11 +186,12 @@ class ExportService:
 
         result = []
         for md_file in sorted(chapters_dir.glob("*.md")):
-            if not md_file.stem.isdigit():
+            m = re.match(r"^(\d+)-(.+)$", md_file.stem)
+            if not m:
                 continue
             raw = md_file.read_text(encoding="utf-8")
             parsed = parse_chapter(raw)
-            parsed['order'] = int(md_file.stem)
+            parsed['order'] = int(m.group(1))
             result.append(parsed)
         return result
 

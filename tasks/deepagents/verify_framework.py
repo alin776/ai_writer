@@ -144,8 +144,8 @@ def test_ls_lists_directory():
     """验证 ls 列出目录内容"""
     with tempfile.TemporaryDirectory() as tmpdir:
         backend = FilesystemBackend(root_dir=tmpdir, virtual_mode=True)
-        backend.write("/chapters/01.md", "第一章")
-        backend.write("/chapters/02.md", "第二章")
+        backend.write("/chapters/01-第一章.md", "第一章")
+        backend.write("/chapters/02-第二章.md", "第二章")
         backend.write("/outline.md", "大纲")
         items = backend.ls_info("/")
         paths = [item["path"] for item in items]

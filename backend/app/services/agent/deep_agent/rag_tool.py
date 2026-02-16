@@ -107,7 +107,7 @@ def update_chapter_vectors(
 
     Args:
         work_id: 作品 ID
-        path: 章节文件路径（如 /chapters/01.md）
+        path: 章节文件路径（如 /chapters/01-考核之日.md）
         content: 章节正文内容（不含 frontmatter）
         persist_dir: ChromaDB 持久化目录
     """

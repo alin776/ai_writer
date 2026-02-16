@@ -464,6 +464,8 @@ export interface RevisionFlowData {
   // v7.2: 撤销/重做支持
   originalContent?: string;     // 原始内容快照（用于撤销）
   newContent?: string;          // 新内容快照（用于重做）
+  oldString?: string;           // 原始文本片段（edit 操作，来自后端）
+  newString?: string;           // 新文本片段（edit/write 操作，来自后端）
   editorPosition?: { from: number; to: number };  // 编辑器位置
   selectedVersion?: number;     // 选择的改写版本索引
 }

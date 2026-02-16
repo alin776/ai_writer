@@ -1835,9 +1835,13 @@ ${selectionContext.selected_text}
                               detail: {
                                 workId,
                                 chapterId: targetChapterId,
+                                chapterTitle: revisionData?.chapterTitle,
                                 revisionId: targetRevisionId,
                                 requestId: resolvedRequestId,
-                                position: revisionData?.editorPosition
+                                position: revisionData?.editorPosition,
+                                revisionType: revisionData?.revisionType,
+                                originalContent: revisionData?.oldString || revisionData?.originalContent || '',
+                                modifiedContent: revisionData?.newString || revisionData?.newContent || '',
                               }
                             })
                           );

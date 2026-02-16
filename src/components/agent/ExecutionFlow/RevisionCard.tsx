@@ -1,228 +1,149 @@
 /**
- * RevisionCard - 修订胶囊组件
- * 显示修订操作，支持采纳/弃用/撤销/重做
+ * RevisionCard - Cursor 风格紧凑文件卡片
+ * 单行显示：[图标] 章节名.md  +N -M  [✓] [×]
  */
 
 import { useState } from 'react';
-import { FilePen, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  FilePlus, FileEdit, FilePlus2, FileInput, FileType,
+  Check, X
+} from 'lucide-react';
 import type { RevisionFlowData } from '@/types/agent';
 
 interface RevisionCardProps extends RevisionFlowData {
   onAccept?: (selectedVersion?: number) => void;
   onDiscard?: () => void;
-  onUndo?: () => void;   // v7.2: 撤销回调
+  onUndo?: () => void;
   onJump?: () => void;
+  // 后端 event_translator 额外传入的字段（未在 RevisionFlowData 中声明）
+  path?: string;        // 文件路径，如 "chapters/03-玉佩之谜.md"
+  oldString?: string;   // 原始文本（replace 类型）
+  newString?: string;   // 新文本（create/replace 类型）
+  addLines?: number;    // 后端估算的新增行数
+  delLines?: number;    // 后端估算的删除行数
 }
+
+// 图标映射（统一使用 text-slate-500 灰色，与 preview HTML 一致）
+const iconMap = {
+  create:  FilePlus,
+  replace: FileEdit,
+  append:  FilePlus2,
+  insert:  FileInput,
+  rename:  FileType,
+} as const;
 
 export function RevisionCard({
   revisionType,
   status,
   chapterTitle,
-  contentPreview,
   oldTitle,
   newTitle,
+  newContent,
+  originalContent,
   versions,
+  path,
+  oldString,
+  newString,
+  addLines,
+  delLines,
   onAccept,
   onDiscard,
-  onJump
+  onJump,
 }: RevisionCardProps) {
-  // v7.1: 已处理的修订默认收起，pending 状态默认展开
-  const [expanded, setExpanded] = useState(status === 'pending');
+  const [expanded, setExpanded] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState(0);
 
-  // 获取修订类型的显示文本
-  const getRevisionTitle = () => {
-    const titles: Record<string, string> = {
-      append: '章节续写',
-      replace: '文本改写',
-      insert: '内容插入',
-      create: '新建章节',
-      rename: '修改标题'
-    };
-    return titles[revisionType] || '章节修订';
-  };
+  // 图标（统一灰色）
+  const Icon = iconMap[revisionType] || iconMap.replace;
 
-  const getPreviewLabel = () => {
-    const labels: Record<string, string> = {
-      create: '章节内容预览',
-      insert: '新增内容预览',
-      append: '续写内容预览',
-      replace: '改写内容预览'
-    };
-    return labels[revisionType] || '内容预览';
-  };
+  // 文件名：路径已自带标题（chapters/06-考核之日.md），直接使用
+  const cleanPath = path?.replace(/^\/+/, '');
+  const displayName = revisionType === 'rename'
+    ? `${oldTitle || '?'} → ${newTitle || '?'}`
+    : cleanPath || `chapters/??-${chapterTitle || newTitle || '未命名'}.md`;
 
-  // 状态标签样式
-  const statusStyles: Record<string, string> = {
-    pending: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
-    accepted: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
-    discarded: 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
-  };
+  // diff 行数：优先用后端 addLines/delLines，fallback 按实际换行符统计
+  const countLines = (s: string | undefined) => s ? s.split('\n').length : null;
+  const addCount = addLines || countLines(newString) || countLines(newContent);
+  const delCount = delLines || countLines(oldString)
+    || (revisionType === 'replace' && originalContent ? countLines(originalContent) : null);
 
-  const statusText: Record<string, string> = {
-    pending: '待确认',
-    accepted: '已采纳',
-    discarded: '已弃用'
+  // replace 多版本：点击卡片时展开版本选择
+  const hasVersions = revisionType === 'replace' && versions && versions.length > 1;
+
+  const handleCardClick = () => {
+    if (hasVersions && status === 'pending') {
+      setExpanded(!expanded);
+    } else {
+      onJump?.();
+    }
   };
 
   return (
-    <div className={`inline-block bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 mb-3 ${
-      expanded ? 'rounded-xl px-3 py-2' : 'rounded-full px-2.5 py-1'
-    }`}>
-      {/* 头部 */}
+    <div className="my-1">
+      {/* 主行 */}
       <div
-        className="flex items-center gap-1.5 cursor-pointer select-none"
-        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 px-2.5 py-1.5 bg-[#192438] rounded-lg cursor-pointer hover:bg-slate-800 transition-colors text-[13px]"
+        onClick={handleCardClick}
       >
-        <span className="text-gray-500">
-          <FilePen size={12} />
-        </span>
-        <span className="text-[13px] text-gray-500">{getRevisionTitle()}</span>
-        {/* v7.1: 收起状态下显示章节标题或新标题作为简要说明 */}
-        {!expanded && (chapterTitle || newTitle) && (
-          <span className="text-[12px] text-gray-400 dark:text-slate-500 truncate max-w-[120px]">
-            · {chapterTitle || newTitle}
-          </span>
+        {/* 操作图标 — 统一灰色 */}
+        <Icon className="h-3.5 w-3.5 flex-shrink-0 text-slate-500" />
+
+        {/* 文件名 */}
+        <span className="text-slate-200 truncate flex-1">{displayName}</span>
+
+        {/* diff 统计 */}
+        {addCount != null && <span className="text-green-400 text-xs flex-shrink-0">+{addCount}</span>}
+        {delCount != null && <span className="text-red-400 text-xs flex-shrink-0">-{delCount}</span>}
+
+        {/* 操作按钮 / 状态图标 */}
+        {status === 'pending' ? (
+          <div className="flex gap-1 ml-auto flex-shrink-0">
+            <button
+              title="采纳"
+              className="w-[22px] h-[22px] flex items-center justify-center rounded text-green-400 hover:bg-green-500/10 transition-colors"
+              onClick={(e) => { e.stopPropagation(); onAccept?.(hasVersions ? selectedVersion : undefined); }}
+            >
+              <Check size={13} />
+            </button>
+            <button
+              title="弃用"
+              className="w-[22px] h-[22px] flex items-center justify-center rounded text-red-400 hover:bg-red-500/10 transition-colors"
+              onClick={(e) => { e.stopPropagation(); onDiscard?.(); }}
+            >
+              <X size={13} />
+            </button>
+          </div>
+        ) : status === 'accepted' ? (
+          <Check size={13} className="text-green-400 ml-auto flex-shrink-0" />
+        ) : (
+          <X size={13} className="text-slate-500 ml-auto flex-shrink-0" />
         )}
-        <span className="text-gray-400 dark:text-slate-600 text-[9px] ml-0.5">
-          {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-        </span>
-        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto ${statusStyles[status]}`}>
-          {statusText[status]}
-        </span>
       </div>
 
-      {/* 内容区域 */}
-      {expanded && (
-        <div className="pt-2">
-          {/* 章节信息 */}
-          {chapterTitle && (
-            <div className="mb-2">
-              <span
-                className="text-[13px] text-blue-500 dark:text-[#5c9eff] underline underline-offset-2 cursor-pointer hover:text-blue-600"
-                role={onJump ? 'button' : undefined}
-                tabIndex={onJump ? 0 : undefined}
-                onClick={(e) => {
-                  if (!onJump) return;
-                  e.stopPropagation();
-                  onJump();
-                }}
-                onKeyDown={(e) => {
-                  if (!onJump) return;
-                  if (e.key !== 'Enter' && e.key !== ' ') return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onJump();
-                }}
-              >
-                {chapterTitle}
-              </span>
-            </div>
-          )}
-
-          {/* 根据类型显示不同内容 */}
-          {revisionType === 'rename' ? (
-            // 修改标题
-            <div className="space-y-1 mb-3">
-              <div className="flex items-center gap-2 text-[13px]">
-                <span className="text-gray-500 min-w-[50px]">原标题</span>
-                <span className="text-gray-400 line-through">{oldTitle}</span>
-              </div>
-              <div className="flex items-center gap-2 text-[13px]">
-                <span className="text-gray-500 min-w-[50px]">新标题</span>
-                <span className="text-emerald-600 dark:text-emerald-400">{newTitle}</span>
-              </div>
-            </div>
-          ) : revisionType === 'replace' && versions && versions.length > 0 ? (
-            // 改写 - 多版本选择
-            <div className="space-y-1.5 mb-3">
-              {versions.map((v, idx) => (
-                <label
-                  key={idx}
-                  className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
-                    selectedVersion === idx
-                      ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                      : 'bg-gray-50 dark:bg-slate-700/50 border border-transparent hover:bg-gray-100 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="version"
-                    checked={selectedVersion === idx}
-                    onChange={() => setSelectedVersion(idx)}
-                    className="w-3.5 h-3.5 text-blue-500"
-                  />
-                  <span className="text-[13px] text-gray-900 dark:text-white font-medium">{v.style_name}</span>
-                  <span className="text-[12px] text-gray-500 dark:text-slate-400">{v.reason}</span>
-                </label>
-              ))}
-            </div>
-          ) : (
-            // 其他类型 - 内容预览
-            contentPreview && (
-              <div
-                className={`bg-gray-50 dark:bg-slate-700/50 rounded-lg p-2.5 mb-3${
-                  onJump ? ' cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700' : ''
-                }`}
-                role={onJump ? 'button' : undefined}
-                tabIndex={onJump ? 0 : undefined}
-                onClick={(e) => {
-                  if (!onJump) return;
-                  e.stopPropagation();
-                  onJump();
-                }}
-                onKeyDown={(e) => {
-                  if (!onJump) return;
-                  if (e.key !== 'Enter' && e.key !== ' ') return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onJump();
-                }}
-              >
-                <div className="text-[11px] text-gray-400 dark:text-slate-500 mb-1">
-                  {getPreviewLabel()}
-                </div>
-                <div className="text-[13px] text-gray-600 dark:text-slate-300 leading-[1.6] line-clamp-2">
-                  "{contentPreview}..."
-                </div>
-              </div>
-            )
-          )}
-
-          {/* 操作按钮 */}
-          {status === 'pending' ? (
-            <div className="flex gap-2">
-              <button
-                onClick={(e) => { e.stopPropagation(); onDiscard?.(); }}
-                className="flex items-center gap-1 px-2.5 py-1 text-[12px] text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
-              >
-                <X size={12} />
-                弃用
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onAccept?.(versions ? selectedVersion : undefined); }}
-                className="flex items-center gap-1 px-2.5 py-1 text-[12px] text-green-700 bg-green-50 border border-green-200 rounded-full hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-400 dark:border-green-800 transition-colors"
-              >
-                <Check size={12} />
-                采纳
-              </button>
-            </div>
-          ) : status === 'accepted' ? (
-            // v7.2: 已采纳状态 - 仅显示提示
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-[12px] text-emerald-600 dark:text-emerald-400">
-                <Check size={12} />
-                修订已采纳
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-[12px] text-gray-500">
-                <X size={12} />
-                修订已弃用
-              </span>
-            </div>
-          )}
+      {/* 多版本展开区（仅 replace + 多版本 + pending） */}
+      {expanded && hasVersions && versions && (
+        <div className="ml-6 mt-1 space-y-1">
+          {versions.map((v, idx) => (
+            <label
+              key={idx}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer text-[12px] transition-colors ${
+                selectedVersion === idx
+                  ? 'bg-blue-900/20 text-blue-300'
+                  : 'bg-[#192438] text-slate-400 hover:bg-slate-800'
+              }`}
+            >
+              <input
+                type="radio"
+                name="version"
+                checked={selectedVersion === idx}
+                onChange={() => setSelectedVersion(idx)}
+                className="w-3 h-3 text-blue-500"
+              />
+              <span className="font-medium text-slate-200">{v.style_name}</span>
+              <span className="truncate">{v.reason}</span>
+            </label>
+          ))}
         </div>
       )}
     </div>

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.work import Work, WorkGenre, WorkStatus
 from app.models.ai_guidelines import AIGuidelines
 from app.services.agent.deep_agent import DATA_ROOT
-from app.services.agent.deep_agent.frontmatter import build_chapter
+from app.services.agent.deep_agent.frontmatter import build_chapter, chapter_filename
 from app.services.agent.deep_agent.rag_tool import update_chapter_vectors
 from app.schemas.export import (
     ImportOptions,
@@ -239,7 +239,7 @@ class ImportService:
             if status not in ('draft', 'completed', 'published'):
                 status = 'draft'
             md_content = build_chapter(chapter_data['title'], status, content_text)
-            chapter_file = chapters_dir / f"{num:02d}.md"
+            chapter_file = chapters_dir / chapter_filename(num, chapter_data['title'])
             chapter_file.write_text(md_content, encoding="utf-8")
             chapters_created += 1
 
@@ -339,7 +339,11 @@ class ImportService:
             # 从文件系统获取最大章节序号
             chapters_dir = DATA_ROOT / str(work.author_id) / "works" / str(work.id) / "chapters"
             if chapters_dir.exists():
-                existing_nums = [int(p.stem) for p in chapters_dir.glob("*.md") if p.stem.isdigit()]
+                existing_nums = [
+                    int(m.group(1))
+                    for p in chapters_dir.glob("*.md")
+                    if (m := re.match(r"^(\d+)-", p.stem))
+                ]
                 starting_order = max(existing_nums) if existing_nums else 0
             else:
                 starting_order = 0
@@ -378,7 +382,7 @@ class ImportService:
 
             num = starting_order + idx + 1
             md_content = build_chapter(chapter_data['title'], "draft", content_text)
-            chapter_file = chapters_dir / f"{num:02d}.md"
+            chapter_file = chapters_dir / chapter_filename(num, chapter_data['title'])
             chapter_file.write_text(md_content, encoding="utf-8")
             chapters_created += 1
 

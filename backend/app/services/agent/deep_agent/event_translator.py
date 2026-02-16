@@ -145,6 +145,12 @@ def make_revision_event(op: dict) -> dict[str, Any]:
     Returns:
         revision FlowEvent
     """
+    # 统计 diff 行数（按实际换行符）
+    new_s = op.get("new_string", "")
+    old_s = op.get("old_string", "")
+    add_lines = new_s.count("\n") + 1 if new_s else 0
+    del_lines = old_s.count("\n") + 1 if old_s else 0
+
     return {
         "type": "revision",
         "data": {
@@ -154,6 +160,10 @@ def make_revision_event(op: dict) -> dict[str, Any]:
             "contentPreview": op.get("content_preview", ""),
             "oldString": op.get("old_string", ""),
             "newString": op.get("new_string", ""),
+            "chapterId": op.get("chapter_id", ""),
+            "chapterTitle": op.get("chapter_title", ""),
+            "addLines": add_lines,
+            "delLines": del_lines,
         },
         "timestamp": _now(),
     }

@@ -11,7 +11,30 @@ Frontmatter 解析工具
     正文内容...
 """
 
+import re
+
 import yaml
+
+# Windows 保留文件名（大小写不敏感）
+_WINDOWS_RESERVED = frozenset(
+    ["CON", "PRN", "AUX", "NUL"]
+    + [f"COM{i}" for i in range(1, 10)]
+    + [f"LPT{i}" for i in range(1, 10)]
+)
+
+
+def sanitize_title(title: str) -> str:
+    """移除文件名不安全字符，保留中文/字母/数字/连字符"""
+    safe = re.sub(r'[^\w\u4e00-\u9fff\-]', '', title)
+    safe = safe[:50] or "untitled"
+    if safe.upper() in _WINDOWS_RESERVED:
+        safe = f"_{safe}"
+    return safe
+
+
+def chapter_filename(num: int, title: str) -> str:
+    """构建章节文件名：01-考核之日.md"""
+    return f"{num:02d}-{sanitize_title(title)}.md"
 
 
 def parse_chapter(content: str) -> dict:

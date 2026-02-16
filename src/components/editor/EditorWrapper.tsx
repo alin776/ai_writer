@@ -62,6 +62,7 @@ const EditorWrapper: React.FC<EditorWrapperProps> = ({
 }) => {
   const [showDiff, setShowDiff] = useState(false);
   const [diffOriginal, setDiffOriginal] = useState('');
+  const [diffModified, setDiffModified] = useState('');
 
   // 代理 onSave：MilkdownEditor 返回 md string，第二个参数传 null
   const handleSave = useCallback((md: string) => {
@@ -74,6 +75,7 @@ const EditorWrapper: React.FC<EditorWrapperProps> = ({
       const detail = (e as CustomEvent).detail;
       if (detail?.original !== undefined && detail?.modified !== undefined) {
         setDiffOriginal(detail.original);
+        setDiffModified(detail.modified);
         setShowDiff(true);
       }
     };
@@ -109,18 +111,8 @@ const EditorWrapper: React.FC<EditorWrapperProps> = ({
       {/* 编辑器内容区域 */}
       <div className="flex-1 min-h-0">
         {showDiff ? (
-          <div className="h-full overflow-y-auto p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-medium text-zinc-700 dark:text-slate-200">差异对比</span>
-              <button
-                type="button"
-                onClick={() => setShowDiff(false)}
-                className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-slate-400 dark:hover:text-slate-200"
-              >
-                关闭对比
-              </button>
-            </div>
-            <DiffViewer original={diffOriginal} modified={content} />
+          <div className="h-full overflow-y-auto">
+            <DiffViewer original={diffOriginal} modified={diffModified} inline />
           </div>
         ) : (
           <MilkdownEditor

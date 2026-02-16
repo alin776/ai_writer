@@ -42,7 +42,7 @@ def build_system_prompt(work) -> str:
 - 简介：{desc}
 
 ## 文件规范
-- 章节文件在 /chapters/ 目录，按数字排序（01.md, 02.md, ...）
+- 章节文件在 /chapters/ 目录，按数字排序（01-标题.md, 02-标题.md, ...）
 - 每个章节文件用 YAML frontmatter 存储元数据：
   ```
   ---
@@ -59,4 +59,5 @@ def build_system_prompt(work) -> str:
 3. 创建章节时务必包含 frontmatter（title + status）
 4. 保持人物性格、世界观设定的前后一致性
 5. 使用自然流畅的中文，符合{genre_label}小说的文风
-6. 使用 task 工具创建的子 Agent 仅用于分析和检查，不得修改任何文件"""
+6. 使用 task 工具创建的子 Agent 仅用于分析和检查，不得修改任何文件
+7. 新建章节文件名格式为 两位序号-标题.md，如 chapters/03-玉佩之谜.md"""

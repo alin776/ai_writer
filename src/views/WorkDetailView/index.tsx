@@ -37,6 +37,9 @@ import type { HistorySessionItem } from '@/types/agent';
 import { agentApi } from '@/services/agentApi';
 import styles from './WorkDetailView.module.css';
 
+/** UUID v4 格式正则（用于过滤可安全发给后端 API 的 session ID） */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * WorkDetailView 组件 - 作品详情页面
  *
@@ -253,10 +256,12 @@ const WorkDetailView: React.FC = () => {
     async (session: HistorySessionItem) => {
       if (!activeTabId) return;
 
-      // 尝试从后端拉取历史消息（优先 sessionId，其次 conversationId）
-      const idsToTry = Array.from(
-        new Set([session.sessionId, session.conversationId].filter(Boolean) as string[])
+      // 尝试从后端拉取历史消息（conversationId 优先，它是后端 UUID）
+      const allIds = Array.from(
+        new Set([session.conversationId, session.sessionId].filter(Boolean) as string[])
       );
+      // 只有 UUID 格式的 ID 才能安全地发给后端 API
+      const backendIds = allIds.filter((id) => UUID_REGEX.test(id));
 
       let messages: any[] = [];
       let resolvedConversationId = session.conversationId || session.sessionId || '';
@@ -276,7 +281,7 @@ const WorkDetailView: React.FC = () => {
           return { messages: [], conversationId: resolvedConversationId };
         }
       };
-      for (const id of idsToTry) {
+      for (const id of backendIds) {
         try {
           const resp = await agentApi.getSessionMessages(id, { order: 'asc', limit: 200 });
           const rawMessages = Array.isArray(resp) ? resp : Array.isArray((resp as any)?.messages) ? (resp as any).messages : [];
@@ -288,7 +293,7 @@ const WorkDetailView: React.FC = () => {
             timestamp: m.created_at || m.createdAt || new Date().toISOString()
           }));
 
-          if (messages.length > 0 || idsToTry.length === 1) {
+          if (messages.length > 0 || backendIds.length === 1) {
             break;
           }
         } catch (error) {
@@ -296,9 +301,9 @@ const WorkDetailView: React.FC = () => {
         }
       }
 
-      // 后端为空时再尝试本地缓存
+      // 后端为空时再尝试本地缓存（本地缓存可用任意格式 ID）
       if (messages.length === 0) {
-        for (const id of idsToTry) {
+        for (const id of allIds) {
           const local = loadLocalMessages(id);
           if (local.messages.length > 0) {
             messages = local.messages;
@@ -690,6 +695,23 @@ const WorkDetailView: React.FC = () => {
 
     const chapter = chapters.find(c => c.id === tabId);
     if (!chapter) return;
+
+    // 虚拟章节（缓冲区新建，磁盘不存在）→ 跳过 FS 加载，重新显示 diff
+    if ((chapter as any)._pending) {
+      setCurrentChapterContent(chapter.content || '');
+      setCurrentChapterId(tabId);
+      editorChapterIdRef.current = tabId;
+      // EditorWrapper key 重挂载后重新触发 diff
+      const diffModified = (chapter as any)._diffModified;
+      if (diffModified) {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('editor-show-diff', {
+            detail: { original: (chapter as any)._diffOriginal || '', modified: diffModified }
+          }));
+        }, 100);
+      }
+      return;
+    }
 
     // 先加载内容，确保 EditorWrapper 重新挂载时有正确内容
     let content = chapter.content || '';
@@ -1492,7 +1514,7 @@ const WorkDetailView: React.FC = () => {
     if (target.closest('[data-scroll-scope="editor-tabs"]')) {
       return;
     }
-    if (target.closest('input, textarea, select, [contenteditable="true"], .ProseMirror')) {
+    if (target.closest('input, textarea, select, [contenteditable="true"], .ProseMirror, .diff-viewer')) {
       return;
     }
     const aiContainer = document.querySelector('[data-ai-scroll-container="active"]') as HTMLElement | null;
@@ -1648,14 +1670,74 @@ const WorkDetailView: React.FC = () => {
       const customEvent = e as CustomEvent<{
         workId?: string;
         chapterId?: string;
+        chapterTitle?: string;
+        originalContent?: string;
+        modifiedContent?: string;
       }>;
-      const { workId: targetWorkId, chapterId: targetChapterId } = customEvent.detail || {};
+      const {
+        workId: targetWorkId,
+        chapterId: targetChapterId,
+        chapterTitle: targetChapterTitle,
+        originalContent,
+        modifiedContent,
+      } = customEvent.detail || {};
       if (targetWorkId && targetWorkId !== workId) return;
       if (isEditorCollapsed) {
         setIsEditorCollapsed(false);
       }
-      if (!targetChapterId || targetChapterId === currentChapterId) return;
-      handleChapterSelect(targetChapterId);
+
+      // 切换章节（如果不同）
+      let needDelay = false;
+      if (targetChapterId && targetChapterId !== currentChapterId) {
+        const chapterExists = chapters.find((c) => c.id === targetChapterId);
+        if (chapterExists) {
+          // 章节在磁盘上 → 正常切换
+          handleChapterSelect(targetChapterId);
+          needDelay = true;
+        } else {
+          // 章节不在磁盘上（缓冲区新建）→ 添加虚拟章节 + 创建标签页
+          const num = chapterIdToNum(targetChapterId);
+          const title = targetChapterTitle || `第${num ?? '?'}章`;
+          // 添加到 chapters 列表（防止 useEditorTabs 清理标签）
+          setChapters(prev => {
+            if (prev.find(c => c.id === targetChapterId)) return prev;
+            const now = new Date().toISOString();
+            return [...prev, {
+              id: targetChapterId,
+              workId: workId || '',
+              title,
+              content: '',
+              order: num ?? prev.length + 1,
+              wordCount: 0,
+              viewCount: 0,
+              isPublished: false,
+              publishedAt: null,
+              createdAt: now,
+              updatedAt: now,
+              status: 'draft',
+              _pending: true,
+              _diffOriginal: originalContent || '',
+              _diffModified: modifiedContent || '',
+            } as any];
+          });
+          openEditorTab({ id: targetChapterId, title, order: num ?? 0 });
+          setCurrentChapterContent('');
+          setCurrentChapterId(targetChapterId);
+        }
+      }
+
+      // 打开 diff 视图（如果有修改内容）
+      if (modifiedContent) {
+        // 已存在章节: 等 FS 加载 (500ms)
+        // 虚拟章节: 等 EditorWrapper key 重挂载 (100ms)
+        // 同一章节: 无需等待
+        const delay = needDelay ? 500 : (targetChapterId !== currentChapterId ? 100 : 0);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('editor-show-diff', {
+            detail: { original: originalContent || '', modified: modifiedContent }
+          }));
+        }, delay);
+      }
     };
 
     window.addEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
@@ -1673,7 +1755,7 @@ const WorkDetailView: React.FC = () => {
       window.removeEventListener('agent-operations-applied', handleOperationsApplied as EventListener);
       window.removeEventListener('agent-jump-revision', handleJumpRevision as EventListener);
     };
-  }, [workId, currentChapterId, handleChapterSelect, isEditorCollapsed]);
+  }, [workId, currentChapterId, handleChapterSelect, isEditorCollapsed, chapters, openEditorTab]);
 
   // 如果 workId 不存在，不渲染任何内容（路由已切换到其他页面）
   if (!workId) {

@@ -21,7 +21,9 @@ from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.work import Work
 from app.services.agent.deep_agent import DATA_ROOT
-from app.services.agent.deep_agent.frontmatter import build_chapter, parse_chapter
+from app.services.agent.deep_agent.frontmatter import (
+    build_chapter, chapter_filename, parse_chapter,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -112,7 +114,7 @@ def _list_chapter_files(chapters_dir: Path) -> list[tuple[int, Path]]:
     result = []
     for f in chapters_dir.iterdir():
         if f.is_file() and f.suffix == ".md":
-            match = re.match(r"^(\d+)\.md$", f.name)
+            match = re.match(r"^(\d+)-(.+)\.md$", f.name)
             if match:
                 result.append((int(match.group(1)), f))
     result.sort(key=lambda x: x[0])
@@ -128,20 +130,10 @@ def _next_chapter_num(chapters_dir: Path) -> int:
 
 
 def _resolve_chapter_path(chapters_dir: Path, num: int) -> Optional[Path]:
-    """Resolve chapter path with compatibility for legacy filename formats."""
-    preferred_candidates = (
-        chapters_dir / f"{num:02d}.md",
-        chapters_dir / f"{num:04d}.md",
-        chapters_dir / f"{num}.md",
-    )
-    for candidate in preferred_candidates:
-        if candidate.exists():
-            return candidate
-
-    for chapter_num, chapter_path in _list_chapter_files(chapters_dir):
-        if chapter_num == num:
-            return chapter_path
-
+    """按序号 glob 匹配章节文件：02-*.md"""
+    for f in chapters_dir.glob(f"{num:02d}-*.md"):
+        if f.is_file():
+            return f
     return None
 
 
@@ -234,7 +226,7 @@ async def create_chapter(
     chapters_dir.mkdir(parents=True, exist_ok=True)
 
     num = _next_chapter_num(chapters_dir)
-    chapter_path = chapters_dir / f"{num:02d}.md"
+    chapter_path = chapters_dir / chapter_filename(num, request.title)
 
     content = build_chapter(request.title, request.status, request.content)
     await asyncio.to_thread(chapter_path.write_text, content, "utf-8")
@@ -278,6 +270,15 @@ async def update_chapter(
 
     new_content = build_chapter(title, chapter_status, content)
     await asyncio.to_thread(chapter_path.write_text, new_content, "utf-8")
+
+    # 标题变更时重命名文件
+    new_name = chapter_filename(num, title)
+    new_path = chapters_dir / new_name
+    if new_path != chapter_path:
+        if new_path.exists():
+            logger.warning(f"Rename target {new_path} already exists, skipping rename")
+        else:
+            await asyncio.to_thread(chapter_path.rename, new_path)
 
     new_parsed = parse_chapter(new_content)
     return ChapterResponse(

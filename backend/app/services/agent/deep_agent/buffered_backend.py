@@ -166,6 +166,7 @@ class BufferedFilesystemBackend(FilesystemBackend):
                 return None
             try:
                 content = resolved.read_text(encoding="utf-8")
+                content = content.replace("\r\n", "\n")
             except (OSError, UnicodeDecodeError):
                 return None
 
@@ -185,6 +186,8 @@ class BufferedFilesystemBackend(FilesystemBackend):
 
     def get_changes(self) -> list[dict[str, Any]]:
         """返回待审批改动列表（JSON 可序列化）。"""
+        from app.services.agent.deep_agent.frontmatter import parse_chapter
+
         changes = []
         for i, op in enumerate(self._buffer):
             item: dict[str, Any] = {
@@ -194,6 +197,12 @@ class BufferedFilesystemBackend(FilesystemBackend):
             }
             if op.op_type == "write":
                 item["content_preview"] = (op.content or "")[:200]
+                item["content_length"] = len(op.content or "")
+                # 从 frontmatter 提取章节标题，并用去掉 frontmatter 的正文作为 diff 内容
+                parsed = parse_chapter(op.content or "")
+                item["new_string"] = parsed["content"]
+                if parsed["title"]:
+                    item["chapter_title"] = parsed["title"]
             elif op.op_type == "edit":
                 item["old_string"] = op.old_string
                 item["new_string"] = op.new_string
