@@ -101,6 +101,7 @@ interface UseAgentChatReturn {
   hasOperations: boolean;  // 是否有待确认的操作
   acceptAllOperations: () => Promise<void>;  // 采纳所有操作
   rollbackAllOperations: () => Promise<void>;  // 回滚所有操作
+  recheckOperations: () => Promise<void>;  // 重新检查缓冲区状态
 }
 
 export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatReturn {
@@ -1588,23 +1589,41 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   // v8.0 → v3.3: 使用 V2 Changes API 检查待审批变更
   const [hasOperations, setHasOperations] = useState(false);
 
-  useEffect(() => {
-    const checkOperations = async () => {
-      if (!sessionState.conversationId) {
-        setHasOperations(false);
-        return;
-      }
-      try {
-        const result = await changesApi.list(sessionState.conversationId);
-        setHasOperations(result.changes && result.changes.length > 0);
-      } catch {
-        setHasOperations(false);
-      }
-    };
-    if (!sessionState.isLoading && sessionState.conversationId) {
-      checkOperations();
+  const recheckOperations = useCallback(async () => {
+    if (!sessionState.conversationId) {
+      setHasOperations(false);
+      return;
     }
-  }, [sessionState.isLoading, sessionState.conversationId]);
+    try {
+      const result = await changesApi.list(sessionState.conversationId);
+      setHasOperations(result.changes && result.changes.length > 0);
+    } catch {
+      setHasOperations(false);
+    }
+  }, [sessionState.conversationId]);
+
+  useEffect(() => {
+    if (!sessionState.isLoading && sessionState.conversationId) {
+      recheckOperations();
+    }
+  }, [sessionState.isLoading, sessionState.conversationId, recheckOperations]);
+
+  // 收集当前会话所有 revision 的 itemId
+  const collectRevisionIds = useCallback((): string[] => {
+    const snap = sessionManager.getSession(sessionId);
+    const ids: string[] = [];
+    for (const msg of (snap?.messages || []) as Message[]) {
+      if (!msg.flowItems) continue;
+      for (const fi of msg.flowItems) {
+        if (fi.type === 'step' && (fi.data as StepFlowData).revision) {
+          ids.push((fi.data as StepFlowData).revisionItemId || fi.id);
+        } else if (fi.type === 'revision') {
+          ids.push(fi.id);
+        }
+      }
+    }
+    return ids;
+  }, [sessionId, sessionManager]);
 
   // v3.3: 采纳所有操作 — 使用 V2 Changes API
   const acceptAllOperations = useCallback(async () => {
@@ -1614,13 +1633,17 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       setHasOperations(false);
       window.dispatchEvent(new Event('editor-hide-diff'));
 
+      // 同步所有 RevisionCard 状态为 accepted
+      acceptAllRevisions(collectRevisionIds());
+
       window.dispatchEvent(new CustomEvent('agent-accept-all-revisions', {
         detail: { conversationId: sessionState.conversationId }
       }));
     } catch (error) {
       console.error('[useAgentChat] 采纳操作失败:', error);
+      setHasOperations(false);  // 404 说明缓冲区已空
     }
-  }, [sessionState.conversationId]);
+  }, [sessionState.conversationId, collectRevisionIds, acceptAllRevisions]);
 
   // v3.3: 回滚所有操作 — 使用 V2 Changes API
   const rollbackAllOperations = useCallback(async () => {
@@ -1630,6 +1653,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       setHasOperations(false);
       window.dispatchEvent(new Event('editor-hide-diff'));
 
+      // 同步所有 RevisionCard 状态为 discarded
+      discardAllRevisions(collectRevisionIds());
+
       window.dispatchEvent(new CustomEvent('agent-discard-all-revisions', {
         detail: { conversationId: sessionState.conversationId }
       }));
@@ -1638,8 +1664,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       }));
     } catch (error) {
       console.error('[useAgentChat] 回滚操作失败:', error);
+      setHasOperations(false);  // 404 说明缓冲区已空
     }
-  }, [sessionState.conversationId]);
+  }, [sessionState.conversationId, collectRevisionIds, discardAllRevisions]);
 
   return {
     messages: sessionState.messages as Message[],
@@ -1666,6 +1693,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     // v8.0: 批量操作管理
     hasOperations,
     acceptAllOperations,
-    rollbackAllOperations
+    rollbackAllOperations,
+    recheckOperations
   };
 }

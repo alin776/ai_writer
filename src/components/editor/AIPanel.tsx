@@ -337,6 +337,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     hasOperations,
     acceptAllOperations,
     rollbackAllOperations,
+    recheckOperations,
     conversationId,
   } = useAgentChat({ workId, chapterId, sessionId });  // 传入 workId 和 chapterId 进行会话隔离
 
@@ -1668,6 +1669,7 @@ ${selectionContext.selected_text}
                             changesApi.acceptOne(conversationId, revisionIndex).then(() => {
                               console.log('[AIPanel] ✅ 修订已写入磁盘');
                               window.dispatchEvent(new Event('editor-hide-diff'));
+                              recheckOperations();   // 重新检查缓冲区，同步全局按钮状态
                               if (workId) {
                                 window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
                                   detail: { work_id: workId }
@@ -1727,7 +1729,9 @@ ${selectionContext.selected_text}
                           } else if (conversationId && revisionIndex !== undefined) {
                             // V2 Changes API：通过 buffer index 弃用
                             console.log('[AIPanel] V2 changesApi.rejectOne:', { conversationId, revisionIndex });
-                            changesApi.rejectOne(conversationId, revisionIndex).catch((err) => {
+                            changesApi.rejectOne(conversationId, revisionIndex).then(() => {
+                              recheckOperations();   // 重新检查缓冲区，同步全局按钮状态
+                            }).catch((err) => {
                               console.error('[AIPanel] changesApi.rejectOne 失败:', err);
                             });
                           } else if (resolvedRequestId) {
