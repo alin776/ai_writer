@@ -1541,7 +1541,7 @@ ${selectionContext.selected_text}
           >
             <div className={`flex w-full ${expandedMode ? 'justify-center' : ''}`}>
             <div className={`${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
-              <div ref={messagesContentRef} className="flex flex-col gap-2.5">
+              <div ref={messagesContentRef} className="flex flex-col gap-6 py-5">
           {messages.map((message, index) => {
             // Skip null/undefined messages
             if (!message) {
@@ -1628,6 +1628,7 @@ ${selectionContext.selected_text}
                     {flowItemsWithoutOutput.length > 0 && (
                       <ExecutionFlow
                         items={flowItemsWithoutOutput}
+                        isStreaming={isStreamingMessage}
                         onAcceptRevision={(itemId, requestId, selectedVersion) => {
                           console.log('[AIPanel] RevisionCard accepted:', { itemId, requestId, selectedVersion });
                           const revisionData = findRevisionByItemId(itemId);
@@ -1782,11 +1783,6 @@ ${selectionContext.selected_text}
                           discardAllRevisions(itemIds);
                         }}
                       />
-                    )}
-                    {showThinking && (
-                      <span className="text-[12px] text-zinc-400 dark:text-slate-400 thinking-blink">
-                        Thinking...
-                      </span>
                     )}
                   </div>
                 </div>

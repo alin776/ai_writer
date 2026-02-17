@@ -10,50 +10,13 @@ import { ToolLine } from './ToolLine';
 import { TodoBlock } from './TodoBlock';
 import { OutputCard } from './OutputCard';
 import { RevisionCard } from './RevisionCard';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-
-// 执行轨迹内 Markdown 的紧凑样式（比 AIPanel 更紧凑）
-const markdownComponents = {
-  p({ children }: any) {
-    return <p className="mb-1 last:mb-0">{children}</p>;
-  },
-  h1({ children }: any) {
-    return <h1 className="text-base font-bold mb-1 mt-2 first:mt-0">{children}</h1>;
-  },
-  h2({ children }: any) {
-    return <h2 className="text-base font-semibold mb-1 mt-2 first:mt-0">{children}</h2>;
-  },
-  h3({ children }: any) {
-    return <h3 className="text-sm font-medium mb-1 mt-1.5 first:mt-0">{children}</h3>;
-  },
-  ul({ children }: any) {
-    return <ul className="list-disc list-outside pl-5 mb-1 space-y-0.5">{children}</ul>;
-  },
-  ol({ children }: any) {
-    return <ol className="list-decimal list-outside pl-5 mb-1 space-y-0.5">{children}</ol>;
-  },
-  li({ children }: any) {
-    return <li>{children}</li>;
-  },
-  strong({ children }: any) {
-    return <strong className="font-semibold">{children}</strong>;
-  },
-  blockquote({ children }: any) {
-    return <blockquote className="border-l-2 border-gray-300 dark:border-gray-600 pl-2 my-1 text-gray-500 dark:text-gray-400">{children}</blockquote>;
-  },
-  code({ inline, children, ...props }: any) {
-    return inline
-      ? <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono" {...props}>{children}</code>
-      : <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-sm font-mono overflow-x-auto my-1" {...props}><code>{children}</code></pre>;
-  },
-  hr() {
-    return <hr className="my-1.5 border-gray-200 dark:border-gray-700" />;
-  },
-};
+import { Streamdown } from 'streamdown';
+import { code } from '@streamdown/code';
+import { cjk } from '@streamdown/cjk';
 
 interface ExecutionFlowProps {
   items: FlowItem[];
+  isStreaming?: boolean;
   onApplyContent?: (content: string) => void;
   onAddToKnowledge?: (title: string, content: string) => void;
   onAcceptRevision?: (itemId: string, requestId: string | undefined, selectedVersion?: number) => void;
@@ -66,6 +29,7 @@ interface ExecutionFlowProps {
 
 export function ExecutionFlow({
   items,
+  isStreaming,
   onApplyContent,
   onAddToKnowledge,
   onAcceptRevision,
@@ -114,9 +78,9 @@ export function ExecutionFlow({
             const textContent = typeof textData.content === 'string' ? textData.content : String(textData.content);
             return (
               <div key={item.id} className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                <Streamdown mode="static" plugins={{ code, cjk }}>
                   {textContent}
-                </ReactMarkdown>
+                </Streamdown>
               </div>
             );
           }
@@ -173,6 +137,23 @@ export function ExecutionFlow({
             return null;
         }
       })}
+
+      {/* Thinking 指示器：仅在「静默期」显示
+          - isStreaming: Agent 仍在运行
+          - 最后一项不是 completion（任务未完成）
+          - 最后一项不是 text（LLM 不在输出文字）
+          - 没有正在执行的工具（running 状态的 step）
+       */}
+      {isStreaming
+        && items[items.length - 1]?.type !== 'completion'
+        && items[items.length - 1]?.type !== 'text'
+        && !items.some(i => i.type === 'step' && (i.data as StepFlowData).status === 'running')
+        && (
+        <div className="flex items-center gap-2 py-0.5 text-base font-mono text-gray-500 dark:text-gray-400">
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+          <span>Working...</span>
+        </div>
+      )}
     </div>
   );
 }

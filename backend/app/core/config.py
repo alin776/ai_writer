@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     # OpenAI 配置
     OPENAI_API_KEY: str
     OPENAI_BASE_URL: str = "https://204992.xyz:8443/v1"
-    OPENAI_MODEL: str = "gemini-3-flash-preview"  # 默认模型，可通过环境变量修改
+    OPENAI_MODEL: str = "gemini-claude-sonnet-4-5"  # 默认模型，可通过环境变量修改
 
     @field_validator("OPENAI_TIMEOUT", mode="before")
     @classmethod
