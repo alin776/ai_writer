@@ -1,22 +1,56 @@
 /**
- * ExecutionFlow - 执行轨迹可视化组件 (v7.1)
+ * ExecutionFlow - 执行轨迹可视化组件 (V2 - Claude Code 风格)
  *
- * 显示 AI 说明文字 + 执行步骤 + 工具卡片 + 最终输出 + 修订卡片
- * 支持知识调取容器、可折叠步骤、输出卡片、修订胶囊、批量修订管理
+ * 线性对话流：工具调用压缩为单行 ToolLine，文本内联，
+ * 仅保留 RevisionCard 和审批按钮。
  */
 
-import type { FlowItem, TextFlowData, ToolFlowData, ContentFlowData, StepFlowData, OutputFlowData, AgentHeaderFlowData, CompletionFlowData, SummarizationFlowData, RevisionFlowData, ExploreRoundFlowData, ExploreSummaryFlowData, OperateFlowData } from '@/types/agent';
-import { TextBlock } from './TextBlock';
-import { ToolCard } from './ToolCard';
-import { ContentBlock } from './ContentBlock';
-import { StepCard } from './StepCard';
+import type { FlowItem, StepFlowData, OutputFlowData, RevisionFlowData, CompletionFlowData, TodoFlowData, TextFlowData } from '@/types/agent';
+import { ToolLine } from './ToolLine';
+import { TodoBlock } from './TodoBlock';
 import { OutputCard } from './OutputCard';
-import { AgentHeader } from './AgentHeader';
-import { CompletionStatus } from './CompletionStatus';
-import { SummarizationCard } from './SummarizationCard';
 import { RevisionCard } from './RevisionCard';
-import { ExploreRoundCard, ExploreSummaryCard } from './ExploreCard';
-import { OperateCard } from './OperateCard';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+// 执行轨迹内 Markdown 的紧凑样式（比 AIPanel 更紧凑）
+const markdownComponents = {
+  p({ children }: any) {
+    return <p className="mb-1 last:mb-0">{children}</p>;
+  },
+  h1({ children }: any) {
+    return <h1 className="text-base font-bold mb-1 mt-2 first:mt-0">{children}</h1>;
+  },
+  h2({ children }: any) {
+    return <h2 className="text-base font-semibold mb-1 mt-2 first:mt-0">{children}</h2>;
+  },
+  h3({ children }: any) {
+    return <h3 className="text-sm font-medium mb-1 mt-1.5 first:mt-0">{children}</h3>;
+  },
+  ul({ children }: any) {
+    return <ul className="list-disc list-outside pl-5 mb-1 space-y-0.5">{children}</ul>;
+  },
+  ol({ children }: any) {
+    return <ol className="list-decimal list-outside pl-5 mb-1 space-y-0.5">{children}</ol>;
+  },
+  li({ children }: any) {
+    return <li>{children}</li>;
+  },
+  strong({ children }: any) {
+    return <strong className="font-semibold">{children}</strong>;
+  },
+  blockquote({ children }: any) {
+    return <blockquote className="border-l-2 border-gray-300 dark:border-gray-600 pl-2 my-1 text-gray-500 dark:text-gray-400">{children}</blockquote>;
+  },
+  code({ inline, children, ...props }: any) {
+    return inline
+      ? <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono" {...props}>{children}</code>
+      : <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-sm font-mono overflow-x-auto my-1" {...props}><code>{children}</code></pre>;
+  },
+  hr() {
+    return <hr className="my-1.5 border-gray-200 dark:border-gray-700" />;
+  },
+};
 
 interface ExecutionFlowProps {
   items: FlowItem[];
@@ -27,7 +61,6 @@ interface ExecutionFlowProps {
   onJumpRevision?: (itemId: string, requestId: string | undefined) => void;
   onAcceptAllRevisions?: (itemIds: string[]) => void;
   onDiscardAllRevisions?: (itemIds: string[]) => void;
-  // v7.2: 撤销回调
   onUndoRevision?: (itemId: string) => void;
 }
 
@@ -46,87 +79,48 @@ export function ExecutionFlow({
     return null;
   }
 
-  const stepIds = new Set(
-    items
-      .filter((item) => item.type === 'step')
-      .map((item) => (item.data as StepFlowData).stepId)
-  );
-
-  const exploreItemsByStep = new Map<number, FlowItem[]>();
-  items.forEach((item) => {
-    if (item.type !== 'explore_round' && item.type !== 'explore_summary') {
-      return;
-    }
-    const stepId = (item.data as ExploreRoundFlowData | ExploreSummaryFlowData).stepId;
-    if (!stepIds.has(stepId)) {
-      return;
-    }
-    const grouped = exploreItemsByStep.get(stepId) || [];
-    grouped.push(item);
-    exploreItemsByStep.set(stepId, grouped);
-  });
-
   return (
-    <div>
+    <div className="space-y-1">
       {items.map((item) => {
         switch (item.type) {
-          case 'text':
-            // 不渲染 TextBlock，只保留 StepCard
-            return null;
-          case 'tool':
-            // 不渲染 ToolCard，只保留 StepCard
-            return null;
-          case 'content':
-            return (
-              <ContentBlock
-                key={item.id}
-                content={(item.data as ContentFlowData).content}
-              />
-            );
           case 'step': {
             const stepData = item.data as StepFlowData;
-            const exploreItems = exploreItemsByStep.get(stepData.stepId) || [];
-            const isExploreStep = exploreItemsByStep.has(stepData.stepId)
-              || stepData.toolCall?.name === 'explore_content';
-            // v7.4: 使用 item.id 作为 fallback，确保回调函数始终有效
             const revisionId = stepData.revisionItemId || item.id;
             return (
-              <StepCard
-                key={item.id}
-                {...stepData}
-                description={stepData.description}
-                // v7.3: 传递修订回调给 StepCard（用于内嵌的 RevisionCard）
-                onAcceptRevision={stepData.revision ? (selectedVersion) => onAcceptRevision?.(revisionId, (stepData.revision as any)?.requestId, selectedVersion) : undefined}
-                onDiscardRevision={stepData.revision ? () => onDiscardRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}
-                onUndoRevision={stepData.revision ? () => onUndoRevision?.(revisionId) : undefined}
-                onJumpRevision={stepData.revision ? () => onJumpRevision?.(revisionId, (stepData.revision as any)?.requestId) : undefined}
-              >
-                {exploreItems.length > 0 && (
-                  <div className="space-y-2">
-                    {exploreItems.map((exploreItem) => {
-                      if (exploreItem.type === 'explore_round') {
-                        return (
-                          <ExploreRoundCard
-                            key={exploreItem.id}
-                            {...(exploreItem.data as ExploreRoundFlowData)}
-                          />
-                        );
-                      }
-                      if (exploreItem.type === 'explore_summary') {
-                        return (
-                          <ExploreSummaryCard
-                            key={exploreItem.id}
-                            {...(exploreItem.data as ExploreSummaryFlowData)}
-                          />
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
+              <ToolLine key={item.id} {...stepData}>
+                {/* 内嵌的 RevisionCard */}
+                {stepData.revision && (
+                  <RevisionCard
+                    {...stepData.revision}
+                    onAccept={(selectedVersion) => onAcceptRevision?.(revisionId, (stepData.revision as any)?.requestId, selectedVersion)}
+                    onDiscard={() => onDiscardRevision?.(revisionId, (stepData.revision as any)?.requestId)}
+                    onUndo={() => onUndoRevision?.(revisionId)}
+                    onJump={() => onJumpRevision?.(revisionId, (stepData.revision as any)?.requestId)}
+                  />
                 )}
-              </StepCard>
+              </ToolLine>
             );
           }
+
+          case 'todo': {
+            const todoData = item.data as TodoFlowData;
+            return <TodoBlock key={item.id} {...todoData} />;
+          }
+
+          case 'text': {
+            const textData = item.data as TextFlowData;
+            if (!textData.content) return null;
+            // 防御：LLM chunk.content 可能是对象（如工具调用中间态），确保只渲染字符串
+            const textContent = typeof textData.content === 'string' ? textData.content : String(textData.content);
+            return (
+              <div key={item.id} className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {textContent}
+                </ReactMarkdown>
+              </div>
+            );
+          }
+
           case 'output':
             return (
               <OutputCard
@@ -139,27 +133,7 @@ export function ExecutionFlow({
                 ) : undefined}
               />
             );
-          case 'agent_header':
-            return (
-              <AgentHeader
-                key={item.id}
-                {...(item.data as AgentHeaderFlowData)}
-              />
-            );
-          case 'completion':
-            return (
-              <CompletionStatus
-                key={item.id}
-                {...(item.data as CompletionFlowData)}
-              />
-            );
-          case 'summarization':
-            return (
-              <SummarizationCard
-                key={item.id}
-                {...(item.data as SummarizationFlowData)}
-              />
-            );
+
           case 'revision': {
             const revisionData = item.data as RevisionFlowData;
             return (
@@ -173,33 +147,28 @@ export function ExecutionFlow({
               />
             );
           }
+
+          case 'completion': {
+            const completionData = item.data as CompletionFlowData;
+            return (
+              <div key={item.id} className="flex items-center gap-2 py-1 text-base font-mono text-emerald-600 dark:text-emerald-400">
+                <span>✓</span>
+                <span>{completionData.text || '任务已完成'}</span>
+              </div>
+            );
+          }
+
+          case 'agent_header':
+            // 极简：不渲染独立 header，由 AIPanel 控制
+            return null;
+
+          // V1 遗留类型 — 兼容旧消息，不报错
+          case 'summarization':
           case 'explore_round':
-            if (stepIds.has((item.data as ExploreRoundFlowData).stepId)) {
-              return null;
-            }
-            return (
-              <ExploreRoundCard
-                key={item.id}
-                {...(item.data as ExploreRoundFlowData)}
-              />
-            );
           case 'explore_summary':
-            if (stepIds.has((item.data as ExploreSummaryFlowData).stepId)) {
-              return null;
-            }
-            return (
-              <ExploreSummaryCard
-                key={item.id}
-                {...(item.data as ExploreSummaryFlowData)}
-              />
-            );
           case 'operate':
-            return (
-              <OperateCard
-                key={item.id}
-                data={item.data as OperateFlowData}
-              />
-            );
+          case 'tool':
+          case 'content':
           default:
             return null;
         }

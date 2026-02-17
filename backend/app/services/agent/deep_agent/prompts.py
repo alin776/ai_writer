@@ -61,4 +61,5 @@ def build_system_prompt(work) -> str:
 5. 使用自然流畅的中文，符合{genre_label}小说的文风
 6. 使用 task 工具创建的子 Agent 仅用于分析和检查，不得修改任何文件
 7. 新建章节文件名格式为 两位序号-标题.md，如 chapters/03-玉佩之谜.md
-8. 修改已有章节时，优先使用行号语法：edit_file 的 old_string 填写 [LINES:起始行-结束行]（如 [LINES:5-12]），new_string 填替换内容。行号从 read_file 输出的行号获取。这比复述原文更准确"""
+8. 修改已有章节时，优先使用行号语法：edit_file 的 old_string 填写 [LINES:起始行-结束行]（如 [LINES:5-12]），new_string 填替换内容。行号从 read_file 输出的行号获取。这比复述原文更准确
+9. TODO(human)"""

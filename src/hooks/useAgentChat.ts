@@ -6,7 +6,7 @@ import { DataService } from '@/services/DataService';
 import { useConversationPersistence } from './useConversationPersistence';
 import { getGlobalSessionManager } from '@/contexts/SessionContext';
 import type { SessionState } from './SessionStateManager';
-import type { AgentChatRequest, AgentChatResponse, FlowItem, ToolFlowData, StepFlowData, SummarizationFlowData, RevisionFlowData, RevisionStatus } from '@/types/agent';
+import type { AgentChatRequest, AgentChatResponse, FlowItem, StepFlowData, RevisionFlowData, RevisionStatus, TodoFlowData } from '@/types/agent';
 import TypewriterWorker from '@/workers/typewriterWorker?worker';
 
 // 清理任务描述中的 UUID（兜底过滤）
@@ -199,6 +199,33 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
     const persisted = loadSession(sessionId);
     if (persisted) {
+      // 数据迁移：修复旧版 todo FlowItem 中 description 为对象的问题
+      // 后端 Todo TypedDict 用 {content, status}，旧代码误将整个对象存为 description
+      const sanitizeFlowItems = (items: any[]): any[] =>
+        items.map((item: any) => {
+          if (item.type === 'todo' && item.data?.todos) {
+            return {
+              ...item,
+              data: {
+                ...item.data,
+                todos: item.data.todos.map((t: any) => ({
+                  ...t,
+                  description: typeof t.description === 'string'
+                    ? t.description
+                    : t.description?.content || t.content || String(t.description ?? ''),
+                })),
+              },
+            };
+          }
+          return item;
+        });
+
+      persisted.messages = persisted.messages.map((msg: any) => {
+        if (msg.flowItems) {
+          return { ...msg, flowItems: sanitizeFlowItems(msg.flowItems) };
+        }
+        return msg;
+      });
       // DEBUG: 检查从 localStorage 加载的消息是否包含 flowItems
       if (process.env.NODE_ENV === 'development') {
         console.log(`[useAgentChat] Loading session ${sessionId}, messages:`, persisted.messages.length);
@@ -530,22 +557,59 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   break;
                 }
                 case 'text': {
-                  const item: FlowItem = {
-                    id: `flow-${Date.now()}-text`,
-                    type: 'text',
-                    data: { content: event.data?.content || '' },
-                    timestamp,
-                  };
-                  currentFlowItems = [...currentFlowItems, item];
+                  // V2: 累积合并连续 text 到同一个 FlowItem
+                  const newContent = event.data?.content || '';
+                  const lastItem = currentFlowItems[currentFlowItems.length - 1];
+                  if (lastItem && lastItem.type === 'text') {
+                    // 追加到已有的 text FlowItem
+                    currentFlowItems = currentFlowItems.map((item, idx) =>
+                      idx === currentFlowItems.length - 1
+                        ? { ...item, data: { content: (item.data as any).content + newContent } }
+                        : item
+                    );
+                  } else {
+                    // 新建 text FlowItem
+                    const item: FlowItem = {
+                      id: `flow-${Date.now()}-text`,
+                      type: 'text',
+                      data: { content: newContent },
+                      timestamp,
+                    };
+                    currentFlowItems = [...currentFlowItems, item];
+                  }
                   break;
                 }
                 case 'step_start': {
                   stepStartTimes.set(event.stepId, Date.now());  // v6.7: 记录开始时间
+
+                  // V2: write_todos 特殊处理 — 生成 todo FlowItem
+                  if (event.toolName === 'write_todos' && event.toolInput?.todos) {
+                    const todoData: TodoFlowData = {
+                      todos: (event.toolInput.todos as any[]).map((t: any) => ({
+                        // 后端 Todo TypedDict 用 content 字段，前端统一为 description
+                        description: t.content || t.description || (typeof t === 'string' ? t : String(t)),
+                        status: t.status || 'pending',
+                      })),
+                      currentTask: event.toolInput.current_task,
+                    };
+                    // 旧的 todo 留在原位（历史快照），新状态追加到末尾
+                    const todoItem: FlowItem = {
+                      id: `flow-${Date.now()}-todo`,
+                      type: 'todo',
+                      data: todoData,
+                      timestamp,
+                    };
+                    currentFlowItems = [...currentFlowItems, todoItem];
+                    // write_todos 也作为普通 step 记录（但不显示为 ToolLine，由 index.tsx 控制）
+                  }
+
                   const stepData: StepFlowData = {
                     stepId: event.stepId,
                     title: cleanTaskDescription(event.title),
                     description: event.description,
                     status: 'running',
+                    toolName: event.toolName,
+                    toolInput: event.toolInput,
                   };
                   const item: FlowItem = {
                     id: `flow-${Date.now()}-step-${event.stepId}`,
@@ -556,20 +620,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   currentFlowItems = [...currentFlowItems, item];
                   break;
                 }
-                case 'knowledge_loaded': {
-                  currentFlowItems = currentFlowItems.map(item => {
-                    if (item.type === 'step' && (item.data as StepFlowData).stepId === event.stepId) {
-                      const stepData = item.data as StepFlowData;
-                      const knowledge = { title: event.title, icon: event.icon, items: event.items || [] };
-                      return {
-                        ...item,
-                        data: { ...stepData, knowledge: [...(stepData.knowledge || []), knowledge] }
-                      };
-                    }
-                    return item;
-                  });
-                  break;
-                }
+                // knowledge_loaded: V1 遗留，V2 不再处理
                 case 'step_complete': {
                   // v6.7: 确保 running 状态至少显示 500ms，与 TaskList 同步
                   const MIN_RUNNING_DISPLAY_MS = 500;
@@ -661,78 +712,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   currentFlowItems = [...currentFlowItems, item];
                   break;
                 }
-                case 'summarization_start': {
-                  const item: FlowItem = {
-                    id: `flow-${Date.now()}-summarization`,
-                    type: 'summarization',
-                    data: {
-                      status: 'running',
-                      taskClassification: {
-                        inputTasks: event.task_classification?.input_tasks || [],
-                        outputTasks: event.task_classification?.output_tasks || [],
-                        displayTasks: event.task_classification?.display_tasks || [],
-                      },
-                      contextStats: {
-                        originalLength: event.context_stats?.original_length || 0,
-                        compressedLength: event.context_stats?.compressed_length || 0,
-                        mode: event.context_stats?.mode || '流式生成',
-                      },
-                    },
-                    timestamp,
-                  };
-                  currentFlowItems = [...currentFlowItems, item];
-                  break;
-                }
-                case 'summarization_complete': {
-                  currentFlowItems = currentFlowItems.map((item): FlowItem =>
-                    item.type === 'summarization'
-                      ? { ...item, data: { ...(item.data as SummarizationFlowData), status: 'done' } }
-                      : item
-                  );
-                  break;
-                }
-                // Explore 探索事件 (2026-01-17)
-                case 'explore_round': {
-                  const item: FlowItem = {
-                    id: `flow-${Date.now()}-explore-round-${event.roundIdx}`,
-                    type: 'explore_round',
-                    data: {
-                      stepId: event.stepId,
-                      roundIdx: event.roundIdx,
-                      title: event.title,
-                      reason: event.reason,  // AI 决策理由（完整）
-                      toolCalls: event.toolCalls,
-                      hitCount: event.hitCount,
-                      missingItems: event.missingItems,
-                      statusText: event.statusText,
-                      evidences: event.evidences,
-                      reviewStatus: event.reviewStatus,
-                      status: event.status,
-                    },
-                    timestamp,
-                  };
-                  currentFlowItems = [...currentFlowItems, item];
-                  break;
-                }
-                case 'explore_summary': {
-                  const item: FlowItem = {
-                    id: `flow-${Date.now()}-explore-summary`,
-                    type: 'explore_summary',
-                    data: {
-                      stepId: event.stepId,
-                      totalRounds: event.totalRounds,
-                      summary: event.summary,
-                      nextAction: event.nextAction,
-                      nextTool: event.nextTool,
-                      sufficient: event.sufficient,
-                      coverage: event.coverage,
-                      stats: event.stats,
-                    },
-                    timestamp,
-                  };
-                  currentFlowItems = [...currentFlowItems, item];
-                  break;
-                }
+                // summarization: V1 遗留，V2 不再处理
+                // explore: V1 遗留，V2 不再处理
                 case 'revision': {
                   // v7.5: 非阻塞式修订 - 嵌入到最后一个 step 中 + 派发事件到编辑器
                   const revisionItemId = `flow-${Date.now()}-revision`;

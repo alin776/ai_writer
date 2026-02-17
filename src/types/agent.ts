@@ -316,7 +316,7 @@ export interface ActivityItem {
 /**
  * 执行轨迹项类型
  */
-export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization' | 'revision' | 'explore_round' | 'explore_summary' | 'operate';
+export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization' | 'revision' | 'explore_round' | 'explore_summary' | 'operate' | 'todo';
 
 // ==================== 知识调取相关类型 (v6.0) ====================
 
@@ -347,6 +347,8 @@ export interface StepFlowData {
   title: string;           // "获取世界观设定"
   status: 'running' | 'done' | 'error';
   description?: string;    // 步骤描述
+  toolName?: string;       // 原始工具名（如 "read_file"）
+  toolInput?: any;         // 原始工具输入参数
   knowledge?: KnowledgeFlowData[];  // 知识调取列表
   toolCall?: {
     icon: string;          // "Wrench"
@@ -632,13 +634,31 @@ export interface OperateFlowData {
   requestId?: string;
 }
 
+// ==================== Todo 类型 (Claude Code 风格) ====================
+
+/**
+ * Todo 项
+ */
+export interface TodoItem {
+  description: string;
+  status: 'pending' | 'in_progress' | 'completed';
+}
+
+/**
+ * TodoList 数据（write_todos 工具输出）
+ */
+export interface TodoFlowData {
+  todos: TodoItem[];
+  currentTask?: string;  // 当前执行的任务描述
+}
+
 /**
  * 执行轨迹项
  */
 export interface FlowItem {
   id: string;
   type: FlowItemType;
-  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | SummarizationFlowData | RevisionFlowData | ExploreRoundFlowData | ExploreSummaryFlowData | ExploreFlowData | OperateFlowData;
+  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | SummarizationFlowData | RevisionFlowData | ExploreRoundFlowData | ExploreSummaryFlowData | ExploreFlowData | OperateFlowData | TodoFlowData;
   timestamp: string;
 }
 

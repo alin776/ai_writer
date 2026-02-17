@@ -389,19 +389,15 @@ class AgentApiService {
               break;
             case 'text':
               callbacks.onFlowEvent?.({ type: 'text', data: data.data, timestamp: data.timestamp });
-              // V2 后端用 text 事件传输 LLM 流式 token，转发给 onContent 填充 message.content
-              if (data.data?.content) {
-                callbacks.onContent?.(data.data.content);
-              }
               break;
             case 'step_start':
-              callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, description: data.description, status: data.status, timestamp: data.timestamp });
+              callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, description: data.description, toolName: data.tool_name, toolInput: data.tool_input, status: data.status, timestamp: data.timestamp });
               break;
             case 'knowledge_loaded':
-              callbacks.onFlowEvent?.({ type: 'knowledge_loaded', stepId: data.step_id, knowledgeType: data.knowledge_type, title: data.title, icon: data.icon, items: data.items, timestamp: data.timestamp });
+              // V1 遗留，忽略
               break;
             case 'step_complete':
-              callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolCall: data.tool_call, status: data.status, timestamp: data.timestamp });
+              callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolName: data.tool_name, toolCall: data.tool_call, status: data.status, timestamp: data.timestamp });
               break;
             case 'output_ready':
               callbacks.onFlowEvent?.({ type: 'output_ready', title: data.title, content: data.content, intro: data.intro, introHighlight: data.intro_highlight, isApplicable: data.is_applicable, timestamp: data.timestamp });
@@ -420,54 +416,16 @@ class AgentApiService {
               break;
             }
             case 'summarization_start':
-              callbacks.onFlowEvent?.({
-                type: 'summarization_start',
-                task_classification: data.task_classification,
-                context_stats: data.context_stats,
-                reason: data.reason,
-                status: data.status,
-                timestamp: data.timestamp
-              });
+              // V1 遗留，忽略
               break;
             case 'summarization_complete':
-              callbacks.onFlowEvent?.({
-                type: 'summarization_complete',
-                status: data.status,
-                timestamp: data.timestamp
-              });
+              // V1 遗留，忽略
               break;
 
-            // Explore 探索事件 (2026-01-17)
+            // Explore 探索事件 — V1 遗留，忽略
             case 'explore_round':
-              callbacks.onFlowEvent?.({
-                type: 'explore_round',
-                stepId: data.step_id,
-                roundIdx: data.round_idx,
-                title: data.title,
-                reason: data.reason,
-                toolCalls: data.tool_calls,
-                hitCount: data.hit_count,
-                missingItems: data.missing_items,
-                statusText: data.status_text,
-                evidences: data.evidences,
-                reviewStatus: data.review_status,
-                status: data.status,
-                timestamp: data.timestamp
-              });
               break;
             case 'explore_summary':
-              callbacks.onFlowEvent?.({
-                type: 'explore_summary',
-                stepId: data.step_id,
-                totalRounds: data.total_rounds,
-                summary: data.summary,
-                nextAction: data.next_action,
-                nextTool: data.next_tool,
-                sufficient: data.sufficient,
-                coverage: data.coverage,
-                stats: data.stats,
-                timestamp: data.timestamp
-              });
               break;
           }
         } catch (error) {

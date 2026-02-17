@@ -663,7 +663,7 @@ async def agent_v2_chat_stream(
                 input_msg = {"messages": [{"role": "user", "content": request.message}]}
                 config = {
                     "configurable": {"thread_id": conversation_id},
-                    "recursion_limit": 150,
+                    "recursion_limit": 500,
                 }
 
                 # 发送 agent_header

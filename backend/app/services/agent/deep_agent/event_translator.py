@@ -40,9 +40,18 @@ class StepCounter:
 
     def __init__(self):
         self._counter = 0
+        self._run_to_step: dict[str, int] = {}  # run_id → step_id 映射
 
-    def next_id(self) -> int:
+    def next_id(self, run_id: str | None = None) -> int:
         self._counter += 1
+        if run_id:
+            self._run_to_step[run_id] = self._counter
+        return self._counter
+
+    def get_step_id(self, run_id: str | None) -> int:
+        """通过 run_id 查找对应的 step_id，找不到则回退到 current。"""
+        if run_id and run_id in self._run_to_step:
+            return self._run_to_step.pop(run_id)
         return self._counter
 
     @property
@@ -67,6 +76,7 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
     kind = event.get("event", "")
     name = event.get("name", "")
     data = event.get("data", {})
+    run_id = event.get("run_id", "")
 
     # ─── LLM 逐 token 流式输出 ───
     if kind == "on_chat_model_stream":
@@ -84,7 +94,7 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
         tool_name = name
         tool_input = data.get("input", {})
 
-        step_id = counter.next_id()
+        step_id = counter.next_id(run_id)  # 记录 run_id → step_id 映射
 
         # 生成友好的工具描述
         desc = _tool_description(tool_name, tool_input)
@@ -93,6 +103,8 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
             "type": "step_start",
             "step_id": step_id,
             "title": desc,
+            "tool_name": tool_name,
+            "tool_input": tool_input,
             "status": "running",
             "timestamp": _now(),
         }
@@ -104,8 +116,9 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
 
         return {
             "type": "step_complete",
-            "step_id": counter.current,  # 配对最近的 step_start
+            "step_id": counter.get_step_id(run_id),  # 通过 run_id 找回正确的 step_id
             "description": f"{tool_name} 完成",
+            "tool_name": tool_name,
             "tool_call": {"icon": icon, "name": tool_name},
             "status": "done",
             "timestamp": _now(),
