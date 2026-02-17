@@ -215,6 +215,32 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         conversationId: persisted.conversationId || undefined,
         mode: persisted.mode || 'plan',
       });
+
+      // v8: 恢复消息后，重放最后一次 edit_file 的内联 Diff
+      if (lastAgentMessage && (lastAgentMessage as any).flowItems) {
+        const flowItems = (lastAgentMessage as any).flowItems as any[];
+        let lastRevision: any = null;
+        for (const item of flowItems) {
+          const rev = item.type === 'step' ? (item.data as any)?.revision : item.type === 'revision' ? item.data : null;
+          if (rev?.oldString && rev?.newString) {
+            lastRevision = rev;
+          }
+        }
+        if (lastRevision) {
+          // 轮询等 MilkdownEditor + diffDecorationPlugin 初始化完成后再派发
+          const tryRestore = (attempts = 15) => {
+            const editor = document.querySelector('.milkdown .ProseMirror');
+            if (editor) {
+              window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+                detail: { oldString: lastRevision.oldString, newString: lastRevision.newString }
+              }));
+            } else if (attempts > 0) {
+              setTimeout(() => tryRestore(attempts - 1), 200);
+            }
+          };
+          tryRestore();
+        }
+      }
     }
     refreshSessionSnapshot();
 
@@ -772,6 +798,16 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                         afterAnchor: editorAction?.after_anchor,
                         nodeId: editorAction?.node_id,
                         paragraphIndex: editorAction?.paragraph_index,
+                      }
+                    }));
+                  }
+
+                  // v8: edit_file 操作 — 派发内联 Diff 事件到编辑器
+                  if (revisionData.oldString && revisionData.newString) {
+                    window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+                      detail: {
+                        oldString: revisionData.oldString,
+                        newString: revisionData.newString,
                       }
                     }));
                   }
@@ -1576,6 +1612,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     try {
       await changesApi.acceptAll(sessionState.conversationId);
       setHasOperations(false);
+      window.dispatchEvent(new Event('editor-hide-diff'));
 
       window.dispatchEvent(new CustomEvent('agent-accept-all-revisions', {
         detail: { conversationId: sessionState.conversationId }
@@ -1591,6 +1628,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
     try {
       await changesApi.rejectAll(sessionState.conversationId);
       setHasOperations(false);
+      window.dispatchEvent(new Event('editor-hide-diff'));
 
       window.dispatchEvent(new CustomEvent('agent-discard-all-revisions', {
         detail: { conversationId: sessionState.conversationId }

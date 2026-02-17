@@ -1,6 +1,6 @@
 /**
  * DiffViewer - 行级差异视图组件
- * 红绿行 + 行号 + 折叠未变区域，类似 VS Code diff
+ * 行级 diff + 行内字符高亮 + 折叠未变区域，类似 VS Code diff
  */
 import React, { useMemo, useState } from 'react';
 import { diff_match_patch, DIFF_DELETE, DIFF_INSERT, DIFF_EQUAL } from 'diff-match-patch';
@@ -16,49 +16,102 @@ interface DiffViewerProps {
   inline?: boolean;
 }
 
+interface DiffSpan {
+  type: 'equal' | 'del' | 'add';
+  text: string;
+}
+
 interface DiffLine {
   type: 'add' | 'del' | 'ctx';
   lineNo: number | null;   // 目标文件行号（del 行用原始行号）
   content: string;
+  /** 行内字符级高亮（配对的 del/add 行才有） */
+  spans?: DiffSpan[];
 }
 
 /**
- * 将 diff-match-patch 的字符级结果转换为行级 DiffLine 数组
+ * 行级 diff：先用 diff_linesToChars_ 把每行当原子单位，再为配对行添加字符级高亮
  */
 function computeLineDiffs(original: string, modified: string): DiffLine[] {
   const dmp = new diff_match_patch();
-  const rawDiffs = dmp.diff_main(original, modified);
-  dmp.diff_cleanupSemantic(rawDiffs);
 
-  // 先拼成带标记的行
+  // Phase 1: 行级 diff（每行作为一个原子单位比较）
+  const a = dmp.diff_linesToChars_(original, modified);
+  const diffs = dmp.diff_main(a.chars1, a.chars2, false);
+  dmp.diff_charsToLines_(diffs, a.lineArray);
+
+  // Phase 2: 转换为 DiffLine 数组
   const lines: DiffLine[] = [];
   let oldLineNo = 1;
   let newLineNo = 1;
 
-  for (const [op, text] of rawDiffs) {
-    const segments = text.split('\n');
-    for (let i = 0; i < segments.length; i++) {
-      const seg = segments[i];
-      const isLast = i === segments.length - 1;
+  for (const [op, text] of diffs) {
+    // diff_linesToChars_ 保留行尾 \n，split 后末尾会有空串
+    const splitLines = text.split('\n');
+    if (splitLines.length > 0 && splitLines[splitLines.length - 1] === '') {
+      splitLines.pop();
+    }
 
+    for (const lineText of splitLines) {
       if (op === DIFF_EQUAL) {
-        if (seg || !isLast) {
-          lines.push({ type: 'ctx', lineNo: newLineNo, content: seg });
-        }
-        if (!isLast) { oldLineNo++; newLineNo++; }
+        lines.push({ type: 'ctx', lineNo: newLineNo, content: lineText });
+        oldLineNo++;
+        newLineNo++;
       } else if (op === DIFF_DELETE) {
-        if (seg || !isLast) {
-          lines.push({ type: 'del', lineNo: oldLineNo, content: seg });
-        }
-        if (!isLast) { oldLineNo++; }
+        lines.push({ type: 'del', lineNo: oldLineNo, content: lineText });
+        oldLineNo++;
       } else if (op === DIFF_INSERT) {
-        if (seg || !isLast) {
-          lines.push({ type: 'add', lineNo: newLineNo, content: seg });
-        }
-        if (!isLast) { newLineNo++; }
+        lines.push({ type: 'add', lineNo: newLineNo, content: lineText });
+        newLineNo++;
       }
     }
   }
+
+  // Phase 3: 为配对的 del/add 行添加行内字符级高亮
+  let i = 0;
+  while (i < lines.length) {
+    // 找连续 del 块
+    const delStart = i;
+    while (i < lines.length && lines[i].type === 'del') i++;
+    const delEnd = i;
+
+    // 找紧接着的连续 add 块
+    const addStart = i;
+    while (i < lines.length && lines[i].type === 'add') i++;
+    const addEnd = i;
+
+    const delCount = delEnd - delStart;
+    const addCount = addEnd - addStart;
+
+    // 配对行：逐行计算字符级差异
+    if (delCount > 0 && addCount > 0) {
+      const pairCount = Math.min(delCount, addCount);
+      for (let j = 0; j < pairCount; j++) {
+        const delLine = lines[delStart + j];
+        const addLine = lines[addStart + j];
+        const charDiffs = dmp.diff_main(delLine.content, addLine.content);
+        dmp.diff_cleanupSemantic(charDiffs);
+
+        delLine.spans = charDiffs
+          .filter(([op]) => op !== DIFF_INSERT)
+          .map(([op, text]) => ({
+            type: op === DIFF_DELETE ? 'del' as const : 'equal' as const,
+            text,
+          }));
+
+        addLine.spans = charDiffs
+          .filter(([op]) => op !== DIFF_DELETE)
+          .map(([op, text]) => ({
+            type: op === DIFF_INSERT ? 'add' as const : 'equal' as const,
+            text,
+          }));
+      }
+    }
+
+    // 没有 del 也没有 add 时（纯 ctx）前进
+    if (delCount === 0 && addCount === 0) i++;
+  }
+
   return lines;
 }
 
@@ -166,17 +219,21 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                 let prefix = ' ';
                 let textClass = inline ? 'text-zinc-700 dark:text-slate-300' : 'text-slate-300';
                 let lineNoClass = inline ? 'text-zinc-400 dark:text-slate-600' : 'text-slate-600';
+                // 行内高亮样式（标注具体改了哪些字符）
+                let hlClass = '';
 
                 if (line.type === 'add') {
                   bgClass = inline ? 'bg-green-50 dark:bg-green-500/10' : 'bg-green-500/10';
                   prefix = '+';
                   textClass = inline ? 'text-green-800 dark:text-green-300' : 'text-green-300';
                   lineNoClass = inline ? 'text-green-600/50 dark:text-green-800' : 'text-green-800';
+                  hlClass = inline ? 'bg-green-200/70 dark:bg-green-500/30 rounded-sm' : 'bg-green-500/30 rounded-sm';
                 } else if (line.type === 'del') {
                   bgClass = inline ? 'bg-red-50 dark:bg-red-500/10' : 'bg-red-500/10';
                   prefix = '-';
                   textClass = inline ? 'text-red-800 dark:text-red-300' : 'text-red-300';
                   lineNoClass = inline ? 'text-red-600/50 dark:text-red-800' : 'text-red-800';
+                  hlClass = inline ? 'bg-red-200/70 dark:bg-red-500/30 rounded-sm' : 'bg-red-500/30 rounded-sm';
                 }
 
                 return (
@@ -188,7 +245,17 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                       {prefix}
                     </span>
                     <span className={`flex-1 pr-3 whitespace-pre-wrap break-all ${textClass}`}>
-                      {line.content}
+                      {line.spans
+                        ? line.spans.map((span, si) => {
+                            const isHL = span.type === line.type; // del-in-del or add-in-add
+                            return (
+                              <span key={si} className={isHL ? hlClass : ''}>
+                                {span.text.replace(/\t/g, '\u3000\u3000')}
+                              </span>
+                            );
+                          })
+                        : line.content.replace(/\t/g, '\u3000\u3000')
+                      }
                     </span>
                   </div>
                 );

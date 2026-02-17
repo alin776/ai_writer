@@ -564,6 +564,46 @@ _pending_backends: dict[str, Any] = {}
 _work_locks: dict[str, _asyncio.Lock] = {}
 
 
+def _pending_path(user_id: str, conversation_id: str) -> Path:
+    """返回持久化 JSON 文件路径：data/users/.pending/{user_id}_{conversation_id}.json"""
+    from app.services.agent.deep_agent import DATA_ROOT
+    return DATA_ROOT / ".pending" / f"{user_id}_{conversation_id}.json"
+
+
+def _save_pending(key: str, backend) -> None:
+    """将 backend 持久化到 JSON（静默失败）。"""
+    user_id, conv_id = key.split(":", 1)
+    try:
+        backend.save_pending(_pending_path(user_id, conv_id))
+    except Exception as e:
+        logger.warning(f"[Pending] save failed for {key}: {e}")
+
+
+def _load_pending(key: str):
+    """从 JSON 恢复 backend 到内存缓存，返回 backend 或 None。"""
+    from app.services.agent.deep_agent.buffered_backend import BufferedFilesystemBackend
+    user_id, conv_id = key.split(":", 1)
+    try:
+        backend = BufferedFilesystemBackend.load_pending(_pending_path(user_id, conv_id))
+        if backend:
+            _pending_backends[key] = backend
+        return backend
+    except Exception as e:
+        logger.warning(f"[Pending] load failed for {key}: {e}")
+        return None
+
+
+def _delete_pending(key: str) -> None:
+    """删除持久化 JSON 文件（静默失败）。"""
+    user_id, conv_id = key.split(":", 1)
+    try:
+        path = _pending_path(user_id, conv_id)
+        if path.is_file():
+            path.unlink()
+    except Exception as e:
+        logger.warning(f"[Pending] delete failed for {key}: {e}")
+
+
 class V2ChatRequest(BaseModel):
     """V2 Agent 对话请求"""
     message: str = Field(..., min_length=1)
@@ -661,6 +701,7 @@ async def agent_v2_chat_stream(
                 if changes:
                     backend_key = f"{user_id}:{conversation_id}"
                     _pending_backends[backend_key] = backend
+                    _save_pending(backend_key, backend)
 
                 # 发送 done 事件
                 done_event = {
@@ -698,7 +739,7 @@ async def get_v2_changes(
 ):
     """获取指定对话的待审批改动列表。"""
     backend_key = f"{current_user.id}:{conversation_id}"
-    backend = _pending_backends.get(backend_key)
+    backend = _pending_backends.get(backend_key) or _load_pending(backend_key)
     if not backend:
         return V2ChangesResponse(conversation_id=conversation_id, changes=[])
     return V2ChangesResponse(
@@ -716,9 +757,13 @@ async def accept_v2_changes(
     backend_key = f"{current_user.id}:{conversation_id}"
     backend = _pending_backends.pop(backend_key, None)
     if not backend:
+        backend = _load_pending(backend_key)
+        _pending_backends.pop(backend_key, None)
+    if not backend:
         raise HTTPException(status_code=404, detail="No pending changes")
 
     affected = backend.flush()
+    _delete_pending(backend_key)
 
     # flush 后更新向量索引（直接读磁盘文件，而非 backend.read()）
     from app.services.agent.deep_agent.rag_tool import update_chapter_vectors
@@ -747,8 +792,12 @@ async def reject_v2_changes(
     backend_key = f"{current_user.id}:{conversation_id}"
     backend = _pending_backends.pop(backend_key, None)
     if not backend:
+        backend = _load_pending(backend_key)
+        _pending_backends.pop(backend_key, None)
+    if not backend:
         raise HTTPException(status_code=404, detail="No pending changes")
     backend.discard()
+    _delete_pending(backend_key)
     return {"status": "rejected"}
 
 
@@ -760,7 +809,7 @@ async def accept_v2_single_change(
 ):
     """单个接受：将指定操作写入磁盘。"""
     backend_key = f"{current_user.id}:{conversation_id}"
-    backend = _pending_backends.get(backend_key)
+    backend = _pending_backends.get(backend_key) or _load_pending(backend_key)
     if not backend:
         raise HTTPException(status_code=404, detail="No pending changes")
 
@@ -771,6 +820,9 @@ async def accept_v2_single_change(
     # 缓冲区清空后移除
     if not backend.get_changes():
         _pending_backends.pop(backend_key, None)
+        _delete_pending(backend_key)
+    else:
+        _save_pending(backend_key, backend)
 
     return {"status": "accepted", "path": path}
 
@@ -783,7 +835,7 @@ async def reject_v2_single_change(
 ):
     """单个拒绝：丢弃指定操作。"""
     backend_key = f"{current_user.id}:{conversation_id}"
-    backend = _pending_backends.get(backend_key)
+    backend = _pending_backends.get(backend_key) or _load_pending(backend_key)
     if not backend:
         raise HTTPException(status_code=404, detail="No pending changes")
 
@@ -794,5 +846,8 @@ async def reject_v2_single_change(
     # 缓冲区清空后移除
     if not backend.get_changes():
         _pending_backends.pop(backend_key, None)
+        _delete_pending(backend_key)
+    else:
+        _save_pending(backend_key, backend)
 
     return {"status": "rejected"}

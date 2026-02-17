@@ -6,8 +6,8 @@ import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
+import { changesApi } from '../../services/changesApi';  // V2 Changes API
 import { DataService } from '../../services/DataService';
-import BatchActions from '../agent/BatchActions';
 import type { AgentChatRequest, RevisionFlowData, FlowItem, StepFlowData } from '../../types/agent';
 import { ExecutionFlow } from '../agent/ExecutionFlow';  // v5.0: 执行轨迹可视化
 import {
@@ -1632,10 +1632,7 @@ ${selectionContext.selected_text}
                           const revisionData = findRevisionByItemId(itemId);
                           const resolvedRequestId = requestId || revisionData?.requestId;
                           const targetChapterId = revisionData?.chapterId;
-                          const isChapterReplace =
-                            revisionData?.operation === 'content' || revisionData?.operation === 'replace_all';
-                          const chapterReplacement =
-                            (revisionData as any)?.content || revisionData?.newContent;
+                          const revisionIndex = (revisionData as any)?.index as number | undefined;
 
                           // v7.2: 从 pendingApproval 中提取快照数据用于撤销/重做
                           let snapshot: {
@@ -1646,125 +1643,62 @@ ${selectionContext.selected_text}
                           } | undefined;
 
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
-                            // 根据不同类型提取快照数据
                             const originalContent = pendingApproval.original_content;
                             let newContent = pendingApproval.new_content;
                             const editorPosition = pendingApproval.editor_action?.position;
 
-                            // 如果是 rewrite 类型，使用选择的版本内容
                             if (pendingApproval.action_type === 'rewrite' &&
                                 selectedVersion !== undefined &&
                                 pendingApproval.versions?.[selectedVersion]?.content) {
                               newContent = pendingApproval.versions[selectedVersion].content;
                             }
 
-                            snapshot = {
-                              originalContent,
-                              newContent,
-                              editorPosition,
-                              selectedVersion
-                            };
-
-                            console.log('[AIPanel] 保存快照数据:', {
-                              hasOriginal: !!originalContent,
-                              hasNew: !!newContent,
-                              hasPosition: !!editorPosition,
-                              selectedVersion
-                            });
+                            snapshot = { originalContent, newContent, editorPosition, selectedVersion };
                           }
 
                           // 更新 revision 状态为已采纳，并保存快照
                           updateRevisionStatus(itemId, 'accepted', snapshot);
 
-                          // 如果是 pendingApproval，且 requestId 匹配，则调用 submitApproval
+                          // 兼容路径：pendingApproval 匹配时走旧逻辑
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(true, selectedVersion);
-                          } else if (resolvedRequestId) {
-                            // v7.5: 非阻塞式修订 - 直接调用后端 API 写入数据
-                            console.log('[AIPanel] 非阻塞式修订，直接调用后端 API');
-                            agentApi.submitApprovalResponse({
-                              request_id: resolvedRequestId,
-                              approved: true,
-                              selected_version: selectedVersion
-                            }).then((approvalResponse) => {
-                              const isApplied = approvalResponse.apply_state === 'applied';
-                              if (!isApplied) {
-                                console.warn('[AIPanel] 审批未落库，跳过本地采纳事件:', approvalResponse);
-                                return;
-                              }
-                              console.log('[AIPanel] ✅ 修订已写入数据库');
+                          } else if (conversationId && revisionIndex !== undefined) {
+                            // V2 Changes API：通过 buffer index 精确操作
+                            console.log('[AIPanel] V2 changesApi.acceptOne:', { conversationId, revisionIndex });
+                            changesApi.acceptOne(conversationId, revisionIndex).then(() => {
+                              console.log('[AIPanel] ✅ 修订已写入磁盘');
+                              window.dispatchEvent(new Event('editor-hide-diff'));
                               if (workId) {
                                 window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
                                   detail: { work_id: workId }
                                 }));
-                                console.log('[AIPanel] ✅ 派发章节确认事件，刷新列表');
                               }
-                              if (isChapterReplace) {
-                                const syncChapterReplace = async () => {
-                                  let replacement = chapterReplacement;
-                                  if (targetChapterId) {
-                                    try {
-                                      const latestChapter = await DataService.getChapter(targetChapterId);
-                                      if (latestChapter?.content) {
-                                        replacement = latestChapter.content;
-                                      }
-                                    } catch (readErr) {
-                                      console.warn('[AIPanel] 回读章节最新内容失败，回退到修订内容:', readErr);
-                                    }
-                                  }
-                                  if (!replacement) {
-                                    console.warn('[AIPanel] 章节级替换缺少可用内容，跳过本地替换');
-                                    return;
-                                  }
-                                  window.dispatchEvent(
-                                    new CustomEvent('agent-replace-text', {
-                                      detail: {
-                                        replacement,
-                                        skipRevision: true,
-                                        forceReplaceAll: true,
-                                        chapterId: targetChapterId
-                                      }
-                                    })
-                                  );
-                                };
-                                void syncChapterReplace();
-                              } else {
-                                // 派发采纳事件到编辑器
-                                window.dispatchEvent(
-                                  new CustomEvent('agent-accept-revision', {
-                                    detail: {
-                                      request_id: resolvedRequestId,
-                                      revision_id: itemId,
-                                      chapter_id: targetChapterId
-                                    }
-                                  })
-                                );
+                            }).catch((err) => {
+                              console.error('[AIPanel] changesApi.acceptOne 失败:', err);
+                            });
+                          } else if (resolvedRequestId) {
+                            // 回退路径：旧版 agentApi
+                            agentApi.submitApprovalResponse({
+                              request_id: resolvedRequestId,
+                              approved: true,
+                              selected_version: selectedVersion
+                            }).then(() => {
+                              window.dispatchEvent(new Event('editor-hide-diff'));
+                              if (workId) {
+                                window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
+                                  detail: { work_id: workId }
+                                }));
                               }
                             }).catch((err) => {
                               console.error('[AIPanel] 写入数据库失败:', err);
                             });
-                          } else {
-                            if (isChapterReplace) {
-                              // 章节级替换必须有 request_id 才能保证后端已落库
-                              console.warn('[AIPanel] 章节级采纳缺少 request_id，跳过本地替换');
-                            } else {
-                              window.dispatchEvent(
-                                new CustomEvent('agent-accept-revision', {
-                                  detail: {
-                                    request_id: itemId,
-                                    revision_id: itemId,
-                                    chapter_id: targetChapterId
-                                  }
-                                })
-                              );
-                            }
                           }
                         }}
                         onDiscardRevision={(itemId, requestId) => {
                           console.log('[AIPanel] RevisionCard discarded:', { itemId, requestId });
                           const revisionData = findRevisionByItemId(itemId);
                           const resolvedRequestId = requestId || revisionData?.requestId;
-                          const targetChapterId = revisionData?.chapterId;
+                          const revisionIndex = (revisionData as any)?.index as number | undefined;
 
                           // v7.2: 从 pendingApproval 中提取快照数据用于重做
                           let snapshot: {
@@ -1778,50 +1712,32 @@ ${selectionContext.selected_text}
                             const originalContent = pendingApproval.original_content;
                             const newContent = pendingApproval.new_content;
                             const editorPosition = pendingApproval.editor_action?.position;
-
-                            snapshot = {
-                              originalContent,
-                              newContent,
-                              editorPosition
-                            };
+                            snapshot = { originalContent, newContent, editorPosition };
                           }
 
                           // 更新 revision 状态为已弃用，并保存快照
                           updateRevisionStatus(itemId, 'discarded', snapshot);
 
+                          // 清除编辑器中的 diff 装饰
+                          window.dispatchEvent(new Event('editor-hide-diff'));
+
+                          // 兼容路径：pendingApproval 匹配时走旧逻辑
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(false);
+                          } else if (conversationId && revisionIndex !== undefined) {
+                            // V2 Changes API：通过 buffer index 弃用
+                            console.log('[AIPanel] V2 changesApi.rejectOne:', { conversationId, revisionIndex });
+                            changesApi.rejectOne(conversationId, revisionIndex).catch((err) => {
+                              console.error('[AIPanel] changesApi.rejectOne 失败:', err);
+                            });
                           } else if (resolvedRequestId) {
-                            // v7.5: 非阻塞式修订 - 直接调用后端 API
-                            console.log('[AIPanel] 非阻塞式修订，直接调用后端 API (弃用)');
+                            // 回退路径：旧版 agentApi
                             agentApi.submitApprovalResponse({
                               request_id: resolvedRequestId,
                               approved: false
                             }).catch((err) => {
                               console.error('[AIPanel] 弃用请求失败:', err);
                             });
-                            // v7.6: 派发弃用事件到编辑器（直接操作修订标记）
-                            window.dispatchEvent(
-                              new CustomEvent('agent-discard-revision', {
-                                detail: {
-                                  request_id: resolvedRequestId,
-                                  revision_id: itemId,
-                                  chapter_id: targetChapterId
-                                }
-                              })
-                            );
-                          } else {
-                            // v7.6: 即使没有 pendingApproval，也派发弃用事件到编辑器
-
-                            window.dispatchEvent(
-                              new CustomEvent('agent-discard-revision', {
-                                detail: {
-                                  request_id: itemId,
-                                  revision_id: itemId,
-                                  chapter_id: targetChapterId
-                                }
-                              })
-                            );
                           }
                         }}
                         onJumpRevision={(itemId, requestId) => {
@@ -1842,6 +1758,8 @@ ${selectionContext.selected_text}
                                 revisionType: revisionData?.revisionType,
                                 originalContent: revisionData?.oldString || revisionData?.originalContent || '',
                                 modifiedContent: revisionData?.newString || revisionData?.newContent || '',
+                                oldString: revisionData?.oldString,
+                                newString: revisionData?.newString,
                               }
                             })
                           );
@@ -1946,32 +1864,6 @@ ${selectionContext.selected_text}
 
       <div className={`flex w-full ${expandedMode ? 'justify-center' : ''}`}>
         <div className={`${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
-          {/* v8.0 → v3.3: 批量审批面板（BatchActions 替代旧的简单按钮） */}
-          {hasOperations && !isLoading && conversationId && (
-            <BatchActions
-              conversationId={conversationId}
-              onAllAccepted={() => {
-                // BatchActions 已调过 changesApi.acceptAll，这里只同步状态 + 派发事件
-                // 不调 acceptAllOperations() 以避免双重 API 调用
-                window.dispatchEvent(new CustomEvent('agent-accept-all-revisions', {
-                  detail: { conversationId }
-                }));
-              }}
-              onAllRejected={() => {
-                window.dispatchEvent(new CustomEvent('agent-discard-all-revisions', {
-                  detail: { conversationId }
-                }));
-                window.dispatchEvent(new CustomEvent('agent-operations-rollback', {
-                  detail: { conversationId }
-                }));
-              }}
-              onRefreshChapters={() => {
-                window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
-                  detail: { work_id: workId }
-                }));
-              }}
-            />
-          )}
 
           {/* 建议操作 */}
           {suggestedActions.length > 0 && !isLoading && (
@@ -1987,6 +1879,35 @@ ${selectionContext.selected_text}
                   {action}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* 批量 弃用/采纳 按钮 — 输入框上方 */}
+          {hasOperations && !isLoading && conversationId && (
+            <div className="flex items-center justify-end gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  rollbackAllOperations();
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-slate-400 hover:bg-slate-800 transition-colors"
+              >
+                <X size={14} />
+                弃用
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await acceptAllOperations();
+                  window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
+                    detail: { work_id: workId }
+                  }));
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-green-400 border border-green-500/30 hover:bg-green-500/10 transition-colors"
+              >
+                <Check size={14} />
+                采纳
+              </button>
             </div>
           )}
 

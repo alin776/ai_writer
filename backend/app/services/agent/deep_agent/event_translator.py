@@ -164,6 +164,7 @@ def make_revision_event(op: dict) -> dict[str, Any]:
             "chapterTitle": op.get("chapter_title", ""),
             "addLines": add_lines,
             "delLines": del_lines,
+            "index": op.get("index"),
         },
         "timestamp": _now(),
     }

@@ -14,6 +14,9 @@ export interface FileChange {
   op: string; // create | modify | delete
   diff?: string;
   content?: string;
+  index?: number;
+  old_string?: string;
+  new_string?: string;
 }
 
 export interface ChangesResponse {
@@ -21,10 +24,24 @@ export interface ChangesResponse {
   changes: FileChange[];
 }
 
+/** 后端 op_type → 前端 op 映射 */
+const OP_MAP: Record<string, string> = { write: 'create', edit: 'modify', delete: 'delete' };
+
 /** 获取待审批的变更列表 */
 async function list(conversationId: string): Promise<ChangesResponse> {
   const res = await client.get(`/v2/changes/${conversationId}`);
-  return res.data;
+  const raw = res.data;
+  return {
+    ...raw,
+    changes: (raw.changes ?? []).map((c: any) => ({
+      ...c,
+      op: OP_MAP[c.op_type] ?? c.op ?? c.op_type,
+      content: c.content ?? c.new_string ?? '',
+      index: c.index,
+      old_string: c.old_string ?? '',
+      new_string: c.new_string ?? '',
+    })),
+  };
 }
 
 /** 全部接受 */

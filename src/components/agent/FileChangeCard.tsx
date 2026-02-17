@@ -1,7 +1,7 @@
 /**
- * FileChangeCard — 单个文件变更卡片
+ * FileChangeCard — RevisionCard 风格紧凑文件卡片
  *
- * 显示：文件图标 + 路径 + 操作类型 + ✓/× 按钮
+ * 单行显示：[图标] 路径  [✓] [×]
  */
 import React from 'react';
 import { Check, X, FilePlus, FileEdit, FileX } from 'lucide-react';
@@ -15,10 +15,10 @@ interface FileChangeCardProps {
   onClick?: (index: number) => void;
 }
 
-const opConfig: Record<string, { icon: React.ElementType; label: string; color: string }> = {
-  create: { icon: FilePlus, label: '新建', color: 'text-green-600' },
-  modify: { icon: FileEdit, label: '修改', color: 'text-amber-600' },
-  delete: { icon: FileX, label: '删除', color: 'text-red-600' },
+const opIcon: Record<string, React.ElementType> = {
+  create: FilePlus,
+  modify: FileEdit,
+  delete: FileX,
 };
 
 const FileChangeCard: React.FC<FileChangeCardProps> = ({
@@ -29,37 +29,31 @@ const FileChangeCard: React.FC<FileChangeCardProps> = ({
   onReject,
   onClick,
 }) => {
-  const config = opConfig[op] || opConfig.modify;
-  const Icon = config.icon;
+  const Icon = opIcon[op] || FileEdit;
 
   return (
     <div
-      className="group flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-100 dark:border-slate-700 hover:bg-zinc-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+      className="flex items-center gap-2 px-2.5 py-1.5 bg-[#192438] rounded-lg cursor-pointer hover:bg-slate-800 transition-colors text-[13px]"
       onClick={() => onClick?.(index)}
     >
-      <Icon className={`h-4 w-4 flex-shrink-0 ${config.color}`} />
-      <span className="text-sm text-zinc-700 dark:text-slate-300 flex-1 truncate" title={path}>
-        {path}
-      </span>
-      <span className={`text-xs px-1.5 py-0.5 rounded ${config.color} bg-opacity-10`}>
-        {config.label}
-      </span>
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-slate-500" />
+      <span className="text-slate-200 truncate flex-1" title={path}>{path}</span>
+      <div className="flex gap-1 ml-auto flex-shrink-0">
         <button
           type="button"
+          title="采纳"
+          className="w-[22px] h-[22px] flex items-center justify-center rounded text-green-400 hover:bg-green-500/10 transition-colors"
           onClick={(e) => { e.stopPropagation(); onAccept(index); }}
-          className="h-6 w-6 flex items-center justify-center rounded hover:bg-green-100 text-green-600 dark:hover:bg-green-900/30"
-          title="接受"
         >
-          <Check className="h-3.5 w-3.5" />
+          <Check size={13} />
         </button>
         <button
           type="button"
+          title="弃用"
+          className="w-[22px] h-[22px] flex items-center justify-center rounded text-red-400 hover:bg-red-500/10 transition-colors"
           onClick={(e) => { e.stopPropagation(); onReject(index); }}
-          className="h-6 w-6 flex items-center justify-center rounded hover:bg-red-100 text-red-600 dark:hover:bg-red-900/30"
-          title="拒绝"
         >
-          <X className="h-3.5 w-3.5" />
+          <X size={13} />
         </button>
       </div>
     </div>

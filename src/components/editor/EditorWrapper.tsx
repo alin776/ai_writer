@@ -4,10 +4,8 @@
  * 接收与 NovelEditor 相同的 props 签名，内部代理到 MilkdownEditor。
  * 保留顶部工具栏（章节标题 + 面板折叠按钮）。
  */
-import React, { useCallback, useState } from 'react';
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import React, { useCallback } from 'react';
 import MilkdownEditor from './MilkdownEditor';
-import DiffViewer from '../agent/DiffViewer';
 import EditorTabBar from './EditorTabBar';
 import type { EditorTab } from '../../hooks/useEditorTabs';
 
@@ -60,34 +58,10 @@ const EditorWrapper: React.FC<EditorWrapperProps> = ({
   onTabSwitch,
   onTabClose,
 }) => {
-  const [showDiff, setShowDiff] = useState(false);
-  const [diffOriginal, setDiffOriginal] = useState('');
-  const [diffModified, setDiffModified] = useState('');
-
   // 代理 onSave：MilkdownEditor 返回 md string，第二个参数传 null
   const handleSave = useCallback((md: string) => {
     onSave?.(md, null);
   }, [onSave]);
-
-  // 监听 diff 视图切换事件
-  React.useEffect(() => {
-    const handleShowDiff = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.original !== undefined && detail?.modified !== undefined) {
-        setDiffOriginal(detail.original);
-        setDiffModified(detail.modified);
-        setShowDiff(true);
-      }
-    };
-    const handleHideDiff = () => setShowDiff(false);
-
-    window.addEventListener('editor-show-diff', handleShowDiff);
-    window.addEventListener('editor-hide-diff', handleHideDiff);
-    return () => {
-      window.removeEventListener('editor-show-diff', handleShowDiff);
-      window.removeEventListener('editor-hide-diff', handleHideDiff);
-    };
-  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -108,21 +82,15 @@ const EditorWrapper: React.FC<EditorWrapperProps> = ({
         </div>
       )}
 
-      {/* 编辑器内容区域 */}
+      {/* 编辑器内容区域 — 始终渲染 MilkdownEditor（内联 Diff 由 diffDecorationPlugin 处理） */}
       <div className="flex-1 min-h-0">
-        {showDiff ? (
-          <div className="h-full overflow-y-auto">
-            <DiffViewer original={diffOriginal} modified={diffModified} inline />
-          </div>
-        ) : (
-          <MilkdownEditor
-            content={content}
-            onSave={handleSave}
-            autoSaveInterval={autoSaveInterval}
-            placeholder={placeholder}
-            storageKey={chapterId}
-          />
-        )}
+        <MilkdownEditor
+          content={content}
+          onSave={handleSave}
+          autoSaveInterval={autoSaveInterval}
+          placeholder={placeholder}
+          storageKey={chapterId}
+        />
       </div>
     </div>
   );

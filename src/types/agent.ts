@@ -461,6 +461,7 @@ export interface RevisionFlowData {
   oldTitle?: string;            // 原标题（rename 类型）
   newTitle?: string;            // 新标题（rename 类型）
   versions?: RewriteVersion[];  // 改写版本（replace 类型）
+  index?: number;               // buffer 操作索引（用于 changesApi 单条操作）
   // v7.2: 撤销/重做支持
   originalContent?: string;     // 原始内容快照（用于撤销）
   newContent?: string;          // 新内容快照（用于重做）

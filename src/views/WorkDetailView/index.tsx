@@ -698,15 +698,15 @@ const WorkDetailView: React.FC = () => {
 
     // 虚拟章节（缓冲区新建，磁盘不存在）→ 跳过 FS 加载，重新显示 diff
     if ((chapter as any)._pending) {
-      setCurrentChapterContent(chapter.content || '');
+      setCurrentChapterContent((chapter as any)._diffModified || chapter.content || '');
       setCurrentChapterId(tabId);
       editorChapterIdRef.current = tabId;
       // EditorWrapper key 重挂载后重新触发 diff
       const diffModified = (chapter as any)._diffModified;
       if (diffModified) {
         setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('editor-show-diff', {
-            detail: { original: (chapter as any)._diffOriginal || '', modified: diffModified }
+          window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+            detail: { oldString: (chapter as any)._diffOriginal || '', newString: diffModified }
           }));
         }, 100);
       }
@@ -1622,14 +1622,7 @@ const WorkDetailView: React.FC = () => {
       const { work_id } = customEvent.detail;
       if (work_id !== workId) return;
       if (!workId) return;
-      try {
-        const fsList = await chaptersFs.list(workId);
-        const freshChapters = fsList.map(fs => fsToChapter(fs, workId));
-        setChapters(freshChapters);
-        console.log('[WorkDetailView] 🔄 从 FS 刷新章节列表');
-      } catch (err) {
-        console.error('[WorkDetailView] 刷新章节列表失败:', err);
-      }
+      await refreshChaptersAndContent();
     };
 
     const refreshChaptersAndContent = async () => {
@@ -1673,6 +1666,8 @@ const WorkDetailView: React.FC = () => {
         chapterTitle?: string;
         originalContent?: string;
         modifiedContent?: string;
+        oldString?: string;
+        newString?: string;
       }>;
       const {
         workId: targetWorkId,
@@ -1680,6 +1675,8 @@ const WorkDetailView: React.FC = () => {
         chapterTitle: targetChapterTitle,
         originalContent,
         modifiedContent,
+        oldString,
+        newString,
       } = customEvent.detail || {};
       if (targetWorkId && targetWorkId !== workId) return;
       if (isEditorCollapsed) {
@@ -1721,7 +1718,7 @@ const WorkDetailView: React.FC = () => {
             } as any];
           });
           openEditorTab({ id: targetChapterId, title, order: num ?? 0 });
-          setCurrentChapterContent('');
+          setCurrentChapterContent(modifiedContent || '');
           setCurrentChapterId(targetChapterId);
         }
       }
@@ -1733,9 +1730,17 @@ const WorkDetailView: React.FC = () => {
         // 同一章节: 无需等待
         const delay = needDelay ? 500 : (targetChapterId !== currentChapterId ? 100 : 0);
         setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('editor-show-diff', {
-            detail: { original: originalContent || '', modified: modifiedContent }
-          }));
+          if (oldString && newString) {
+            // edit_file 操作：直接用片段做内联 diff（插件会在文档中定位 oldString）
+            window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+              detail: { oldString, newString }
+            }));
+          } else {
+            // write_file/create 操作：使用完整内容
+            window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+              detail: { oldString: originalContent || '', newString: modifiedContent }
+            }));
+          }
         }, delay);
       }
     };

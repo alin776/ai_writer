@@ -11,8 +11,11 @@ BufferedFilesystemBackend — 带写缓冲的文件系统后端
 - discard() 审批拒绝丢弃全部缓冲区
 """
 
+import json
+import logging
 import os
-from dataclasses import dataclass
+import re
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +26,185 @@ from deepagents.backends.filesystem import (
     format_content_with_line_numbers,
     perform_string_replacement,
 )
+
+# ─── CJK 文本格式容错工具 ───
+
+_logger = logging.getLogger(__name__)
+
+# 全角空格 U+3000，中文排版常用段首缩进
+_FULLWIDTH_SPACE = "\u3000"
+
+# 模糊匹配：允许的最大字符差异比例
+_FUZZY_THRESHOLD = 0.05  # 5%
+
+
+def _build_format_transforms() -> list:
+    """构建格式变换函数列表，供 _try_match_old_string 和组合容错复用。"""
+    _strip_line_nums = lambda s: re.sub(r"^\s*\d+\t", "", s, flags=re.MULTILINE)
+    return [
+        # T0: 去行号
+        _strip_line_nums,
+        # T1: 全角空格归一化（3个以上连续全角空格 → 2个，处理 LLM 缩进加倍）
+        lambda s: re.sub(r"\u3000{3,}", "\u3000\u3000", s),
+        # T2: 全角→半角
+        lambda s: s.replace(_FULLWIDTH_SPACE, " "),
+        # T3: 半角→全角（行首两个半角 → 两个全角）
+        lambda s: re.sub(r"^  (?! )", "\u3000\u3000", s, flags=re.MULTILINE),
+        # T4: 双换行→单换行
+        lambda s: re.sub(r"\n{2,}", "\n", s),
+        # T5: 单换行→双换行
+        lambda s: s.replace("\n", "\n\n"),
+        # T6: 全角→半角 + 双换行→单换行
+        lambda s: re.sub(r"\n{2,}", "\n", s.replace(_FULLWIDTH_SPACE, " ")),
+        # T7: 半角→全角 + 双换行→单换行
+        lambda s: re.sub(r"\n{2,}", "\n",
+                         re.sub(r"^  (?! )", "\u3000\u3000", s, flags=re.MULTILINE)),
+        # T8: 全角→半角 + 单换行→双换行
+        lambda s: s.replace(_FULLWIDTH_SPACE, " ").replace("\n", "\n\n"),
+        # T9: 去行号 + 双换行→单换行
+        lambda s: re.sub(r"\n{2,}", "\n", _strip_line_nums(s)),
+        # T10: 全角空格归一化 + 双换行→单换行
+        lambda s: re.sub(r"\n{2,}", "\n", re.sub(r"\u3000{3,}", "\u3000\u3000", s)),
+    ]
+
+
+def _try_match_old_string(content: str, old_string: str) -> str | None:
+    """尝试多种格式变换，找到 old_string 在 content 中能匹配的版本。
+
+    LLM 复述文件内容时常见的格式走样：
+    - 全角空格 → 半角空格（或反过来）
+    - 段落间单换行 → 双换行（或反过来）
+    - read_file 返回的行号前缀被误带入 old_string
+    - 以上组合
+
+    Returns:
+        能在 content 中找到的变换后字符串，或 None
+    """
+    for transform in _build_format_transforms():
+        candidate = transform(old_string)
+        if candidate != old_string and candidate in content:
+            return candidate
+
+    return None
+
+
+def _fuzzy_find_in_content(content: str, old_string: str) -> str | None:
+    """通过前缀/后缀锚点定位，在 content 中找到与 old_string 对应的实际子串。
+
+    处理 LLM 复述时产生的：
+    - 字符级幻觉（如 原来→原先）
+    - 字符插入/删除（如 也就是说→也就说）导致的级联偏移
+
+    算法：
+    1. 二分查找 old_string 在 content 中能匹配的最长前缀长度
+    2. 二分查找 old_string 在 content 中能匹配的最长后缀长度
+    3. 策略 A：等长提取 + 逐字符容差比对（处理少量替换）
+    4. 策略 B：锚点区间提取（用前缀尾和后缀头在 content 中夹出实际区间，
+       处理插入/删除导致长度不等的情况）
+
+    Returns:
+        content 中的实际子串，或 None
+    """
+    old_len = len(old_string)
+    if old_len < 10:
+        return None
+
+    max_diff = max(3, int(old_len * _FUZZY_THRESHOLD))
+
+    # ── 二分查找最长前缀 ──
+    lo, hi, best_prefix = 10, old_len, 0
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if old_string[:mid] in content:
+            best_prefix = mid
+            lo = mid + 1
+        else:
+            hi = mid - 1
+
+    # ── 二分查找最长后缀 ──
+    lo, hi, best_suffix = 10, old_len, 0
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if old_string[-mid:] in content:
+            best_suffix = mid
+            lo = mid + 1
+        else:
+            hi = mid - 1
+
+    _logger.warning("[FMT-FIX] fuzzy: best_prefix=%d/%d, best_suffix=%d/%d",
+                    best_prefix, old_len, best_suffix, old_len)
+
+    # ── 策略 A：等长提取 + 逐字符容差（处理少量字符替换） ──
+    def _try_equal_length(pos: int) -> str | None:
+        if pos < 0 or pos + old_len > len(content):
+            return None
+        candidate = content[pos:pos + old_len]
+        diffs = sum(1 for a, b in zip(candidate, old_string) if a != b)
+        if diffs <= max_diff:
+            _logger.warning("[FMT-FIX] 策略A命中: pos=%d, diffs=%d", pos, diffs)
+            return candidate
+        return None
+
+    if best_prefix >= 10:
+        pos = content.find(old_string[:best_prefix])
+        result = _try_equal_length(pos)
+        if result:
+            return result
+
+    if best_suffix >= 10:
+        pos = content.find(old_string[-best_suffix:])
+        result = _try_equal_length(pos - (old_len - best_suffix))
+        if result:
+            return result
+
+    # ── 策略 B：锚点区间提取（处理插入/删除导致的长度差异） ──
+    # 需要前缀和后缀都有足够长的匹配锚点
+    if best_prefix >= 10 and best_suffix >= 10:
+        prefix_pos = content.find(old_string[:best_prefix])
+        # 从前缀位置之后搜索后缀，避免匹配到前缀之前的重复片段
+        suffix_pos = content.find(old_string[-best_suffix:], prefix_pos) if prefix_pos >= 0 else -1
+
+        if prefix_pos >= 0 and suffix_pos >= 0:
+            region_start = prefix_pos
+            region_end = suffix_pos + best_suffix
+
+            # 合理性检查：提取区间长度应与 old_string 长度接近（允许 20% 偏差）
+            region_len = region_end - region_start
+            len_ratio = region_len / old_len if old_len > 0 else 0
+
+            _logger.warning(
+                "[FMT-FIX] 策略B锚点: prefix_pos=%d, suffix_pos=%d, "
+                "region=[%d:%d] len=%d, old_len=%d, ratio=%.2f",
+                prefix_pos, suffix_pos, region_start, region_end,
+                region_len, old_len, len_ratio,
+            )
+
+            if (region_start < suffix_pos  # 前缀在后缀之前
+                    and 0.8 <= len_ratio <= 1.2):  # 长度偏差 ≤ 20%
+                candidate = content[region_start:region_end]
+                _logger.warning("[FMT-FIX] 策略B命中: 区间长度=%d, old长度=%d",
+                                region_len, old_len)
+                return candidate
+
+    return None
+
+
+def _adapt_new_string(content: str, new_string: str) -> str:
+    """将 new_string 的格式适配为 content 的排版风格。
+
+    检测 content 使用的缩进和换行约定，统一 new_string 的格式。
+    """
+    result = new_string
+
+    # 缩进适配：content 用全角缩进 → new_string 行首半角转全角
+    if _FULLWIDTH_SPACE in content:
+        result = re.sub(r"^  (?! )", "\u3000\u3000", result, flags=re.MULTILINE)
+
+    # 换行适配：content 段落间无空行（全角缩进行紧邻） → 折叠双换行
+    if re.search(r"[^\n]\n" + _FULLWIDTH_SPACE, content):
+        result = re.sub(r"\n{2,}", "\n", result)
+
+    return result
 
 
 @dataclass
@@ -83,6 +265,11 @@ class BufferedFilesystemBackend(FilesystemBackend):
         replace_all: bool = False,
     ) -> EditResult:
         """edit 操作存入缓冲区，不落盘。先验证 old_string 匹配。"""
+        # 行号模式检测：[LINES:起始行-结束行]
+        m = re.match(r'^\[LINES:(\d+)-(\d+)\]$', old_string.strip())
+        if m:
+            return self._edit_by_lines(file_path, int(m.group(1)), int(m.group(2)), new_string)
+
         # 通过 _replay 获取文件当前内容（含缓冲区）
         current = self._replay(file_path)
         if current is None:
@@ -90,8 +277,58 @@ class BufferedFilesystemBackend(FilesystemBackend):
 
         # 验证 old_string 存在且可替换
         result = perform_string_replacement(current, old_string, new_string, replace_all)
+
+        # 精确匹配失败 → 逐级容错
         if isinstance(result, str):
-            # 返回的是错误消息
+            _logger.warning(
+                "[FMT-FIX] 精确匹配失败，尝试容错。old_string 前80字符: %r, "
+                "content 前80字符: %r",
+                old_string[:80], current[:80],
+            )
+
+            # 第一级：格式变换（空格、换行）
+            adapted_old = _try_match_old_string(current, old_string)
+
+            # 第二级：模糊字符匹配（处理 LLM 字符幻觉）
+            if not adapted_old:
+                adapted_old = _fuzzy_find_in_content(current, old_string)
+                if adapted_old:
+                    _logger.warning("[FMT-FIX] 模糊字符匹配命中")
+
+            # 第三级：格式变换 + 模糊字符匹配（处理两者同时发生）
+            if not adapted_old:
+                for transform in _build_format_transforms():
+                    transformed = transform(old_string)
+                    if transformed != old_string:
+                        adapted_old = _fuzzy_find_in_content(current, transformed)
+                        if adapted_old:
+                            _logger.warning("[FMT-FIX] 格式变换+模糊匹配组合命中")
+                            break
+
+            _logger.warning("[FMT-FIX] 容错查找结果: %s",
+                            f"found, 前50字符: {adapted_old[:50]!r}" if adapted_old else "未找到")
+
+            # 诊断：当所有容错都失败时，记录详细信息
+            if not adapted_old:
+                probe = old_string[:30]
+                probe_in = probe in current
+                _logger.warning(
+                    "[FMT-FIX] 诊断: old[:30] in content=%s, probe=%r, "
+                    "content_len=%d, old_len=%d",
+                    probe_in, probe, len(current), len(old_string),
+                )
+            if adapted_old:
+                adapted_new = _adapt_new_string(current, new_string)
+                result = perform_string_replacement(
+                    current, adapted_old, adapted_new, replace_all
+                )
+                _logger.warning("[FMT-FIX] 容错替换结果: %s",
+                                "成功" if not isinstance(result, str) else result)
+                if not isinstance(result, str):
+                    old_string = adapted_old
+                    new_string = adapted_new
+
+        if isinstance(result, str):
             return EditResult(error=result)
 
         _new_content, occurrences = result
@@ -104,6 +341,50 @@ class BufferedFilesystemBackend(FilesystemBackend):
             replace_all=replace_all,
         ))
         return EditResult(path=file_path, files_update=None, occurrences=int(occurrences))
+
+    def _edit_by_lines(
+        self,
+        file_path: str,
+        start_line: int,
+        end_line: int,
+        new_string: str,
+    ) -> EditResult:
+        """按行号范围替换：读取文件 → 提取指定行 → 存入 buffer。
+
+        old_string 存实际行文本（保证 get_changes() 返回真实文本供前端 diff）。
+        """
+        current = self._replay(file_path)
+        if current is None:
+            return EditResult(error=f"Error: File '{file_path}' not found")
+
+        lines = current.split("\n")
+        # 行号从 1 开始，转为 0-based
+        si = start_line - 1
+        ei = end_line  # end_line 包含在内，slice 到 ei
+
+        if si < 0 or ei > len(lines) or si >= ei:
+            return EditResult(
+                error=f"Error: Invalid line range [{start_line}-{end_line}], "
+                      f"file has {len(lines)} lines"
+            )
+
+        actual_old = "\n".join(lines[si:ei])
+        adapted_new = _adapt_new_string(current, new_string)
+
+        self._buffer.append(BufferOp(
+            op_type="edit",
+            path=file_path,
+            old_string=actual_old,
+            new_string=adapted_new,
+            replace_all=False,
+        ))
+
+        _logger.info(
+            "[LINES-EDIT] %s [%d-%d] → %d chars replaced by %d chars",
+            file_path, start_line, end_line,
+            len(actual_old), len(adapted_new),
+        )
+        return EditResult(path=file_path, files_update=None, occurrences=1)
 
     # ─── 重写读操作：优先读缓冲区 ───
 
@@ -291,3 +572,27 @@ class BufferedFilesystemBackend(FilesystemBackend):
             return False
         self._buffer.pop(index)
         return True
+
+    # ─── 持久化（JSON 文件备份） ───
+
+    def save_pending(self, filepath: Path) -> None:
+        """将缓冲区序列化到 JSON 文件，服务器重启后可恢复。"""
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "cwd": str(self.cwd),
+            "buffer": [asdict(op) for op in self._buffer],
+        }
+        filepath.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    @classmethod
+    def load_pending(cls, filepath: Path) -> "BufferedFilesystemBackend | None":
+        """从 JSON 文件恢复实例。文件不存在或损坏时返回 None。"""
+        if not filepath.is_file():
+            return None
+        try:
+            data = json.loads(filepath.read_text(encoding="utf-8"))
+            instance = cls(root_dir=data["cwd"])
+            instance._buffer = [BufferOp(**op) for op in data["buffer"]]
+            return instance
+        except Exception:
+            return None
