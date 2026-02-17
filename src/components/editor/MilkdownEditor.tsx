@@ -197,13 +197,13 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
   // 监听内联 Diff 事件
   useEffect(() => {
     const handleInlineDiff = (e: Event) => {
-      const { oldString, newString } = (e as CustomEvent).detail || {};
+      const { oldString, newString, append } = (e as CustomEvent).detail || {};
       // oldString 可以为空字符串（create 操作），只检查 newString 和编辑器实例
       if (newString == null || !crepeRef.current) return;
       try {
         crepeRef.current.editor.action((ctx) => {
           const view = ctx.get(editorViewCtx);
-          const tr = view.state.tr.setMeta(diffPluginKey, { oldString: oldString ?? '', newString });
+          const tr = view.state.tr.setMeta(diffPluginKey, { oldString: oldString ?? '', newString, append });
           view.dispatch(tr);
         });
       } catch {

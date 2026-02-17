@@ -259,9 +259,19 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           const tryRestore = (attempts = 15) => {
             const editor = document.querySelector('.milkdown .ProseMirror');
             if (editor) {
-              window.dispatchEvent(new CustomEvent('editor-inline-diff', {
-                detail: { oldString: lastRevision.oldString, newString: lastRevision.newString }
-              }));
+              // 同 path 累加场景：重放所有 diffPairs（含 append 标记）
+              const diffPairs = lastRevision.diffPairs as Array<{ oldString: string; newString: string }> | undefined;
+              if (diffPairs && diffPairs.length > 1) {
+                diffPairs.forEach((pair, i) => {
+                  window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+                    detail: { oldString: pair.oldString, newString: pair.newString, append: i > 0 }
+                  }));
+                });
+              } else {
+                window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+                  detail: { oldString: lastRevision.oldString, newString: lastRevision.newString }
+                }));
+              }
             } else if (attempts > 0) {
               setTimeout(() => tryRestore(attempts - 1), 200);
             }
@@ -715,25 +725,94 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 // summarization: V1 遗留，V2 不再处理
                 // explore: V1 遗留，V2 不再处理
                 case 'revision': {
-                  // v7.5: 非阻塞式修订 - 嵌入到最后一个 step 中 + 派发事件到编辑器
+                  // v9: 实时修订 — 通过 stepId 精确匹配 step + 同 path 累加
                   const revisionItemId = `flow-${Date.now()}-revision`;
                   const revisionData = event.data;
+                  const revisionPath = (revisionData as any)?.path;
+                  const revisionStepId = event.stepId as number | undefined;
 
-                  // 查找最后一个 step 类型的 FlowItem
-                  const lastStepIndex = [...currentFlowItems].reverse().findIndex(item => item.type === 'step');
+                  // 1. 同 path 累加：找到已有同 path 的 revision，累加行数并清除旧 revision
+                  let accumulatedAdd = (revisionData as any)?.addLines ?? 0;
+                  let accumulatedDel = (revisionData as any)?.delLines ?? 0;
+                  let accumulatedIndices: number[] = [];
+                  let accumulatedDiffPairs: Array<{ oldString: string; newString: string }> = [];
 
-                  if (lastStepIndex !== -1) {
-                    // 计算正确的索引（因为我们是从后往前找的）
-                    const actualIndex = currentFlowItems.length - 1 - lastStepIndex;
-                    // 将 revision 嵌入到 step 中
+                  // 收集当前 revision 的 index 和 diffPair
+                  const currentIndex = (revisionData as any)?.index as number | undefined;
+                  if (currentIndex !== undefined) {
+                    accumulatedIndices.push(currentIndex);
+                  }
+                  if (revisionData.oldString && revisionData.newString) {
+                    accumulatedDiffPairs.push({ oldString: revisionData.oldString, newString: revisionData.newString });
+                  }
+
+                  if (revisionPath) {
+                    currentFlowItems = currentFlowItems.map(item => {
+                      if (item.type === 'step') {
+                        const stepData = item.data as StepFlowData;
+                        if (stepData.revision && (stepData.revision as any).path === revisionPath) {
+                          // 累加旧卡片的行数
+                          accumulatedAdd += (stepData.revision as any).addLines ?? 0;
+                          accumulatedDel += (stepData.revision as any).delLines ?? 0;
+                          // 收集旧 revision 的 indices 或 index
+                          const oldIndices = (stepData.revision as any).indices as number[] | undefined;
+                          const oldIndex = (stepData.revision as any).index as number | undefined;
+                          if (oldIndices) {
+                            accumulatedIndices = [...oldIndices, ...accumulatedIndices];
+                          } else if (oldIndex !== undefined) {
+                            accumulatedIndices = [oldIndex, ...accumulatedIndices];
+                          }
+                          // 收集旧 revision 的 diffPairs
+                          const oldDiffPairs = (stepData.revision as any).diffPairs as Array<{ oldString: string; newString: string }> | undefined;
+                          if (oldDiffPairs) {
+                            accumulatedDiffPairs = [...oldDiffPairs, ...accumulatedDiffPairs];
+                          } else if ((stepData.revision as any).oldString && (stepData.revision as any).newString) {
+                            accumulatedDiffPairs = [{ oldString: (stepData.revision as any).oldString, newString: (stepData.revision as any).newString }, ...accumulatedDiffPairs];
+                          }
+                          // 清除旧 step 上的 revision
+                          return {
+                            ...item,
+                            data: { ...stepData, revision: undefined, revisionItemId: undefined }
+                          };
+                        }
+                      }
+                      return item;
+                    });
+                  }
+
+                  // 更新累加后的行数到 revisionData
+                  const mergedRevisionData = {
+                    ...revisionData,
+                    addLines: accumulatedAdd,
+                    delLines: accumulatedDel,
+                    ...(accumulatedIndices.length > 0 ? { indices: accumulatedIndices } : {}),
+                    ...(accumulatedDiffPairs.length > 1 ? { diffPairs: accumulatedDiffPairs } : {}),
+                  };
+
+                  // 2. 通过 stepId 精确匹配目标 step（回退到最后一个 step）
+                  let targetStepIndex = -1;
+                  if (revisionStepId !== undefined) {
+                    targetStepIndex = currentFlowItems.findIndex(
+                      item => item.type === 'step' && (item.data as StepFlowData).stepId === revisionStepId
+                    );
+                  }
+                  if (targetStepIndex === -1) {
+                    // 回退：找最后一个 step
+                    const lastIdx = [...currentFlowItems].reverse().findIndex(item => item.type === 'step');
+                    if (lastIdx !== -1) {
+                      targetStepIndex = currentFlowItems.length - 1 - lastIdx;
+                    }
+                  }
+
+                  if (targetStepIndex !== -1) {
                     currentFlowItems = currentFlowItems.map((item, index) => {
-                      if (index === actualIndex && item.type === 'step') {
+                      if (index === targetStepIndex && item.type === 'step') {
                         const stepData = item.data as StepFlowData;
                         return {
                           ...item,
                           data: {
                             ...stepData,
-                            revision: revisionData,
+                            revision: mergedRevisionData,
                             revisionItemId: revisionItemId
                           }
                         };
@@ -741,11 +820,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                       return item;
                     });
                   } else {
-                    // 如果没有找到 step，则作为独立的 FlowItem 添加（兜底）
+                    // 兜底：作为独立 FlowItem
                     const item: FlowItem = {
                       id: revisionItemId,
                       type: 'revision',
-                      data: revisionData,
+                      data: mergedRevisionData,
                       timestamp,
                     };
                     currentFlowItems = [...currentFlowItems, item];
@@ -785,11 +864,14 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   }
 
                   // v8: edit_file 操作 — 派发内联 Diff 事件到编辑器
-                  if (revisionData.oldString && revisionData.newString) {
+                  // 仅章节文件才触发编辑器内联 diff（worldview.md 等非章节文件跳过）
+                  const isChapterFile = !revisionPath || /chapters\//.test(revisionPath);
+                  if (isChapterFile && revisionData.oldString && revisionData.newString) {
                     window.dispatchEvent(new CustomEvent('editor-inline-diff', {
                       detail: {
                         oldString: revisionData.oldString,
                         newString: revisionData.newString,
+                        append: accumulatedIndices.length > 1,  // 累加场景：追加装饰而非替换
                       }
                     }));
                   }

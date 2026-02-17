@@ -1664,21 +1664,30 @@ ${selectionContext.selected_text}
                           // 兼容路径：pendingApproval 匹配时走旧逻辑
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(true, selectedVersion);
-                          } else if (conversationId && revisionIndex !== undefined) {
-                            // V2 Changes API：通过 buffer index 精确操作
-                            console.log('[AIPanel] V2 changesApi.acceptOne:', { conversationId, revisionIndex });
-                            changesApi.acceptOne(conversationId, revisionIndex).then(() => {
-                              console.log('[AIPanel] ✅ 修订已写入磁盘');
-                              window.dispatchEvent(new Event('editor-hide-diff'));
-                              recheckOperations();   // 重新检查缓冲区，同步全局按钮状态
-                              if (workId) {
-                                window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
-                                  detail: { work_id: workId }
-                                }));
-                              }
-                            }).catch((err) => {
-                              console.error('[AIPanel] changesApi.acceptOne 失败:', err);
-                            });
+                          } else if (conversationId) {
+                            // V2 Changes API：通过 buffer index 精确操作（支持多 indices 累加场景）
+                            const revisionIndices = (revisionData as any)?.indices as number[] | undefined;
+                            const allIndices = revisionIndices || (revisionIndex !== undefined ? [revisionIndex] : []);
+                            if (allIndices.length > 0) {
+                              // 降序排列：从高索引往低索引操作，避免 buffer pop 导致索引移位
+                              const sorted = [...allIndices].sort((a, b) => b - a);
+                              console.log('[AIPanel] V2 changesApi.acceptOne:', { conversationId, sorted });
+                              (async () => {
+                                for (const idx of sorted) {
+                                  await changesApi.acceptOne(conversationId!, idx);
+                                }
+                                console.log('[AIPanel] ✅ 修订已写入磁盘');
+                                window.dispatchEvent(new Event('editor-hide-diff'));
+                                recheckOperations();
+                                if (workId) {
+                                  window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
+                                    detail: { work_id: workId }
+                                  }));
+                                }
+                              })().catch((err) => {
+                                console.error('[AIPanel] changesApi.acceptOne 失败:', err);
+                              });
+                            }
                           } else if (resolvedRequestId) {
                             // 回退路径：旧版 agentApi
                             agentApi.submitApprovalResponse({
@@ -1727,14 +1736,23 @@ ${selectionContext.selected_text}
                           // 兼容路径：pendingApproval 匹配时走旧逻辑
                           if (pendingApproval && (!requestId || pendingApproval.request_id === requestId)) {
                             submitApproval(false);
-                          } else if (conversationId && revisionIndex !== undefined) {
-                            // V2 Changes API：通过 buffer index 弃用
-                            console.log('[AIPanel] V2 changesApi.rejectOne:', { conversationId, revisionIndex });
-                            changesApi.rejectOne(conversationId, revisionIndex).then(() => {
-                              recheckOperations();   // 重新检查缓冲区，同步全局按钮状态
-                            }).catch((err) => {
-                              console.error('[AIPanel] changesApi.rejectOne 失败:', err);
-                            });
+                          } else if (conversationId) {
+                            // V2 Changes API：通过 buffer index 弃用（支持多 indices 累加场景）
+                            const revisionIndices = (revisionData as any)?.indices as number[] | undefined;
+                            const allIndices = revisionIndices || (revisionIndex !== undefined ? [revisionIndex] : []);
+                            if (allIndices.length > 0) {
+                              // 降序排列：从高索引往低索引操作，避免 buffer pop 导致索引移位
+                              const sorted = [...allIndices].sort((a, b) => b - a);
+                              console.log('[AIPanel] V2 changesApi.rejectOne:', { conversationId, sorted });
+                              (async () => {
+                                for (const idx of sorted) {
+                                  await changesApi.rejectOne(conversationId!, idx);
+                                }
+                                recheckOperations();
+                              })().catch((err) => {
+                                console.error('[AIPanel] changesApi.rejectOne 失败:', err);
+                              });
+                            }
                           } else if (resolvedRequestId) {
                             // 回退路径：旧版 agentApi
                             agentApi.submitApprovalResponse({
@@ -1765,6 +1783,7 @@ ${selectionContext.selected_text}
                                 modifiedContent: revisionData?.newString || revisionData?.newContent || '',
                                 oldString: revisionData?.oldString,
                                 newString: revisionData?.newString,
+                                path: revisionData?.path,
                               }
                             })
                           );

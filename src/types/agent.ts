@@ -464,11 +464,16 @@ export interface RevisionFlowData {
   newTitle?: string;            // 新标题（rename 类型）
   versions?: RewriteVersion[];  // 改写版本（replace 类型）
   index?: number;               // buffer 操作索引（用于 changesApi 单条操作）
+  indices?: number[];            // 所有 buffer 索引（同 path 累加时保留所有）
+  path?: string;                 // 文件路径（用于多文件去重/累加）
+  addLines?: number;             // 新增行数
+  delLines?: number;             // 删除行数
   // v7.2: 撤销/重做支持
   originalContent?: string;     // 原始内容快照（用于撤销）
   newContent?: string;          // 新内容快照（用于重做）
   oldString?: string;           // 原始文本片段（edit 操作，来自后端）
   newString?: string;           // 新文本片段（edit/write 操作，来自后端）
+  diffPairs?: Array<{ oldString: string; newString: string }>;  // 同 path 累加时保留所有 diff 对（用于 session 恢复重放）
   editorPosition?: { from: number; to: number };  // 编辑器位置
   selectedVersion?: number;     // 选择的改写版本索引
 }

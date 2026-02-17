@@ -21,6 +21,7 @@ interface DiffMeta {
   oldString?: string;
   newString?: string;
   clear?: boolean;
+  append?: boolean;   // true: 追加装饰而非替换（同文件多次编辑）
 }
 
 /**
@@ -392,7 +393,14 @@ export function createDiffDecorationPlugin(): Plugin {
             return DecorationSet.empty;
           }
           if (meta.oldString !== undefined && meta.newString) {
-            return buildDecorations(newState.doc, meta.oldString, meta.newString);
+            const newDecs = buildDecorations(newState.doc, meta.oldString, meta.newString);
+            if (meta.append && prev !== DecorationSet.empty) {
+              // 追加模式：合并已有装饰 + 新装饰
+              const existing = prev.find();
+              const added = newDecs.find();
+              return DecorationSet.create(newState.doc, [...existing, ...added]);
+            }
+            return newDecs;
           }
         }
         // 文档变化时，映射已有装饰位置
