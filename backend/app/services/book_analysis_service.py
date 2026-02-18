@@ -16,13 +16,11 @@ from sqlalchemy import select
 
 from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion
-from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 from app.services.book_analysis.strategy import strategy_registry
 from app.services.book_analysis.smart_sampling import SmartSamplingAnalyzer, ChapterData
 from app.services.book_analysis.suggestion_generator import SuggestionGenerator
-from app.services.knowledge_service import KnowledgeService
 from app.services.redis_cache_service import RedisCacheService
 from app.utils.datetime_utils import get_utc_now
 
@@ -40,11 +38,10 @@ class BookAnalysisService:
         self,
         db: AsyncSession,
         ai_service: HTTPAIService,
-        knowledge_service: KnowledgeService
+        knowledge_service=None,  # 已弃用，保留签名兼容
     ):
         self.db = db
         self.ai_service = ai_service
-        self.knowledge_service = knowledge_service
         self.sampler = SmartSamplingAnalyzer()
         self.suggestion_generator = SuggestionGenerator(ai_service)
         self.cache_service: Optional[RedisCacheService] = None  # 延迟初始化
@@ -240,12 +237,8 @@ class BookAnalysisService:
                 strategy_id=job.strategy_id
             )
 
-            # 5. 生成知识条目
-            knowledge_items = await self._create_knowledge_items(
-                job=job,
-                analysis_result=analysis_result,
-                user_id=user_id
-            )
+            # 5. 生成知识条目（已迁移至文件化知识库，跳过）
+            knowledge_items = []
             job.extracted_items_count = len(knowledge_items)
             job.progress = 85
             await self.db.commit()
@@ -544,114 +537,6 @@ class BookAnalysisService:
 
         logger.info(f"📊 章节分析全部完成, 共{len(aggregated_result)}个维度")
         return aggregated_result
-
-    async def _create_knowledge_items(
-        self,
-        job: BookAnalysisJob,
-        analysis_result: Dict[str, Any],
-        user_id: UUID
-    ) -> List[KnowledgeItem]:
-        """
-        从分析结果创建知识条目 (批量向量化优化版本)
-
-        优化: 扩展到所有11个维度,不再只提取technique和plot_structure
-        """
-        # 维度类型到知识库类别的映射
-        DIMENSION_TO_CATEGORY = {
-            "technique": KnowledgeCategory.TECHNIQUE,
-            "plot_structure": KnowledgeCategory.PLOT,
-            "character_template": KnowledgeCategory.CHARACTER,
-            "power_system": KnowledgeCategory.WORLDVIEW,
-            "setting": KnowledgeCategory.WORLDVIEW,
-            "worldview": KnowledgeCategory.WORLDVIEW,
-            "emotional_line": KnowledgeCategory.PLOT,
-            "relationship": KnowledgeCategory.PLOT,  # 关系线
-            "conflict": KnowledgeCategory.PLOT,
-            "theme": KnowledgeCategory.TECHNIQUE,
-            "pacing": KnowledgeCategory.TECHNIQUE,
-            "hook": KnowledgeCategory.TECHNIQUE,
-        }
-
-        items = []
-        logger.info(f"📚 开始提取知识点,共 {len(analysis_result)} 个维度")
-
-        for dim_id, data in analysis_result.items():
-            dimension_type = data.get("dimension_type")
-            logger.info(f"  - 维度 '{dim_id}': dimension_type={dimension_type}")
-
-            # 旧策略: 只提取technique和plot_structure
-            # 新策略: 提取所有维度 (根据INFO.md优化建议)
-            if dimension_type not in DIMENSION_TO_CATEGORY:
-                logger.info(f"    ⚠️ 未知维度类型,使用默认分类TECHNIQUE")
-                category = KnowledgeCategory.TECHNIQUE
-            else:
-                category = DIMENSION_TO_CATEGORY[dimension_type]
-
-            name = data.get("name", "")
-            description = data.get("description", "")
-
-            if not description:
-                logger.info(f"    ❌ 跳过(描述为空)")
-                continue
-
-            logger.info(f"    ✅ 创建知识点: {name} (类别: {category.value})")
-
-            # 创建知识条目 - 使用 KnowledgeItemCreate schema
-            from app.schemas.knowledge import KnowledgeItemCreate
-
-            # 根据类型选择合适的图标
-            type_icons = {
-                KnowledgeCategory.TECHNIQUE: "💡",
-                KnowledgeCategory.PLOT: "📖",
-                KnowledgeCategory.CHARACTER: "👤",
-                KnowledgeCategory.WORLDVIEW: "🌍",
-            }
-            icon = type_icons.get(category, "💡")
-
-            knowledge_create = KnowledgeItemCreate(
-                title=f"{icon} {name}",
-                content=description,
-                category=category,
-                tags=[job.book_title, name, dimension_type],
-                source_type="book_analysis",  # 小写格式
-                source_id=str(job.id),
-                source_reference=f"{job.book_title} - {name}",
-                extra_data={
-                    "book_title": job.book_title,
-                    "dimension_id": dim_id,
-                    "dimension_name": name,
-                    "extraction_type": dimension_type
-                }
-            )
-
-            item = await self.knowledge_service.create_item(
-                user_id=str(user_id),
-                data=knowledge_create,
-                skip_vectorization=True  # 跳过单个向量化,使用批量向量化
-            )
-
-            items.append(item)
-
-        # 批量向量化所有知识条目 (优化点!)
-        if items:
-            logger.info(f"🚀 开始批量向量化 {len(items)} 个知识条目...")
-            try:
-                # 传递缓存服务以启用向量缓存
-                await self.knowledge_service.vector_service.add_knowledge_batch(items, cache_service=self.cache_service)
-                logger.info(f"✅ 批量向量化成功")
-            except Exception as e:
-                logger.error(f"❌ 批量向量化失败: {e}")
-                # 失败时回退到逐个向量化
-                logger.info("⚠️ 回退到逐个向量化...")
-                for item in items:
-                    try:
-                        await self.knowledge_service.vector_service.add_knowledge(item)
-                    except Exception as item_e:
-                        logger.error(f"❌ 知识条目 {item.id} 向量化失败: {item_e}")
-
-        logger.info(f"📚 知识点提取完成,共创建 {len(items)} 个知识条目")
-        logger.info(f"   - 相比旧策略,覆盖率提升: 从2个类型扩展到所有维度")
-        return items
 
     async def _create_suggestions(
         self,

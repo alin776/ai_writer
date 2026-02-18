@@ -32,7 +32,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';  // 支持 GFM 语法
-import { knowledgeApi } from '@/services/knowledgeApi';
+import { docsFs } from '@/services/docsFs';
 
 interface AIPanelProps {
   workId: string;
@@ -513,12 +513,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
 
     try {
       setKnowledgeSubmitting(true);
-      await knowledgeApi.create({
-        title: knowledgeFormTitle.trim(),
-        content: knowledgeFormContent.trim(),
-        category: knowledgeFormCategory,
-        tags: knowledgeFormTags.split(',').map((t) => t.trim()).filter(Boolean),
-      });
+      const safeName = knowledgeFormTitle.trim().replace(/[/\\:*?"<>|]/g, '_');
+      await docsFs.write(workId, `knowledge/${safeName}.md`, knowledgeFormContent.trim());
       setShowAddKnowledgeDialog(false);
       // 重置表单
       setKnowledgeFormTitle('');
@@ -1023,8 +1019,7 @@ ${context.selected_text}
       try {
         setKnowledgeLoading(true);
         setKnowledgeError(null);
-        // 使用新的 getDocTitles API，返回 {id, title}[]
-        const docs = await knowledgeApi.getDocTitles();
+        const docs = await docsFs.listKnowledgeFiles(workId);
         setKnowledgeDocs(docs.map((d) => ({ id: d.id, title: d.title || '未命名文档' })));
         setKnowledgeHasMore(false);
       } catch (err: any) {
@@ -1234,9 +1229,9 @@ ${context.selected_text}
       mode: 'planning',  // 始终使用 planning 模式
       work_id: workId,
       chapter_id: chapterId,
+      knowledge_files: knowledgeDocIds.length > 0 ? knowledgeDocIds : undefined,
       context: {
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
-        knowledge_doc_ids: knowledgeDocIds,
         use_optimization: useOptimization,
         ...selectionPayload,
         nodes_info: getNodesInfoPayload(),

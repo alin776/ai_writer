@@ -31,7 +31,6 @@ from app.schemas.book_analysis import (
 )
 from app.services.book_analysis_service import BookAnalysisService
 from app.services.ai.http_ai_service import HTTPAIService
-from app.services.knowledge_service import KnowledgeService
 from app.core.database import create_db_session
 from app.utils.datetime_utils import get_utc_now
 
@@ -65,9 +64,7 @@ async def run_analysis_task(job_id: UUID, user_id: UUID):
                 timeout=settings.BOOK_ANALYSIS_TIMEOUT
             )
             logger.info(f"✅ AI服务初始化成功")
-            knowledge_service = KnowledgeService(db)
-            logger.info(f"✅ 知识库服务初始化成功")
-            service = BookAnalysisService(db, ai_service, knowledge_service)
+            service = BookAnalysisService(db, ai_service)
             logger.info(f"✅ 图书分析服务初始化成功,开始分析...")
             await service.analyze_book(job_id, user_id)
             logger.info(f"🎉 图书分析任务完成: job_id={job_id}")
@@ -122,8 +119,7 @@ async def upload_book(
         model=settings.BOOK_ANALYSIS_MODEL,
         timeout=settings.BOOK_ANALYSIS_TIMEOUT
     )
-    knowledge_service = KnowledgeService(db)
-    service = BookAnalysisService(db, ai_service, knowledge_service)
+    service = BookAnalysisService(db, ai_service)
 
     try:
         job = await service.create_job(

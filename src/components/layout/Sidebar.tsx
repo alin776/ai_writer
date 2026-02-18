@@ -10,7 +10,6 @@ import {
   Users,
   Cpu,
   DollarSign,
-  Library,
   Wallet,
   BarChart3,
   Gift,
@@ -50,7 +49,6 @@ const notificationNavItem: NavItem = {
 
 const mainNavItems: NavItem[] = [
   { id: 'works', label: '作品管理', icon: BookOpen, path: '/works' },
-  { id: 'knowledge', label: '知识库', icon: Library, path: '/knowledge' },
   { id: 'humanize', label: 'AI去痕', icon: Wand2, path: '/humanize' },
 ];
 

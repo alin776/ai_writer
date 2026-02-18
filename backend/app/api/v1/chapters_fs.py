@@ -6,13 +6,14 @@
 """
 
 import asyncio
+import io
 import logging
 import re
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -542,4 +543,81 @@ async def rename_file(
     if new_path.exists():
         raise HTTPException(status_code=409, detail="Target already exists")
     await asyncio.to_thread(target.rename, new_path)
+    return await asyncio.to_thread(_build_file_tree, work_dir)
+
+
+# ─── 知识库上传 ───
+
+_ALLOWED_EXTENSIONS = {"txt", "md", "pdf", "docx"}
+_MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+def _extract_text_from_upload(file: UploadFile, content_bytes: bytes) -> str:
+    """根据文件类型提取文本内容，支持 txt/md/pdf/docx。"""
+    filename = file.filename or ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext in ("txt", "md", "markdown", ""):
+        for encoding in ("utf-8", "gbk", "gb2312", "gb18030", "utf-16", "big5"):
+            try:
+                return content_bytes.decode(encoding)
+            except (UnicodeDecodeError, LookupError):
+                continue
+        raise HTTPException(status_code=400, detail="无法识别文件编码，请转换为 UTF-8 后重试")
+
+    if ext == "pdf":
+        try:
+            import pdfplumber
+        except ImportError:
+            raise HTTPException(status_code=400, detail="服务器未安装 pdfplumber，暂不支持 PDF")
+        with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
+            texts = [page.extract_text() or "" for page in pdf.pages]
+        return "\n".join(t for t in texts if t)
+
+    if ext == "docx":
+        try:
+            from docx import Document
+        except ImportError:
+            raise HTTPException(status_code=400, detail="服务器未安装 python-docx，暂不支持 DOCX")
+        doc = Document(io.BytesIO(content_bytes))
+        return "\n".join(p.text for p in doc.paragraphs if p.text)
+
+    raise HTTPException(status_code=400, detail=f"不支持的文件类型: .{ext}")
+
+
+@router.post(
+    "/works/{work_id}/upload/knowledge",
+    response_model=list[FileNode],
+    summary="上传知识库文件",
+)
+async def upload_knowledge_file(
+    work_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """上传文件到知识库目录，提取文本存为 .md，返回刷新后的文件树。"""
+    _, work_dir = await _get_work_and_dir(work_id, current_user, db)
+
+    # 校验文件类型
+    filename = file.filename or "untitled.txt"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"不支持的文件类型，允许: {', '.join(_ALLOWED_EXTENSIONS)}")
+
+    # 读取并校验大小
+    content_bytes = await file.read()
+    if len(content_bytes) > _MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="文件大小超过 5MB 限制")
+
+    # 提取文本
+    text = _extract_text_from_upload(file, content_bytes)
+
+    # 存为 knowledge/{stem}.md
+    stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    knowledge_dir = work_dir / "knowledge"
+    knowledge_dir.mkdir(parents=True, exist_ok=True)
+    target = knowledge_dir / f"{stem}.md"
+    await asyncio.to_thread(target.write_text, text, "utf-8")
+
     return await asyncio.to_thread(_build_file_tree, work_dir)

@@ -13,14 +13,12 @@ export interface AgentChatRequest {
   work_id?: string;
   chapter_id?: string;
   conversation_id?: string;
+  /** 知识库文件路径列表，V2 后端顶层字段 */
+  knowledge_files?: string[];
   context?: {
     chapter_context?: string;
     text?: string;
     current_content?: string;
-    /** 知识库文档ID列表，用于@引用指定文档 */
-    knowledge_doc_ids?: string[];
-    /** @deprecated 已弃用，请使用 knowledge_doc_ids。此字段将在后续版本移除 */
-    knowledge_tags?: string[];
     use_optimization?: boolean;
     /** 编辑器选中的文字（纯文本） */
     selected_text?: string;

@@ -30,7 +30,6 @@ const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const ChangePasswordView = React.lazy(() => import('../views/ChangePasswordView'));
 const ChangeEmailView = React.lazy(() => import('../views/ChangeEmailView'));
 const ForgotPasswordView = React.lazy(() => import('../views/ForgotPasswordView'));
-const KnowledgeView = React.lazy(() => import('../views/KnowledgeView'));
 const NotificationCenter = React.lazy(() => import('../pages/NotificationCenter'));
 const ActivityDetail = React.lazy(() => import('../pages/ActivityDetail'));
 const SubscriptionView = React.lazy(() => import('../views/SubscriptionView'));
@@ -179,14 +178,6 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <ChangeEmailView />
-          </SuspenseWrapper>
-        ),
-      },
-      {
-        path: '/knowledge',
-        element: (
-          <SuspenseWrapper>
-            <KnowledgeView />
           </SuspenseWrapper>
         ),
       },

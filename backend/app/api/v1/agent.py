@@ -648,6 +648,7 @@ class V2ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     work_id: str = Field(...)
     conversation_id: Optional[str] = Field(None)
+    knowledge_files: Optional[List[str]] = Field(None)
 
 
 class V2ChangesResponse(BaseModel):
@@ -699,8 +700,27 @@ async def agent_v2_chat_stream(
                 checkpointer = await _get_checkpointer()
                 agent, backend = create_writing_agent(work, user_id, checkpointer=checkpointer)
 
-                # 构建输入
-                input_msg = {"messages": [{"role": "user", "content": request.message}]}
+                # 构建输入（注入知识库引用）
+                user_content = request.message
+                if request.knowledge_files:
+                    from app.services.agent.deep_agent import DATA_ROOT
+                    work_dir = DATA_ROOT / user_id / "works" / request.work_id
+                    ref_parts = []
+                    for rel_path in request.knowledge_files:
+                        fp = (work_dir / rel_path).resolve()
+                        # 安全检查：防止目录穿越
+                        if not str(fp).startswith(str(work_dir.resolve())):
+                            continue
+                        if fp.exists() and fp.is_file():
+                            try:
+                                text = fp.read_text("utf-8")
+                                ref_parts.append(f"<reference path=\"{rel_path}\">\n{text}\n</reference>")
+                            except Exception:
+                                logger.warning(f"Failed to read knowledge file: {rel_path}")
+                    if ref_parts:
+                        user_content = "\n".join(ref_parts) + "\n\n" + request.message
+
+                input_msg = {"messages": [{"role": "user", "content": user_content}]}
                 config = {
                     "configurable": {"thread_id": conversation_id},
                     "recursion_limit": 500,

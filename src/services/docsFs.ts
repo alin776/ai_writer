@@ -42,4 +42,30 @@ async function rename(workId: string, path: string, newName: string): Promise<Fi
   return api.patch<FileNode[]>(`/v2/works/${workId}/files/${path}`, { new_name: newName });
 }
 
-export const docsFs = { tree, read, write, createFile, createDir, remove, rename };
+async function uploadKnowledge(workId: string, file: File): Promise<FileNode[]> {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post<FileNode[]>(`/v2/works/${workId}/upload/knowledge`, form);
+}
+
+/** 从文件树中过滤出 knowledge/ 目录下的文件 */
+function _collectKnowledgeFiles(nodes: FileNode[]): { id: string; title: string }[] {
+  const result: { id: string; title: string }[] = [];
+  for (const node of nodes) {
+    if (node.type === 'dir' && node.name === 'knowledge' && node.children) {
+      for (const child of node.children) {
+        if (child.type === 'file') {
+          result.push({ id: child.path, title: child.name.replace(/\.md$/, '') });
+        }
+      }
+    }
+  }
+  return result;
+}
+
+async function listKnowledgeFiles(workId: string): Promise<{ id: string; title: string }[]> {
+  const nodes = await tree(workId);
+  return _collectKnowledgeFiles(nodes);
+}
+
+export const docsFs = { tree, read, write, createFile, createDir, remove, rename, uploadKnowledge, listKnowledgeFiles };

@@ -17,7 +17,7 @@ import {
   Loader2,
   X,
 } from 'lucide-react';
-import { knowledgeApi } from '@/services/knowledgeApi';
+import { docsFs } from '@/services/docsFs';
 
 interface ChatInputProps {
   onSend: (message: string, context?: any) => void;
@@ -271,7 +271,7 @@ export default function ChatInput({
       try {
         setKnowledgeLoading(true);
         setKnowledgeError(null);
-        const docs = await knowledgeApi.getDocTitles();
+        const docs: { id: string; title: string }[] = [];  // TODO: 需要 workId 才能调用 docsFs.listKnowledgeFiles
         setKnowledgeDocs(docs || []);
       } catch (error: any) {
         setKnowledgeError(error?.message || '知识库文档获取失败');

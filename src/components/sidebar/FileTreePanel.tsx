@@ -8,7 +8,7 @@ import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react'
 import { Tree, TreeApi, NodeRendererProps } from 'react-arborist';
 import {
   ChevronRight, ChevronDown, Folder, FolderOpen,
-  FileText, FilePlus, FolderPlus, Trash2, Pencil,
+  FileText, FilePlus, FolderPlus, Trash2, Pencil, Upload,
 } from 'lucide-react';
 import type { FileNode } from '../../services/docsFs';
 import { docsFs } from '../../services/docsFs';
@@ -119,6 +119,7 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
   // 动态测量容器高度
   const treeContainerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<TreeApi<TreeNodeData>>(null);
+  const knowledgeInputRef = useRef<HTMLInputElement>(null);
   const [treeHeight, setTreeHeight] = useState(400);
 
   // 右键菜单
@@ -303,6 +304,19 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
     setDeleteTarget(null);
   }, [workId, deleteTarget, onTreeChange]);
 
+  const handleKnowledgeUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !workId) return;
+    try {
+      const newTree = await docsFs.uploadKnowledge(workId, file);
+      onTreeChange(newTree);
+    } catch (err) {
+      console.error('Knowledge upload failed:', err);
+    }
+    // 清空 input 以允许重复上传同名文件
+    e.target.value = '';
+  }, [workId, onTreeChange]);
+
   // 内联重命名 refs（放在 handleRenameConfirm 之后避免 TDZ 错误）
   const handleRenameConfirmRef = useRef(handleRenameConfirm);
   handleRenameConfirmRef.current = handleRenameConfirm;
@@ -450,6 +464,16 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
           <button type="button" onClick={() => setInlineCreate({ type: 'dir', parentPath: activeParentPath })} className={toolbarBtnClass} title="新建文件夹">
             <FolderPlus className="h-4 w-4" />
           </button>
+          <button type="button" onClick={() => knowledgeInputRef.current?.click()} className={toolbarBtnClass} title="上传知识库文件">
+            <Upload className="h-4 w-4" />
+          </button>
+          <input
+            ref={knowledgeInputRef}
+            type="file"
+            accept=".pdf,.docx,.txt,.md"
+            className="hidden"
+            onChange={handleKnowledgeUpload}
+          />
         </div>
       </div>
 
