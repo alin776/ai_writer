@@ -28,7 +28,7 @@ const TOOL_VERB_MAP: Record<string, string> = {
  * 格式：动词(参数)
  */
 function formatToolLine(toolName?: string, toolInput?: any, fallbackTitle?: string): string {
-  if (!toolName) return fallbackTitle || 'Working...';
+  if (!toolName) return fallbackTitle || 'Working…';
 
   const verb = TOOL_VERB_MAP[toolName] || toolName;
 

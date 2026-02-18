@@ -56,7 +56,7 @@ function buildCharMap(doc: PmNode): CharInfo[] {
 
 /**
  * 在 charMap 构建的 fullText 中查找 target 文本的起始索引。
- * 多策略匹配：精确 → 折叠换行 → 去除行首空白
+ * 多策略匹配：精确 → 折叠换行 → 去除行首空白 → 去 Markdown 语法 → 首行模糊
  */
 function findMatchIndex(fullText: string, target: string): { index: number; normalizedTarget: string } | null {
   // 策略 1：精确匹配
@@ -89,6 +89,32 @@ function findMatchIndex(fullText: string, target: string): { index: number; norm
         return { index: charOffset + leadingLen, normalizedTarget: strippedTarget };
       }
       charOffset += docLine.length + 1; // +1 for the '\n'
+    }
+  }
+
+  // 策略 4：去除 Markdown 语法标记后匹配
+  // Agent 返回原始 Markdown（含 ### - ** 等），ProseMirror 渲染后无这些标记
+  const stripMd = (s: string) => s
+    .replace(/^#{1,6}\s+/gm, '')                        // 标题标记
+    .replace(/^[\s]*[-*+]\s+/gm, '')                    // 无序列表标记
+    .replace(/^[\s]*(\*{3,}|-{3,}|_{3,})[\s]*$/gm, '')  // 水平线 *** --- ___
+    .replace(/\*\*(.+?)\*\*/g, '$1')                    // 粗体
+    .replace(/\*([^*\n]+)\*/g, '$1')                    // 斜体（排除 * 和换行）
+    .replace(/\n{2,}/g, '\n')                           // 折叠多余换行
+    .replace(/^\n+|\n+$/g, '');                         // 去头尾换行
+  const mdStripped = stripMd(collapsed);
+  if (mdStripped !== collapsed) {
+    idx = fullText.indexOf(mdStripped);
+    if (idx !== -1) return { index: idx, normalizedTarget: mdStripped };
+  }
+
+  // 策略 5：用首行做模糊定位（Markdown frontmatter/标题差异时降级）
+  const firstTargetLine = collapsed.split('\n').find(l => l.trim().length > 10);
+  if (firstTargetLine) {
+    const trimmedFirst = firstTargetLine.trim();
+    idx = fullText.indexOf(trimmedFirst);
+    if (idx !== -1) {
+      return { index: idx, normalizedTarget: collapsed };
     }
   }
 

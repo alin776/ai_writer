@@ -17,7 +17,10 @@ import {
 } from '../../components/ui/alert-dialog';
 import { DataService } from '../../services/DataService';
 import { chaptersFs } from '../../services/chaptersFs';
-import { fsToChapter, chapterIdToNum } from '../../utils/fsChapterAdapter';
+import { docsFs } from '../../services/docsFs';
+import type { FileNode } from '../../services/docsFs';
+import { fsToChapter, chapterIdToNum, isDocId, docIdToPath } from '../../utils/fsChapterAdapter';
+import { FileTreePanel } from '../../components/sidebar/FileTreePanel';
 import { useGlobalStore } from '../../store/globalStore';
 import { useAuthStore } from '../../store/authStore';
 import type { Work, Chapter, CreateChapterData } from '../../types';
@@ -108,6 +111,7 @@ const WorkDetailView: React.FC = () => {
 
   const [work, setWork] = useState<Work | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,6 +120,8 @@ const WorkDetailView: React.FC = () => {
   const [currentChapterContent, setCurrentChapterContent] = useState<string>('');
   // 用于追踪编辑器当前加载的章节 ID，防止异步保存时的竞态条件
   const editorChapterIdRef = React.useRef<string | undefined>(undefined);
+  // diff 预览标志：RevisionCard 跳转时设为 true，跳过自动保存避免覆写未采纳内容
+  const diffPreviewRef = React.useRef(false);
 
   // 世界观数据
   const [worldData, setWorldData] = useState<WorldData>({
@@ -473,6 +479,14 @@ const WorkDetailView: React.FC = () => {
         setLastWork(workId, workData?.title);
         setWork(workData);
         setChapters(chaptersData);
+
+        // 加载文件树
+        try {
+          const tree = await docsFs.tree(workId);
+          setFileTree(tree);
+        } catch (err) {
+          console.warn('[WorkDetailView] 加载文件树失败:', err);
+        }
         setWorldData(worldDataFromServer as any);
 
         // 处理搜索导航的定位参数
@@ -643,6 +657,7 @@ const WorkDetailView: React.FC = () => {
    * 处理章节选择
    */
   const handleChapterSelect = useCallback(async (chapterId: string) => {
+    diffPreviewRef.current = false;
     const chapter = chapters.find((c) => c.id === chapterId);
     if (chapter) {
       // 取消正在进行的章节重命名编辑
@@ -687,11 +702,47 @@ const WorkDetailView: React.FC = () => {
   }, [chapters, editingChapterId, workId, setLastChapter, openEditorTab]);
 
   /**
+   * 处理文件树选择（统一入口：章节走 handleChapterSelect，文档走 docsFs）
+   */
+  const handleFileSelect = useCallback(async (fileId: string) => {
+    diffPreviewRef.current = false;
+    if (isDocId(fileId)) {
+      const path = docIdToPath(fileId);
+      const fileName = path.split('/').pop() || path;
+      openEditorTab({ id: fileId, title: fileName, order: 0 });
+      setCurrentChapterContent('');
+      setCurrentChapterId(fileId);
+      try {
+        const file = await docsFs.read(workId!, path);
+        setCurrentChapterContent(file.content);
+      } catch {
+        setCurrentChapterContent('');
+      }
+    } else {
+      handleChapterSelect(fileId);
+    }
+  }, [workId, handleChapterSelect, openEditorTab]);
+
+  /**
    * 处理编辑器标签页切换（先加载内容，再切换编辑器）
    */
   const handleEditorTabSwitch = useCallback(async (tabId: string) => {
+    diffPreviewRef.current = false;
     switchEditorTab(tabId);
     if (tabId === currentChapterId) return;
+
+    // doc: 文件标签切换
+    if (isDocId(tabId)) {
+      const path = docIdToPath(tabId);
+      setCurrentChapterContent('');
+      setCurrentChapterId(tabId);
+      editorChapterIdRef.current = tabId;
+      try {
+        const file = await docsFs.read(workId!, path);
+        setCurrentChapterContent(file.content);
+      } catch { /* ignore */ }
+      return;
+    }
 
     const chapter = chapters.find(c => c.id === tabId);
     if (!chapter) return;
@@ -784,6 +835,12 @@ const WorkDetailView: React.FC = () => {
       setIsAddingChapter(false);
 
       showToast('success', t('workDetail.toast.chapterAddSuccess'));
+
+      // 刷新文件树
+      try {
+        const tree = await docsFs.tree(workId);
+        setFileTree(tree);
+      } catch { /* ignore */ }
 
       // 🔥 新增章节后，自动触发重新分析（后台执行，不阻塞用户）
       try {
@@ -989,6 +1046,12 @@ const WorkDetailView: React.FC = () => {
       }
 
       showToast('success', t('workDetail.toast.chapterDeleteSuccess'));
+
+      // 刷新文件树
+      try {
+        const tree = await docsFs.tree(workId);
+        setFileTree(tree);
+      } catch { /* ignore */ }
     } catch (error) {
       showToast('error', t('workDetail.toast.chapterDeleteFailed'));
       console.error('Failed to delete chapter:', error);
@@ -1033,6 +1096,11 @@ const WorkDetailView: React.FC = () => {
       return;
     }
 
+    // diff 预览期间跳过自动保存，避免覆写未采纳的 Agent 修改
+    if (diffPreviewRef.current) {
+      return;
+    }
+
     const chapterIdToSave = editorChapterIdRef.current;
     if (!chapterIdToSave || chapterIdToSave !== currentChapterId) {
       console.warn('[WorkDetailView] 保存失败：章节ID不匹配');
@@ -1040,6 +1108,14 @@ const WorkDetailView: React.FC = () => {
     }
 
     try {
+      // doc: 文件 — 直接写入
+      if (isDocId(currentChapterId)) {
+        const path = docIdToPath(currentChapterId);
+        await docsFs.write(workId, path, content);
+        console.log('[WorkDetailView] 保存文档:', path);
+        return;
+      }
+
       const num = chapterIdToNum(currentChapterId);
       if (num === null) return;
 
@@ -1632,6 +1708,12 @@ const WorkDetailView: React.FC = () => {
         const freshChapters = fsList.map(fs => fsToChapter(fs, workId));
         setChapters(freshChapters);
 
+        // 刷新文件树
+        try {
+          const tree = await docsFs.tree(workId);
+          setFileTree(tree);
+        } catch { /* ignore */ }
+
         const activeChapterId = editorChapterIdRef.current || currentChapterId;
         if (activeChapterId) {
           try {
@@ -1668,6 +1750,7 @@ const WorkDetailView: React.FC = () => {
         modifiedContent?: string;
         oldString?: string;
         newString?: string;
+        path?: string;
       }>;
       const {
         workId: targetWorkId,
@@ -1677,8 +1760,52 @@ const WorkDetailView: React.FC = () => {
         modifiedContent,
         oldString,
         newString,
+        path: revisionPath,
       } = customEvent.detail || {};
       if (targetWorkId && targetWorkId !== workId) return;
+
+      // 标记进入 diff 预览模式，跳过自动保存
+      diffPreviewRef.current = true;
+
+      // doc: 文件 — 打开文档并显示 diff
+      if (targetChapterId?.startsWith('doc:')) {
+        if (isEditorCollapsed) setIsEditorCollapsed(false);
+        const path = docIdToPath(targetChapterId);
+        const fileName = path.split('/').pop() || path;
+        openEditorTab({ id: targetChapterId, title: fileName, order: 0 });
+        setCurrentChapterId(targetChapterId);
+
+        const dispatchDiff = () => {
+          if (!modifiedContent) return;
+          // doc: 文件需要更长延迟：React 状态更新 + EditorWrapper key 重挂载 + Milkdown 初始化
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+              detail: oldString && newString
+                ? { oldString, newString }
+                : { oldString: originalContent || '', newString: modifiedContent }
+            }));
+          }, 600);
+        };
+
+        // edit_file: 从磁盘读取完整文件，diff 插件在其中定位 oldString 标红
+        // create/write_file: 无磁盘文件，直接用 modifiedContent
+        if (oldString && newString && workId) {
+          setCurrentChapterContent(''); // 先清空，避免新编辑器用旧内容初始化
+          docsFs.read(workId, path).then(file => {
+            setCurrentChapterContent(file.content);
+            dispatchDiff();
+          }).catch((err) => {
+            console.warn('[handleJumpRevision] docsFs.read failed:', err);
+            setCurrentChapterContent(modifiedContent || '');
+            dispatchDiff();
+          });
+        } else {
+          setCurrentChapterContent(modifiedContent || '');
+          dispatchDiff();
+        }
+        return;
+      }
+
       if (isEditorCollapsed) {
         setIsEditorCollapsed(false);
       }
@@ -1782,9 +1909,6 @@ const WorkDetailView: React.FC = () => {
     );
   }
 
-  // 转换章节数据为 NovelChapter 格式
-  const novelChapters = convertToNovelChapters(chapters);
-
   return (
     <>
       <div
@@ -1802,259 +1926,51 @@ const WorkDetailView: React.FC = () => {
           {isLeftCollapsed ? null : (
             /* 展开状态 */
             <div className="flex-1 flex flex-col min-h-0">
-              {/* 标题区域 - 与右侧工具栏对齐 */}
-              <div className="px-3 py-1.5 flex items-center justify-between flex-shrink-0">
-                <h2 className="text-[15px] text-zinc-800 dark:text-slate-100 tracking-tight">{t('workDetail.title')}</h2>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleAddChapter()}
-                    className="h-7 w-7 p-0 flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800"
-                  >
-                    <Plus className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* 章节列表 */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 px-2 py-2">
-                <div className="space-y-1">
-                  {/* 新章节输入框 */}
-                  {isAddingChapter && (
-                    <div className="relative px-3 py-2.5 rounded-xl bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5 transition-all dark:bg-slate-800 dark:shadow-slate-900/40 dark:ring-slate-700">
-                      {/* 顶部装饰线 */}
-                      <div className="absolute top-0 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-zinc-400 via-zinc-600 to-zinc-400 dark:from-blue-500 dark:via-blue-400 dark:to-blue-500" />
-
-                      <div className="flex items-start gap-3 pt-0.5">
-                        {/* 章节编号占位 */}
-                        <div className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] bg-zinc-100/80 text-zinc-400 dark:bg-slate-700 dark:text-slate-400">
-                          {chapters.length + 1}
-                        </div>
-
-                        {/* 输入框 */}
-                        <div className="flex-1 min-w-0">
-                          <input
-                            autoFocus
-                            type="text"
-                            value={newChapterTitle}
-                            onChange={(e) => setNewChapterTitle(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleSaveNewChapter();
-                              } else if (e.key === 'Escape') {
-                                handleCancelAddChapter();
-                              }
-                            }}
-                            placeholder={t('workDetail.chapter.titlePlaceholder')}
-                            className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400 dark:text-slate-100 dark:placeholder:text-slate-500"
-                            style={{ outline: 'none', boxShadow: 'none' }}
-                          />
-
-                          {/* 操作按钮 */}
-                          <div className="flex items-center justify-between mt-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleCancelAddChapter}
-                              className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                            >
-                              {t('common.cancel')}
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={handleSaveNewChapter}
-                              className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0 dark:bg-blue-600 dark:hover:bg-blue-500"
-                            >
-                              {t('common.save')}
-                            </Button>
-                          </div>
-                        </div>
+              {/* 新章节输入框 */}
+              {isAddingChapter && (
+                <div className="mx-2 mt-2 relative px-3 py-2.5 rounded-xl bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5 transition-all dark:bg-slate-800 dark:shadow-slate-900/40 dark:ring-slate-700">
+                  <div className="absolute top-0 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-zinc-400 via-zinc-600 to-zinc-400 dark:from-blue-500 dark:via-blue-400 dark:to-blue-500" />
+                  <div className="flex items-start gap-3 pt-0.5">
+                    <div className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] bg-zinc-100/80 text-zinc-400 dark:bg-slate-700 dark:text-slate-400">
+                      {chapters.length + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={newChapterTitle}
+                        onChange={(e) => setNewChapterTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveNewChapter();
+                          else if (e.key === 'Escape') handleCancelAddChapter();
+                        }}
+                        placeholder={t('workDetail.chapter.titlePlaceholder')}
+                        className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                        style={{ outline: 'none', boxShadow: 'none' }}
+                      />
+                      <div className="flex items-center justify-between mt-2">
+                        <Button variant="ghost" size="sm" onClick={handleCancelAddChapter}
+                          className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+                          {t('common.cancel')}
+                        </Button>
+                        <Button size="sm" onClick={handleSaveNewChapter}
+                          className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0 dark:bg-blue-600 dark:hover:bg-blue-500">
+                          {t('common.save')}
+                        </Button>
                       </div>
                     </div>
-                  )}
-
-                  {novelChapters.map((chapter, index) => (
-                    <div
-                      key={chapter.id}
-                      onClick={() => handleChapterSelect(chapter.id)}
-                      className={`group relative px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 ${
-                        chapter.id === currentChapterId
-                          ? 'bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5 dark:bg-slate-800 dark:shadow-slate-900/40 dark:ring-slate-700'
-                          : 'text-zinc-700 hover:bg-white/60 hover:shadow-md hover:shadow-zinc-100 dark:text-slate-300 dark:hover:bg-slate-800/60'
-                      }`}
-                    >
-                      {/* 顶部装饰线 */}
-                      <div className={`absolute top-0 left-3 right-3 h-0.5 rounded-full transition-all duration-300 ${
-                        chapter.id === currentChapterId
-                          ? 'bg-gradient-to-r from-zinc-400 via-zinc-600 to-zinc-400 dark:from-blue-500 dark:via-blue-400 dark:to-blue-500'
-                          : 'bg-transparent group-hover:bg-zinc-200 dark:group-hover:bg-slate-700'
-                      }`} />
-
-                      <div className="flex items-start gap-3 pt-0.5">
-                        {/* 章节编号 */}
-                        <div className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-medium transition-all duration-300 ${
-                          chapter.id === currentChapterId
-                            ? 'bg-gradient-to-br from-zinc-700 to-zinc-900 text-white shadow-md shadow-zinc-900/20 dark:from-blue-600 dark:to-blue-700'
-                            : 'bg-zinc-100/80 text-zinc-500 group-hover:bg-zinc-200 group-hover:text-zinc-700 dark:bg-slate-700 dark:text-slate-400 dark:group-hover:bg-slate-600 dark:group-hover:text-slate-300'
-                        }`}>
-                          {index + 1}
-                        </div>
-
-                        {/* 章节内容 */}
-                        <div className="flex-1 min-w-0">
-                          {editingChapterId === chapter.id ? (
-                            /* 编辑模式 */
-                            <div className="flex flex-col gap-2">
-                              <input
-                                autoFocus
-                                type="text"
-                                value={editingChapterTitle}
-                                onChange={(e) => setEditingChapterTitle(e.target.value)}
-                                onKeyDown={(e) => {
-                                  e.stopPropagation();
-                                  if (e.key === 'Enter') {
-                                    handleSaveChapterTitle();
-                                  } else if (e.key === 'Escape') {
-                                    handleCancelRenameChapter();
-                                  }
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400 dark:text-slate-100 dark:placeholder:text-slate-500"
-                                style={{ outline: 'none', boxShadow: 'none' }}
-                              />
-                              <div className="flex items-center justify-between">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCancelRenameChapter();
-                                  }}
-                                  className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                                >
-                                  {t('common.cancel')}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSaveChapterTitle();
-                                  }}
-                                  className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0 dark:bg-blue-600 dark:hover:bg-blue-500"
-                                >
-                                  {t('common.save')}
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            /* 显示模式 */
-                            <>
-                              <div className="flex items-start justify-between gap-1">
-                                <div className={`text-[13px] leading-snug truncate flex-1 transition-colors duration-300 ${
-                                  chapter.id === currentChapterId ? 'text-zinc-900 dark:text-slate-100' : 'text-zinc-700 dark:text-slate-300'
-                                }`}>
-                                  {chapter.title.replace(/^第\d+章\s*/, '')}
-                                </div>
-                                <div className="flex items-center gap-0.5 flex-shrink-0">
-                                  {/* 铅笔按钮 - 编辑章节名称 */}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleStartRenameChapter(chapter.id, chapter.title);
-                                    }}
-                                    className={`h-6 w-6 p-0 rounded flex items-center justify-center border-0 bg-transparent opacity-0 group-hover:opacity-100 transition-all ${
-                                      chapter.id === currentChapterId
-                                        ? 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-700'
-                                        : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-700'
-                                    }`}
-                                    aria-label={t('workDetail.actions.editChapterTitle')}
-                                  >
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      width="12"
-                                      height="12"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                      <path d="m15 5 4 4" />
-                                    </svg>
-                                  </button>
-                                  {/* 删除按钮 */}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setChapterToDelete(chapter.id);
-                                      setDeleteDialogOpen(true);
-                                    }}
-                                    className={`h-6 w-6 p-0 rounded flex items-center justify-center border-0 bg-transparent opacity-0 group-hover:opacity-100 transition-all ${
-                                      chapter.id === currentChapterId
-                                        ? 'text-zinc-400 hover:text-red-500 hover:bg-red-50/80 dark:text-slate-500 dark:hover:text-red-400 dark:hover:bg-red-900/30'
-                                        : 'text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:text-slate-500 dark:hover:text-red-400 dark:hover:bg-red-900/30'
-                                    }`}
-                                    aria-label={t('workDetail.actions.deleteChapter')}
-                                  >
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      width="12"
-                                      height="12"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M3 6h18"></path>
-                                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                                      <line x1="10" x2="10" y1="11" y2="17"></line>
-                                      <line x1="14" x2="14" y1="11" y2="17"></line>
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* 字数统计与进度 */}
-                              <div className="flex items-center gap-2 mt-2">
-                                <div className={`text-[10px] transition-colors duration-300 ${
-                                  chapter.id === currentChapterId ? 'text-zinc-500 dark:text-slate-400' : 'text-zinc-400 dark:text-slate-500'
-                                }`}>
-                                  {chapter.wordCount.toLocaleString()} {t('workDetail.chapter.words')}
-                                </div>
-                                {/* 进度指示器 */}
-                                <div className={`flex-1 h-1 rounded-full transition-all duration-300 ${
-                                  chapter.id === currentChapterId ? 'bg-zinc-100 dark:bg-slate-700' : 'bg-zinc-100/60 dark:bg-slate-700/50'
-                                }`}>
-                                  <div
-                                    className={`h-full rounded-full transition-all duration-500 ${
-                                      chapter.id === currentChapterId
-                                        ? 'bg-gradient-to-r from-zinc-500 via-zinc-600 to-zinc-700 shadow-sm dark:from-blue-500 dark:via-blue-400 dark:to-blue-500'
-                                        : 'bg-zinc-300 group-hover:bg-zinc-400 dark:bg-slate-600 dark:group-hover:bg-slate-500'
-                                    }`}
-                                    style={{ width: `${Math.min((chapter.wordCount / 5000) * 100, 100)}%` }}
-                                  />
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 底部微光效果 */}
-                      {chapter.id === currentChapterId && (
-                        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-zinc-200/50 to-transparent dark:via-slate-700" />
-                      )}
-                    </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* 文件树 */}
+              <FileTreePanel
+                workId={workId || ''}
+                fileTree={fileTree}
+                activeFileId={currentChapterId || null}
+                onFileSelect={handleFileSelect}
+                onAddChapter={handleAddChapter}
+              />
             </div>
           )}
         </div>

@@ -5,10 +5,22 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: novelaide_postgres
+    shm_size: 256m
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     environment:
       POSTGRES_USER: novelaide
       POSTGRES_PASSWORD: novelaide_password
       POSTGRES_DB: novelaide
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c work_mem=2MB
+      -c effective_cache_size=512MB
+      -c maintenance_work_mem=64MB
+      -c max_connections=20
     ports:
       - "5432:5432"
     volumes:

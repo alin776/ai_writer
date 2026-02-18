@@ -89,6 +89,13 @@ async def lifespan(app: FastAPI):
 
     await init_db()
 
+    # 预加载 Embedding 模型，避免首次 Agent 调用时 ~7 秒延迟
+    try:
+        from app.services.embedding import preload_model
+        preload_model()
+    except Exception as e:
+        logger.warning(f"[STARTUP] ⚠️ Embedding 模型预加载失败（不影响启动）: {e}")
+
     # 初始化官方频道
     try:
         from init_official_channels_sql import init_channels

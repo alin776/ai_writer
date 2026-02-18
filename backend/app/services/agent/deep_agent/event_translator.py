@@ -82,11 +82,21 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
     if kind == "on_chat_model_stream":
         chunk = data.get("chunk")
         if chunk and hasattr(chunk, "content") and chunk.content:
-            return {
-                "type": "text",
-                "data": {"content": chunk.content},
-                "timestamp": _now(),
-            }
+            raw = chunk.content
+            # 归一化：content 可能是 str 或 list[dict]（Responses API 格式）
+            if isinstance(raw, list):
+                text = "".join(
+                    b.get("text", b.get("content", "")) if isinstance(b, dict) else str(b)
+                    for b in raw
+                )
+            else:
+                text = str(raw)
+            if text:
+                return {
+                    "type": "text",
+                    "data": {"content": text},
+                    "timestamp": _now(),
+                }
         return None
 
     # ─── 工具调用开始 ───

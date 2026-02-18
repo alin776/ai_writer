@@ -17,7 +17,7 @@ import json
 import re
 import uuid
 import redis
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from datetime import datetime, timedelta
 from app.utils.datetime_utils import get_utc_now
 
@@ -604,6 +604,23 @@ def _delete_pending(key: str) -> None:
         logger.warning(f"[Pending] delete failed for {key}: {e}")
 
 
+def _buffer_op_to_change(op, index: int) -> dict:
+    """将单条 BufferOp 转换为 get_changes() 兼容的 dict，供实时 revision 使用。"""
+    from app.services.agent.deep_agent.frontmatter import parse_chapter
+
+    item: dict = {"index": index, "op_type": op.op_type, "path": op.path}
+    if op.op_type == "write":
+        item["content_preview"] = (op.content or "")[:200]
+        parsed = parse_chapter(op.content or "")
+        item["new_string"] = parsed["content"]
+        if parsed["title"]:
+            item["chapter_title"] = parsed["title"]
+    elif op.op_type == "edit":
+        item["old_string"] = op.old_string
+        item["new_string"] = op.new_string
+    return item
+
+
 class V2ChatRequest(BaseModel):
     """V2 Agent 对话请求"""
     message: str = Field(..., min_length=1)
@@ -674,7 +691,9 @@ async def agent_v2_chat_stream(
                 }
                 yield f"data: {json.dumps(header, ensure_ascii=False)}\n\n"
 
-                # 流式运行 Agent
+                # 流式运行 Agent（实时发送 revision）
+                _last_buffer_len = 0
+
                 async for event in agent.astream_events(
                     input_msg, config=config, version="v2"
                 ):
@@ -682,16 +701,30 @@ async def agent_v2_chat_stream(
                     if translated:
                         yield f"data: {json.dumps(translated, ensure_ascii=False)}\n\n"
 
-                # Agent 完成：获取改动列表
-                changes = backend.get_changes()
+                    # 🆕 实时发送 revision：on_tool_end 后检测 buffer 新增
+                    kind = event.get("event", "")
+                    if kind == "on_tool_end" and len(backend._buffer) > _last_buffer_len:
+                        # 从 translated step_complete 事件提取精确 step_id（防嵌套调用错位）
+                        _step_id = (translated or {}).get("step_id", counter.current)
+                        # 逐条发送新增的 buffer 操作
+                        while _last_buffer_len < len(backend._buffer):
+                            op_dict = _buffer_op_to_change(backend._buffer[_last_buffer_len], _last_buffer_len)
+                            _last_buffer_len += 1
+                            # 补充 chapter_id
+                            m = re.search(r'chapters/(\d+)-[^/]+\.md', op_dict["path"])
+                            if m:
+                                op_dict["chapter_id"] = f"fs-{int(m.group(1))}"
+                            else:
+                                clean_path = op_dict["path"].lstrip("/")
+                                op_dict["chapter_id"] = f"doc:{clean_path}"
+                                if not op_dict.get("chapter_title"):
+                                    op_dict["chapter_title"] = PurePosixPath(op_dict["path"]).stem
+                            rev = make_revision_event(op_dict)
+                            rev["step_id"] = _step_id
+                            yield f"data: {json.dumps(rev, ensure_ascii=False)}\n\n"
 
-                # 发送每条 revision 事件（补充 chapter_id）
-                for op in changes:
-                    m = re.search(r'chapters/(\d+)-[^/]+\.md', op["path"])
-                    if m:
-                        op["chapter_id"] = f"fs-{int(m.group(1))}"
-                    rev = make_revision_event(op)
-                    yield f"data: {json.dumps(rev, ensure_ascii=False)}\n\n"
+                # Agent 完成：获取改动列表（用于 completion 统计和 pending 缓存）
+                changes = backend.get_changes()
 
                 # 发送 completion 事件
                 completion = make_completion_event(changes)

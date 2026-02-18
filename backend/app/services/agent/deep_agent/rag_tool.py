@@ -23,35 +23,23 @@ logger = logging.getLogger(__name__)
 # ─── Embedding 适配器 ───
 
 
-class ChromaEmbeddingAdapter(Embeddings):
-    """将 SentenceTransformer 包装为 LangChain Embeddings 接口。"""
-
-    _models: dict[str, "SentenceTransformer"] = {}  # 按模型名缓存
-
-    def __init__(self, model_name: str = "BAAI/bge-small-zh-v1.5"):
-        self._model_name = model_name
-
-    def _get_model(self):
-        if self._model_name not in ChromaEmbeddingAdapter._models:
-            from sentence_transformers import SentenceTransformer
-            ChromaEmbeddingAdapter._models[self._model_name] = SentenceTransformer(self._model_name)
-            logger.info("Loaded embedding model: %s", self._model_name)
-        return ChromaEmbeddingAdapter._models[self._model_name]
+class SharedEmbeddingAdapter(Embeddings):
+    """将共享 SentenceTransformer 单例包装为 LangChain Embeddings 接口。"""
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        model = self._get_model()
-        embeddings = model.encode(texts, normalize_embeddings=True)
-        return embeddings.tolist()
+        from app.services.embedding import get_model
+        model = get_model()
+        return model.encode(texts, normalize_embeddings=True).tolist()
 
     def embed_query(self, text: str) -> List[float]:
-        model = self._get_model()
-        embedding = model.encode([text], normalize_embeddings=True)
-        return embedding[0].tolist()
+        from app.services.embedding import get_model
+        model = get_model()
+        return model.encode([text], normalize_embeddings=True)[0].tolist()
 
 
 # ─── 全局 Embedding 实例 ───
 
-_embedding = ChromaEmbeddingAdapter()
+_embedding = SharedEmbeddingAdapter()
 
 
 # ─── 创建检索工具 ───

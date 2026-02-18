@@ -2,42 +2,20 @@
 向量存储服务
 负责微观分析结果的向量化存储和检索（RAG）
 """
-import json
 import logging
 import math
-import os
-from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-# 提前配置 HuggingFace 端点与缓存目录，避免导入 sentence_transformers 时锁定为默认的 huggingface.co
-_default_hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
-os.environ.setdefault("HF_ENDPOINT", _default_hf_endpoint)
-_hf_cache_dir = Path(__file__).resolve().parents[2] / "data" / "hf_cache"
-_hf_cache_dir.mkdir(parents=True, exist_ok=True)
-os.environ.setdefault("HF_HOME", str(_hf_cache_dir))
-os.environ.setdefault("HF_HUB_CACHE", str(_hf_cache_dir))
-
-from sentence_transformers import SentenceTransformer
-import numpy as np
-
 from app.models.novel_analysis_vector import NovelAnalysisVector
+from app.services.embedding import get_model, VECTOR_DIM, MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
 
 class VectorStoreService:
     """向量存储服务"""
-
-    # 使用轻量级多语言模型（支持中文）
-    MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
-    VECTOR_DIM = 384  # 模型输出维度
-    CACHE_DIR = _hf_cache_dir  # 统一缓存目录，避免重复下载
-
-    # 类级别的模型缓存（所有实例共享）
-    _global_model: Optional[SentenceTransformer] = None
-    _model_loading = False
 
     def __init__(self, db: AsyncSession):
         """
@@ -47,51 +25,6 @@ class VectorStoreService:
             db: 数据库会话
         """
         self.db = db
-
-    @classmethod
-    def preload_model(cls):
-        """
-        预加载embedding模型 (在应用启动时调用)
-
-        优化点: 避免首次使用时加载模型的7秒延迟
-        """
-        if cls._global_model is None and not cls._model_loading:
-            cls._model_loading = True
-            logger.info(f"🔄 预加载Embedding模型: {cls.MODEL_NAME}")
-            try:
-                import time
-
-                start_time = time.time()
-                cls._global_model = SentenceTransformer(
-                    cls.MODEL_NAME, cache_folder=str(cls.CACHE_DIR)
-                )
-                load_time = time.time() - start_time
-                logger.info(f"✅ Embedding模型预加载成功，耗时: {load_time:.2f}秒")
-            except Exception as e:
-                logger.error(f"❌ 预加载Embedding模型失败: {e}", exc_info=True)
-                cls._model_loading = False
-                raise
-            finally:
-                cls._model_loading = False
-
-    def _get_model(self) -> SentenceTransformer:
-        """
-        获取或初始化Embedding模型（懒加载）
-
-        Returns:
-            SentenceTransformer: 模型实例
-        """
-        if self._global_model is None:
-            logger.info(f"正在加载Embedding模型: {self.MODEL_NAME}")
-            try:
-                self._global_model = SentenceTransformer(
-                    self.MODEL_NAME, cache_folder=str(self.CACHE_DIR)
-                )
-                logger.info("Embedding模型加载成功")
-            except Exception as e:
-                logger.error(f"加载Embedding模型失败: {e}", exc_info=True)
-                raise
-        return self._global_model
     
     def _convert_micro_data_to_text(self, micro_data: Dict[str, Any]) -> str:
         """
@@ -164,7 +97,7 @@ class VectorStoreService:
             content_text = self._convert_micro_data_to_text(micro_data)
             
             # 2. 向量化
-            model = self._get_model()
+            model = get_model()
             embedding = model.encode(content_text, normalize_embeddings=True)
             
             # 转换为列表（PostgreSQL pgvector需要）
@@ -248,7 +181,7 @@ class VectorStoreService:
             logger.info(f"RAG检索: work_id={work_id}, query={query[:50]}...")
 
             # 1. 向量化查询
-            model = self._get_model()
+            model = get_model()
             query_embedding = model.encode(query, normalize_embeddings=True)
             query_embedding_list = query_embedding.tolist()
 
@@ -360,17 +293,17 @@ class VectorStoreService:
             return {
                 'total_vectors': row.total_vectors if row else 0,
                 'total_chapters': row.total_chapters if row else 0,
-                'vector_dimension': self.VECTOR_DIM,
-                'model_name': self.MODEL_NAME
+                'vector_dimension': VECTOR_DIM,
+                'model_name': MODEL_NAME
             }
-            
+
         except Exception as e:
             logger.error(f"获取向量统计失败: {e}", exc_info=True)
             return {
                 'total_vectors': 0,
                 'total_chapters': 0,
-                'vector_dimension': self.VECTOR_DIM,
-                'model_name': self.MODEL_NAME
+                'vector_dimension': VECTOR_DIM,
+                'model_name': MODEL_NAME
             }
 
     # ==================== 知识库向量方法 ====================
@@ -431,7 +364,7 @@ class VectorStoreService:
                 # 批量计算未命中的向量
                 if texts_to_compute:
                     logger.info(f"⚡ 需要计算 {len(texts_to_compute)}/{len(texts)} 个向量")
-                    model = self._get_model()
+                    model = get_model()
                     computed_embeddings = model.encode(texts_to_compute, normalize_embeddings=True, batch_size=len(texts_to_compute))
 
                     # 填充计算结果
@@ -446,7 +379,7 @@ class VectorStoreService:
             else:
                 # 完全未命中,批量计算所有向量
                 logger.info(f"🔄 缓存未命中,计算全部 {len(texts)} 个向量")
-                model = self._get_model()
+                model = get_model()
                 embeddings_array = model.encode(texts, normalize_embeddings=True, batch_size=len(texts))
                 embeddings = [emb.tolist() for emb in embeddings_array]
 
@@ -515,7 +448,7 @@ class VectorStoreService:
             if not chunks:
                 chunks = [""]
 
-            model = self._get_model()
+            model = get_model()
 
             user_id = knowledge_item.user_id if isinstance(knowledge_item.user_id, UUID) else UUID(str(knowledge_item.user_id))
             item_id = knowledge_item.id if isinstance(knowledge_item.id, UUID) else UUID(str(knowledge_item.id))
@@ -687,7 +620,7 @@ class VectorStoreService:
             logger.info(f"知识库RAG检索: user_id={user_id}, query={query[:50]}..., doc_ids={len(doc_ids) if doc_ids else 0}")
 
             # 1. 向量化查询
-            model = self._get_model()
+            model = get_model()
             query_embedding = model.encode(query, normalize_embeddings=True)
             query_embedding_list = query_embedding.tolist()
 

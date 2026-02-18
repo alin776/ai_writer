@@ -10,11 +10,23 @@ services:
     image: postgres:15-alpine
     container_name: wenshu_postgres
     restart: always
+    shm_size: 256m
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     environment:
       POSTGRES_USER: ${DB_USER:-novelaide}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-novelaide_password}
       POSTGRES_DB: ${DB_NAME:-novelaide}
       TZ: Asia/Shanghai
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c work_mem=2MB
+      -c effective_cache_size=512MB
+      -c maintenance_work_mem=64MB
+      -c max_connections=20
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:

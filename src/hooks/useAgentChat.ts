@@ -568,7 +568,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 }
                 case 'text': {
                   // V2: 累积合并连续 text 到同一个 FlowItem
-                  const newContent = event.data?.content || '';
+                  const rawContent = event.data?.content;
+                  const newContent = typeof rawContent === 'string' ? rawContent : '';
                   const lastItem = currentFlowItems[currentFlowItems.length - 1];
                   if (lastItem && lastItem.type === 'text') {
                     // 追加到已有的 text FlowItem

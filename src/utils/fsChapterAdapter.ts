@@ -38,3 +38,20 @@ export function chapterIdToNum(id: string): number | null {
   if (!match) return null;
   return parseInt(match[1], 10);
 }
+
+// ─── doc: ID 辅助函数 ───
+
+export function isDocId(id: string): boolean {
+  return id.startsWith('doc:');
+}
+
+export function docIdToPath(id: string): string {
+  const raw = id.slice(4);
+  // Agent 路径可能带前导斜杠（如 doc:/knowledge/...），需去除以避免 URL 双斜杠
+  return raw.startsWith('/') ? raw.slice(1) : raw;
+}
+
+export function pathToDocId(path: string): string {
+  const normalized = path.startsWith('/') ? path.slice(1) : path;
+  return `doc:${normalized}`;
+}

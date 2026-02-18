@@ -10,6 +10,7 @@ import { ToolLine } from './ToolLine';
 import { TodoBlock } from './TodoBlock';
 import { OutputCard } from './OutputCard';
 import { RevisionCard } from './RevisionCard';
+import styles from './ExecutionFlow.module.css';
 import { Streamdown } from 'streamdown';
 import { code } from '@streamdown/code';
 import { cjk } from '@streamdown/cjk';
@@ -151,7 +152,7 @@ export function ExecutionFlow({
         && (
         <div className="flex items-center gap-2 py-0.5 text-base font-mono text-gray-500 dark:text-gray-400">
           <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
-          <span>Working...</span>
+          <span className={styles.shimmerText}>Working…</span>
         </div>
       )}
     </div>

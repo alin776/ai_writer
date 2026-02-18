@@ -55,6 +55,17 @@ class ChapterUpdateRequest(BaseModel):
     status: Optional[str] = None
 
 
+class FileNode(BaseModel):
+    """文件树节点"""
+    name: str
+    path: str
+    type: str  # "file" | "dir"
+    size: int = 0
+    children: list["FileNode"] = []
+
+FileNode.model_rebuild()
+
+
 class FileContentResponse(BaseModel):
     """文件内容响应"""
     path: str
@@ -311,6 +322,73 @@ async def delete_chapter(
 
     await asyncio.to_thread(chapter_path.unlink)
     return None
+
+
+# ─── 文件树 + 迁移 ───
+
+# 兼容迁移：旧路径 → 新路径
+_MIGRATION_MAP = {
+    "characters.md": "knowledge/characters.md",
+    "worldview.md": "knowledge/worldview.md",
+    "outline.md": "knowledge/outline.md",
+}
+
+
+def _migrate_legacy_files(work_dir: Path) -> None:
+    """将旧路径文件迁移到 knowledge/ 目录（一次性）。"""
+    for old_rel, new_rel in _MIGRATION_MAP.items():
+        old_path = work_dir / old_rel
+        new_path = work_dir / new_rel
+        if old_path.exists() and not new_path.exists():
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+            old_path.rename(new_path)
+            logger.info(f"Migrated {old_rel} → {new_rel}")
+
+
+def _build_file_tree(base: Path, rel: str = "") -> list[FileNode]:
+    """递归构建文件树（排除隐藏文件，只包含 .md 文件和含 .md 的目录）。"""
+    current = base / rel if rel else base
+    if not current.exists():
+        return []
+
+    dirs: list[FileNode] = []
+    files: list[FileNode] = []
+
+    for entry in sorted(current.iterdir(), key=lambda e: e.name):
+        if entry.name.startswith(".") or entry.is_symlink():
+            continue
+        entry_rel = f"{rel}/{entry.name}" if rel else entry.name
+        if entry.is_dir():
+            children = _build_file_tree(base, entry_rel)
+            if children:  # 只包含有 .md 文件的目录
+                dirs.append(FileNode(
+                    name=entry.name, path=entry_rel,
+                    type="dir", children=children,
+                ))
+        elif entry.is_file() and entry.suffix == ".md":
+            files.append(FileNode(
+                name=entry.name, path=entry_rel,
+                type="file", size=entry.stat().st_size,
+            ))
+
+    return dirs + files
+
+
+@router.get(
+    "/works/{work_id}/tree",
+    response_model=list[FileNode],
+    summary="获取文件树",
+)
+async def get_file_tree(
+    work_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """递归列出作品目录下的文件树。"""
+    _, work_dir = await _get_work_and_dir(work_id, current_user, db)
+    await asyncio.to_thread(_migrate_legacy_files, work_dir)
+    tree = await asyncio.to_thread(_build_file_tree, work_dir)
+    return tree
 
 
 # ─── 通用文件端点 ───

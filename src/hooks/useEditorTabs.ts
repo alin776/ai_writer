@@ -61,19 +61,31 @@ export function useEditorTabs(workId: string, chapters: ChapterLike[]) {
     saveTabs(workId, openTabs, activeTabId);
   }, [workId, openTabs, activeTabId]);
 
-  // 监听 chapters 变化，移除已删除章节的标签
+  // 监听 chapters 变化，移除已删除章节的标签 & 同步标题/序号
   useEffect(() => {
     if (!initializedRef.current || chapters.length === 0) return;
-    const chapterIds = new Set(chapters.map(c => c.id));
+    const chapterMap = new Map(chapters.map(c => [c.id, c]));
     setOpenTabs(prev => {
-      const filtered = prev.filter(tab => chapterIds.has(tab.id));
-      if (filtered.length === prev.length) return prev; // 无变化
-      return filtered;
+      let changed = false;
+      const next = prev.reduce<EditorTab[]>((acc, tab) => {
+        // doc: 标签不受 chapters 影响
+        if (tab.id.startsWith('doc:')) { acc.push(tab); return acc; }
+        const ch = chapterMap.get(tab.id);
+        if (!ch) { changed = true; return acc; } // 章节已删除，移除标签
+        // 同步标题 / 序号
+        if (tab.title !== ch.title || tab.order !== ch.order) {
+          changed = true;
+          acc.push({ ...tab, title: ch.title, order: ch.order });
+        } else {
+          acc.push(tab);
+        }
+        return acc;
+      }, []);
+      return changed ? next : prev;
     });
     setActiveTabId(prev => {
-      if (prev && !chapterIds.has(prev)) {
-        // 激活标签被删除，切换到最后一个标签
-        return null; // 将在 openTab 时重新设定
+      if (prev && !prev.startsWith('doc:') && !chapterMap.has(prev)) {
+        return null;
       }
       return prev;
     });

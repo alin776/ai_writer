@@ -15,16 +15,16 @@ engine = create_async_engine(
     echo=settings.DB_ECHO,
     future=True,
     pool_pre_ping=True,      # 连接前ping测试，确保连接有效
-    pool_size=10,             # 连接池大小
-    max_overflow=20,          # 最大溢出连接数
-    pool_recycle=1800,        # 30分钟后回收连接，防止长时间连接失效（减少回收时间）
+    pool_size=5,              # 连接池大小（配合 PG max_connections=20）
+    max_overflow=10,          # 最大溢出连接数（总计 15，留 5 余量给 psql/Alembic）
+    pool_recycle=1800,        # 30分钟后回收连接，防止长时间连接失效
     pool_timeout=30,          # 连接池获取连接的超时时间（秒）
     connect_args={
         "timeout": 10,        # TCP连接超时：10秒
         "command_timeout": 60,  # 命令执行超时：60秒
         "server_settings": {
-            "statement_timeout": "1800000",  # SQL语句超时：30分钟（毫秒）
-            "idle_in_transaction_session_timeout": "1800000"  # 事务空闲超时：30分钟
+            "statement_timeout": "900000",  # SQL语句超时：15分钟（毫秒）
+            "idle_in_transaction_session_timeout": "900000"  # 事务空闲超时：15分钟
         }
     }
 )

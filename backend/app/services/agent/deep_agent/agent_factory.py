@@ -66,6 +66,7 @@ def create_writing_agent(
         api_key=settings.OPENAI_API_KEY,
         base_url=settings.OPENAI_BASE_URL,
         timeout=settings.OPENAI_TIMEOUT,
+        use_responses_api=True,
     )
 
     # 5. 组装 Agent

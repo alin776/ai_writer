@@ -33,7 +33,7 @@ class NovelAnalysisVector(Base):
     source_id = Column(UUID(as_uuid=True), nullable=True, index=True)  # 对应的来源记录ID
 
     # 向量数据
-    embedding = Column(Vector(384), nullable=False)  # 384维向量（MiniLM模型）
+    embedding = Column(Vector(512), nullable=False)  # 512维向量（bge-small-zh-v1.5 模型）
 
     # 原始数据
     content_text = Column(Text, nullable=False)  # 向量化的文本内容

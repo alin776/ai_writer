@@ -41,7 +41,9 @@ const EditorTabBar: React.FC<EditorTabBarProps> = ({
     >
       {tabs.map(tab => {
         const isActive = tab.id === activeTabId;
-        const label = `${String(tab.order).padStart(2, '0')}-${tab.title}.md`;
+        const label = tab.id.startsWith('doc:')
+          ? tab.title
+          : `${String(tab.order).padStart(2, '0')}-${tab.title}.md`;
 
         return (
           <div

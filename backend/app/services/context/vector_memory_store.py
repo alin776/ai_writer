@@ -17,7 +17,7 @@
 """
 
 import chromadb
-from chromadb.utils import embedding_functions
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from typing import List, Dict, Optional, Any
 import logging
 import time
@@ -29,13 +29,25 @@ from app.services.context.models import IsolationLevel, build_isolation_key
 logger = logging.getLogger(__name__)
 
 
+class _SharedChromaEmbedding(EmbeddingFunction):
+    """将共享 SentenceTransformer 单例适配为 ChromaDB EmbeddingFunction。"""
+
+    def __init__(self) -> None:
+        pass
+
+    def __call__(self, input: Documents) -> Embeddings:
+        from app.services.embedding import get_model
+        model = get_model()
+        return model.encode(input, normalize_embeddings=True).tolist()
+
+
 class VectorMemoryStore:
     """向量记忆存储 - 使用ChromaDB + sentence-transformers"""
 
     def __init__(
         self,
         persist_directory: str = "./data/chroma_db",
-        embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2",
+        embedding_model: str = "BAAI/bge-small-zh-v1.5",
         collection_name: str = "user_memories"
     ):
         """
@@ -43,8 +55,7 @@ class VectorMemoryStore:
 
         Args:
             persist_directory: 持久化目录
-            embedding_model: sentence-transformers模型名称
-                默认: paraphrase-multilingual-MiniLM-L12-v2 (中英文支持)
+            embedding_model: 模型名称（仅用于日志/统计，实际由共享单例提供）
             collection_name: ChromaDB集合名称
         """
         self.persist_directory = persist_directory
@@ -55,10 +66,8 @@ class VectorMemoryStore:
             # 初始化ChromaDB客户端（持久化模式）
             self.client = chromadb.PersistentClient(path=persist_directory)
 
-            # 初始化本地Embedding函数（sentence-transformers）
-            self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name=embedding_model
-            )
+            # 使用共享 Embedding 模型（与 vector_store_service / rag_tool 同一实例）
+            self.embedding_function = _SharedChromaEmbedding()
 
             # 创建/获取collection
             self.collection = self.client.get_or_create_collection(
@@ -600,7 +609,7 @@ _global_vector_store: Optional[VectorMemoryStore] = None
 
 def get_vector_memory_store(
     persist_directory: str = "./data/chroma_db",
-    embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2",
+    embedding_model: str = "BAAI/bge-small-zh-v1.5",
     collection_name: str = "user_memories"
 ) -> VectorMemoryStore:
     """

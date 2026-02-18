@@ -347,21 +347,24 @@ class AgentApiService {
         if (!line.startsWith('data: ')) {
           return;
         }
+        const jsonStr = line.substring(6);
+        if (!jsonStr.trim()) return;
         try {
-          const data = JSON.parse(line.substring(6));
+          const data = JSON.parse(jsonStr);
 
           switch (data.type) {
             // ????
             case 'start':
               callbacks.onStart?.(data.conversation_id);
               break;
-            case 'content':
-              const content = typeof data.data === 'string'
+            case 'content': {
+              const raw = typeof data.data === 'string'
                 ? data.data
-                : data.data?.content || data.data;
-              // ✅ 真正的流式：直接传递内容，不再拆分
+                : data.data?.content;
+              const content = typeof raw === 'string' ? raw : '';
               callbacks.onContent?.(content);
               break;
+            }
             case 'step':
               callbacks.onStep?.(data.data);
               break;
@@ -412,7 +415,7 @@ class AgentApiService {
                 payload && payload.type === 'revision' && payload.data ? payload : null;
               const revisionData = revisionEvent ? revisionEvent.data : (payload?.data ?? payload);
               const timestamp = revisionEvent?.timestamp ?? payload?.timestamp ?? data.timestamp;
-              callbacks.onFlowEvent?.({ type: 'revision', data: revisionData, timestamp });
+              callbacks.onFlowEvent?.({ type: 'revision', data: revisionData, stepId: data.step_id, timestamp });
               break;
             }
             case 'summarization_start':
