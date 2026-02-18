@@ -487,6 +487,7 @@ export default function ChatInput({
         if (charBefore === ' ' || charBefore === '\n' || slashIdx === 0) {
           const token = value.slice(slashIdx + 1, caret);
           if (!token.includes(' ') && !token.includes('\n')) {
+            closeAtMenu(); // close @ menu if open — mutually exclusive
             setSlashMenuOpen(true);
             setSlashTriggerIndex(slashIdx);
             setSlashQuery(token);
@@ -503,7 +504,8 @@ export default function ChatInput({
 
   const handleSend = () => {
     const trimmedMessage = message.trim();
-    if (!trimmedMessage || disabled) return;
+    if (disabled) return;
+    if (!trimmedMessage && selectedDocs.length === 0 && !selectedSkill) return;
 
     const contextPayload = contextText.trim()
       ? {
@@ -619,6 +621,7 @@ export default function ChatInput({
     }
 
     if (e.key === '@' || e.key === '＠') {
+      closeSlashMenu(); // close slash menu if open — mutually exclusive
       setAtMenuOpen(true);
       setAtStage('root');
       setAtQuery('');

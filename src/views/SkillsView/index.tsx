@@ -22,7 +22,6 @@ export default function SkillsView() {
         setLoading(true);
         const data = await agentApi.getSkills();
         setSkills(data);
-        if (data.length > 0) setSelectedSkill(data[0]);
       } catch (err: any) {
         setError(err?.message || '获取技能列表失败');
       } finally {
@@ -39,17 +38,22 @@ export default function SkillsView() {
       list.push(skill);
       map.set(skill.group, list);
     }
-    // Sort groups by predefined order
     const sorted: [string, Skill[]][] = [];
     for (const g of GROUP_ORDER) {
       if (map.has(g)) sorted.push([g, map.get(g)!]);
     }
-    // Append any remaining groups not in ORDER
     for (const [g, list] of map) {
       if (!GROUP_ORDER.includes(g)) sorted.push([g, list]);
     }
     return sorted;
   }, [skills]);
+
+  // Auto-select first visible skill after grouping
+  useEffect(() => {
+    if (grouped.length > 0 && grouped[0][1].length > 0 && !selectedSkill) {
+      setSelectedSkill(grouped[0][1][0]);
+    }
+  }, [grouped, selectedSkill]);
 
   if (loading) {
     return (
