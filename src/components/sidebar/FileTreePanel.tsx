@@ -5,9 +5,9 @@
  * chapters/ 下的文件生成 fs-{num} ID，其他文件生成 doc:{path} ID。
  */
 import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
-import { Tree, NodeRendererProps } from 'react-arborist';
+import { Tree, TreeApi, NodeRendererProps } from 'react-arborist';
 import {
-  Plus, ChevronRight, ChevronDown, Folder, FolderOpen,
+  ChevronRight, ChevronDown, Folder, FolderOpen,
   FileText, FilePlus, FolderPlus, Trash2, Pencil,
 } from 'lucide-react';
 import type { FileNode } from '../../services/docsFs';
@@ -19,7 +19,7 @@ interface FileTreePanelProps {
   fileTree: FileNode[];
   activeFileId: string | null;
   onFileSelect: (fileId: string) => void;
-  onAddChapter: () => void;
+  onChapterCreate: (title: string) => Promise<FileNode[]>;
   onTreeChange: (tree: FileNode[]) => void;
 }
 
@@ -91,6 +91,18 @@ function getParentPath(node: TreeNodeData): string {
   return lastSlash > 0 ? node.path.substring(0, lastSlash) : '';
 }
 
+/** 在树中递归查找节点 */
+function findNode(nodes: TreeNodeData[], path: string): TreeNodeData | undefined {
+  for (const n of nodes) {
+    if (n.path === path) return n;
+    if (n.children) {
+      const found = findNode(n.children, path);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
 const toolbarBtnClass =
   'h-7 w-7 p-0 flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-white hover:shadow-sm rounded-lg transition-all dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800';
 
@@ -99,13 +111,14 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
   fileTree,
   activeFileId,
   onFileSelect,
-  onAddChapter,
+  onChapterCreate,
   onTreeChange,
 }) => {
   const baseTreeData = useMemo(() => toTreeData(fileTree), [fileTree]);
 
   // 动态测量容器高度
   const treeContainerRef = useRef<HTMLDivElement>(null);
+  const treeRef = useRef<TreeApi<TreeNodeData>>(null);
   const [treeHeight, setTreeHeight] = useState(400);
 
   // 右键菜单
@@ -129,6 +142,13 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // ─── 内联创建时自动展开父文件夹 ───
+  useEffect(() => {
+    if (inlineCreate?.parentPath && treeRef.current) {
+      treeRef.current.open(inlineCreate.parentPath);
+    }
+  }, [inlineCreate]);
 
   // ─── 幻影节点注入 ───
   // 当 inlineCreate 激活时，在目标父目录下注入一个临时节点
@@ -177,6 +197,14 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
     return undefined;
   }, [activeFileId, treeData]);
 
+  /** 工具栏按钮的目标目录：基于当前选中节点推导 */
+  const activeParentPath = useMemo(() => {
+    if (!selectedPath) return '';
+    const node = findNode(treeData, selectedPath);
+    if (!node) return '';
+    return getParentPath(node);
+  }, [selectedPath, treeData]);
+
   const handleActivate = useCallback(
     (node: { data: TreeNodeData }) => {
       if (node.data.type === 'file' && node.data.id !== PHANTOM_ID) {
@@ -197,7 +225,11 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
     try {
       let trimmed = name.trim();
       let newTree: FileNode[];
-      if (inlineCreate.type === 'file') {
+
+      if (inlineCreate.type === 'file' && isChapterPath(inlineCreate.parentPath)) {
+        // chapters/ 下新建文件 → 走章节创建逻辑（自动编号 + frontmatter）
+        newTree = await onChapterCreate(trimmed);
+      } else if (inlineCreate.type === 'file') {
         if (!trimmed.endsWith('.md')) trimmed += '.md';
         const path = inlineCreate.parentPath ? `${inlineCreate.parentPath}/${trimmed}` : trimmed;
         newTree = await docsFs.createFile(workId, path);
@@ -210,7 +242,7 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
       console.error('Inline create failed:', err);
     }
     setInlineCreate(null);
-  }, [inlineCreate, workId, onTreeChange]);
+  }, [inlineCreate, workId, onTreeChange, onChapterCreate]);
 
   // 用 ref 暴露给 memoized NodeRenderer
   const handleInlineConfirmRef = useRef(handleInlineConfirm);
@@ -218,7 +250,11 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
   const setInlineCreateRef = useRef(setInlineCreate);
   setInlineCreateRef.current = setInlineCreate;
   const inlineTypeRef = useRef<'file' | 'dir'>('file');
-  if (inlineCreate) inlineTypeRef.current = inlineCreate.type;
+  const inlineParentPathRef = useRef('');
+  if (inlineCreate) {
+    inlineTypeRef.current = inlineCreate.type;
+    inlineParentPathRef.current = inlineCreate.parentPath;
+  }
 
   /** 右键菜单：新建文件 */
   const handleCtxNewFile = useCallback((node: TreeNodeData) => {
@@ -292,7 +328,7 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
             autoFocus
             type="text"
             className="flex-1 h-5 text-[13px] bg-transparent border-b border-blue-500 dark:border-blue-400 outline-none text-zinc-900 dark:text-slate-100 placeholder:text-zinc-400 dark:placeholder:text-slate-500"
-            placeholder={inlineTypeRef.current === 'dir' ? '文件夹名称' : '文件名.md'}
+            placeholder={inlineTypeRef.current === 'dir' ? '文件夹名称' : isChapterPath(inlineParentPathRef.current) ? '章节标题' : '文件名.md'}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 inlineHandledRef.current = true;
@@ -408,14 +444,11 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
       <div className="px-3 py-1.5 flex items-center justify-between flex-shrink-0">
         <h2 className="text-[15px] text-zinc-800 dark:text-slate-100 tracking-tight">文件</h2>
         <div className="flex items-center gap-0.5">
-          <button type="button" onClick={() => setInlineCreate({ type: 'file', parentPath: '' })} className={toolbarBtnClass} title="新建文件">
+          <button type="button" onClick={() => setInlineCreate({ type: 'file', parentPath: activeParentPath })} className={toolbarBtnClass} title="新建文件">
             <FilePlus className="h-4 w-4" />
           </button>
-          <button type="button" onClick={() => setInlineCreate({ type: 'dir', parentPath: '' })} className={toolbarBtnClass} title="新建文件夹">
+          <button type="button" onClick={() => setInlineCreate({ type: 'dir', parentPath: activeParentPath })} className={toolbarBtnClass} title="新建文件夹">
             <FolderPlus className="h-4 w-4" />
-          </button>
-          <button type="button" onClick={() => onAddChapter()} className={toolbarBtnClass} title="新建章节">
-            <Plus className="h-5 w-5" />
           </button>
         </div>
       </div>
@@ -423,6 +456,7 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
       {/* 文件树 */}
       <div className="flex-1 overflow-hidden px-1" ref={treeContainerRef}>
         <Tree<TreeNodeData>
+          ref={treeRef}
           data={treeData}
           openByDefault
           disableDrag

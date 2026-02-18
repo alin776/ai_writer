@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Edit, Trash2, Plus, BookOpen, BarChart3, BookMarked, Download, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, BookOpen, BarChart3, BookMarked, Download, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button, Card, Loading } from '../../components/common';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import ExportDialog from '../../components/export/ExportDialog';
@@ -381,10 +381,6 @@ const WorkDetailView: React.FC = () => {
   const resizeStartX = useRef<number>(0);
   const resizeStartWidth = useRef<number>(0);
   const workbenchRef = useRef<HTMLDivElement>(null);
-
-  // 添加章节输入框状态
-  const [isAddingChapter, setIsAddingChapter] = useState(false);
-  const [newChapterTitle, setNewChapterTitle] = useState('');
 
   // 删除章节确认对话框状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -787,83 +783,42 @@ const WorkDetailView: React.FC = () => {
   }, [switchEditorTab, currentChapterId, chapters, workId, setLastChapter]);
 
   /**
-   * 处理添加章节
+   * 处理添加章节（文件树内联创建 chapters/ 下文件时调用）
    */
-  const handleAddChapter = useCallback(async (parentId?: string) => {
-    // 显示输入框
-    setIsAddingChapter(true);
-  }, []);
+  const handleInlineChapterCreate = useCallback(async (title: string): Promise<FileNode[]> => {
+    if (!workId) throw new Error('workId is missing');
 
-  /**
-   * 保存新章节
-   */
-  const handleSaveNewChapter = useCallback(async () => {
-    if (!workId) return;
-    if (!newChapterTitle.trim()) {
-      showToast('warning', t('workDetail.toast.chapterTitleEmpty'));
-      return;
-    }
+    // 使用 FS API 创建章节（自动编号 + frontmatter）
+    const fsChapter = await chaptersFs.create(workId, { title });
+    const savedChapter = fsToChapter(fsChapter, workId);
 
-    try {
-      // 使用 FS API 创建章节
-      const fsChapter = await chaptersFs.create(workId, {
-        title: newChapterTitle.trim(),
-      });
-      const savedChapter = fsToChapter(fsChapter, workId);
+    // 更新 chapters 状态
+    setChapters((prev) => [...prev, savedChapter]);
 
-      // 使用后端返回的完整章节对象
-      setChapters((prev) => [...prev, savedChapter]);
-
-      // 取消正在进行的章节重命名编辑
-      if (editingChapterId) {
-        setEditingChapterId(null);
-        setEditingChapterTitle('');
-      }
-
-      // 先清空当前内容，再选中新章节（确保编辑器内容被清空）
+    // 选中新章节
+    setCurrentChapterContent('');
+    setTimeout(() => {
+      setCurrentChapterId(savedChapter.id);
       setCurrentChapterContent('');
-      // 使用 setTimeout 确保状态更新顺序正确
-      setTimeout(() => {
-        setCurrentChapterId(savedChapter.id);
-        setCurrentChapterContent('');
-        // 保存新章节ID到 store
-        setLastChapter(workId, savedChapter.id);
-      }, 0);
+      setLastChapter(workId, savedChapter.id);
+    }, 0);
 
-      // 清空输入框并关闭
-      setNewChapterTitle('');
-      setIsAddingChapter(false);
+    showToast('success', t('workDetail.toast.chapterAddSuccess'));
 
-      showToast('success', t('workDetail.toast.chapterAddSuccess'));
+    // 刷新文件树
+    const tree = await docsFs.tree(workId);
+    setFileTree(tree);
 
-      // 刷新文件树
-      try {
-        const tree = await docsFs.tree(workId);
-        setFileTree(tree);
-      } catch { /* ignore */ }
-
-      // 🔥 新增章节后，自动触发重新分析（后台执行，不阻塞用户）
-      try {
-        console.log('[WorkDetailView] 新增章节，触发自动分析');
-        await DataService.startNovelAnalysis(workId);
-        showToast('info', t('workDetail.toast.triggeredAnalysisUpdate'));
-      } catch (analysisError) {
-        // 分析失败不影响主流程，静默处理
-        console.warn('[WorkDetailView] 自动分析触发失败:', analysisError);
-      }
-    } catch (error) {
-      showToast('error', t('workDetail.toast.chapterAddFailed'));
-      console.error('Failed to add chapter:', error);
+    // 自动触发分析
+    try {
+      await DataService.startNovelAnalysis(workId);
+      showToast('info', t('workDetail.toast.triggeredAnalysisUpdate'));
+    } catch (analysisError) {
+      console.warn('[WorkDetailView] 自动分析触发失败:', analysisError);
     }
-  }, [workId, chapters.length, newChapterTitle, editingChapterId, showToast, setLastChapter]);
 
-  /**
-   * 取消添加章节
-   */
-  const handleCancelAddChapter = useCallback(() => {
-    setNewChapterTitle('');
-    setIsAddingChapter(false);
-  }, []);
+    return tree;
+  }, [workId, showToast, setLastChapter, t]);
 
   /**
    * 开始编辑章节名称
@@ -1926,50 +1881,13 @@ const WorkDetailView: React.FC = () => {
           {isLeftCollapsed ? null : (
             /* 展开状态 */
             <div className="flex-1 flex flex-col min-h-0">
-              {/* 新章节输入框 */}
-              {isAddingChapter && (
-                <div className="mx-2 mt-2 relative px-3 py-2.5 rounded-xl bg-white shadow-lg shadow-zinc-200/60 ring-1 ring-zinc-900/5 transition-all dark:bg-slate-800 dark:shadow-slate-900/40 dark:ring-slate-700">
-                  <div className="absolute top-0 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-zinc-400 via-zinc-600 to-zinc-400 dark:from-blue-500 dark:via-blue-400 dark:to-blue-500" />
-                  <div className="flex items-start gap-3 pt-0.5">
-                    <div className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] bg-zinc-100/80 text-zinc-400 dark:bg-slate-700 dark:text-slate-400">
-                      {chapters.length + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <input
-                        autoFocus
-                        type="text"
-                        value={newChapterTitle}
-                        onChange={(e) => setNewChapterTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveNewChapter();
-                          else if (e.key === 'Escape') handleCancelAddChapter();
-                        }}
-                        placeholder={t('workDetail.chapter.titlePlaceholder')}
-                        className="h-7 w-full text-[13px] border-0 px-0 bg-transparent focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-zinc-400 dark:text-slate-100 dark:placeholder:text-slate-500"
-                        style={{ outline: 'none', boxShadow: 'none' }}
-                      />
-                      <div className="flex items-center justify-between mt-2">
-                        <Button variant="ghost" size="sm" onClick={handleCancelAddChapter}
-                          className="h-6 px-2 text-[10px] bg-transparent hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 border-0 shadow-none dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-                          {t('common.cancel')}
-                        </Button>
-                        <Button size="sm" onClick={handleSaveNewChapter}
-                          className="h-6 px-2 text-[10px] bg-zinc-800 hover:bg-zinc-900 text-white border-0 dark:bg-blue-600 dark:hover:bg-blue-500">
-                          {t('common.save')}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* 文件树 */}
               <FileTreePanel
                 workId={workId || ''}
                 fileTree={fileTree}
                 activeFileId={currentChapterId || null}
                 onFileSelect={handleFileSelect}
-                onAddChapter={handleAddChapter}
+                onChapterCreate={handleInlineChapterCreate}
                 onTreeChange={setFileTree}
               />
             </div>

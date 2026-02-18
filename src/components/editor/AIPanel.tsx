@@ -1909,7 +1909,7 @@ ${selectionContext.selected_text}
                 onClick={() => {
                   rollbackAllOperations();
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-slate-400 hover:bg-slate-800 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-zinc-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
               >
                 <X size={14} />
                 弃用
@@ -1922,7 +1922,7 @@ ${selectionContext.selected_text}
                     detail: { work_id: workId }
                   }));
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-green-400 border border-green-500/30 hover:bg-green-500/10 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-green-600 border border-green-500/30 hover:bg-green-500/10 dark:text-green-400 transition-colors"
               >
                 <Check size={14} />
                 采纳

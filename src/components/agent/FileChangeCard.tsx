@@ -33,16 +33,16 @@ const FileChangeCard: React.FC<FileChangeCardProps> = ({
 
   return (
     <div
-      className="flex items-center gap-2 px-2.5 py-1.5 bg-[#192438] rounded-lg cursor-pointer hover:bg-slate-800 transition-colors text-[13px]"
+      className="flex items-center gap-2 px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200/70 dark:bg-[#192438] dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors text-[13px]"
       onClick={() => onClick?.(index)}
     >
-      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-slate-500" />
-      <span className="text-slate-200 truncate flex-1" title={path}>{path}</span>
+      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-zinc-400 dark:text-slate-500" />
+      <span className="text-zinc-800 dark:text-slate-200 truncate flex-1" title={path}>{path}</span>
       <div className="flex gap-1 ml-auto flex-shrink-0">
         <button
           type="button"
           title="采纳"
-          className="w-[22px] h-[22px] flex items-center justify-center rounded text-green-400 hover:bg-green-500/10 transition-colors"
+          className="w-[22px] h-[22px] flex items-center justify-center rounded text-green-600 hover:bg-green-500/10 dark:text-green-400 transition-colors"
           onClick={(e) => { e.stopPropagation(); onAccept(index); }}
         >
           <Check size={13} />
@@ -50,7 +50,7 @@ const FileChangeCard: React.FC<FileChangeCardProps> = ({
         <button
           type="button"
           title="弃用"
-          className="w-[22px] h-[22px] flex items-center justify-center rounded text-red-400 hover:bg-red-500/10 transition-colors"
+          className="w-[22px] h-[22px] flex items-center justify-center rounded text-red-500 hover:bg-red-500/10 dark:text-red-400 transition-colors"
           onClick={(e) => { e.stopPropagation(); onReject(index); }}
         >
           <X size={13} />

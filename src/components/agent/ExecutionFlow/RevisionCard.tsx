@@ -83,41 +83,41 @@ export function RevisionCard({
     <div className="my-1">
       {/* 主行 */}
       <div
-        className="flex items-center gap-2 px-2.5 py-1.5 bg-[#192438] rounded-lg cursor-pointer hover:bg-slate-800 transition-colors text-[13px]"
+        className="flex items-center gap-2 px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200/70 dark:bg-[#192438] dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors text-[13px]"
         onClick={handleCardClick}
       >
         {/* 操作图标 — 统一灰色 */}
-        <Icon className="h-3.5 w-3.5 flex-shrink-0 text-slate-500" />
+        <Icon className="h-3.5 w-3.5 flex-shrink-0 text-zinc-400 dark:text-slate-500" />
 
         {/* 文件名 */}
-        <span className="text-slate-200 truncate flex-1">{displayName}</span>
+        <span className="text-zinc-800 dark:text-slate-200 truncate flex-1">{displayName}</span>
 
         {/* diff 统计 */}
-        {addCount != null && <span className="text-green-400 text-xs flex-shrink-0">+{addCount}</span>}
-        {delCount != null && <span className="text-red-400 text-xs flex-shrink-0">-{delCount}</span>}
+        {addCount != null && <span className="text-green-600 dark:text-green-400 text-xs flex-shrink-0">+{addCount}</span>}
+        {delCount != null && <span className="text-red-500 dark:text-red-400 text-xs flex-shrink-0">-{delCount}</span>}
 
         {/* 操作按钮 / 状态图标 */}
         {status === 'pending' ? (
           <div className="flex gap-1 ml-auto flex-shrink-0">
             <button
               title="采纳"
-              className="w-[22px] h-[22px] flex items-center justify-center rounded text-green-400 hover:bg-green-500/10 transition-colors"
+              className="w-[22px] h-[22px] flex items-center justify-center rounded text-green-600 hover:bg-green-500/10 dark:text-green-400 transition-colors"
               onClick={(e) => { e.stopPropagation(); onAccept?.(hasVersions ? selectedVersion : undefined); }}
             >
               <Check size={13} />
             </button>
             <button
               title="弃用"
-              className="w-[22px] h-[22px] flex items-center justify-center rounded text-red-400 hover:bg-red-500/10 transition-colors"
+              className="w-[22px] h-[22px] flex items-center justify-center rounded text-red-500 hover:bg-red-500/10 dark:text-red-400 transition-colors"
               onClick={(e) => { e.stopPropagation(); onDiscard?.(); }}
             >
               <X size={13} />
             </button>
           </div>
         ) : status === 'accepted' ? (
-          <Check size={13} className="text-green-400 ml-auto flex-shrink-0" />
+          <Check size={13} className="text-green-600 dark:text-green-400 ml-auto flex-shrink-0" />
         ) : (
-          <X size={13} className="text-slate-500 ml-auto flex-shrink-0" />
+          <X size={13} className="text-zinc-400 dark:text-slate-500 ml-auto flex-shrink-0" />
         )}
       </div>
 
@@ -129,8 +129,8 @@ export function RevisionCard({
               key={idx}
               className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer text-[12px] transition-colors ${
                 selectedVersion === idx
-                  ? 'bg-blue-900/20 text-blue-300'
-                  : 'bg-[#192438] text-slate-400 hover:bg-slate-800'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+                  : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200/70 dark:bg-[#192438] dark:text-slate-400 dark:hover:bg-slate-800'
               }`}
             >
               <input
@@ -140,7 +140,7 @@ export function RevisionCard({
                 onChange={() => setSelectedVersion(idx)}
                 className="w-3 h-3 text-blue-500"
               />
-              <span className="font-medium text-slate-200">{v.style_name}</span>
+              <span className="font-medium text-zinc-800 dark:text-slate-200">{v.style_name}</span>
               <span className="truncate">{v.reason}</span>
             </label>
           ))}
