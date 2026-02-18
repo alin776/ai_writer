@@ -669,6 +669,14 @@ class AgentApiService {
    *
    * @param request 确认响应请求
    */
+  /**
+   * 获取可用 Agent Skills 列表
+   */
+  async getSkills(): Promise<Array<{ name: string; description: string; group: string }>> {
+    const response = await this.client.get('/skills');
+    return response.data;
+  }
+
   async submitApprovalResponse(request: {
     request_id: string;
     approved: boolean;
