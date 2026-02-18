@@ -1970,6 +1970,7 @@ const WorkDetailView: React.FC = () => {
                 activeFileId={currentChapterId || null}
                 onFileSelect={handleFileSelect}
                 onAddChapter={handleAddChapter}
+                onTreeChange={setFileTree}
               />
             </div>
           )}

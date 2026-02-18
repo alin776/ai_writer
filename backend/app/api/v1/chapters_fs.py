@@ -8,6 +8,7 @@
 import asyncio
 import logging
 import re
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -130,6 +131,17 @@ def _list_chapter_files(chapters_dir: Path) -> list[tuple[int, Path]]:
                 result.append((int(match.group(1)), f))
     result.sort(key=lambda x: x[0])
     return result
+
+
+def _renumber_chapters(chapters_dir: Path) -> None:
+    """删除后重排章节文件序号，保持连续。"""
+    files = _list_chapter_files(chapters_dir)
+    for new_num, (old_num, fpath) in enumerate(files, start=1):
+        if new_num != old_num:
+            match = re.match(r"^\d+-(.+)$", fpath.name)
+            if match:
+                new_name = f"{new_num:02d}-{match.group(1)}"
+                fpath.rename(chapters_dir / new_name)
 
 
 def _next_chapter_num(chapters_dir: Path) -> int:
@@ -436,3 +448,98 @@ async def write_file(
     await asyncio.to_thread(file_path.write_text, request.content, "utf-8")
 
     return FileContentResponse(path=path, content=request.content)
+
+
+# ─── 通用文件/目录操作端点 ───
+
+
+class RenameRequest(BaseModel):
+    """重命名请求"""
+    new_name: str = Field(..., min_length=1, max_length=200)
+
+
+@router.post(
+    "/works/{work_id}/dirs/{path:path}",
+    response_model=list[FileNode],
+    status_code=status.HTTP_201_CREATED,
+    summary="创建目录",
+)
+async def create_dir(
+    work_id: str,
+    path: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """在作品目录下创建文件夹，空目录自动放入占位文件。"""
+    _, work_dir = await _get_work_and_dir(work_id, current_user, db)
+    dir_path = _safe_path(work_dir, path)
+    await asyncio.to_thread(dir_path.mkdir, parents=True, exist_ok=True)
+    # 空目录不会出现在文件树中（_build_file_tree 过滤），放一个占位 .md
+    if not any(p for p in dir_path.iterdir() if p.suffix == ".md"):
+        placeholder = dir_path / "untitled.md"
+        await asyncio.to_thread(placeholder.write_text, "", "utf-8")
+    return await asyncio.to_thread(_build_file_tree, work_dir)
+
+
+@router.delete(
+    "/works/{work_id}/files/{path:path}",
+    response_model=list[FileNode],
+    summary="删除文件或文件夹",
+)
+async def delete_file(
+    work_id: str,
+    path: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """删除作品目录下的文件或文件夹，返回刷新后的文件树。"""
+    _, work_dir = await _get_work_and_dir(work_id, current_user, db)
+    target = _safe_path(work_dir, path)
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="File or directory not found")
+    # 禁止删除关键根目录
+    if target.resolve() == (work_dir / "chapters").resolve() or \
+       target.resolve() == (work_dir / "knowledge").resolve():
+        raise HTTPException(status_code=400, detail="Cannot delete critical directory")
+    if target.is_dir():
+        await asyncio.to_thread(shutil.rmtree, target)
+    else:
+        await asyncio.to_thread(target.unlink)
+    # 章节文件删除后自动重排序
+    if path.startswith("chapters/"):
+        chapters_dir = work_dir / "chapters"
+        if chapters_dir.exists():
+            await asyncio.to_thread(_renumber_chapters, chapters_dir)
+    return await asyncio.to_thread(_build_file_tree, work_dir)
+
+
+@router.patch(
+    "/works/{work_id}/files/{path:path}",
+    response_model=list[FileNode],
+    summary="重命名文件或文件夹",
+)
+async def rename_file(
+    work_id: str,
+    path: str,
+    request: RenameRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """重命名作品目录下的文件或文件夹，返回刷新后的文件树。"""
+    _, work_dir = await _get_work_and_dir(work_id, current_user, db)
+    target = _safe_path(work_dir, path)
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="File or directory not found")
+    # 禁止重命名关键根目录
+    if target.resolve() == (work_dir / "chapters").resolve() or \
+       target.resolve() == (work_dir / "knowledge").resolve():
+        raise HTTPException(status_code=400, detail="Cannot rename critical directory")
+    new_name = request.new_name.strip()
+    if "/" in new_name or "\\" in new_name or new_name.startswith("."):
+        raise HTTPException(status_code=400, detail="Invalid name")
+    new_path = target.parent / new_name
+    _safe_path(work_dir, str(new_path.relative_to(work_dir.resolve())))
+    if new_path.exists():
+        raise HTTPException(status_code=409, detail="Target already exists")
+    await asyncio.to_thread(target.rename, new_path)
+    return await asyncio.to_thread(_build_file_tree, work_dir)

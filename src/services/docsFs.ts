@@ -25,4 +25,21 @@ async function write(workId: string, path: string, content: string): Promise<voi
   await api.put(`/v2/works/${workId}/files/${path}`, { content });
 }
 
-export const docsFs = { tree, read, write };
+async function createFile(workId: string, path: string): Promise<FileNode[]> {
+  await api.put(`/v2/works/${workId}/files/${path}`, { content: '' });
+  return tree(workId);
+}
+
+async function createDir(workId: string, path: string): Promise<FileNode[]> {
+  return api.post<FileNode[]>(`/v2/works/${workId}/dirs/${path}`);
+}
+
+async function remove(workId: string, path: string): Promise<FileNode[]> {
+  return api.delete<FileNode[]>(`/v2/works/${workId}/files/${path}`);
+}
+
+async function rename(workId: string, path: string, newName: string): Promise<FileNode[]> {
+  return api.patch<FileNode[]>(`/v2/works/${workId}/files/${path}`, { new_name: newName });
+}
+
+export const docsFs = { tree, read, write, createFile, createDir, remove, rename };

@@ -23,6 +23,7 @@ from app.utils.datetime_utils import get_utc_now
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
+from app.core.config import settings
 from app.models.user import User
 from app.models.agent_session import AgentSession
 from app.models.agent_session_message import AgentSessionMessage
@@ -563,6 +564,27 @@ _pending_backends: dict[str, Any] = {}
 # 并发锁：防止同一 work 的并发写入冲突
 _work_locks: dict[str, _asyncio.Lock] = {}
 
+# 全局 Redis checkpointer（跨请求共享，按 thread_id 隔离对话状态）
+_checkpointer = None
+
+async def _get_checkpointer():
+    """获取或初始化全局 Redis Checkpointer（懒加载单例）。"""
+    global _checkpointer
+    if _checkpointer is None:
+        try:
+            from langgraph.checkpoint.redis.aio import AsyncRedisSaver
+            cp = AsyncRedisSaver(
+                redis_url=settings.REDIS_URL,
+                ttl={"default_ttl": 60 * 24 * 7},  # 7 天后自动过期（分钟）
+            )
+            await cp.setup()
+            _checkpointer = cp
+            logger.info("[Checkpointer] Redis checkpointer 初始化成功")
+        except Exception as e:
+            logger.warning(f"[Checkpointer] Redis 初始化失败: {e}")
+            raise
+    return _checkpointer
+
 
 def _pending_path(user_id: str, conversation_id: str) -> Path:
     """返回持久化 JSON 文件路径：data/users/.pending/{user_id}_{conversation_id}.json"""
@@ -673,8 +695,9 @@ async def agent_v2_chat_stream(
                 _work_locks[work_key] = _asyncio.Lock()
 
             async with _work_locks[work_key]:
-                # 创建 Agent + Backend
-                agent, backend = create_writing_agent(work, user_id)
+                # 创建 Agent + Backend（传入 checkpointer 实现跨轮次记忆）
+                checkpointer = await _get_checkpointer()
+                agent, backend = create_writing_agent(work, user_id, checkpointer=checkpointer)
 
                 # 构建输入
                 input_msg = {"messages": [{"role": "user", "content": request.message}]}
