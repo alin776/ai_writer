@@ -55,6 +55,21 @@ function buildCharMap(doc: PmNode): CharInfo[] {
 }
 
 /**
+ * 去除 Markdown 语法标记（标题、列表、粗体、斜体等）。
+ * 用于匹配 Agent 返回的原始 Markdown 与 ProseMirror 渲染后的纯文本。
+ */
+function stripMd(s: string): string {
+  return s
+    .replace(/^#{1,6}\s+/gm, '')                        // 标题标记
+    .replace(/^[\s]*[-*+]\s+/gm, '')                    // 无序列表标记
+    .replace(/^[\s]*(\*{3,}|-{3,}|_{3,})[\s]*$/gm, '')  // 水平线 *** --- ___
+    .replace(/\*\*(.+?)\*\*/g, '$1')                    // 粗体
+    .replace(/\*([^*\n]+)\*/g, '$1')                    // 斜体（排除 * 和换行）
+    .replace(/\n{2,}/g, '\n')                           // 折叠多余换行
+    .replace(/^\n+|\n+$/g, '');                         // 去头尾换行
+}
+
+/**
  * 在 charMap 构建的 fullText 中查找 target 文本的起始索引。
  * 多策略匹配：精确 → 折叠换行 → 去除行首空白 → 去 Markdown 语法 → 首行模糊
  */
@@ -94,14 +109,6 @@ function findMatchIndex(fullText: string, target: string): { index: number; norm
 
   // 策略 4：去除 Markdown 语法标记后匹配
   // Agent 返回原始 Markdown（含 ### - ** 等），ProseMirror 渲染后无这些标记
-  const stripMd = (s: string) => s
-    .replace(/^#{1,6}\s+/gm, '')                        // 标题标记
-    .replace(/^[\s]*[-*+]\s+/gm, '')                    // 无序列表标记
-    .replace(/^[\s]*(\*{3,}|-{3,}|_{3,})[\s]*$/gm, '')  // 水平线 *** --- ___
-    .replace(/\*\*(.+?)\*\*/g, '$1')                    // 粗体
-    .replace(/\*([^*\n]+)\*/g, '$1')                    // 斜体（排除 * 和换行）
-    .replace(/\n{2,}/g, '\n')                           // 折叠多余换行
-    .replace(/^\n+|\n+$/g, '');                         // 去头尾换行
   const mdStripped = stripMd(collapsed);
   if (mdStripped !== collapsed) {
     idx = fullText.indexOf(mdStripped);
@@ -298,7 +305,14 @@ function buildDecorations(
   // 规范化 newString（与 findMatchIndex 的规范化保持一致）
   let normalizedNew = newString;
   if (match.normalizedTarget !== oldString) {
-    normalizedNew = newString.replace(/\n{2,}/g, '\n');
+    const collapsedOld = oldString.replace(/\n{2,}/g, '\n');
+    const mdStrippedOld = stripMd(collapsedOld);
+    if (match.normalizedTarget === mdStrippedOld) {
+      // 策略4命中：old 经过了 stripMd，new 也要同样处理
+      normalizedNew = stripMd(newString);
+    } else {
+      normalizedNew = newString.replace(/\n{2,}/g, '\n');
+    }
   }
 
   // 行级 diff：用 diff_linesToChars_ / diff_charsToLines_ 做段落级比对
@@ -332,7 +346,7 @@ function buildDecorations(
 
         decorations.push(
           Decoration.node(para.paraNodeStart, para.paraNodeEnd, {
-            style: 'background-color:rgba(239,68,68,0.08);color:#f87171;margin-left:-20px;margin-right:-20px;padding-left:20px;padding-right:20px;',
+            style: 'background-color:rgba(239,68,68,0.15);color:#f87171;margin-left:-20px;margin-right:-20px;padding-left:20px;padding-right:20px;',
             class: 'diff-del-line',
           }),
         );

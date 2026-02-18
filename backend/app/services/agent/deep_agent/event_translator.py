@@ -12,6 +12,7 @@ astream_events v2 主要事件类型：
 """
 
 import logging
+import re
 from typing import Any
 
 from app.utils.datetime_utils import get_utc_now
@@ -168,11 +169,13 @@ def make_revision_event(op: dict) -> dict[str, Any]:
     Returns:
         revision FlowEvent
     """
-    # 统计 diff 行数（按实际换行符）
+    # 统计 diff 行数（折叠多换行 + 去头尾空行，与前端 diff 插件口径一致）
     new_s = op.get("new_string", "")
     old_s = op.get("old_string", "")
-    add_lines = new_s.count("\n") + 1 if new_s else 0
-    del_lines = old_s.count("\n") + 1 if old_s else 0
+    new_norm = re.sub(r'\n{2,}', '\n', new_s).strip('\n') if new_s else ""
+    old_norm = re.sub(r'\n{2,}', '\n', old_s).strip('\n') if old_s else ""
+    add_lines = new_norm.count("\n") + 1 if new_norm else 0
+    del_lines = old_norm.count("\n") + 1 if old_norm else 0
 
     return {
         "type": "revision",
