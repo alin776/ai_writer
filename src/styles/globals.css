@@ -204,7 +204,7 @@
   --editor-bg: #0f172a;
   --editor-text: #e2e8f0;
   --editor-placeholder: #64748b;
-  --editor-selection: rgba(59, 130, 246, 0.3);
+  --editor-selection: rgba(147, 197, 253, 0.18);
   --editor-cursor: #f8fafc;
 
   /* 滚动条颜色 */
@@ -386,8 +386,11 @@ h1, h2, h3, h4, h5, h6 {
  * 选中文本样式
  */
 ::selection {
-  background-color: var(--color-primary-light);
-  color: var(--color-text-primary, #111827); /* 保持高亮底色不变，文字改为深色 */
+  background-color: rgba(59, 130, 246, 0.18);
+}
+
+.dark ::selection {
+  background-color: rgba(147, 197, 253, 0.18);
 }
 
 /**
@@ -993,10 +996,85 @@ select option {
 .milkdown {
   --crepe-font-title: 'Noto Serif SC', serif;
   --crepe-font-default: 'Noto Serif SC', sans-serif;
+  --crepe-color-selected: #cdd1d9;
+}
+
+/* b2) 浮动工具栏 — 毛玻璃风格 */
+.milkdown .milkdown-toolbar {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(14px) saturate(1.6);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.08),
+    0 1px 4px rgba(0, 0, 0, 0.04);
+  padding: 2px;
+}
+
+.milkdown .milkdown-toolbar .toolbar-item {
+  width: 24px;
+  height: 24px;
+  margin: 2px;
+  padding: 2px;
+  border-radius: 5px;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.milkdown .milkdown-toolbar .toolbar-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.milkdown .milkdown-toolbar .toolbar-item:active {
+  transform: scale(0.92);
+}
+
+.milkdown .milkdown-toolbar .toolbar-item svg {
+  color: #4b5563;
+  fill: #4b5563;
+}
+
+.milkdown .milkdown-toolbar .toolbar-item.active svg {
+  color: #2563eb;
+  fill: #2563eb;
+}
+
+.milkdown .milkdown-toolbar .divider {
+  height: 14px;
+  margin: 7px 3px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* 暗色模式工具栏 */
+.dark .milkdown .milkdown-toolbar {
+  background: rgba(30, 41, 59, 0.82);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.dark .milkdown .milkdown-toolbar .toolbar-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dark .milkdown .milkdown-toolbar .toolbar-item svg {
+  color: #94a3b8;
+  fill: #94a3b8;
+}
+
+.dark .milkdown .milkdown-toolbar .toolbar-item.active svg {
+  color: #60a5fa;
+  fill: #60a5fa;
+}
+
+.dark .milkdown .milkdown-toolbar .divider {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* c) 暗色主题 - 映射到 app 的 Slate 色板 */
 .dark .milkdown {
+  --crepe-color-selected: #3b4256;
   --crepe-color-background: #0f172a;       /* slate-900 */
   --crepe-color-on-background: #e2e8f0;    /* slate-200 */
   --crepe-color-surface: #1e293b;          /* slate-800 */
