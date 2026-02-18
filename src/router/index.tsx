@@ -37,6 +37,7 @@ const ContactView = React.lazy(() => import('../views/ContactView'));
 const TaskRewardsView = React.lazy(() => import('../views/TaskRewardsView'));
 const NovelSquareView = React.lazy(() => import('../views/NovelSquareView'));
 const MyBookshelfView = React.lazy(() => import('../views/MyBookshelfView'));
+const SkillsView = React.lazy(() => import('../views/SkillsView'));
 const ChannelsView = React.lazy(() => import('../views/ChannelsView'));
 const UserProfileView = React.lazy(() => import('../views/UserProfileView'));
 const InviteLandingView = React.lazy(() => import('../views/InviteLandingView'));
@@ -278,6 +279,14 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <ChannelsView />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/skills',
+        element: (
+          <SuspenseWrapper>
+            <SkillsView />
           </SuspenseWrapper>
         ),
       },

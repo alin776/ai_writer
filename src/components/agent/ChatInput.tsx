@@ -16,8 +16,10 @@ import {
   ChevronLeft,
   Loader2,
   X,
+  Zap,
 } from 'lucide-react';
 import { docsFs } from '@/services/docsFs';
+import { agentApi } from '@/services/agentApi';
 
 interface ChatInputProps {
   onSend: (message: string, context?: any) => void;
@@ -128,6 +130,16 @@ export default function ChatInput({
   // 已选择的去痕迹强度
   const [selectedIntensity, setSelectedIntensity] = useState<OptimizationIntensity | null>(null);
 
+  // === Slash command menu state ===
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+  const [slashQuery, setSlashQuery] = useState('');
+  const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
+  const [slashTriggerIndex, setSlashTriggerIndex] = useState<number | null>(null);
+  const [slashMenuPosition, setSlashMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; group: string }>>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [selectedSkill, setSelectedSkill] = useState<{ name: string; description: string; group: string } | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 检测是否启用了优化（通过@optimization或选择了强度）
@@ -161,6 +173,14 @@ export default function ChatInput({
     if (!query) return knowledgeDocs;
     return knowledgeDocs.filter((doc) => doc.title.toLowerCase().includes(query));
   }, [atQuery, knowledgeDocs]);
+
+  const filteredSkills = useMemo(() => {
+    const query = slashQuery.trim().toLowerCase();
+    if (!query) return skillsList;
+    return skillsList.filter(
+      (s) => s.name.toLowerCase().includes(query) || s.description.toLowerCase().includes(query)
+    );
+  }, [slashQuery, skillsList]);
 
   // Debug: component mount
   useEffect(() => {
@@ -285,6 +305,23 @@ export default function ChatInput({
     }
   }, [atMenuOpen, atStage, knowledgeDocs.length, knowledgeLoading]);
 
+  // Load skills list when slash menu opens
+  useEffect(() => {
+    if (!slashMenuOpen || skillsList.length > 0 || skillsLoading) return;
+    const loadSkills = async () => {
+      try {
+        setSkillsLoading(true);
+        const data = await agentApi.getSkills();
+        setSkillsList(data);
+      } catch (err) {
+        console.error('[ChatInput] Failed to load skills:', err);
+      } finally {
+        setSkillsLoading(false);
+      }
+    };
+    loadSkills();
+  }, [slashMenuOpen, skillsList.length, skillsLoading]);
+
   const closeAtMenu = () => {
     setAtMenuOpen(false);
     setAtStage('root');
@@ -292,6 +329,58 @@ export default function ChatInput({
     setHighlightIndex(0);
     setAtTriggerIndex(null);
   };
+
+  // === Slash menu helpers ===
+  const repositionSlashMenu = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const rect = textarea.getBoundingClientRect();
+    const estimatedHeight = 300;
+    const belowSpace = window.innerHeight - rect.bottom;
+    let top = rect.bottom + 8;
+    if (belowSpace < estimatedHeight && rect.top > estimatedHeight) {
+      top = rect.top - estimatedHeight - 8;
+    }
+    setSlashMenuPosition({ left: rect.left, top, width: rect.width });
+  };
+
+  const closeSlashMenu = () => {
+    setSlashMenuOpen(false);
+    setSlashQuery('');
+    setSlashHighlightIndex(0);
+    setSlashTriggerIndex(null);
+  };
+
+  const handleSlashSkillSelect = (skill: { name: string; description: string; group: string }) => {
+    setSelectedSkill(skill);
+    // Replace the /query text with the skill prefix
+    const textarea = textareaRef.current;
+    const caret = textarea?.selectionStart ?? message.length;
+    const start = slashTriggerIndex ?? Math.max(caret - (slashQuery.length + 1), 0);
+    const rest = message.slice(start + 1);
+    const nextSpaceIndex = rest.search(/[\s]/);
+    const end = nextSpaceIndex === -1 ? message.length : start + 1 + nextSpaceIndex;
+    const newValue = message.slice(0, start) + message.slice(end);
+    setMessage(newValue.trim());
+    closeSlashMenu();
+  };
+
+  const removeSkill = () => {
+    setSelectedSkill(null);
+  };
+
+  // Reposition slash menu on window resize/scroll
+  useEffect(() => {
+    if (!slashMenuOpen) return;
+    repositionSlashMenu();
+    const handleWindowChange = () => repositionSlashMenu();
+    window.addEventListener('resize', handleWindowChange);
+    window.addEventListener('scroll', handleWindowChange, true);
+    return () => {
+      window.removeEventListener('resize', handleWindowChange);
+      window.removeEventListener('scroll', handleWindowChange, true);
+    };
+  }, [slashMenuOpen]);
 
   const insertDirectiveText = (text: string) => {
     const textarea = textareaRef.current;
@@ -387,6 +476,29 @@ export default function ChatInput({
     setMessage(value);
     adjustHeight();
     updateAtState(value, e.target.selectionStart);
+
+    // Slash command detection
+    const caret = e.target.selectionStart;
+    if (caret !== null) {
+      const slashIdx = value.lastIndexOf('/', caret - 1);
+      if (slashIdx !== -1) {
+        // Only trigger if / is at start of input or preceded by whitespace
+        const charBefore = slashIdx > 0 ? value[slashIdx - 1] : ' ';
+        if (charBefore === ' ' || charBefore === '\n' || slashIdx === 0) {
+          const token = value.slice(slashIdx + 1, caret);
+          if (!token.includes(' ') && !token.includes('\n')) {
+            setSlashMenuOpen(true);
+            setSlashTriggerIndex(slashIdx);
+            setSlashQuery(token);
+            setSlashHighlightIndex(0);
+            repositionSlashMenu();
+            return;
+          }
+        }
+      }
+      // Close slash menu if no valid trigger found
+      if (slashMenuOpen) closeSlashMenu();
+    }
   };
 
   const handleSend = () => {
@@ -402,7 +514,7 @@ export default function ChatInput({
       : {};
 
     const directiveContext =
-      selectedDocs.length || optimizationEnabled
+      selectedDocs.length || optimizationEnabled || selectedSkill
         ? {
             ...(selectedDocs.length ? { knowledge_doc_ids: selectedDocs.map((d) => d.id) } : {}),
             ...(optimizationEnabled
@@ -417,6 +529,7 @@ export default function ChatInput({
                     : {}),
                 }
               : {}),
+            ...(selectedSkill ? { skill: selectedSkill.name } : {}),
           }
         : {};
 
@@ -441,12 +554,40 @@ export default function ChatInput({
     setShowContext(false);
     setSelectedDocs([]);
     setSelectedIntensity(null);
+    setSelectedSkill(null);
     closeAtMenu();
+    closeSlashMenu();
     if (onClearSelection) onClearSelection();
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // === Slash menu keyboard handling ===
+    if (slashMenuOpen && filteredSkills.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashHighlightIndex((prev) => (prev + 1) % filteredSkills.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashHighlightIndex((prev) => (prev - 1 + filteredSkills.length) % filteredSkills.length);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const skill = filteredSkills[slashHighlightIndex];
+        if (skill) handleSlashSkillSelect(skill);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSlashMenu();
+        return;
+      }
+    }
+
+    // === At menu keyboard handling ===
     const activeLength =
       atStage === 'knowledge'
         ? filteredKnowledgeDocs.length
@@ -504,10 +645,10 @@ export default function ChatInput({
   const charCount = message.length;
   const isNearLimit = charCount > maxLength * 0.8;
   const isOverLimit = charCount > maxLength;
-  const hasMessage = !!message.trim() || selectedDocs.length > 0;
-  const isSendDisabled = disabled || (!message.trim() && selectedDocs.length === 0) || isOverLimit;
+  const hasMessage = !!message.trim() || selectedDocs.length > 0 || !!selectedSkill;
+  const isSendDisabled = disabled || (!message.trim() && selectedDocs.length === 0 && !selectedSkill) || isOverLimit;
   const showStop = isLoading && !!onStop;
-  const showSend = (!!message.trim() || selectedDocs.length > 0) && !showStop;
+  const showSend = (!!message.trim() || selectedDocs.length > 0 || !!selectedSkill) && !showStop;
 
   const menuContent = (
     <div
@@ -816,9 +957,90 @@ export default function ChatInput({
           document.body
         )}
 
+        {/* Slash command menu portal */}
+        {slashMenuOpen && createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              left: slashMenuPosition ? slashMenuPosition.left : 12,
+              top: slashMenuPosition ? slashMenuPosition.top : 12,
+              width: slashMenuPosition ? Math.min(380, slashMenuPosition.width || 360) : 320,
+              background: '#fff',
+              border: '1px solid #e5e7eb',
+              borderRadius: 12,
+              boxShadow: '0 12px 30px rgba(0,0,0,0.14)',
+              zIndex: 99999,
+              pointerEvents: 'auto',
+            }}
+          >
+            <div className="p-2">
+              <div className="px-1 pb-1 text-xs text-gray-500 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-amber-500" />
+                选择技能
+              </div>
+              <div className="max-h-64 overflow-y-auto space-y-0.5">
+                {skillsLoading && (
+                  <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    加载技能列表...
+                  </div>
+                )}
+                {!skillsLoading && filteredSkills.length === 0 && (
+                  <div className="px-3 py-2 text-xs text-gray-500">
+                    {slashQuery ? '无匹配技能' : '暂无可用技能'}
+                  </div>
+                )}
+                {!skillsLoading && filteredSkills.map((skill, index) => {
+                  const highlighted = index === slashHighlightIndex;
+                  return (
+                    <button
+                      key={skill.name}
+                      onClick={() => handleSlashSkillSelect(skill)}
+                      onMouseEnter={() => setSlashHighlightIndex(index)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                        highlighted
+                          ? 'bg-amber-50 border border-amber-100 text-amber-800'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-md ${
+                        highlighted ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        <Zap className="w-4 h-4" />
+                      </span>
+                      <div className="text-left min-w-0 flex-1">
+                        <div className="text-sm font-medium truncate">{skill.name}</div>
+                        <div className="text-xs text-gray-500 truncate">{skill.description}</div>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 flex-shrink-0">
+                        {skill.group}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
         {/* Selected chips */}
-        {(optimizationEnabled || selectedDocs.length > 0) && (
+        {(optimizationEnabled || selectedDocs.length > 0 || selectedSkill) && (
           <div className="flex flex-wrap gap-2 border border-dashed border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+            {selectedSkill && (
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-100">
+                <Zap className="w-3.5 h-3.5" />
+                <span>/{selectedSkill.name}</span>
+                <button
+                  type="button"
+                  onClick={removeSkill}
+                  className="p-0.5 rounded-full hover:bg-amber-100 text-amber-600"
+                  aria-label="移除技能"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
             {optimizationEnabled && (
               <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-medium border border-purple-100">
                 <Sparkles className="w-3.5 h-3.5" />
