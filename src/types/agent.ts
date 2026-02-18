@@ -15,6 +15,8 @@ export interface AgentChatRequest {
   conversation_id?: string;
   /** 知识库文件路径列表，V2 后端顶层字段 */
   knowledge_files?: string[];
+  /** 用户在编辑器中选中的引用文本 */
+  quoted_text?: string;
   context?: {
     chapter_context?: string;
     text?: string;

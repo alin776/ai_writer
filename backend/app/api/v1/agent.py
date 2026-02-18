@@ -649,6 +649,7 @@ class V2ChatRequest(BaseModel):
     work_id: str = Field(...)
     conversation_id: Optional[str] = Field(None)
     knowledge_files: Optional[List[str]] = Field(None)
+    quoted_text: Optional[str] = Field(None, description="用户在编辑器中选中的引用文本")
 
 
 class V2ChangesResponse(BaseModel):
@@ -719,6 +720,10 @@ async def agent_v2_chat_stream(
                                 logger.warning(f"Failed to read knowledge file: {rel_path}")
                     if ref_parts:
                         user_content = "\n".join(ref_parts) + "\n\n" + request.message
+
+                # 注入用户引用文本
+                if request.quoted_text:
+                    user_content = f"<quote>\n{request.quoted_text}\n</quote>\n\n{user_content}"
 
                 input_msg = {"messages": [{"role": "user", "content": user_content}]}
                 config = {

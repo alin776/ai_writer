@@ -107,6 +107,37 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
         [Crepe.Feature.Placeholder]: {
           text: placeholder,
         },
+        [Crepe.Feature.Toolbar]: {
+          buildToolbar: (builder: any) => {
+            builder.addGroup('ai-quote', '引用到AI').addItem('quote-to-ai', {
+              icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 10h.01"/><path d="M12 10h.01"/><path d="M16 10h.01"/></svg>',
+              active: () => false,
+              onRun: (ctx: any) => {
+                try {
+                  const view = ctx.get(editorViewCtx);
+                  const { state } = view;
+                  const { from, to } = state.selection;
+                  if (from === to) return; // 没有选中文本则不操作
+                  const selectedText = state.doc.textBetween(from, to, '\n');
+                  if (!selectedText.trim()) return;
+
+                  // 派发 inline-ai-intent 事件（AIPanel 已有监听）
+                  window.dispatchEvent(new CustomEvent('inline-ai-intent', {
+                    detail: {
+                      selected_text: selectedText,
+                      selected_text_html: selectedText,
+                      selection_position: { from, to },
+                    },
+                  }));
+                  // 派发 focus-ai-input 事件，让 AIPanel 输入框聚焦
+                  window.dispatchEvent(new CustomEvent('focus-ai-input'));
+                } catch {
+                  // ignore
+                }
+              },
+            });
+          },
+        },
       },
     });
 

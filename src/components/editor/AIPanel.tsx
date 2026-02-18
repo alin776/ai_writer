@@ -751,6 +751,16 @@ ${context.selected_text}
     };
   }, [isActive]);
 
+  // 监听 focus-ai-input 事件，自动聚焦输入框
+  useEffect(() => {
+    if (!isActive) return;
+    const handleFocusAI = () => {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    };
+    window.addEventListener('focus-ai-input', handleFocusAI);
+    return () => window.removeEventListener('focus-ai-input', handleFocusAI);
+  }, [isActive]);
+
   // 计算最后一条 agent 消息与索引，用于锚定与自动滚动逻辑
   const lastAgentMessage = useMemo(() => [...messages].reverse().find(m => m.role === 'agent'), [messages]);
   const flowItemsCount = (lastAgentMessage as any)?.flowItems?.length || 0;
@@ -1230,6 +1240,7 @@ ${context.selected_text}
       work_id: workId,
       chapter_id: chapterId,
       knowledge_files: knowledgeDocIds.length > 0 ? knowledgeDocIds : undefined,
+      quoted_text: selectionContext?.selected_text || undefined,
       context: {
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
         use_optimization: useOptimization,
