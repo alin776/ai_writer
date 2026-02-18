@@ -4,6 +4,23 @@ System Prompt 构建器
 从 Work 模型提取元数据，生成写作 Agent 的领域指导 prompt。
 """
 
+from pathlib import Path
+
+GENRE_PROMPTS_DIR = Path(__file__).parent.parent / "genre_prompts"
+
+_GENRE_FILE_MAP = {
+    "fantasy": "xianxia.md",
+    "romance": "romance.md",
+    "suspense": "suspense.md",
+    "urban": "urban.md",
+    "western_fantasy": "western-fantasy.md",
+    "scifi": "scifi.md",
+    "history": "historical.md",
+    "wuxia": "wuxia.md",
+    "game": "game.md",
+    "apocalypse": "apocalypse.md",
+}
+
 # 类型名称映射
 _GENRE_LABELS = {
     "fantasy": "玄幻",
@@ -30,10 +47,11 @@ def build_system_prompt(work) -> str:
     Returns:
         追加到 DeepAgents base prompt 之后的领域指导 prompt
     """
-    genre_label = _GENRE_LABELS.get(work.genre.value if hasattr(work.genre, "value") else str(work.genre), "其他")
+    genre_value = work.genre.value if hasattr(work.genre, "value") else str(work.genre)
+    genre_label = _GENRE_LABELS.get(genre_value, "其他")
     desc = work.description or "（暂无简介）"
 
-    return f"""\
+    prompt = f"""\
 你是一位专业的{genre_label}小说写作助手，正在协助创作《{work.title}》。
 
 ## 作品信息
@@ -68,3 +86,12 @@ def build_system_prompt(work) -> str:
 - 工具返回结果后，简要解释关键发现，再决定下一步
 - 不要连续调用多个工具而不做任何解释，要像对话一样，一步一步地推进
 - 最终给出清晰的总结"""
+
+    # 追加题材风格指南（如果有对应文件）
+    genre_file = _GENRE_FILE_MAP.get(genre_value)
+    if genre_file:
+        genre_path = GENRE_PROMPTS_DIR / genre_file
+        if genre_path.exists():
+            prompt += f"\n\n## 题材风格指南\n\n{genre_path.read_text(encoding='utf-8')}"
+
+    return prompt

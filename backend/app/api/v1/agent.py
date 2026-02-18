@@ -16,6 +16,7 @@ import logging
 import json
 import re
 import uuid
+import yaml
 import redis
 from pathlib import Path, PurePosixPath
 from datetime import datetime, timedelta
@@ -31,7 +32,46 @@ from app.models.agent_session_message import AgentSessionMessage
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# 创建同步Redis连接池（全局复用，避免每次请求都建立新连接）
+# ==================== Skills 元数据 ====================
+
+SKILLS_ROOT = Path(__file__).resolve().parents[2] / "services" / "agent" / "skills"
+
+_GROUP_LABELS = {
+    "quality": "质量检查",
+    "review": "创作分析",
+    "statistics": "创作分析",
+    "process": "创作辅助",
+}
+
+
+@router.get("/skills", summary="列出可用 Agent Skills")
+async def list_skills():
+    """列出所有可用的 Agent Skills（前端技能面板数据源）"""
+    if not SKILLS_ROOT.is_dir():
+        return []
+    skills = []
+    for skill_md in SKILLS_ROOT.rglob("SKILL.md"):
+        try:
+            content = skill_md.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if content.startswith("---"):
+            parts = content.split("---", 2)
+            if len(parts) >= 3:
+                try:
+                    meta = yaml.safe_load(parts[1]) or {}
+                except yaml.YAMLError:
+                    continue
+                group_key = skill_md.parent.parent.name
+                skills.append({
+                    "name": meta.get("name", ""),
+                    "description": meta.get("description", ""),
+                    "group": _GROUP_LABELS.get(group_key, group_key),
+                })
+    return skills
+
+
+# ==================== Redis 连接池 ====================
 _redis_pool = None
 SESSION_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 天缓存 TTL，用于热数据
 

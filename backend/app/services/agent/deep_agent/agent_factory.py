@@ -22,6 +22,8 @@ from app.services.agent.deep_agent.rag_tool import create_semantic_search_tool
 
 logger = logging.getLogger(__name__)
 
+SKILLS_ROOT = Path(__file__).parent.parent / "skills"
+
 
 def _get_work_dir(user_id: str, work_id: str) -> Path:
     """获取作品工作目录路径。"""
@@ -76,6 +78,12 @@ def create_writing_agent(
         system_prompt=system_prompt,
         backend=backend,
         checkpointer=checkpointer,
+        skills=[
+            str(SKILLS_ROOT / "quality"),
+            str(SKILLS_ROOT / "review"),
+            str(SKILLS_ROOT / "statistics"),
+            str(SKILLS_ROOT / "process"),
+        ],
     )
 
     logger.info(
