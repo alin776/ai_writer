@@ -1,7 +1,8 @@
 ﻿import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus } from 'lucide-react';
+import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus, Zap, Search, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
@@ -265,10 +266,10 @@ const MarkdownContent: React.FC<{ content: string }> = React.memo(({ content }) 
 MarkdownContent.displayName = 'MarkdownContent';
 
 
-type AtCommandStage = 'root' | 'knowledge';
+type AtCommandStage = 'root' | 'knowledge' | 'skills';
 
 type RootCommandOption = {
-  key: 'knowledge' | 'optimization';
+  key: 'knowledge' | 'optimization' | 'skills';
   label: string;
   description: string;
   icon: React.ReactNode;
@@ -289,11 +290,19 @@ const ROOT_OPTIONS: RootCommandOption[] = [
     description: '文本自然化',
     icon: <Sparkles className="w-4 h-4" />,
   },
+  {
+    key: 'skills',
+    label: '使用技能',
+    description: '使用技能',
+    icon: <Zap className="w-4 h-4" />,
+    hasChildren: true,
+  },
 ];
 
 const AT_CHARS = ['@', '\uFF20'];
 
 const MENU_COLUMN_WIDTH = 240;
+const MENU_SKILLS_WIDTH = 280;
 const MENU_GAP = 8;
 
 
@@ -429,9 +438,13 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   }, [hasOperations, isLoading, workId, chapterId]);
   const menuRef = useRef<HTMLDivElement>(null);
   const knowledgeListRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const [selectedDocs, setSelectedDocs] = useState<Array<{ id: string; title: string }>>([]);
   const [optimizationSelected, setOptimizationSelected] = useState(false);
+  const [selectedSkill, setSelectedSkill] = useState<{ name: string; description: string; group: string } | null>(null);
+  const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; group: string }>>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
   const [selectionContext, setSelectionContext] = useState<{
     selected_text?: string;
     selected_text_html?: string;
@@ -545,18 +558,28 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       : undefined;
 
   const filteredRootOptions = useMemo(() => {
+    // In sub-stages (knowledge/skills), always show all root options — search only applies to right column
+    if (atStage !== 'root') return ROOT_OPTIONS;
     const query = atQuery.trim().toLowerCase();
     if (!query) return ROOT_OPTIONS;
     return ROOT_OPTIONS.filter(
       (opt) => opt.label.toLowerCase().includes(query) || opt.description.toLowerCase().includes(query)
     );
-  }, [atQuery]);
+  }, [atQuery, atStage]);
 
   const filteredKnowledgeDocs = useMemo(() => {
     const query = atQuery.trim().toLowerCase();
     if (!query) return knowledgeDocs;
     return knowledgeDocs.filter((doc) => doc.title.toLowerCase().includes(query));
   }, [atQuery, knowledgeDocs]);
+
+  const filteredSkills = useMemo(() => {
+    const query = atQuery.trim().toLowerCase();
+    if (!query) return skillsList;
+    return skillsList.filter(
+      (s) => s.name.toLowerCase().includes(query) || s.description.toLowerCase().includes(query)
+    );
+  }, [atQuery, skillsList]);
 
 
   // 标题自动生成
@@ -1052,6 +1075,23 @@ ${context.selected_text}
     }
   }, [atMenuOpen, atStage, knowledgeLoading, knowledgeLoadedOnce]);
 
+  // Load skills list when skills stage is entered
+  useEffect(() => {
+    if (!atMenuOpen || atStage !== 'skills' || skillsList.length > 0 || skillsLoading) return;
+    const loadSkills = async () => {
+      try {
+        setSkillsLoading(true);
+        const data = await agentApi.getSkills();
+        setSkillsList(data);
+      } catch (err) {
+        console.error('[AIPanel] Failed to load skills:', err);
+      } finally {
+        setSkillsLoading(false);
+      }
+    };
+    loadSkills();
+  }, [atMenuOpen, atStage, skillsList.length, skillsLoading]);
+
   const closeAtMenu = useCallback(() => {
     setAtMenuOpen(false);
     setManualMenuOpen(false);
@@ -1113,6 +1153,14 @@ ${context.selected_text}
         requestAnimationFrame(() => inputRef.current?.focus());
         return;
       }
+      if (option.key === 'skills') {
+        setKnowledgePanelOpen(false);
+        setAtStage('skills');
+        setAtQuery('');
+        setHighlightIndex(0);
+        setAtMenuOpen(true);
+        return;
+      }
       setKnowledgePanelOpen(true);
       setAtStage('knowledge');
       setAtQuery('');
@@ -1129,12 +1177,23 @@ ${context.selected_text}
         if (!knowledgePanelOpen || atStage !== 'knowledge') {
           setKnowledgePanelOpen(true);
           setAtStage('knowledge');
+          setAtQuery('');
         }
         return;
       }
-      if (knowledgePanelOpen || atStage === 'knowledge') {
+      if (option.key === 'skills') {
+        if (atStage !== 'skills') {
+          setKnowledgePanelOpen(false);
+          setAtStage('skills');
+          setAtQuery('');
+        }
+        return;
+      }
+      // For other options (optimization), collapse any open sub-panel
+      if (knowledgePanelOpen || atStage === 'knowledge' || atStage === 'skills') {
         setKnowledgePanelOpen(false);
         setAtStage('root');
+        setAtQuery('');
       }
     },
     [knowledgePanelOpen, atStage]
@@ -1161,6 +1220,20 @@ ${context.selected_text}
     },
     [closeAtMenu, stripCurrentToken]
   );
+
+  const handleSkillSelect = useCallback(
+    (skill: { name: string; description: string; group: string }) => {
+      setSelectedSkill(skill);
+      setInputValue(stripCurrentToken());
+      closeAtMenu();
+      requestAnimationFrame(() => inputRef.current?.focus());
+    },
+    [closeAtMenu, stripCurrentToken]
+  );
+
+  const removeSkill = useCallback(() => {
+    setSelectedSkill(null);
+  }, []);
 
   const adjustInputHeight = useCallback(() => {
     const el = inputRef.current;
@@ -1260,6 +1333,7 @@ ${selectionContext.selected_text}
 ---
 用户指令: ${message}`
           : undefined,
+        ...(selectedSkill ? { skill: selectedSkill.name } : {}),
       },
     };
 
@@ -1268,6 +1342,7 @@ ${selectionContext.selected_text}
     adjustInputHeight();
     setSelectedDocs([]);
     setOptimizationSelected(false);
+    setSelectedSkill(null);
     setSelectionContext(null);
 
     // 发送成功后清除该会话的草稿
@@ -1293,7 +1368,11 @@ ${selectionContext.selected_text}
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      const options = atStage === 'root' ? filteredRootOptions : filteredKnowledgeDocs;
+      const options = atStage === 'root'
+        ? filteredRootOptions
+        : atStage === 'skills'
+        ? filteredSkills
+        : filteredKnowledgeDocs;
       const hasOptions = options.length > 0;
 
       if (atMenuOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -1314,6 +1393,8 @@ ${selectionContext.selected_text}
           const option = options[Math.min(highlightIndex, options.length - 1)];
           if (atStage === 'root') {
             handleRootOption(option as RootCommandOption);
+          } else if (atStage === 'skills') {
+            handleSkillSelect(option as { name: string; description: string; group: string });
           } else {
             handleKnowledgeSelect(option as { id: string; title: string });
           }
@@ -1328,12 +1409,17 @@ ${selectionContext.selected_text}
         closeAtMenu();
       }
 
-      // 当输入框内容为空时，Backspace 删除最后一个标签（先知识文档，再 optimization）
+      // 当输入框内容为空时，Backspace 删除最后一个标签（先知识文档，再 skill，再 optimization）
       if (e.key === 'Backspace' && !inputValue.trim()) {
         if (selectedDocs.length > 0) {
           e.preventDefault();
           const last = selectedDocs[selectedDocs.length - 1];
           removeKnowledgeTag(last.id);
+          return;
+        }
+        if (selectedSkill) {
+          e.preventDefault();
+          removeSkill();
           return;
         }
         if (optimizationSelected) {
@@ -1348,15 +1434,19 @@ ${selectionContext.selected_text}
       closeAtMenu,
       filteredKnowledgeDocs,
       filteredRootOptions,
+      filteredSkills,
       handleKnowledgeSelect,
       handleRootOption,
       handleSend,
+      handleSkillSelect,
       highlightIndex,
       inputValue,
       optimizationSelected,
       removeKnowledgeTag,
       removeOptimization,
+      removeSkill,
       selectedDocs,
+      selectedSkill,
     ]
   );
   const handleStop = useCallback(() => {
@@ -1439,6 +1529,24 @@ ${selectionContext.selected_text}
                         removeOptimization();
                       }}
                       aria-label="移除文本自然化"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {selectedSkill && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-3 py-1 text-[11px] border border-amber-200 shadow-sm dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700/60">
+                    <Zap className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                    /{selectedSkill.name}
+                    <button
+                      type="button"
+                      className="hover:text-amber-900 transition-colors dark:hover:text-amber-100"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        removeSkill();
+                      }}
+                      aria-label="移除技能"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -1981,6 +2089,24 @@ ${selectionContext.selected_text}
                     </button>
                   </span>
                 )}
+                {selectedSkill && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-3 py-1 text-[11px] border border-amber-200 shadow-sm dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700/60">
+                    <Zap className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                    /{selectedSkill.name}
+                    <button
+                      type="button"
+                      className="hover:text-amber-900 transition-colors dark:hover:text-amber-100"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        removeSkill();
+                      }}
+                      aria-label="移除技能"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
                 {selectedDocs.map((doc) => (
                   <span
                     key={doc.id}
@@ -2088,7 +2214,9 @@ ${selectionContext.selected_text}
             style={{
               left: menuPosition.left,
               top: menuPosition.top,
-              width: knowledgePanelOpen && atStage === 'knowledge'
+              width: atStage === 'skills'
+                ? MENU_COLUMN_WIDTH + MENU_SKILLS_WIDTH + MENU_GAP
+                : (knowledgePanelOpen && atStage === 'knowledge')
                 ? MENU_COLUMN_WIDTH * 2 + MENU_GAP
                 : MENU_COLUMN_WIDTH
             }}
@@ -2131,9 +2259,23 @@ ${selectionContext.selected_text}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full -mt-4 dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50">
+                  {/* search input at top */}
+                  <div className="px-2 py-1.5 border-b border-slate-100 dark:border-slate-800">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                      <input
+                        value={atQuery}
+                        onChange={(e) => { setAtQuery(e.target.value); setHighlightIndex(0); }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        placeholder="搜索文档…"
+                        className="w-full pl-7 pr-2 py-1.5 text-[12px] border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-300 dark:focus:border-slate-600"
+                      />
+                    </div>
+                  </div>
                   <div
                     ref={knowledgeListRef}
-                    className="max-h-[220px] overflow-y-auto overscroll-contain custom-scrollbar px-2 py-2"
+                    className="max-h-[180px] overflow-y-auto overscroll-contain custom-scrollbar px-2 py-1"
                     onWheel={stopMenuScrollChain}
                   >
                     <div className="space-y-1">
@@ -2149,7 +2291,9 @@ ${selectionContext.selected_text}
                         </div>
                       )}
                       {!knowledgeLoading && !knowledgeError && filteredKnowledgeDocs.length === 0 && (
-                        <div className="px-3 py-2 text-[12px] text-slate-500 dark:text-slate-400">暂无可用文档</div>
+                        <div className="px-3 py-2 text-[12px] text-slate-500 dark:text-slate-400">
+                          {atQuery ? '无匹配文档' : '暂无可用文档'}
+                        </div>
                       )}
                       {!knowledgeLoading &&
                         !knowledgeError &&
@@ -2172,6 +2316,125 @@ ${selectionContext.selected_text}
                             </div>
                           </button>
                         ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : atStage === 'skills' ? (
+              <div ref={menuRef} className="grid gap-2 items-start" style={{ gridTemplateColumns: `${MENU_COLUMN_WIDTH}px ${MENU_SKILLS_WIDTH}px` }}>
+                {/* Left column: root options with "使用技能" highlighted */}
+                <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full self-start dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50">
+                  <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2" onWheel={stopMenuScrollChain}>
+                    {filteredRootOptions.length > 0 ? (
+                      filteredRootOptions.map((option, idx) => {
+                        const isHighlighted = option.key === 'skills';
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleRootOption(option)}
+                            onMouseEnter={() => handleRootHover(option, idx)}
+                            className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-left transition-colors ${
+                              isHighlighted
+                                ? 'bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-600/60'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-700 dark:text-slate-200">{option.icon}</span>
+                              <div className="flex flex-col">
+                                <span className="text-[12px] text-slate-900 dark:text-white">{option.label}</span>
+                              </div>
+                            </div>
+                            {option.hasChildren && <ChevronRight className="w-4 h-4 text-slate-400" />}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-3 py-2 text-[12px] text-slate-400">{'\u6ca1\u6709\u5339\u914d\u7684\u6307\u4ee4'}</div>
+                    )}
+                  </div>
+                </div>
+                {/* Right column: skills list */}
+                <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full -mt-4 dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50">
+                  {/* 管理技能 header */}
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      closeAtMenu();
+                      navigate('/skills');
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[11px] text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-b border-slate-100 dark:border-slate-800"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>管理技能</span>
+                    <ChevronRight className="w-3.5 h-3.5 ml-auto" />
+                  </button>
+                  {/* skills list */}
+                  <div
+                    className="max-h-[180px] overflow-y-auto overscroll-contain custom-scrollbar px-2 py-1"
+                    onWheel={stopMenuScrollChain}
+                  >
+                    <div className="space-y-0.5">
+                      {skillsLoading && (
+                        <div className="flex items-center gap-2 px-3 py-2 text-[12px] text-slate-500 dark:text-slate-400">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          加载技能列表...
+                        </div>
+                      )}
+                      {!skillsLoading && filteredSkills.length === 0 && (
+                        <div className="px-3 py-2 text-[12px] text-slate-500 dark:text-slate-400">
+                          {atQuery ? '无匹配技能' : '暂无可用技能'}
+                        </div>
+                      )}
+                      {!skillsLoading && filteredSkills.map((skill, idx) => {
+                        const isCurrentSkill = selectedSkill?.name === skill.name;
+                        return (
+                          <button
+                            key={skill.name}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleSkillSelect(skill)}
+                            onMouseEnter={() => setHighlightIndex(idx)}
+                            className={`w-full px-3 py-2 rounded-xl flex items-start gap-2.5 text-left transition-colors ${
+                              isCurrentSkill
+                                ? 'bg-amber-50 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:ring-amber-700/60'
+                                : idx === highlightIndex
+                                ? 'bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-600/60'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <Zap className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+                              isCurrentSkill ? 'text-amber-500 dark:text-amber-400' : 'text-slate-600 dark:text-slate-200'
+                            }`} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[12px] font-medium text-slate-900 dark:text-white truncate">{skill.name}</span>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 flex-shrink-0">
+                                  {skill.group}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{skill.description}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {/* search input at bottom */}
+                  <div className="px-2 py-1.5 border-t border-slate-100 dark:border-slate-800">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                      <input
+                        value={atQuery}
+                        onChange={(e) => { setAtQuery(e.target.value); setHighlightIndex(0); }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        placeholder="搜索技能…"
+                        className="w-full pl-7 pr-2 py-1.5 text-[12px] border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-300 dark:focus:border-slate-600"
+                      />
                     </div>
                   </div>
                 </div>
