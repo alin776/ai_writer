@@ -36,7 +36,7 @@ interface TreeNodeData {
 interface CtxMenuState {
   x: number;
   y: number;
-  node: TreeNodeData;
+  node?: TreeNodeData; // undefined = 根目录空白区域
 }
 
 /** 内联重命名状态 */
@@ -122,6 +122,11 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
   const knowledgeInputRef = useRef<HTMLInputElement>(null);
   const [treeHeight, setTreeHeight] = useState(400);
 
+  // 文件树焦点目录：点击目录/文件时设置，点击空白区域时清空为 ''（根目录）
+  const [focusedDirPath, setFocusedDirPath] = useState('');
+  const setFocusedDirPathRef = useRef(setFocusedDirPath);
+  setFocusedDirPathRef.current = setFocusedDirPath;
+
   // 右键菜单
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
   // 内联重命名
@@ -198,14 +203,6 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
     return undefined;
   }, [activeFileId, treeData]);
 
-  /** 工具栏按钮的目标目录：基于当前选中节点推导 */
-  const activeParentPath = useMemo(() => {
-    if (!selectedPath) return '';
-    const node = findNode(treeData, selectedPath);
-    if (!node) return '';
-    return getParentPath(node);
-  }, [selectedPath, treeData]);
-
   const handleActivate = useCallback(
     (node: { data: TreeNodeData }) => {
       if (node.data.type === 'file' && node.data.id !== PHANTOM_ID) {
@@ -256,16 +253,6 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
     inlineTypeRef.current = inlineCreate.type;
     inlineParentPathRef.current = inlineCreate.parentPath;
   }
-
-  /** 右键菜单：新建文件 */
-  const handleCtxNewFile = useCallback((node: TreeNodeData) => {
-    setInlineCreate({ type: 'file', parentPath: getParentPath(node) });
-  }, []);
-
-  /** 右键菜单：新建文件夹 */
-  const handleCtxNewDir = useCallback((node: TreeNodeData) => {
-    setInlineCreate({ type: 'dir', parentPath: getParentPath(node) });
-  }, []);
 
   /** 内联重命名确认 */
   const handleRenameConfirm = useCallback(async (newName: string) => {
@@ -384,8 +371,11 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
             : 'text-zinc-600 hover:bg-zinc-100/60 dark:text-slate-400 dark:hover:bg-slate-800/60'
         }`}
         onClick={(e) => {
+          // 阻止冒泡到容器（避免触发容器的「清空焦点」逻辑）
+          e.stopPropagation();
+          // 更新文件树焦点目录
+          setFocusedDirPathRef.current(getParentPath(data));
           if (isDir) {
-            e.stopPropagation();
             node.toggle();
           }
         }}
@@ -458,10 +448,10 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
       <div className="px-3 py-1.5 flex items-center justify-between flex-shrink-0">
         <h2 className="text-[15px] text-zinc-800 dark:text-slate-100 tracking-tight">文件</h2>
         <div className="flex items-center gap-0.5">
-          <button type="button" onClick={() => setInlineCreate({ type: 'file', parentPath: activeParentPath })} className={toolbarBtnClass} title="新建文件">
+          <button type="button" onClick={() => setInlineCreate({ type: 'file', parentPath: focusedDirPath })} className={toolbarBtnClass} title="新建文件">
             <FilePlus className="h-4 w-4" />
           </button>
-          <button type="button" onClick={() => setInlineCreate({ type: 'dir', parentPath: activeParentPath })} className={toolbarBtnClass} title="新建文件夹">
+          <button type="button" onClick={() => setInlineCreate({ type: 'dir', parentPath: focusedDirPath })} className={toolbarBtnClass} title="新建文件夹">
             <FolderPlus className="h-4 w-4" />
           </button>
           <button type="button" onClick={() => knowledgeInputRef.current?.click()} className={toolbarBtnClass} title="上传知识库文件">
@@ -478,7 +468,19 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
       </div>
 
       {/* 文件树 */}
-      <div className="flex-1 overflow-hidden px-1" ref={treeContainerRef}>
+      <div
+        className="flex-1 overflow-hidden px-1"
+        ref={treeContainerRef}
+        onClick={() => {
+          // 点击空白区域 → 焦点回到根目录（节点内部的 onClick 已 stopPropagation）
+          setFocusedDirPath('');
+        }}
+        onContextMenu={(e) => {
+          // 只在空白区域触发（节点内部的 onContextMenu 已 stopPropagation）
+          e.preventDefault();
+          setCtxMenu({ x: e.clientX, y: e.clientY });
+        }}
+      >
         <Tree<TreeNodeData>
           ref={treeRef}
           data={treeData}
@@ -508,30 +510,42 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
             style={{ left: ctxMenu.x, top: ctxMenu.y }}
           >
             <button
-              onClick={() => { handleCtxNewFile(ctxMenu.node); setCtxMenu(null); }}
+              onClick={() => {
+                const parentPath = ctxMenu.node ? getParentPath(ctxMenu.node) : '';
+                setInlineCreate({ type: 'file', parentPath });
+                setCtxMenu(null);
+              }}
               className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-300 rounded hover:bg-zinc-100 dark:hover:bg-slate-700"
             >
               <FilePlus className="h-3.5 w-3.5" /> 新建文件
             </button>
             <button
-              onClick={() => { handleCtxNewDir(ctxMenu.node); setCtxMenu(null); }}
+              onClick={() => {
+                const parentPath = ctxMenu.node ? getParentPath(ctxMenu.node) : '';
+                setInlineCreate({ type: 'dir', parentPath });
+                setCtxMenu(null);
+              }}
               className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-300 rounded hover:bg-zinc-100 dark:hover:bg-slate-700"
             >
               <FolderPlus className="h-3.5 w-3.5" /> 新建文件夹
             </button>
-            <button
-              onClick={() => { setEditingNode({ path: ctxMenu.node.path, originalName: ctxMenu.node.name }); setCtxMenu(null); }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-300 rounded hover:bg-zinc-100 dark:hover:bg-slate-700"
-            >
-              <Pencil className="h-3.5 w-3.5" /> 重命名
-            </button>
-            <div className="h-px bg-zinc-200 dark:bg-slate-700 my-1" />
-            <button
-              onClick={() => { handleDelete(ctxMenu.node); setCtxMenu(null); }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> 删除
-            </button>
+            {ctxMenu.node && (
+              <>
+                <button
+                  onClick={() => { setEditingNode({ path: ctxMenu.node!.path, originalName: ctxMenu.node!.name }); setCtxMenu(null); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-slate-300 rounded hover:bg-zinc-100 dark:hover:bg-slate-700"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> 重命名
+                </button>
+                <div className="h-px bg-zinc-200 dark:bg-slate-700 my-1" />
+                <button
+                  onClick={() => { handleDelete(ctxMenu.node!); setCtxMenu(null); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> 删除
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
