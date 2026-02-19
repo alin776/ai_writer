@@ -21,7 +21,6 @@ export interface AgentChatRequest {
     chapter_context?: string;
     text?: string;
     current_content?: string;
-    use_optimization?: boolean;
     /** 编辑器选中的文字（纯文本） */
     selected_text?: string;
     /** 编辑器选中的文字（保留HTML格式） */

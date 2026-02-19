@@ -9,9 +9,6 @@ const WorksView = React.lazy(() => import('../views/WorksView'));
 const CreateWorkView = React.lazy(() => import('../views/CreateWorkView'));
 const WorkDetailView = React.lazy(() => import('../views/WorkDetailView'));
 const WorldviewGraphFullscreen = React.lazy(() => import('../views/WorldviewGraphFullscreen'));
-const HumanizeView = React.lazy(() => import('../views/HumanizeView'));
-const HumanizeHistoryView = React.lazy(() => import('../views/HumanizeHistoryView'));
-const HumanizeSessionDetail = React.lazy(() => import('../views/HumanizeHistoryView/SessionDetail'));
 const ServiceCreditsView = React.lazy(() => import('../views/ServiceCreditsView'));
 const ServiceUsageView = React.lazy(() => import('../views/ServiceUsageView'));
 const ServiceObtainView = React.lazy(() => import('../views/ServiceObtainView'));
@@ -179,30 +176,6 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <ChangeEmailView />
-          </SuspenseWrapper>
-        ),
-      },
-      {
-        path: '/humanize',
-        element: (
-          <SuspenseWrapper>
-            <HumanizeView />
-          </SuspenseWrapper>
-        ),
-      },
-      {
-        path: '/humanize/history',
-        element: (
-          <SuspenseWrapper>
-            <HumanizeHistoryView />
-          </SuspenseWrapper>
-        ),
-      },
-      {
-        path: '/humanize/history/:sessionId',
-        element: (
-          <SuspenseWrapper>
-            <HumanizeSessionDetail />
           </SuspenseWrapper>
         ),
       },

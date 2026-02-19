@@ -107,7 +107,6 @@ interface UseAgentChatReturn {
 export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatReturn {
   const { workId, chapterId, sessionId: externalSessionId } = options;
   const useBackendSessions = import.meta.env.VITE_USE_MOCK !== 'true';
-  const MAX_HUMANIZE_CHARS = 5000;
 
   const activityStartTimes = useRef<Map<string, number>>(new Map());
   const lastRequestRef = useRef<AgentChatRequest | null>(null);
@@ -376,29 +375,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       if (loadingSnap?.isLoading) {
         console.warn('[useAgentChat] stream already in progress, skip duplicate trigger');
         return;
-      }
-
-      // 如果开启 @optimization：补齐文本后走 Agent 接口（不写 humanize 历史）
-      if (request.context?.use_optimization) {
-        const current = sessionManager.getOrCreateSession(sessionId);
-        let text =
-          (request.context.current_content as string | undefined)?.trim() ||
-          (request.context.text as string | undefined)?.trim() ||
-          '';
-        if (!text) {
-          const history = [...current.messages].reverse();
-          const lastAgent = history.find((m) => m.role === 'agent' && m.content?.trim());
-          const lastUser = history.find((m) => m.role === 'user' && m.content?.trim());
-          text = (lastAgent?.content || lastUser?.content || '').trim();
-        }
-        if (text && text.length > MAX_HUMANIZE_CHARS) {
-          text = text.slice(0, MAX_HUMANIZE_CHARS);
-        }
-        request.context = {
-          ...request.context,
-          text,
-          current_content: text
-        };
       }
 
       stopRequestedRef.current = false;

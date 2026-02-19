@@ -38,8 +38,6 @@ class TaskType(str, Enum):
     TEXT_CLASSIFICATION = "text_classification"  # 文本分类
     SIMPLE_QA = "simple_qa"                     # 简单问答
     KEYWORD_EXTRACTION = "keyword_extraction"    # 关键词提取
-    HUMANIZE_DETECT = "humanize_detect"         # AI痕迹检测
-    HUMANIZE_VERIFY = "humanize_verify"         # 去痕迹验证
 
     # 中等任务
     TEXT_POLISH = "text_polish"                 # 文本润色
@@ -49,7 +47,6 @@ class TaskType(str, Enum):
 
     # 复杂任务
     CONTENT_CREATION = "content_creation"       # 内容创作
-    HUMANIZE_REWRITE = "humanize_rewrite"       # ✅ 去痕迹改写 (人性化改写)
     STORY_PLANNING = "story_planning"           # 故事规划
     CHARACTER_DESIGN = "character_design"       # 角色设计
     WORLD_BUILDING = "world_building"           # 世界观构建
@@ -165,8 +162,6 @@ TASK_TYPE_TO_COMPLEXITY: Dict[TaskType, TaskComplexity] = {
     TaskType.TEXT_CLASSIFICATION: TaskComplexity.SIMPLE,
     TaskType.SIMPLE_QA: TaskComplexity.SIMPLE,
     TaskType.KEYWORD_EXTRACTION: TaskComplexity.SIMPLE,
-    TaskType.HUMANIZE_DETECT: TaskComplexity.SIMPLE,      # ✅ AI痕迹检测
-    TaskType.HUMANIZE_VERIFY: TaskComplexity.SIMPLE,      # ✅ 去痕迹验证
 
     # 中等任务
     TaskType.TEXT_POLISH: TaskComplexity.MEDIUM,
@@ -176,7 +171,6 @@ TASK_TYPE_TO_COMPLEXITY: Dict[TaskType, TaskComplexity] = {
 
     # 复杂任务
     TaskType.CONTENT_CREATION: TaskComplexity.COMPLEX,
-    TaskType.HUMANIZE_REWRITE: TaskComplexity.COMPLEX,    # ✅ 去痕迹改写
     TaskType.STORY_PLANNING: TaskComplexity.COMPLEX,
     TaskType.CHARACTER_DESIGN: TaskComplexity.COMPLEX,
     TaskType.WORLD_BUILDING: TaskComplexity.COMPLEX,

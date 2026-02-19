@@ -49,7 +49,6 @@ const Header: React.FC = () => {
     if (path.includes('/works') && path !== '/works') return t('header.pages.workDetail');
     if (path === '/works') return '作品管理';
     if (path.includes('/knowledge')) return '知识库';
-    if (path.includes('/humanize')) return 'AI去痕';
     if (path.includes('/channels')) return '频道';
 
     // 图书馆模块

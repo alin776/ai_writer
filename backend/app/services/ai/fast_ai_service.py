@@ -1,7 +1,7 @@
 """
 Fast AI Service - 使用 gemini-2.5-flash-lite 快速模型
 
-专门用于AI去痕迹功能的检测和验证阶段，这些阶段不需要高质量的生成能力，
+用于不需要高质量生成能力的轻量任务（检测、验证、分类等），
 使用快速模型可以大幅降低响应时间和成本。
 
 性能优势:
@@ -464,81 +464,6 @@ class FastAIService:
         except Exception as e:
             logger.error(f"快速AI流式调用失败: {type(e).__name__}: {e}")
             raise
-
-    async def detect_ai_traces(self, text: str, prompt: str) -> tuple[str, dict]:
-        """
-        AI痕迹检测（便捷方法）
-
-        Args:
-            text: 待检测文本（仅用于日志）
-            prompt: 完整的检测prompt（已经format好的，不是模板）
-
-        Returns:
-            tuple: (检测结果的JSON字符串, usage统计字典)
-        """
-        messages = [
-            {
-                "role": "system",
-                "content": "你是一位专业的AI文本检测专家,请严格按照JSON格式返回检测结果。"
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-
-        logger.info(f"开始快速AI痕迹检测: 文本长度={len(text)}")
-
-        result, usage = await self.chat_completion(
-            messages=messages,
-            max_tokens=1500,
-            temperature=0.3,  # 低温度保证稳定
-            operation_type="humanize_detect"  # ✅ 对应TaskType.HUMANIZE_DETECT
-        )
-
-        return result, usage
-
-    async def verify_humanization(
-        self,
-        original_text: str,
-        humanized_text: str,
-        prompt: str
-    ) -> tuple[str, dict]:
-        """
-        去痕迹效果验证（便捷方法）
-
-        Args:
-            original_text: 原始文本（仅用于日志）
-            humanized_text: 改写后文本（仅用于日志）
-            prompt: 完整的验证prompt（已经format好的，不是模板）
-
-        Returns:
-            tuple: (验证结果的JSON字符串, usage统计字典)
-        """
-        messages = [
-            {
-                "role": "system",
-                "content": "你是一位AI文本检测专家,请严格按照JSON格式返回验证结果。"
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-
-        logger.info(
-            f"开始快速AI效果验证: 原文={len(original_text)}字, "
-            f"改写后={len(humanized_text)}字"
-        )
-
-        result, usage = await self.chat_completion(
-            messages=messages,
-            max_tokens=500,  # 验证结果通常较短
-            temperature=0.3,
-            operation_type="humanize_verify"  # ✅ 对应TaskType.HUMANIZE_VERIFY
-        )
-
-        return result, usage
 
 
 # 便捷的单例访问（可选）

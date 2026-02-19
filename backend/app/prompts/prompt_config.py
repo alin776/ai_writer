@@ -21,7 +21,6 @@ class PromptCategory(Enum):
     AGENT = "agent"                     # Agent 专用 Prompt
     REVIEW = "review"                   # 评审 Prompt
     EVALUATION = "evaluation"           # 评估 Prompt
-    HUMANIZE = "humanize"               # 人性化 Prompt
     PLANNING = "planning"               # 规划 Prompt
     CONTENT_CREATION = "content_creation"  # 内容创作 Prompt
     TEMPLATE = "template"               # YAML/JSON 模板文件
@@ -63,12 +62,6 @@ class PromptConfig:
             path="app.services.ai.evaluation_prompts",
             description="AI 评估 Prompt",
             category=PromptCategory.EVALUATION,
-            version="1.0.0"
-        ),
-        "humanize_prompts": PromptModuleInfo(
-            path="app.services.ai.humanize_prompts",
-            description="人性化改写 Prompt",
-            category=PromptCategory.HUMANIZE,
             version="1.0.0"
         ),
 

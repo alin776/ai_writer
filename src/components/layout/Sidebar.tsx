@@ -14,7 +14,6 @@ import {
   BarChart3,
   Gift,
   ChevronDown,
-  Wand2,
   Bell,
   Trophy,
   BookMarked,
@@ -50,7 +49,6 @@ const notificationNavItem: NavItem = {
 
 const mainNavItems: NavItem[] = [
   { id: 'works', label: '作品管理', icon: BookOpen, path: '/works' },
-  { id: 'humanize', label: 'AI去痕', icon: Wand2, path: '/humanize' },
   { id: 'skills', label: 'AI 技能', icon: Zap, path: '/skills' },
 ];
 

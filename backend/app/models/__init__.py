@@ -15,8 +15,6 @@ from app.models.glossary_term import GlossaryTerm
 from app.models.entity_group import EntityGroup, GroupMember
 from app.models.ai_call_log import AICallLog
 from app.models.evaluation_record import EvaluationRecord
-from app.models.humanize_session import HumanizeSession, HumanizeSessionDetail
-from app.models.user_profile import UserProfile
 from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory, KnowledgeSource
 from app.models.rewrite_history import RewriteSession, RewriteResult
 from app.models.book_analysis import BookAnalysisJob, JobStatus
@@ -93,9 +91,6 @@ __all__ = [
     "GroupMember",
     "AICallLog",
     "EvaluationRecord",
-    "HumanizeSession",
-    "HumanizeSessionDetail",
-    "UserProfile",
     "KnowledgeItem",
     "KnowledgeCategory",
     "KnowledgeSource",

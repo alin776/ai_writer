@@ -1,7 +1,7 @@
 ﻿import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/button';
-import { Send, Loader2, Square, BookOpen, Sparkles, ChevronRight, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus, Zap, Search, Settings } from 'lucide-react';
+import { Send, Loader2, Square, BookOpen, ChevronRight, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus, Zap, Search, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
@@ -269,7 +269,7 @@ MarkdownContent.displayName = 'MarkdownContent';
 type AtCommandStage = 'root' | 'knowledge' | 'skills';
 
 type RootCommandOption = {
-  key: 'knowledge' | 'optimization' | 'skills';
+  key: 'knowledge' | 'skills';
   label: string;
   description: string;
   icon: React.ReactNode;
@@ -283,12 +283,6 @@ const ROOT_OPTIONS: RootCommandOption[] = [
     description: '从知识库中添加',
     icon: <BookOpen className="w-4 h-4" />,
     hasChildren: true,
-  },
-  {
-    key: 'optimization',
-    label: '文本自然化',
-    description: '文本自然化',
-    icon: <Sparkles className="w-4 h-4" />,
   },
   {
     key: 'skills',
@@ -350,7 +344,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     conversationId,
   } = useAgentChat({ workId, chapterId, sessionId });  // 传入 workId 和 chapterId 进行会话隔离
 
-  // 获取当前章节内容，用 @optimization 直接调用去痕迹接口
+  // 获取当前章节内容
   const { currentChapter } = useEditorStore();
 
   // 获取草稿 store 的方法，用于会话切换时保存/恢复输入状态
@@ -441,7 +435,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const navigate = useNavigate();
 
   const [selectedDocs, setSelectedDocs] = useState<Array<{ id: string; title: string }>>([]);
-  const [optimizationSelected, setOptimizationSelected] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<{ name: string; description: string; group: string } | null>(null);
   const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; group: string }>>([]);
   const [skillsLoading, setSkillsLoading] = useState(false);
@@ -472,7 +465,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       if (draft) {
         setInputValue(draft.inputValue);
         setSelectedDocs(draft.selectedDocs);
-        setOptimizationSelected(draft.optimizationSelected);
         setSelectionContext(draft.selectionContext);
       }
     }
@@ -483,20 +475,19 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   useEffect(() => {
     if (!sessionId) return;
 
-    const hasContent = inputValue.trim() || selectedDocs.length > 0 || optimizationSelected || selectionContext;
+    const hasContent = inputValue.trim() || selectedDocs.length > 0 || selectionContext;
 
     if (hasContent) {
       saveDraft(sessionId, {
         inputValue,
         selectedDocs,
-        optimizationSelected,
         selectionContext,
       });
     } else {
       // 如果没有内容，清除草稿
       clearDraft(sessionId);
     }
-  }, [sessionId, inputValue, selectedDocs, optimizationSelected, selectionContext, saveDraft, clearDraft]);
+  }, [sessionId, inputValue, selectedDocs, selectionContext, saveDraft, clearDraft]);
 
   // 流式输出：真正的字符流，前端直接显示，不在前端处理换行效果
 
@@ -545,17 +536,6 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   }, [knowledgeFormTitle, knowledgeFormContent, knowledgeFormCategory, knowledgeFormTags, showSuccess, showError]);
 
   const containsAt = useMemo(() => AT_CHARS.some((c) => inputValue.includes(c)), [inputValue]);
-  // 去痕长度变量，用于显示
-  const MAX_HUMANIZE_CHARS = 5000;
-  const rawChapterContent = currentChapter?.content?.trim() || '';
-  const truncatedCount =
-    optimizationSelected && rawChapterContent.length > MAX_HUMANIZE_CHARS
-      ? rawChapterContent.length - MAX_HUMANIZE_CHARS
-      : 0;
-  const safeChapterContent =
-    optimizationSelected && rawChapterContent
-      ? rawChapterContent.slice(0, MAX_HUMANIZE_CHARS)
-      : undefined;
 
   const filteredRootOptions = useMemo(() => {
     // In sub-stages (knowledge/skills), always show all root options — search only applies to right column
@@ -1146,13 +1126,6 @@ ${context.selected_text}
 
   const handleRootOption = useCallback(
     (option: RootCommandOption) => {
-      if (option.key === 'optimization') {
-        setOptimizationSelected(true);
-        setInputValue(stripCurrentToken());
-        closeAtMenu();
-        requestAnimationFrame(() => inputRef.current?.focus());
-        return;
-      }
       if (option.key === 'skills') {
         setKnowledgePanelOpen(false);
         setAtStage('skills');
@@ -1167,7 +1140,7 @@ ${context.selected_text}
       setHighlightIndex(0);
       setAtMenuOpen(true);
     },
-    [closeAtMenu, stripCurrentToken]
+    []
   );
 
   const handleRootHover = useCallback(
@@ -1189,7 +1162,7 @@ ${context.selected_text}
         }
         return;
       }
-      // For other options (optimization), collapse any open sub-panel
+      // Collapse any open sub-panel for root items without children
       if (knowledgePanelOpen || atStage === 'knowledge' || atStage === 'skills') {
         setKnowledgePanelOpen(false);
         setAtStage('root');
@@ -1270,22 +1243,12 @@ ${context.selected_text}
     setSelectedDocs((prev) => prev.filter((t) => t.id !== tag));
   }, []);
 
-  const removeOptimization = useCallback(() => {
-    setOptimizationSelected(false);
-  }, []);
-
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
 
     const message = inputValue.trim();
     const knowledgeDocIds = selectedDocs.map((d) => d.id);
-    const useOptimization = optimizationSelected;
     const chapterContent = currentChapter?.content?.trim();
-    const MAX_HUMANIZE_CHARS = 5000;
-    const safeChapterContent =
-      chapterContent && chapterContent.length > MAX_HUMANIZE_CHARS
-        ? chapterContent.slice(0, MAX_HUMANIZE_CHARS)
-        : chapterContent;
 
     const selectionPayload = selectionContext?.selected_text
       ? {
@@ -1316,16 +1279,9 @@ ${context.selected_text}
       quoted_text: selectionContext?.selected_text || undefined,
       context: {
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
-        use_optimization: useOptimization,
         ...selectionPayload,
         nodes_info: getNodesInfoPayload(),
         ...locateHint,
-        ...(useOptimization && safeChapterContent
-          ? {
-              current_content: safeChapterContent,
-              text: safeChapterContent, // 兼容后端可能读取 text 字段
-            }
-          : {}),
         instruction_context: selectionContext?.selected_text
           ? `用户选中了以下文本进行操作:
 ---
@@ -1341,7 +1297,6 @@ ${selectionContext.selected_text}
     closeAtMenu();
     adjustInputHeight();
     setSelectedDocs([]);
-    setOptimizationSelected(false);
     setSelectedSkill(null);
     setSelectionContext(null);
 
@@ -1409,7 +1364,7 @@ ${selectionContext.selected_text}
         closeAtMenu();
       }
 
-      // 当输入框内容为空时，Backspace 删除最后一个标签（先知识文档，再 skill，再 optimization）
+      // 当输入框内容为空时，Backspace 删除最后一个标签（先知识文档，再 skill）
       if (e.key === 'Backspace' && !inputValue.trim()) {
         if (selectedDocs.length > 0) {
           e.preventDefault();
@@ -1421,10 +1376,6 @@ ${selectionContext.selected_text}
           e.preventDefault();
           removeSkill();
           return;
-        }
-        if (optimizationSelected) {
-          e.preventDefault();
-          removeOptimization();
         }
       }
     },
@@ -1441,9 +1392,7 @@ ${selectionContext.selected_text}
       handleSkillSelect,
       highlightIndex,
       inputValue,
-      optimizationSelected,
       removeKnowledgeTag,
-      removeOptimization,
       removeSkill,
       selectedDocs,
       selectedSkill,
@@ -1455,7 +1404,7 @@ ${selectionContext.selected_text}
 
   useLayoutEffect(() => {
     adjustInputHeight();
-  }, [inputValue, selectedDocs.length, optimizationSelected, adjustInputHeight]);
+  }, [inputValue, selectedDocs.length, adjustInputHeight]);
 
   // 预留底部滚动缓冲，让最新消息可被顶到顶部
   useLayoutEffect(() => {
@@ -1500,7 +1449,7 @@ ${selectionContext.selected_text}
                     style={{ maxWidth: '100%' }}
                     title={selectionContext.selected_text}
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
+                    <BookOpen className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
                     <span className="truncate max-w-[240px]">{selectionContext.selected_text}</span>
                     <button
                       type="button"
@@ -1511,24 +1460,6 @@ ${selectionContext.selected_text}
                         setSelectionContext(null);
                       }}
                       aria-label="移除选中"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                )}
-                {optimizationSelected && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
-                    <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                    文本自然化
-                    <button
-                      type="button"
-                      className="hover:text-zinc-900 transition-colors"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        removeOptimization();
-                      }}
-                      aria-label="移除文本自然化"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -2055,7 +1986,7 @@ ${selectionContext.selected_text}
                     style={{ maxWidth: '100%' }}
                     title={selectionContext.selected_text}
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
+                    <BookOpen className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
                     <span className="truncate max-w-[240px]">{selectionContext.selected_text}</span>
                     <button
                       type="button"
@@ -2066,24 +1997,6 @@ ${selectionContext.selected_text}
                         setSelectionContext(null);
                       }}
                       aria-label="移除选中"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                )}
-                {optimizationSelected && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
-                    <Sparkles className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
-                    文本自然化
-                    <button
-                      type="button"
-                      className="hover:text-zinc-900 transition-colors"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        removeOptimization();
-                      }}
-                      aria-label="移除文本自然化"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -2157,12 +2070,6 @@ ${selectionContext.selected_text}
                 />
               </div>
             </div>
-
-            {truncatedCount > 0 && (
-              <div className="text-[11px] text-amber-600 px-1 dark:text-amber-400">
-                章节内容超过 5000 字，已截断超过的 {truncatedCount} 字符进行去痕迹处理
-              </div>
-            )}
 
             <div className="flex items-center justify-between gap-2">
               <button

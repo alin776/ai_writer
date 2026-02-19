@@ -12,7 +12,7 @@ from app.api.v1 import (
     timeline,
     groups,
     rewrite_history,
-    humanize,
+
     ws,
     agent,
     monitoring,
@@ -58,7 +58,6 @@ api_router.include_router(novel_analysis.router, prefix="/analysis", tags=["nove
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(rewrite_history.router, prefix="/rewrite-history", tags=["rewrite-history"])
-api_router.include_router(humanize.router, prefix="/humanize", tags=["humanize"])
 api_router.include_router(agent.router, prefix="/agent", tags=["agent"])
 api_router.include_router(books.router, prefix="/books", tags=["books"])
 api_router.include_router(ws.router, tags=["websocket"])

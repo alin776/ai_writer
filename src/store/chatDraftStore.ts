@@ -6,7 +6,6 @@ import { create } from 'zustand';
 export interface SessionDraft {
   inputValue: string;
   selectedDocs: Array<{ id: string; title: string }>;
-  optimizationSelected: boolean;
   selectionContext: {
     selected_text?: string;
     selected_text_html?: string;
@@ -54,7 +53,6 @@ interface ChatDraftState {
 const DEFAULT_DRAFT: SessionDraft = {
   inputValue: '',
   selectedDocs: [],
-  optimizationSelected: false,
   selectionContext: null,
 };
 

@@ -217,8 +217,6 @@ export const AI_OPERATION_LABELS: Record<string, string> = {
   'text_classification': '内容分类',
   'simple_qa': '智能问答',
   'keyword_extraction': '要点提取',
-  'humanize_detect': '内容检测',
-  'humanize_verify': '内容验证',
   // 中等任务
   'text_polish': '文本润色',
   'text_expansion': '文本扩写',
@@ -226,7 +224,6 @@ export const AI_OPERATION_LABELS: Record<string, string> = {
   'translation': '翻译',
   // 复杂任务
   'content_creation': '内容创作',
-  'humanize_rewrite': '智能改写',
   'story_planning': '故事规划',
   'character_design': '角色设计',
   'world_building': '世界观构建',
@@ -238,7 +235,6 @@ export const AI_OPERATION_LABELS: Record<string, string> = {
 /**
  * 格式化交易描述，隐藏技术细节
  * @example "AI调用: simple_qa" -> "智能问答"
- * @example "FastAI调用: humanize_detect" -> "内容检测"
  * @example "AI调用: content_creation" -> "内容创作"
  */
 export function formatTransactionDescription(description: string | null): string {
