@@ -1,162 +1,260 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Zap, Loader2, AlertCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { Search, Copy, Check, Zap, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import SkillEditor from '@/components/editor/SkillEditor';
 import { agentApi } from '@/services/agentApi';
 
 interface Skill {
   name: string;
   description: string;
   group: string;
+  allowed_tools?: string[];
+  content?: string;
 }
 
 const GROUP_ORDER = ['质量检查', '创作分析', '创作辅助'];
 
+// ── channel-style section header ──────────────────────────────────────────────
+function SectionHeader({
+  title, count, expanded, onToggle,
+}: {
+  title: string; count: number; expanded: boolean; onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center gap-1.5 px-2 py-2
+                 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
+    >
+      {expanded
+        ? <ChevronDown  className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
+        : <ChevronRight className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
+      }
+      <span className="flex-1 text-left text-gray-500 dark:text-gray-400 text-sm uppercase tracking-wide">
+        {title}
+      </span>
+      <span className="text-xs text-gray-400 dark:text-gray-500">{count}</span>
+    </button>
+  );
+}
+
+// ── main component ────────────────────────────────────────────────────────────
 export default function SkillsView() {
-  const [skills, setSkills] = useState<Skill[]>([]);
+  const [skills,  setSkills]  = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [error,   setError]   = useState<string | null>(null);
+  const [selected, setSelected] = useState<Skill | null>(null);
+  const [search,  setSearch]  = useState('');
+  const [copied,  setCopied]  = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(
+    Object.fromEntries(GROUP_ORDER.map(g => [g, true]))
+  );
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
-    const fetchSkills = async () => {
-      try {
-        setLoading(true);
-        const data = await agentApi.getSkills();
-        setSkills(data);
-      } catch (err: any) {
-        setError(err?.message || '获取技能列表失败');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSkills();
+    agentApi.getSkills()
+      .then(data => { setSkills(data); setLoading(false); })
+      .catch(err  => { setError(err?.message || '获取技能列表失败'); setLoading(false); });
   }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return skills;
+    return skills.filter(s =>
+      s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+    );
+  }, [skills, search]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Skill[]>();
-    for (const skill of skills) {
-      const list = map.get(skill.group) || [];
-      list.push(skill);
-      map.set(skill.group, list);
+    for (const s of filtered) {
+      const arr = map.get(s.group) ?? [];
+      arr.push(s);
+      map.set(s.group, arr);
     }
-    const sorted: [string, Skill[]][] = [];
-    for (const g of GROUP_ORDER) {
-      if (map.has(g)) sorted.push([g, map.get(g)!]);
-    }
-    for (const [g, list] of map) {
-      if (!GROUP_ORDER.includes(g)) sorted.push([g, list]);
-    }
-    return sorted;
-  }, [skills]);
+    const out: [string, Skill[]][] = [];
+    for (const g of GROUP_ORDER)   { if (map.has(g)) out.push([g, map.get(g)!]); }
+    for (const [g, list] of map)   { if (!GROUP_ORDER.includes(g)) out.push([g, list]); }
+    return out;
+  }, [filtered]);
 
-  // Auto-select first visible skill after grouping
+  // auto-select first skill on load
   useEffect(() => {
-    if (grouped.length > 0 && grouped[0][1].length > 0 && !selectedSkill) {
-      setSelectedSkill(grouped[0][1][0]);
+    if (!selected && grouped.length > 0 && grouped[0][1].length > 0) {
+      setSelected(grouped[0][1][0]);
     }
-  }, [grouped, selectedSkill]);
+  }, [grouped, selected]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full py-32">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-        <span className="ml-2 text-gray-500">加载技能列表...</span>
-      </div>
-    );
-  }
+  const handleCopy = useCallback(() => {
+    if (!selected) return;
+    navigator.clipboard.writeText(`/${selected.name}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }, [selected]);
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full py-32 text-gray-500">
-        <AlertCircle className="w-8 h-8 mb-2 text-red-400" />
-        <p>{error}</p>
-      </div>
-    );
-  }
+  // YAML 作为首个代码块，与正文一起在编辑器里
+  const editorContent = useMemo(() => {
+    if (!selected) return '';
+    const yaml = [
+      '```yaml',
+      `name: ${selected.name}`,
+      `category: ${selected.group}`,
+      `description: ${selected.description}`,
+      ...(selected.allowed_tools?.length
+        ? [`allowed-tools: [${selected.allowed_tools.join(', ')}]`]
+        : []),
+      '```',
+    ].join('\n');
+    return selected.content ? yaml + '\n\n' + selected.content : yaml;
+  }, [selected]);
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="px-6 py-5 border-b border-gray-200 dark:border-slate-700">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
-            <Zap className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">AI 技能</h1>
-            <p className="text-sm text-gray-500 dark:text-slate-400">
-              {skills.length} 个可用技能 · 在对话中使用 <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-slate-800 rounded text-xs">/技能名</code> 快速调用
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="h-full flex flex-col bg-white dark:bg-gray-950 text-gray-900 dark:text-white">
 
-      {/* Body: left list + right detail */}
+      {/* ── body ──────────────────────────────────────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left panel — grouped skill list */}
-        <div className="w-72 border-r border-gray-200 dark:border-slate-700 overflow-y-auto py-4 px-3 space-y-5">
-          {grouped.map(([group, items]) => (
-            <div key={group}>
-              <div className="px-3 pb-2 text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">
-                {group}
-              </div>
-              <div className="space-y-0.5">
-                {items.map((skill) => {
-                  const active = selectedSkill?.name === skill.name;
-                  return (
-                    <button
-                      key={skill.name}
-                      onClick={() => setSelectedSkill(skill)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
-                        active
-                          ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
-                          : 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Zap className={`w-3.5 h-3.5 flex-shrink-0 ${active ? 'text-amber-500' : 'text-gray-400'}`} />
-                        <span className="text-sm font-medium truncate">{skill.name}</span>
-                      </div>
-                    </button>
-                  );
-                })}
+
+        {/* ── left panel wrapper ────────────────────────────────────────── */}
+        <div className="relative flex-shrink-0">
+          <div
+            className={`${
+              isSidebarCollapsed ? 'w-0' : 'w-56 min-w-56'
+            } transition-all duration-300 ease-in-out overflow-hidden border-r border-gray-100 dark:border-gray-700 flex flex-col bg-white dark:bg-gray-900`}
+          >
+
+            {/* search */}
+            <div className="p-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="搜索技能…"
+                  className="w-full pl-7 pr-7 py-1.5 text-xs border border-gray-200 dark:border-gray-600
+                             rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                             focus:outline-none focus:border-gray-300 dark:focus:border-gray-500"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             </div>
-          ))}
+
+            {/* skill list */}
+            <div className="flex-1 overflow-y-auto p-1.5 pb-3">
+              {loading && (
+                <p className="p-4 text-center text-xs text-gray-400 dark:text-gray-500">加载中…</p>
+              )}
+              {error && (
+                <p className="p-4 text-center text-xs text-red-500 dark:text-red-400">{error}</p>
+              )}
+
+              {grouped.map(([group, items]) => {
+                const isExpanded = expandedSections[group] ?? true;
+                return (
+                  <div key={group} className="mb-1">
+                    <SectionHeader
+                      title={group}
+                      count={items.length}
+                      expanded={isExpanded}
+                      onToggle={() =>
+                        setExpandedSections(prev => ({ ...prev, [group]: !prev[group] }))
+                      }
+                    />
+
+                    {isExpanded && items.map(skill => {
+                      const active = selected?.name === skill.name;
+                      return (
+                        <button
+                          key={skill.name}
+                          onClick={() => setSelected(skill)}
+                          className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-colors ${
+                            active
+                              ? 'bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-100'
+                              : 'hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          <Zap className="shrink-0 w-4 h-4 opacity-60" />
+                          <span className="flex-1 w-0 text-left truncate text-sm">{skill.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── sidebar toggle button ─────────────────────────────────────── */}
+          <button
+            onClick={() => setIsSidebarCollapsed(prev => !prev)}
+            className="absolute top-1/2 -translate-y-1/2 -right-3 z-10
+                       w-6 h-6 rounded-full flex items-center justify-center
+                       bg-white dark:bg-gray-800
+                       border border-gray-200 dark:border-gray-600
+                       shadow-sm hover:shadow
+                       text-gray-400 dark:text-gray-500
+                       hover:text-gray-600 dark:hover:text-gray-300
+                       transition-colors"
+          >
+            {isSidebarCollapsed
+              ? <ChevronRight className="w-3.5 h-3.5" />
+              : <ChevronLeft  className="w-3.5 h-3.5" />
+            }
+          </button>
         </div>
 
-        {/* Right panel — skill detail */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {selectedSkill ? (
-            <div className="max-w-2xl">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-amber-500" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{selectedSkill.name}</h2>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400">
-                    {selectedSkill.group}
+        {/* ── right panel ───────────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-950">
+          {selected ? (
+            <>
+              {/* path bar */}
+              <div className="flex items-center justify-between px-5 py-2.5 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/30 flex-shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-gray-400 dark:text-slate-600 text-sm">/</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {selected.name}
+                  </span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 border border-gray-200 dark:border-slate-700">
+                    {selected.group}
                   </span>
                 </div>
+
+                <button
+                  onClick={handleCopy}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] rounded-md border transition-colors flex-shrink-0 ${
+                    copied
+                      ? 'text-green-600 dark:text-green-400 border-green-200 dark:border-green-800/50 bg-green-50 dark:bg-green-900/20'
+                      : 'text-gray-500 dark:text-slate-400 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:text-gray-700 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                </button>
               </div>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <p className="text-gray-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                  {selectedSkill.description}
-                </p>
+
+              {/* 统一滚动区：YAML 代码块 + 正文，全在同一个编辑器里 */}
+              <div className="flex-1 overflow-hidden min-h-0">
+                <SkillEditor
+                  key={selected.name}
+                  content={editorContent}
+                  placeholder="在此编写技能文档…"
+                />
               </div>
-              <div className="mt-6 p-4 rounded-xl bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700">
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  💡 在 AI 对话框中输入 <code className="px-1.5 py-0.5 bg-white dark:bg-slate-700 rounded text-amber-600 dark:text-amber-400">/{selectedSkill.name}</code> 即可调用此技能
-                </p>
-              </div>
-            </div>
+            </>
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              <p>选择一个技能查看详情</p>
-            </div>
+            !loading && (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-300 dark:text-slate-600">
+                <span className="text-sm text-gray-400 dark:text-slate-500">选择一个技能查看详情</span>
+              </div>
+            )
           )}
         </div>
       </div>
+
     </div>
   );
 }
