@@ -311,9 +311,12 @@ Based on identified state, provide specific fixes. Use tools for quantitative an
 
 Analyzes dialogue for voice distinctiveness between characters.
 
+> **路径提示**: 脚本位于 `skills/character/dialogue/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
-python scripts/voice_check.py dialogue.txt
-python scripts/voice_check.py --text "\"I want...\" \"I want...\"" --speakers Alice,Bob
+python skills/character/dialogue/scripts/voice_check.py dialogue.txt
+python skills/character/dialogue/scripts/voice_check.py --text "\"I want...\" \"I want...\"" --speakers Alice,Bob
 ```
 
 **Analyzes:**
@@ -328,8 +331,8 @@ python scripts/voice_check.py --text "\"I want...\" \"I want...\"" --speakers Al
 Checks dialogue against the double-duty test.
 
 ```bash
-python scripts/dialogue_audit.py scene.txt
-python scripts/dialogue_audit.py --text "dialogue here"
+python skills/character/dialogue/scripts/dialogue_audit.py scene.txt
+python skills/character/dialogue/scripts/dialogue_audit.py --text "dialogue here"
 ```
 
 **Reports:**

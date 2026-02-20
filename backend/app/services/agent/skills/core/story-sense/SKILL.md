@@ -124,10 +124,13 @@ Is there anything on the page?
 ### entropy.py
 Injects creative randomness from curated lists.
 
+> **路径提示**: 脚本位于 `skills/core/story-sense/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
-python scripts/entropy.py lies
-python scripts/entropy.py disasters --count 3
-python scripts/entropy.py --combo
+python skills/core/story-sense/scripts/entropy.py lies
+python skills/core/story-sense/scripts/entropy.py disasters --count 3
+python skills/core/story-sense/scripts/entropy.py --combo
 ```
 
 **Lists:** lies, ghosts, disasters, dilemmas, professions, locations, collisions, openings
@@ -136,9 +139,9 @@ python scripts/entropy.py --combo
 Generates characters from abstract story functions.
 
 ```bash
-python scripts/functions.py
-python scripts/functions.py --setting scifi
-python scripts/functions.py healer --setting fantasy
+python skills/core/story-sense/scripts/functions.py
+python skills/core/story-sense/scripts/functions.py --setting scifi
+python skills/core/story-sense/scripts/functions.py healer --setting fantasy
 ```
 
 **Functions:** healer, enforcer, keeper_of_secrets, maker, trader, guide, entertainer, death_worker, transgressor

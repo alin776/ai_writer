@@ -381,9 +381,12 @@ Based on identified state, provide specific fixes.
 
 Analyzes ending structure and type.
 
+> **路径提示**: 脚本位于 `skills/structure/endings/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
-python scripts/ending_check.py final-chapter.txt
-python scripts/ending_check.py --text "The resolution..."
+python skills/structure/endings/scripts/ending_check.py final-chapter.txt
+python skills/structure/endings/scripts/ending_check.py --text "The resolution..."
 ```
 
 **Checks:**
@@ -397,8 +400,8 @@ python scripts/ending_check.py --text "The resolution..."
 Tracks setups and payoffs across a story.
 
 ```bash
-python scripts/setup_payoff.py --setup "The rusty key" --file story.txt
-python scripts/setup_payoff.py --analyze story.txt
+python skills/structure/endings/scripts/setup_payoff.py --setup "The rusty key" --file story.txt
+python skills/structure/endings/scripts/setup_payoff.py --analyze story.txt
 ```
 
 **Reports:**

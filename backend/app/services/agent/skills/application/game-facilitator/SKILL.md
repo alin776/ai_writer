@@ -493,8 +493,11 @@ Options:
 
 Quick session note template generator.
 
+> **路径提示**: 脚本位于 `skills/application/game-facilitator/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
-python scripts/session_notes.py "Session Title"
+python skills/application/game-facilitator/scripts/session_notes.py "Session Title"
 ```
 
 ### npc_generator.py
@@ -502,8 +505,8 @@ python scripts/session_notes.py "Session Title"
 Generate NPCs on demand.
 
 ```bash
-python scripts/npc_generator.py --tone dark-fantasy
-python scripts/npc_generator.py --role merchant --trait suspicious
+python skills/application/game-facilitator/scripts/npc_generator.py --tone dark-fantasy
+python skills/application/game-facilitator/scripts/npc_generator.py --role merchant --trait suspicious
 ```
 
 ### complication_generator.py
@@ -511,7 +514,7 @@ python scripts/npc_generator.py --role merchant --trait suspicious
 Generate complications when stuck.
 
 ```bash
-python scripts/complication_generator.py --current "investigating the crime"
+python skills/application/game-facilitator/scripts/complication_generator.py --current "investigating the crime"
 ```
 
 ---
@@ -636,7 +639,7 @@ This skill has built-in persistence through the `session_notes.py` tool.
 The game-facilitator skill uses `session_notes.py` to create and maintain session logs:
 
 ```bash
-python scripts/session_notes.py "Session Title"
+python skills/application/game-facilitator/scripts/session_notes.py "Session Title"
 ```
 
 This generates structured session notes that persist:

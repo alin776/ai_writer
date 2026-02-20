@@ -299,15 +299,19 @@ Output synthesis plans as structured documents:
 ### synthesize.py
 Interactive synthesis session from DNA documents.
 
+
+> **路径提示**: 脚本位于 `skills/application/adaptation-synthesis/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
 # Start synthesis from single DNA
-python scripts/synthesize.py hamlet.json --context "corporate dystopia"
+python skills/application/adaptation-synthesis/scripts/synthesize.py hamlet.json --context "corporate dystopia"
 
 # Combine multiple sources
-python scripts/synthesize.py hamlet.json killjoys.json --primary hamlet
+python skills/application/adaptation-synthesis/scripts/synthesize.py hamlet.json killjoys.json --primary hamlet
 
 # Generate form options for specific function
-python scripts/synthesize.py --function "proximity to power" --context scifi --count 5
+python skills/application/adaptation-synthesis/scripts/synthesize.py --function "proximity to power" --context scifi --count 5
 ```
 
 ### form_options.py
@@ -315,10 +319,10 @@ Generates setting-appropriate forms for abstract functions.
 
 ```bash
 # Get form options
-python scripts/form_options.py "proximity to power" --setting corporate
+python skills/application/adaptation-synthesis/scripts/form_options.py "proximity to power" --setting corporate
 
 # With constraints
-python scripts/form_options.py "privileged information" --setting scifi --constraint "no supernatural"
+python skills/application/adaptation-synthesis/scripts/form_options.py "privileged information" --setting scifi --constraint "no supernatural"
 ```
 
 ### validate_synthesis.py
@@ -326,13 +330,13 @@ Checks synthesis document for completeness and function coverage.
 
 ```bash
 # Validate against source DNA
-python scripts/validate_synthesis.py synthesis.json --against hamlet.json
+python skills/application/adaptation-synthesis/scripts/validate_synthesis.py synthesis.json --against hamlet.json
 
 # Check emotional alignment
-python scripts/validate_synthesis.py synthesis.json --genre drama
+python skills/application/adaptation-synthesis/scripts/validate_synthesis.py synthesis.json --genre drama
 
 # Full validation
-python scripts/validate_synthesis.py synthesis.json --full
+python skills/application/adaptation-synthesis/scripts/validate_synthesis.py synthesis.json --full
 ```
 
 ## Example Interaction

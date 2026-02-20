@@ -284,12 +284,16 @@ If frontmatter exists, use it. If not, infer relationships from wiki-links and d
 ### watcher.py
 Simple file watcher daemon. Run in background to log changes.
 
+
+> **路径提示**: 脚本位于 `skills/structure/story-zoom/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
 # Start the watcher (runs until killed)
-python scripts/watcher.py ./story-project
+python skills/structure/story-zoom/scripts/watcher.py ./story-project
 
 # With custom log location
-python scripts/watcher.py ./story-project --log ./custom/change-log.jsonl
+python skills/structure/story-zoom/scripts/watcher.py ./story-project --log ./custom/change-log.jsonl
 ```
 
 ### init.py
@@ -297,10 +301,10 @@ Initialize story-state directory for a project.
 
 ```bash
 # Initialize in current directory
-python scripts/init.py
+python skills/structure/story-zoom/scripts/init.py
 
 # Initialize specific project
-python scripts/init.py ./story-project
+python skills/structure/story-zoom/scripts/init.py ./story-project
 ```
 
 ### status.py
@@ -308,13 +312,13 @@ Display current change log summary.
 
 ```bash
 # Show changes since last review
-python scripts/status.py ./story-project
+python skills/structure/story-zoom/scripts/status.py ./story-project
 
 # Show all changes
-python scripts/status.py ./story-project --all
+python skills/structure/story-zoom/scripts/status.py ./story-project --all
 
 # JSON output
-python scripts/status.py ./story-project --json
+python skills/structure/story-zoom/scripts/status.py ./story-project --json
 ```
 
 ---

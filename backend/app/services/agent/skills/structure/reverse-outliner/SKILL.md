@@ -103,8 +103,11 @@ Every scene serves structural, emotional, and character functions. By extracting
 ### segment_book.py
 Segments raw book text into chapters and scenes.
 
+> **路径提示**: 脚本位于 `skills/structure/reverse-outliner/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
-python scripts/segment_book.py book.txt [options]
+python skills/structure/reverse-outliner/scripts/segment_book.py book.txt [options]
 ```
 
 **Options:**
@@ -118,7 +121,7 @@ python scripts/segment_book.py book.txt [options]
 Applies scene-sequencing analysis (Goal/Conflict/Disaster) to all scenes.
 
 ```bash
-python scripts/analyze_scene_batch.py segments.json book.txt [options]
+python skills/structure/reverse-outliner/scripts/analyze_scene_batch.py segments.json book.txt [options]
 ```
 
 **Options:**
@@ -131,7 +134,7 @@ python scripts/analyze_scene_batch.py segments.json book.txt [options]
 Identifies primary and secondary elemental genres from text patterns.
 
 ```bash
-python scripts/detect_genre.py book.txt [options]
+python skills/structure/reverse-outliner/scripts/detect_genre.py book.txt [options]
 ```
 
 **Options:**
@@ -144,7 +147,7 @@ python scripts/detect_genre.py book.txt [options]
 Identifies protagonist and major characters, tracks their arcs.
 
 ```bash
-python scripts/track_characters.py segments.json book.txt [options]
+python skills/structure/reverse-outliner/scripts/track_characters.py segments.json book.txt [options]
 ```
 
 **Options:**
@@ -158,7 +161,7 @@ python scripts/track_characters.py segments.json book.txt [options]
 Synthesizes all analysis into structured markdown outline.
 
 ```bash
-python scripts/generate_outline.py [options]
+python skills/structure/reverse-outliner/scripts/generate_outline.py [options]
 ```
 
 **Options:**
@@ -173,7 +176,7 @@ python scripts/generate_outline.py [options]
 Runs full pipeline from book.txt to outline.md.
 
 ```bash
-python scripts/reverse_outline.py book.txt [options]
+python skills/structure/reverse-outliner/scripts/reverse_outline.py book.txt [options]
 ```
 
 **Options:**

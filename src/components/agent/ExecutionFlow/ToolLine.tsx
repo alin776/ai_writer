@@ -22,6 +22,7 @@ const TOOL_VERB_MAP: Record<string, string> = {
   read_todos: 'ReadTodos',
   task: 'Task',
   skill: 'Skill',
+  execute: 'Run',
 };
 
 /**
@@ -66,6 +67,10 @@ function formatToolLine(toolName?: string, toolInput?: any, fallbackTitle?: stri
     }
     case 'write_todos':
       return 'Planned';
+    case 'execute': {
+      const cmd = String(toolInput.command || '').slice(0, 60);
+      return `${verb}(${cmd})`;
+    }
     default:
       return verb;
   }
@@ -97,7 +102,7 @@ export function ToolLine({ status, toolName, toolInput, title, children }: ToolL
           }`}
         />
         {/* 工具调用文字 */}
-        <span className="text-gray-500 dark:text-gray-400">
+        <span className="text-gray-500 dark:text-gray-400 truncate">
           {displayText}
         </span>
       </div>

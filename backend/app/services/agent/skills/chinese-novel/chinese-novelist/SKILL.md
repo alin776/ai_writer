@@ -151,7 +151,11 @@ Options:
    - 对话规范 → [dialogue-writing.md](references/dialogue-writing.md)
    - 内容不足？使用 [content-expansion.md](references/content-expansion.md) 扩充技巧
 8. 设置结尾钩子 → [hook-techniques.md](references/hook-techniques.md)（10种钩子类型）
-9. **字数检查** - 必须使用脚本检查字数：`python scripts/check_chapter_wordcount.py <章节文件路径>` 低于3000字必须使用扩充技巧重写
+
+> **路径提示**: 脚本位于 `skills/chinese-novel/chinese-novelist/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
+9. **字数检查** - 必须使用脚本检查字数：`python skills/chinese-novel/chinese-novelist/scripts/check_chapter_wordcount.py <章节文件路径>` 低于3000字必须使用扩充技巧重写
 
 #### 3. 撰写后优化
 
@@ -163,7 +167,7 @@ Options:
     - **增加口语化表达**：人物对话要有个性，避免"书面语套话"
     - **优化节奏感**：长句和短句交替，避免句式单调
     - **细节具象化**：用具体的视觉/听觉/嗅觉细节替代笼统描述
-12. **字数检查** - 必须使用脚本检查字数：`python scripts/check_chapter_wordcount.py <章节文件路径>` 低于3000字必须使用扩充技巧重写
+12. **字数检查** - 必须使用脚本检查字数：`python skills/chinese-novel/chinese-novelist/scripts/check_chapter_wordcount.py <章节文件路径>` 低于3000字必须使用扩充技巧重写
 
 #### 4. 最后收尾
 
@@ -184,13 +188,13 @@ Options:
 
 ```bash
 # 检查单个章节
-python scripts/check_chapter_wordcount.py novels/小说名/第01章.md
+python skills/chinese-novel/chinese-novelist/scripts/check_chapter_wordcount.py novels/小说名/第01章.md
 
 # 检查所有章节
-python scripts/check_chapter_wordcount.py --all novels/小说名/
+python skills/chinese-novel/chinese-novelist/scripts/check_chapter_wordcount.py --all novels/小说名/
 
 # 自定义最小字数
-python scripts/check_chapter_wordcount.py novels/小说名/第01章.md 3500
+python skills/chinese-novel/chinese-novelist/scripts/check_chapter_wordcount.py novels/小说名/第01章.md 3500
 ```
 
 低于3000字的章节必须使用 [content-expansion.md](references/content-expansion.md) 的扩充技巧进行扩充。

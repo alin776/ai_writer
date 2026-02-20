@@ -246,10 +246,58 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
 
     # ─── 脚本执行（SandboxBackendProtocol） ───
 
+    def _resolve_script_path(self, script_ref: str) -> str | None:
+        """将 SKILL.md 中的短路径 scripts/xxx.py 解析为实际路径。
+
+        SKILL.md 指示 agent 用 ``python scripts/xxx.py``，但 cwd 是 work_dir 根，
+        实际脚本在 ``skills/{group}/{skill}/scripts/xxx.py``。
+        搜索 skills 子树找到唯一匹配并返回相对于 cwd 的路径。
+        """
+        candidate = self.cwd / script_ref
+        if candidate.exists():
+            return None  # 路径本身已正确，无需替换
+
+        # 提取文件名，在 skills/**/scripts/ 下搜索
+        script_name = Path(script_ref).name
+        skills_dir = self.cwd / "skills"
+        if not skills_dir.is_dir():
+            return None
+
+        matches = list(skills_dir.rglob(f"scripts/{script_name}"))
+        if len(matches) == 1:
+            return str(matches[0].relative_to(self.cwd)).replace("\\", "/")
+        return None
+
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
         """在 work_dir 内执行 shell 命令（受限沙箱）。"""
         if not command or not isinstance(command, str):
             return ExecuteResponse(output="Error: empty command", exit_code=1)
+
+        # ── 1. 虚拟绝对路径翻译 ──
+        # Agent 生成 "/chapters/...", "/skills/..." 等虚拟绝对路径，
+        # OS shell 会将 "/" 开头视为系统根目录，需翻译为 cwd 下的真实路径。
+        cwd_str = str(self.cwd)
+        _VDIRS = r"chapters|skills|knowledge|explorations|context|scripts"
+        command = re.sub(
+            rf'(?<=["\s])/(?=(?:{_VDIRS})(?:[/"\s\\]|$))',
+            lambda _: cwd_str.rstrip("/\\") + "/",
+            command,
+        )
+        # 处理命令开头的路径（如 /skills/...）
+        if command.startswith("/") and not command.startswith("//"):
+            first_seg = command.split("/")[1] if "/" in command[1:] else ""
+            if first_seg in ("chapters", "skills", "knowledge", "explorations", "context", "scripts"):
+                command = cwd_str.rstrip("/\\") + command
+
+        # ── 2. Skill 短路径修正 ──
+        # SKILL.md 写 "python scripts/xxx.py" 假定 cwd 在 skill 目录下，
+        # 但实际 cwd 是 work_dir 根，脚本在 skills/{group}/{skill}/scripts/ 下。
+        script_match = re.search(r'(?:^|[\s"])(scripts/[\w.\-/]+\.py)', command)
+        if script_match:
+            short_path = script_match.group(1)
+            real_path = self._resolve_script_path(short_path)
+            if real_path:
+                command = command.replace(short_path, real_path, 1)
 
         effective_timeout = timeout if timeout is not None else self._timeout
         try:

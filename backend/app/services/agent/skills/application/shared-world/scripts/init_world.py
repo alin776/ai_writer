@@ -1,60 +1,72 @@
 #!/usr/bin/env python3
-
-
-
 """
-init-world.py - Initialize a new world bible structure
+init_world.py - Initialize a new world bible structure
 
 Creates the full directory structure with template files
 for a wiki-style world bible.
 
 Usage:
-  deno run --allow-read --allow-write init-world.py "World Name" [output-dir]
+  python init_world.py "World Name" [output-dir]
 
 Example:
-  deno run --allow-read --allow-write init-world.py "The Shattered Realms"
-  deno run --allow-read --allow-write init-world.py "My World" ./worlds/my-world
+  python init_world.py "The Shattered Realms"
+  python init_world.py "My World" ./worlds/my-world
 """
 
 import sys
 import os
-import json
 import re
-import random
 from datetime import date
-def _wt(p, ct):
-    d=os.path.dirname(p)
-    if d: os.makedirs(d,exist_ok=True)
-    with open(p,'w',encoding='utf-8') as fh: fh.write(ct)
 
+# Ensure UTF-8 output on all platforms
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
+
+def _wt(p, ct):
+    """Write text to a file, creating parent directories as needed."""
+    d = os.path.dirname(p)
+    if d:
+        os.makedirs(d, exist_ok=True)
+    with open(p, 'w', encoding='utf-8') as fh:
+        fh.write(ct)
 
 
 DIRECTORIES = [
-  'characters',
-  'locations',
-  'history',
-  'history/eras',
-  'history/events',
-  'factions',
-  'rules',
-  'culture',
-  'artifacts',
-  'species',
-  'meta',
-];
+    'characters',
+    'locations',
+    'history',
+    'history/eras',
+    'history/events',
+    'factions',
+    'rules',
+    'culture',
+    'artifacts',
+    'species',
+    'meta',
+]
 
-def getDate(): string {
-  return new Date().toISOString().split('T')[0];
-}
 
-def slugify(name: string): string {
-  return name.lower().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-}
+def get_date():
+    """Return today's date as YYYY-MM-DD string."""
+    return date.today().isoformat()
 
-def generateDiscovery(worldName: string): string {
-  return f"# {worldName} World Bible
 
-Welcome to the canonical reference for {worldName}. This world bible contains all established facts, proposed additions, and organizational structure for our shared world.
+def slugify(name):
+    """Convert a name to a URL-friendly slug."""
+    slug = name.lower()
+    slug = re.sub(r'[^a-z0-9]+', '-', slug)
+    slug = re.sub(r'(^-|-$)', '', slug)
+    return slug
+
+
+def generate_discovery(world_name):
+    today = get_date()
+    return f"""# {world_name} World Bible
+
+Welcome to the canonical reference for {world_name}. This world bible contains all established facts, proposed additions, and organizational structure for our shared world.
 
 ## Quick Start
 
@@ -125,12 +137,13 @@ See [Contributors](meta/contributors.md) for who maintains what.
 
 ---
 
-*Created: {getDate()}*
-";
-}
+*Created: {today}*
+"""
 
-def generateCanonStatus(worldName: string): string {
-  return f"# {worldName} Canon Status
+
+def generate_canon_status(world_name):
+    today = get_date()
+    return f"""# {world_name} Canon Status
 
 Overview of canonical state across all categories.
 
@@ -159,13 +172,15 @@ Proposed entries awaiting establishment:
 
 ---
 
-*Last updated: {getDate()}*
-";
-}
+*Last updated: {today}*
+"""
 
-def generateIndex(category: string, description: string): string {
-  singular = category.endswith('s') ? category.slice(0, -1) : category;
-  return f"# {category.charAt(0).upper() + category.slice(1)}
+
+def generate_index(category, description):
+    singular = category[:-1] if category.endswith('s') else category
+    cap_category = category[0].upper() + category[1:]
+    today = get_date()
+    return f"""# {cap_category}
 
 {description}
 
@@ -175,25 +190,26 @@ def generateIndex(category: string, description: string): string {
 |------|--------|---------|
 | *No entries yet* | | |
 
-## Adding New {category.charAt(0).upper() + category.slice(1)}
+## Adding New {cap_category}
 
-1. Create file in this directory: \"${singular}-name.md\f"
+1. Create file in this directory: "{singular}-name.md"
 2. Use the entry template
-3. Set category to \"{category.charAt(0).upper() + category.slice(1)}\"
+3. Set category to "{cap_category}"
 4. Add relationships to existing entries
 5. Update this index
 6. Note in [changelog](../meta/changelog.md)
 
 ---
 
-*Last updated: {getDate()}*
-";
-}
+*Last updated: {today}*
+"""
 
-def generateTimeline(): string {
-  return f"# Timeline
 
-Chronological overview of {getDate()}'s history.
+def generate_timeline():
+    today = get_date()
+    return f"""# Timeline
+
+Chronological overview of the world's history.
 
 ## Eras
 
@@ -207,18 +223,19 @@ See [events/](events/) for detailed event entries.
 
 ## Adding to Timeline
 
-1. Create event entry in \"events/\f" directory
+1. Create event entry in "events/" directory
 2. Add to appropriate era section above
 3. Update [changelog](../meta/changelog.md)
 
 ---
 
-*Last updated: {getDate()}*
-";
-}
+*Last updated: {today}*
+"""
 
-def generateStyleGuide(worldName: string): string {
-  return f"# {worldName} Style Guide
+
+def generate_style_guide(world_name):
+    today = get_date()
+    return f"""# {world_name} Style Guide
 
 Guidelines for contributing to this shared world.
 
@@ -290,16 +307,17 @@ Decisions logged in: [conflicts.md](conflicts.md)
 
 ---
 
-*Established: {getDate()}*
-";
-}
+*Established: {today}*
+"""
 
-def generateChangelog(worldName: string): string {
-  return f"# {worldName} Changelog
+
+def generate_changelog(world_name):
+    today = get_date()
+    return f"""# {world_name} Changelog
 
 Recent changes to the world bible.
 
-## {getDate()}
+## {today}
 
 - **Created**: World bible initialized
 
@@ -309,20 +327,20 @@ Recent changes to the world bible.
 
 When you make changes:
 1. Add entry under today's date (or create new date header)
-2. Use format: \"- **Action**: Description (contributor)\f"
+2. Use format: "- **Action**: Description (contributor)"
 3. Actions: Created, Updated, Deprecated, Established, Resolved
 
 Example:
-\"\f"\"
+```
 - **Created**: New character entry for Elena (jsmith)
 - **Updated**: Expanded magic system rules (kdoe)
 - **Established**: Proposed faction "The Order" now canon (admin)
-\f"\"\f"
-";
-}
+```
+"""
 
-def generateConflicts(): string {
-  return f"# Canon Conflicts
+
+def generate_conflicts():
+    return """# Canon Conflicts
 
 Unresolved contradictions requiring attention.
 
@@ -349,7 +367,7 @@ When you find contradicting information:
 
 ### Template:
 
-\"\f"\"
+```
 ### [Brief Description]
 **Discovered:** [Date]
 **Entries:** [[Entry 1]] vs [[Entry 2]]
@@ -358,7 +376,7 @@ When you find contradicting information:
 - Entry 1: [source]
 - Entry 2: [source]
 **Status:** Awaiting resolution
-\f"\"\f"
+```
 
 ## Resolving Conflicts
 
@@ -366,11 +384,12 @@ Canon authority resolves by:
 1. Determining which source has priority
 2. Either reconciling both or deprecating one
 3. Moving to Resolved section with decision documented
-";
-}
+"""
 
-def generateContributors(): string {
-  return f"# Contributors
+
+def generate_contributors():
+    today = get_date()
+    return f"""# Contributors
 
 Who maintains what in this world bible.
 
@@ -382,7 +401,7 @@ Who maintains what in this world bible.
 
 | Name | Areas | Since |
 |------|-------|-------|
-| [Name] | [Categories/areas] | {getDate()} |
+| [Name] | [Categories/areas] | {today} |
 
 ## Contribution History
 
@@ -396,63 +415,63 @@ See [changelog](changelog.md) for detailed contribution history.
 2. Familiarize yourself with existing canon
 3. Start with Proposed entries in your area of interest
 4. Contact canon authority for questions
-";
+"""
+
+
+INDEX_DESCRIPTIONS = {
+    'characters': 'People and beings that inhabit this world.',
+    'locations': 'Places in the world, from continents to individual buildings.',
+    'factions': 'Organizations, governments, groups, and alliances.',
+    'rules': 'How the world works - magic systems, technology, physics.',
+    'culture': 'Beliefs, customs, languages, and traditions.',
+    'artifacts': 'Significant objects, weapons, and items of power.',
+    'species': 'Non-human beings, creatures, and races.',
 }
 
-INDEX_DESCRIPTIONS: Record<string, string> = {
-  characters: 'People and beings that inhabit this world.',
-  locations: 'Places in the world, from continents to individual buildings.',
-  factions: 'Organizations, governments, groups, and alliances.',
-  rules: 'How the world works - magic systems, technology, physics.',
-  culture: 'Beliefs, customs, languages, and traditions.',
-  artifacts: 'Significant objects, weapons, and items of power.',
-  species: 'Non-human beings, creatures, and races.',
-};
 
-async function initWorld(worldName: string, outputDir: string) {
-  print(f"Initializing world bible for \"{worldName}\"...");
-  print(f"Output directory: {outputDir}");
+def init_world(world_name, output_dir):
+    print(f'Initializing world bible for "{world_name}"...')
+    print(f"Output directory: {output_dir}")
 
-  # Create directories
-  os.makedirs(outputDir, exist_ok=True);
-  for dir in DIRECTORIES) {
-    os.makedirs(f"{outputDir}/{dir}", exist_ok=True);
-    print(f"  Created: {dir}/");
-  }
+    # Create directories
+    os.makedirs(output_dir, exist_ok=True)
+    for d in DIRECTORIES:
+        os.makedirs(os.path.join(output_dir, d), exist_ok=True)
+        print(f"  Created: {d}/")
 
-  # Create main files
-  _wt(f"{outputDir}/discovery.md", generateDiscovery(worldName));
-  print('  Created: discovery.md');
+    # Create main files
+    _wt(os.path.join(output_dir, "discovery.md"), generate_discovery(world_name))
+    print("  Created: discovery.md")
 
-  _wt(f"{outputDir}/canon-status.md", generateCanonStatus(worldName));
-  print('  Created: canon-status.md');
+    _wt(os.path.join(output_dir, "canon-status.md"), generate_canon_status(world_name))
+    print("  Created: canon-status.md")
 
-  # Create index files
-  for ([category, description] of INDEX_DESCRIPTIONS.items()) {
-    _wt(
-      f"{outputDir}/{category}/_index.md", generateIndex(category, description)
-    );
-    print(f"  Created: {category}/_index.md");
-  }
+    # Create index files
+    for category, description in INDEX_DESCRIPTIONS.items():
+        _wt(
+            os.path.join(output_dir, category, "_index.md"),
+            generate_index(category, description),
+        )
+        print(f"  Created: {category}/_index.md")
 
-  # Create history timeline
-  _wt(f"{outputDir}/history/timeline.md", generateTimeline());
-  print('  Created: history/timeline.md');
+    # Create history timeline
+    _wt(os.path.join(output_dir, "history", "timeline.md"), generate_timeline())
+    print("  Created: history/timeline.md")
 
-  # Create meta files
-  _wt(f"{outputDir}/meta/style-guide.md", generateStyleGuide(worldName));
-  print('  Created: meta/style-guide.md');
+    # Create meta files
+    _wt(os.path.join(output_dir, "meta", "style-guide.md"), generate_style_guide(world_name))
+    print("  Created: meta/style-guide.md")
 
-  _wt(f"{outputDir}/meta/changelog.md", generateChangelog(worldName));
-  print('  Created: meta/changelog.md');
+    _wt(os.path.join(output_dir, "meta", "changelog.md"), generate_changelog(world_name))
+    print("  Created: meta/changelog.md")
 
-  _wt(f"{outputDir}/meta/conflicts.md", generateConflicts());
-  print('  Created: meta/conflicts.md');
+    _wt(os.path.join(output_dir, "meta", "conflicts.md"), generate_conflicts())
+    print("  Created: meta/conflicts.md")
 
-  _wt(f"{outputDir}/meta/contributors.md", generateContributors());
-  print('  Created: meta/contributors.md');
+    _wt(os.path.join(output_dir, "meta", "contributors.md"), generate_contributors())
+    print("  Created: meta/contributors.md")
 
-  print(f"
+    print("""
 World bible initialized!
 
 Next steps:
@@ -460,46 +479,45 @@ Next steps:
 2. Add yourself to meta/contributors.md
 3. Start adding entries to populate the bible
 4. Use discovery.md as your navigation hub
-");
-}
+""")
 
-function showUsage() {
-  print(f"
+
+def show_usage():
+    print("""
 Initialize World Bible
 ======================
 
 Creates a complete world bible directory structure.
 
 Usage:
-  deno run --allow-read --allow-write init-world.ts \"World Name\" [output-dir]
+  python init_world.py "World Name" [output-dir]
 
 Arguments:
   World Name    Name of your world (required)
   output-dir    Where to create the bible (default: ./world-bible)
 
 Examples:
-  deno run --allow-read --allow-write init-world.ts \"The Shattered Realms\"
-  deno run --allow-read --allow-write init-world.ts \"My World\" ./worlds/my-world
-");
-}
+  python init_world.py "The Shattered Realms"
+  python init_world.py "My World" ./worlds/my-world
+""")
 
-async function main() {
-  args = sys.argv[1:];
 
-  if (args.length == 0 or args[0] == '--help' or args[0] == '-h') {
-    showUsage();
-    sys.exit(0);
-  }
+def main():
+    args = sys.argv[1:]
 
-  worldName = args[0];
-  outputDir = args[1] or f"./world-bible";
+    if len(args) == 0 or args[0] == '--help' or args[0] == '-h':
+        show_usage()
+        sys.exit(0)
 
-  try {
-    await initWorld(worldName, outputDir);
-  } catch (e) {
-    print('Error initializing world bible:', e);
-    sys.exit(1);
-  }
-}
+    world_name = args[0]
+    output_dir = args[1] if len(args) > 1 else './world-bible'
 
-main();
+    try:
+        init_world(world_name, output_dir)
+    except Exception as e:
+        print(f"Error initializing world bible: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

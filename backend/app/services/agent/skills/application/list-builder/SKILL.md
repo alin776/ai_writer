@@ -129,11 +129,14 @@ Output as JSON array for use with entropy.py:
 ### validate_list.py
 Analyzes a list for quality and variety.
 
+> **路径提示**: 脚本位于 `skills/application/list-builder/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
-python scripts/validate_list.py list.json
+python skills/application/list-builder/scripts/validate_list.py list.json
 
 # Check specific list in a file
-python scripts/validate_list.py data.json professions
+python skills/application/list-builder/scripts/validate_list.py data.json professions
 ```
 
 **Reports:**
@@ -146,7 +149,7 @@ python scripts/validate_list.py data.json professions
 Combines multiple list sources, deduplicates, and formats.
 
 ```bash
-python scripts/merge_lists.py source1.json source2.json --output combined.json
+python skills/application/list-builder/scripts/merge_lists.py source1.json source2.json --output combined.json
 ```
 
 ## Research Prompts

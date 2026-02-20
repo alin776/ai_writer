@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-
-
-
 """
-representation-map.py - Map and analyze character representation
+representation_map.py - Map and analyze character representation
 
 Analyzes character data to identify:
 - Identity distribution
@@ -12,8 +9,9 @@ Analyzes character data to identify:
 - Diversity within identity groups
 
 Usage:
-  deno run --allow-read representation-map.py characters.json
-  deno run --allow-read representation-map.py --interactive
+  python representation_map.py characters.json
+  python representation_map.py --format
+  python representation_map.py --json characters.json
 
 Character JSON format:
 [
@@ -29,409 +27,447 @@ Character JSON format:
     },
     "agency": "high|medium|low",
     "arc": "positive|negative|flat|none",
-    "survives": True|false,
+    "survives": true|false,
     "notes": "..."
   }
 ]
 """
 
 import sys
-import os
 import json
-import re
-import random
-from datetime import date
 
+# Ensure UTF-8 output on all platforms
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
-
-
+# ---------------------------------------------------------------------------
+# Identity reference lists
+# ---------------------------------------------------------------------------
 
 MARGINALIZED_IDENTITIES = {
-  race: ['black', 'asian', 'latino', 'latina', 'latinx', 'indigenous', 'native', 'middle eastern', 'south asian', 'pacific islander', 'mixed', 'biracial', 'multiracial'],
-  gender: ['woman', 'female', 'trans', 'transgender', 'non-binary', 'nonbinary', 'genderqueer', 'agender', 'genderfluid'],
-  sexuality: ['gay', 'lesbian', 'bisexual', 'pansexual', 'queer', 'asexual', 'ace'],
-  disability: ['disabled', 'blind', 'deaf', 'wheelchair', 'chronic', 'neurodivergent', 'autistic', 'adhd'],
-  mentalHealth: ['depression', 'anxiety', 'ptsd', 'bipolar', 'schizophrenia', 'ocd', 'eating disorder'],
-};
-
-def isMarginalized(category: string, value: string): boolean {
-  categoryList = MARGINALIZED_IDENTITIES[category as keyof typeof MARGINALIZED_IDENTITIES];
-  if (!categoryList) return False;
-  lowerValue = value.lower();
-  return categoryList.some(term => lowerValue.includes(term));
+    "race": ["black", "asian", "latino", "latina", "latinx", "indigenous",
+             "native", "middle eastern", "south asian", "pacific islander",
+             "mixed", "biracial", "multiracial"],
+    "gender": ["woman", "female", "trans", "transgender", "non-binary",
+               "nonbinary", "genderqueer", "agender", "genderfluid"],
+    "sexuality": ["gay", "lesbian", "bisexual", "pansexual", "queer",
+                  "asexual", "ace"],
+    "disability": ["disabled", "blind", "deaf", "wheelchair", "chronic",
+                   "neurodivergent", "autistic", "adhd"],
+    "mentalHealth": ["depression", "anxiety", "ptsd", "bipolar",
+                     "schizophrenia", "ocd", "eating disorder"],
 }
 
-def analyzeCharacters(characters: Character[]): AnalysisResult {
-  result: AnalysisResult = {
-    characterCount: characters.length,
-    roleDistribution: {},
-    identityDistribution: {},
-    agencyAnalysis: { byIdentity: {}, concerns: [] },
-    survivalAnalysis: { byIdentity: {}, concerns: [] },
-    tropeRisks: [],
-    diversityNotes: [],
-  };
+IDENTITY_CATEGORIES = ["race", "gender", "sexuality", "disability",
+                       "mentalHealth", "religion"]
 
-  # Role distribution
-  for char in characters) {
-    result.roleDistribution[char.role] = (result.roleDistribution[char.role] or 0) + 1;
-  }
 
-  # Identity distribution
-  identityCategories = ['race', 'gender', 'sexuality', 'disability', 'mentalHealth', 'religion'];
-  for category in identityCategories) {
-    result.identityDistribution[category] = {};
-  }
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-  for char in characters) {
-    for category in identityCategories) {
-      value = char.identities[category as keyof CharacterIdentities];
-      if (value and typeof value == 'string') {
-        result.identityDistribution[category][value] =
-          (result.identityDistribution[category][value] or 0) + 1;
-      }
-    }
-  }
+def is_marginalized(category, value):
+    """Return True if *value* matches any known marginalized term in *category*."""
+    category_list = MARGINALIZED_IDENTITIES.get(category)
+    if not category_list:
+        return False
+    lower_value = value.lower()
+    return any(term in lower_value for term in category_list)
 
-  # Agency analysis by identity
-  for char in characters) {
-    for ([category, value] of Object.entries(char.identities)) {
-      if (value and typeof value == 'string') {
-        key = f"{category}:{value}";
-        if (!result.agencyAnalysis.byIdentity[key]) {
-          result.agencyAnalysis.byIdentity[key] = { high: 0, medium: 0, low: 0 };
-        }
-        result.agencyAnalysis.byIdentity[key][char.agency]++;
-      }
-    }
-  }
 
-  # Agency concerns
-  for ([identity, counts] of Object.entries(result.agencyAnalysis.byIdentity)) {
-    total = counts.high + counts.medium + counts.low;
-    if (total >= 2) {
-      lowPercentage = (counts.low / total) * 100;
-      if (lowPercentage > 50) {
-        [category, value] = identity.split(':');
-        if (isMarginalized(category, value)) {
-          result.agencyAnalysis.concerns.append(
-            f"{identity}: {lowPercentage.toFixed(0)}% low agency ({counts.low}/{total} characters)"
-          );
-        }
-      }
-    }
-  }
+def _get_identity(char, category):
+    """Safely retrieve an identity value from a character dict."""
+    identities = char.get("identities", {})
+    return identities.get(category, None)
 
-  # Survival analysis
-  for char in characters) {
-    for ([category, value] of Object.entries(char.identities)) {
-      if (value and typeof value == 'string') {
-        key = f"{category}:{value}";
-        if (!result.survivalAnalysis.byIdentity[key]) {
-          result.survivalAnalysis.byIdentity[key] = { survives: 0, dies: 0 };
-        }
-        if (char.survives) {
-          result.survivalAnalysis.byIdentity[key].survives++;
-        } else {
-          result.survivalAnalysis.byIdentity[key].dies++;
-        }
-      }
-    }
-  }
 
-  # Survival concerns
-  for ([identity, counts] of Object.entries(result.survivalAnalysis.byIdentity)) {
-    total = counts.survives + counts.dies;
-    if (counts.dies > 0) {
-      deathPercentage = (counts.dies / total) * 100;
-      [category, value] = identity.split(':');
-      if (isMarginalized(category, value)) {
-        if (deathPercentage > 50 or (category == 'sexuality' and counts.dies > 0)) {
-          result.survivalAnalysis.concerns.append(
-            f"{identity}: {counts.dies}/{total} characters die ({deathPercentage.toFixed(0)}%)"
-          );
-        }
-      }
-    }
-  }
+def _identity_items(char):
+    """Yield (category, value) pairs for every string identity on *char*."""
+    identities = char.get("identities", {})
+    for cat, val in identities.items():
+        if val and isinstance(val, str):
+            yield cat, val
 
-  # Trope risk detection
-  lgbtqChars = characters.filter(c =>
-    isMarginalized('sexuality', c.identities.sexuality or '') ||
-    (c.identities.gender and isMarginalized('gender', c.identities.gender) and c.identities.gender.lower().includes('trans'))
-  );
-  lgbtqDeaths = lgbtqChars.filter(c => !c.survives);
-  if (lgbtqDeaths.length > 0) {
-    result.tropeRisks.append(
-      f"BURY YOUR GAYS RISK: {lgbtqDeaths.length} LGBTQ+ character(s) die: {lgbtqDeaths.map(c => c.name).join(', ')}"
-    );
-  }
 
-  # Magical minority detection
-  marginalizedSupportingWithHighAgency = characters.filter(c =>
-    c.role == 'supporting' &&
-    c.agency == 'high' &&
-    Object.entries(c.identities).some(([cat, val]) =>
-      val and typeof val == 'string' and isMarginalized(cat, val)
+def _has_marginalized_identity(char):
+    """Return True if the character has any marginalized identity."""
+    return any(
+        is_marginalized(cat, val)
+        for cat, val in _identity_items(char)
     )
-  );
-  protagonists = characters.filter(c => c.role == 'protagonist');
-  defaultProtagonists = protagonists.filter(c =>
-    !Object.entries(c.identities).some(([cat, val]) =>
-      val and typeof val == 'string' and isMarginalized(cat, val)
+
+
+# ---------------------------------------------------------------------------
+# Core analysis
+# ---------------------------------------------------------------------------
+
+def analyze_characters(characters):
+    """Analyze a list of character dicts and return a comprehensive result."""
+    result = {
+        "characterCount": len(characters),
+        "roleDistribution": {},
+        "identityDistribution": {},
+        "agencyAnalysis": {"byIdentity": {}, "concerns": []},
+        "survivalAnalysis": {"byIdentity": {}, "concerns": []},
+        "tropeRisks": [],
+        "diversityNotes": [],
+    }
+
+    # --- Role distribution ---
+    for char in characters:
+        role = char.get("role", "unknown")
+        result["roleDistribution"][role] = result["roleDistribution"].get(role, 0) + 1
+
+    # --- Identity distribution ---
+    for category in IDENTITY_CATEGORIES:
+        result["identityDistribution"][category] = {}
+
+    for char in characters:
+        for category in IDENTITY_CATEGORIES:
+            value = _get_identity(char, category)
+            if value and isinstance(value, str):
+                bucket = result["identityDistribution"][category]
+                bucket[value] = bucket.get(value, 0) + 1
+
+    # --- Agency analysis by identity ---
+    agency_by_id = result["agencyAnalysis"]["byIdentity"]
+    for char in characters:
+        agency = char.get("agency", "medium")
+        for cat, val in _identity_items(char):
+            key = f"{cat}:{val}"
+            if key not in agency_by_id:
+                agency_by_id[key] = {"high": 0, "medium": 0, "low": 0}
+            if agency in agency_by_id[key]:
+                agency_by_id[key][agency] += 1
+
+    # Agency concerns
+    for identity, counts in agency_by_id.items():
+        total = counts["high"] + counts["medium"] + counts["low"]
+        if total >= 2:
+            low_pct = (counts["low"] / total) * 100
+            if low_pct > 50:
+                cat, val = identity.split(":", 1)
+                if is_marginalized(cat, val):
+                    result["agencyAnalysis"]["concerns"].append(
+                        f"{identity}: {low_pct:.0f}% low agency "
+                        f"({counts['low']}/{total} characters)"
+                    )
+
+    # --- Survival analysis ---
+    survival_by_id = result["survivalAnalysis"]["byIdentity"]
+    for char in characters:
+        for cat, val in _identity_items(char):
+            key = f"{cat}:{val}"
+            if key not in survival_by_id:
+                survival_by_id[key] = {"survives": 0, "dies": 0}
+            if char.get("survives", True):
+                survival_by_id[key]["survives"] += 1
+            else:
+                survival_by_id[key]["dies"] += 1
+
+    # Survival concerns
+    for identity, counts in survival_by_id.items():
+        total = counts["survives"] + counts["dies"]
+        if counts["dies"] > 0:
+            death_pct = (counts["dies"] / total) * 100
+            cat, val = identity.split(":", 1)
+            if is_marginalized(cat, val):
+                if death_pct > 50 or (cat == "sexuality" and counts["dies"] > 0):
+                    result["survivalAnalysis"]["concerns"].append(
+                        f"{identity}: {counts['dies']}/{total} characters die "
+                        f"({death_pct:.0f}%)"
+                    )
+
+    # --- Trope risk detection ---
+
+    # Bury Your Gays
+    lgbtq_chars = [
+        c for c in characters
+        if is_marginalized("sexuality", _get_identity(c, "sexuality") or "")
+        or (
+            _get_identity(c, "gender")
+            and is_marginalized("gender", _get_identity(c, "gender"))
+            and "trans" in (_get_identity(c, "gender") or "").lower()
+        )
+    ]
+    lgbtq_deaths = [c for c in lgbtq_chars if not c.get("survives", True)]
+    if lgbtq_deaths:
+        names = ", ".join(c.get("name", "?") for c in lgbtq_deaths)
+        result["tropeRisks"].append(
+            f"BURY YOUR GAYS RISK: {len(lgbtq_deaths)} LGBTQ+ character(s) die: {names}"
+        )
+
+    # Magical minority detection
+    marginalized_supporting_high = [
+        c for c in characters
+        if c.get("role") == "supporting"
+        and c.get("agency") == "high"
+        and _has_marginalized_identity(c)
+    ]
+    protagonists = [c for c in characters if c.get("role") == "protagonist"]
+    default_protagonists = [
+        c for c in protagonists
+        if not _has_marginalized_identity(c)
+    ]
+
+    if marginalized_supporting_high and default_protagonists:
+        names = ", ".join(c.get("name", "?") for c in marginalized_supporting_high)
+        result["tropeRisks"].append(
+            f"MAGICAL MINORITY RISK: Marginalized supporting characters with "
+            f"high agency serving default protagonist(s). Check: {names}"
+        )
+
+    # Mental health + antagonist
+    mh_antagonists = [
+        c for c in characters
+        if c.get("role") == "antagonist" and _get_identity(c, "mentalHealth")
+    ]
+    if mh_antagonists:
+        details = ", ".join(
+            f"{c.get('name', '?')} ({_get_identity(c, 'mentalHealth')})"
+            for c in mh_antagonists
+        )
+        result["tropeRisks"].append(
+            f"MENTAL ILLNESS = VILLAIN RISK: Antagonist(s) with mental health "
+            f"conditions: {details}"
+        )
+
+    # --- Diversity / tokenism notes ---
+    identity_counts = {}
+    for char in characters:
+        for cat, val in _identity_items(char):
+            key = f"{cat}:{val}"
+            identity_counts[key] = identity_counts.get(key, 0) + 1
+
+    for identity, count in identity_counts.items():
+        if count == 1:
+            cat, val = identity.split(":", 1)
+            if is_marginalized(cat, val):
+                result["diversityNotes"].append(
+                    f"Only one {val} character - consider if tokenism risk"
+                )
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Reporting
+# ---------------------------------------------------------------------------
+
+def format_report(result):
+    """Return a human-readable representation report."""
+    report = (
+        "\nREPRESENTATION MAP\n"
+        "==================\n"
+        "\n"
+        f"Characters analyzed: {result['characterCount']}\n"
+        "\n"
+        "ROLE DISTRIBUTION\n"
     )
-  );
+    for role, count in result["roleDistribution"].items():
+        report += f"  {role}: {count}\n"
 
-  if (marginalizedSupportingWithHighAgency.length > 0 and defaultProtagonists.length > 0) {
-    result.tropeRisks.append(
-      f"MAGICAL MINORITY RISK: Marginalized supporting characters with high agency serving default protagonist(s). Check: {marginalizedSupportingWithHighAgency.map(c => c.name).join(', ')}"
-    );
-  }
+    report += "\nIDENTITY DISTRIBUTION\n"
+    for category, values in result["identityDistribution"].items():
+        if values:
+            report += f"\n  {category}:\n"
+            for value, count in values.items():
+                report += f"    {value}: {count}\n"
 
-  # Mental health + antagonist
-  mentalHealthAntagonists = characters.filter(c =>
-    c.role == 'antagonist' and c.identities.mentalHealth
-  );
-  if (mentalHealthAntagonists.length > 0) {
-    result.tropeRisks.append(
-      f"MENTAL ILLNESS = VILLAIN RISK: Antagonist(s) with mental health conditions: ${mentalHealthAntagonists.map(c => "${c.name} (${c.identities.mentalHealth})f").join(', ')}"
-    );
-  }
+    if result["agencyAnalysis"]["concerns"]:
+        report += "\nAGENCY CONCERNS\n"
+        for concern in result["agencyAnalysis"]["concerns"]:
+            report += f"  ! {concern}\n"
 
-  # Diversity notes
-  identityCounts: Record<string, number> = {};
-  for char in characters) {
-    for ([category, value] of Object.entries(char.identities)) {
-      if (value and typeof value == 'string') {
-        key = f"{category}:{value}";
-        identityCounts[key] = (identityCounts[key] or 0) + 1;
-      }
-    }
-  }
+    if result["survivalAnalysis"]["concerns"]:
+        report += "\nSURVIVAL CONCERNS\n"
+        for concern in result["survivalAnalysis"]["concerns"]:
+            report += f"  ! {concern}\n"
 
-  for ([identity, count] of identityCounts.items()) {
-    if (count == 1) {
-      [category, value] = identity.split(':');
-      if (isMarginalized(category, value)) {
-        result.diversityNotes.append(
-          f"Only one {value} character - consider if tokenism risk"
-        );
-      }
-    }
-  }
+    if result["tropeRisks"]:
+        report += "\nTROPE RISKS\n"
+        for risk in result["tropeRisks"]:
+            report += f"  !! {risk}\n"
 
-  return result;
-}
+    if result["diversityNotes"]:
+        report += "\nDIVERSITY NOTES\n"
+        for note in result["diversityNotes"]:
+            report += f"  * {note}\n"
 
-def formatReport(result: AnalysisResult): string {
-  report = f"
-REPRESENTATION MAP
-==================
+    report += (
+        "\nRECOMMENDATIONS\n"
+        "\n"
+        "1. Review any flagged trope risks carefully\n"
+        "2. Consider agency distribution across identities\n"
+        "3. If only one character of an identity, consider tokenism\n"
+        "4. Ensure marginalized characters have their own stories/arcs\n"
+        "5. Engage sensitivity readers for identities represented\n"
+        "\n"
+        "This analysis is based on data provided and cannot assess:\n"
+        "  - Quality of representation within the narrative\n"
+        "  - Stereotyping through characterization\n"
+        "  - Authentic voice and experience\n"
+        "  - Reception by affected communities\n"
+    )
 
-Characters analyzed: {result.characterCount}
+    return report
 
-ROLE DISTRIBUTION
-";
-  for ([role, count] of Object.entries(result.roleDistribution)) {
-    report += f"  {role}: {count}\n";
-  }
 
-  report += f"
-IDENTITY DISTRIBUTION
-";
-  for ([category, values] of Object.entries(result.identityDistribution)) {
-    if (list(values.keys()).length > 0) {
-      report += f"\n  {category}:\n";
-      for ([value, count] of values.items()) {
-        report += f"    {value}: {count}\n";
-      }
-    }
-  }
+def show_example_format():
+    """Return a string showing the expected JSON character format."""
+    return (
+        "\nCHARACTER JSON FORMAT\n"
+        "=====================\n"
+        "\n"
+        "Create a JSON file with this structure:\n"
+        "\n"
+        "[\n"
+        "  {\n"
+        '    "name": "Maya Chen",\n'
+        '    "role": "protagonist",\n'
+        '    "identities": {\n'
+        '      "race": "Chinese-American",\n'
+        '      "gender": "woman",\n'
+        '      "sexuality": "bisexual",\n'
+        '      "disability": null,\n'
+        '      "mentalHealth": null,\n'
+        '      "religion": null\n'
+        "    },\n"
+        '    "agency": "high",\n'
+        '    "arc": "positive",\n'
+        '    "survives": true,\n'
+        '    "notes": "Main character, drives the plot"\n'
+        "  },\n"
+        "  {\n"
+        '    "name": "James Wright",\n'
+        '    "role": "supporting",\n'
+        '    "identities": {\n'
+        '      "race": "white",\n'
+        '      "gender": "man",\n'
+        '      "sexuality": "straight"\n'
+        "    },\n"
+        '    "agency": "medium",\n'
+        '    "arc": "flat",\n'
+        '    "survives": true\n'
+        "  },\n"
+        "  {\n"
+        '    "name": "Dr. Amara Okonkwo",\n'
+        '    "role": "supporting",\n'
+        '    "identities": {\n'
+        '      "race": "Nigerian",\n'
+        '      "gender": "woman",\n'
+        '      "sexuality": "lesbian"\n'
+        "    },\n"
+        '    "agency": "high",\n'
+        '    "arc": "positive",\n'
+        '    "survives": false,\n'
+        '    "notes": "Dies in chapter 15"\n'
+        "  }\n"
+        "]\n"
+        "\n"
+        "FIELDS:\n"
+        "  name: Character name\n"
+        "  role: protagonist | antagonist | supporting | minor\n"
+        "  identities: Object with identity categories\n"
+        "    - race: ethnic/racial identity\n"
+        "    - gender: gender identity\n"
+        "    - sexuality: sexual orientation\n"
+        "    - disability: any disability\n"
+        "    - mentalHealth: any mental health condition\n"
+        "    - religion: religious identity\n"
+        "    - class: socioeconomic class\n"
+        "  agency: high | medium | low (how much they drive events)\n"
+        "  arc: positive | negative | flat | none\n"
+        "  survives: true | false (do they survive the story?)\n"
+        "  notes: optional additional context\n"
+    )
 
-  if (result.agencyAnalysis.concerns.length > 0) {
-    report += f"
-AGENCY CONCERNS
-";
-    for concern in result.agencyAnalysis.concerns) {
-      report += f"  ! {concern}\n";
-    }
-  }
 
-  if (result.survivalAnalysis.concerns.length > 0) {
-    report += f"
-SURVIVAL CONCERNS
-";
-    for concern in result.survivalAnalysis.concerns) {
-      report += f"  ! {concern}\n";
-    }
-  }
+def show_usage():
+    print(
+        "\nRepresentation Map Tool\n"
+        "=======================\n"
+        "\n"
+        "Analyzes character data to identify representation patterns.\n"
+        "\n"
+        "Usage:\n"
+        "  python representation_map.py <characters.json>\n"
+        "  python representation_map.py --format\n"
+        "  python representation_map.py --json <characters.json>\n"
+        "\n"
+        "Options:\n"
+        "  --format    Show the expected JSON format for character data\n"
+        "  --json      Output results as JSON\n"
+        "\n"
+        "Detects:\n"
+        "  - Identity distribution across characters\n"
+        "  - Agency imbalances by identity\n"
+        "  - Survival disparities (Bury Your Gays, etc.)\n"
+        "  - Trope risks (Magical Minority, etc.)\n"
+        "  - Tokenism indicators\n"
+        "\n"
+        "See --format for character JSON structure.\n"
+    )
 
-  if (result.tropeRisks.length > 0) {
-    report += f"
-TROPE RISKS
-";
-    for risk in result.tropeRisks) {
-      report += f"  !! {risk}\n";
-    }
-  }
 
-  if (result.diversityNotes.length > 0) {
-    report += f"
-DIVERSITY NOTES
-";
-    for note in result.diversityNotes) {
-      report += f"  * {note}\n";
-    }
-  }
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
-  report += f"
-RECOMMENDATIONS
+def main():
+    args = sys.argv[1:]
 
-1. Review any flagged trope risks carefully
-2. Consider agency distribution across identities
-3. If only one character of an identity, consider tokenism
-4. Ensure marginalized characters have their own stories/arcs
-5. Engage sensitivity readers for identities represented
+    if "--help" in args or "-h" in args:
+        show_usage()
+        sys.exit(0)
 
-This analysis is based on data provided and cannot assess:
-  - Quality of representation within the narrative
-  - Stereotyping through characterization
-  - Authentic voice and experience
-  - Reception by affected communities
-";
+    if "--format" in args:
+        print(show_example_format())
+        sys.exit(0)
 
-  return report;
-}
+    use_json = "--json" in args
 
-def showExampleFormat(): string {
-  return f"
-CHARACTER JSON FORMAT
-=====================
+    if len(args) == 0 or args[0].startswith("--"):
+        # Try to find a non-flag argument
+        filename = None
+        for a in args:
+            if not a.startswith("--"):
+                filename = a
+                break
+        if filename is None:
+            show_usage()
+            sys.exit(0)
+    else:
+        filename = args[0]
 
-Create a JSON file with this structure:
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            text = f.read()
+        characters = json.loads(text)
 
-[
-  {
-    \"name\": \"Maya Chen\",
-    \"role\": \"protagonist\",
-    \"identities\": {
-      \"race\": \"Chinese-American\",
-      \"gender\": \"woman\",
-      \"sexuality\": \"bisexual\",
-      \"disability\": None,
-      \"mentalHealth\": None,
-      \"religion\": None
-    },
-    \"agency\": \"high\",
-    \"arc\": \"positive\",
-    \"survives\": True,
-    \"notes\": \"Main character, drives the plot\"
-  },
-  {
-    \"name\": \"James Wright\",
-    \"role\": \"supporting\",
-    \"identities\": {
-      \"race\": \"white\",
-      \"gender\": \"man\",
-      \"sexuality\": \"straight\"
-    },
-    \"agency\": \"medium\",
-    \"arc\": \"flat\",
-    \"survives\": True
-  },
-  {
-    \"name\": \"Dr. Amara Okonkwo\",
-    \"role\": \"supporting\",
-    \"identities\": {
-      \"race\": \"Nigerian\",
-      \"gender\": \"woman\",
-      \"sexuality\": \"lesbian\"
-    },
-    \"agency\": \"high\",
-    \"arc\": \"positive\",
-    \"survives\": False,
-    \"notes\": \"Dies in chapter 15\"
-  }
-]
+        if not isinstance(characters, list):
+            print("Error: JSON must be an array of character objects",
+                  file=sys.stderr)
+            sys.exit(1)
 
-FIELDS:
-  name: Character name
-  role: protagonist | antagonist | supporting | minor
-  identities: Object with identity categories
-    - race: ethnic/racial identity
-    - gender: gender identity
-    - sexuality: sexual orientation
-    - disability: any disability
-    - mentalHealth: any mental health condition
-    - religion: religious identity
-    - class: socioeconomic class
-  agency: high | medium | low (how much they drive events)
-  arc: positive | negative | flat | none
-  survives: True | False (do they survive the story?)
-  notes: optional additional context
-";
-}
+        result = analyze_characters(characters)
 
-def showUsage(): void {
-  print(f"
-Representation Map Tool
-=======================
+        if use_json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(format_report(result))
 
-Analyzes character data to identify representation patterns.
+    except json.JSONDecodeError as e:
+        print("Error: Invalid JSON format", file=sys.stderr)
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading file: {filename}", file=sys.stderr)
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
 
-Usage:
-  deno run --allow-read representation-map.ts <characters.json>
-  deno run --allow-read representation-map.ts --format
 
-Options:
-  --format    Show the expected JSON format for character data
-
-Detects:
-  - Identity distribution across characters
-  - Agency imbalances by identity
-  - Survival disparities (Bury Your Gays, etc.)
-  - Trope risks (Magical Minority, etc.)
-  - Tokenism indicators
-
-See --format for character JSON structure.
-");
-}
-
-async function main() {
-  args = sys.argv[1:];
-
-  if (args.includes('--format')) {
-    print(showExampleFormat());
-    sys.exit(0);
-  }
-
-  if (args.length == 0 or args[0].startswith('--')) {
-    showUsage();
-    sys.exit(0);
-  }
-
-  filename = args[0];
-  try {
-    text = open(filename, "r", encoding="utf-8").read();
-    characters: Character[] = json.loads(text);
-
-    if (!Array.isArray(characters)) {
-      print('Error: JSON must be an array of character objects');
-      sys.exit(1);
-    }
-
-    result = analyzeCharacters(characters);
-    print(formatReport(result));
-  } catch (e) {
-    if (e instanceof SyntaxError) {
-      print('Error: Invalid JSON format');
-      print(e.message);
-    } else {
-      print(f"Error reading file: {filename}");
-      print(e);
-    }
-    sys.exit(1);
-  }
-}
-
-main();
+if __name__ == "__main__":
+    main()

@@ -244,18 +244,22 @@ Use `--depth quick|standard|detailed` with extraction tools.
 ### extract_functions.py
 Interactive questionnaire for element-by-element extraction. Guides through six-axis analysis.
 
+
+> **路径提示**: 脚本位于 `skills/application/dna-extraction/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
 # Start extraction session
-python scripts/extract_functions.py "Hamlet"
+python skills/application/dna-extraction/scripts/extract_functions.py "Hamlet"
 
 # Extract at specific depth
-python scripts/extract_functions.py "Killjoys" --depth quick
+python skills/application/dna-extraction/scripts/extract_functions.py "Killjoys" --depth quick
 
 # Extract specific element
-python scripts/extract_functions.py --element "The Ghost"
+python skills/application/dna-extraction/scripts/extract_functions.py --element "The Ghost"
 
 # Validate existing extraction
-python scripts/extract_functions.py --validate extraction.json
+python skills/application/dna-extraction/scripts/extract_functions.py --validate extraction.json
 ```
 
 ### emotional_beat_map.py
@@ -263,13 +267,13 @@ Maps emotional peaks/valleys across a work's timeline.
 
 ```bash
 # Generate beat map template
-python scripts/emotional_beat_map.py "Hamlet" --acts 5
+python skills/application/dna-extraction/scripts/emotional_beat_map.py "Hamlet" --acts 5
 
 # For episodic work
-python scripts/emotional_beat_map.py "Killjoys S1" --episodes 10
+python skills/application/dna-extraction/scripts/emotional_beat_map.py "Killjoys S1" --episodes 10
 
 # Compare against genre expectations
-python scripts/emotional_beat_map.py --compare drama,thriller
+python skills/application/dna-extraction/scripts/emotional_beat_map.py --compare drama,thriller
 ```
 
 ### structural_stylistic.py
@@ -277,10 +281,10 @@ Checklist for classifying elements as structural (must keep) vs stylistic (can a
 
 ```bash
 # Classification questionnaire
-python scripts/structural_stylistic.py "royal court setting"
+python skills/application/dna-extraction/scripts/structural_stylistic.py "royal court setting"
 
 # Batch classification
-python scripts/structural_stylistic.py --file elements.json
+python skills/application/dna-extraction/scripts/structural_stylistic.py --file elements.json
 ```
 
 ## DNA Document Output

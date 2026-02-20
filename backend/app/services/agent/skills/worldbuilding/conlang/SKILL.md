@@ -138,18 +138,22 @@ When a writer needs language help:
 ### phonology.py
 Generates phoneme inventories based on cross-linguistic frequency data.
 
+
+> **路径提示**: 脚本位于 `skills/worldbuilding/conlang/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
 # Generate flavor-complexity inventory
-python scripts/phonology.py --complexity flavor
+python skills/worldbuilding/conlang/scripts/phonology.py --complexity flavor
 
 # Generate naming inventory with reproducible seed
-python scripts/phonology.py --complexity naming --seed 12345
+python skills/worldbuilding/conlang/scripts/phonology.py --complexity naming --seed 12345
 
 # Use an elvish-like preset
-python scripts/phonology.py --preset elvish_like
+python skills/worldbuilding/conlang/scripts/phonology.py --preset elvish_like
 
 # Full complexity with tonal features
-python scripts/phonology.py --complexity full --features tones
+python skills/worldbuilding/conlang/scripts/phonology.py --complexity full --features tones
 ```
 
 **Output:** Consonant inventory, vowel inventory, syllable templates, seed for reproduction.
@@ -159,16 +163,16 @@ Generates words from a phoneme inventory.
 
 ```bash
 # Generate 20 words using default inventory
-python scripts/words.py --count 20
+python skills/worldbuilding/conlang/scripts/words.py --count 20
 
 # Generate from saved inventory
-python scripts/words.py --inventory language.json --count 50
+python skills/worldbuilding/conlang/scripts/words.py --inventory language.json --count 50
 
 # Specify syllable count range
-python scripts/words.py --syllables 2-3 --seed 42
+python skills/worldbuilding/conlang/scripts/words.py --syllables 2-3 --seed 42
 
 # Generate categorized words (names, places, short, long)
-python scripts/words.py --categories
+python skills/worldbuilding/conlang/scripts/words.py --categories
 ```
 
 **Output:** Generated words with optional syllable breakdown.
@@ -176,7 +180,7 @@ python scripts/words.py --categories
 ### Piped Workflow
 ```bash
 # Generate inventory, then words
-python scripts/phonology.py --json | python scripts/words.py --count 30
+python skills/worldbuilding/conlang/scripts/phonology.py --json | python skills/worldbuilding/conlang/scripts/words.py --count 30
 ```
 
 ## Example Diagnostic Interactions

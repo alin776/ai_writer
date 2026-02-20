@@ -532,9 +532,12 @@ Based on where they are in the six-pass sequence.
 
 Helps track revision pass progress and scene decisions.
 
+> **路径提示**: 脚本位于 `skills/craft/revision/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
-python scripts/revision_audit.py --scenes manuscript.txt
-python scripts/revision_audit.py --pass structural
+python skills/craft/revision/scripts/revision_audit.py --scenes manuscript.txt
+python skills/craft/revision/scripts/revision_audit.py --pass structural
 ```
 
 **Outputs:**

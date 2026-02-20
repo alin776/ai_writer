@@ -1587,7 +1587,7 @@ ${selectionContext.selected_text}
             onTouchStart={markUserScrollIntent}
           >
             <div className={`flex w-full ${expandedMode ? 'justify-center' : ''}`}>
-            <div className={`${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
+            <div className={`min-w-0 ${expandedMode ? 'w-full max-w-3xl' : 'w-full'}`}>
               <div ref={messagesContentRef} className="flex flex-col gap-6 py-5">
           {messages.map((message, index) => {
             // Skip null/undefined messages
@@ -1671,7 +1671,7 @@ ${selectionContext.selected_text}
             <div key={index} className="space-y-2">
               {showFlowBlock && (
                 <div className="flex items-start">
-                  <div className="flex-1 !border-none !bg-transparent">
+                  <div className="flex-1 min-w-0 !border-none !bg-transparent">
                     {flowItemsWithoutOutput.length > 0 && (
                       <ExecutionFlow
                         items={flowItemsWithoutOutput}
@@ -1857,7 +1857,7 @@ ${selectionContext.selected_text}
               {/* v6.6: 只有当有实际内容时才显示内容区域（AgentHeader 已在执行轨迹区域显示）*/}
               {(message.content || lastOutputItem) && (
                 <div className="flex items-start">
-                  <div className="flex flex-col gap-1 w-full group">
+                  <div className="flex flex-col gap-1 w-full min-w-0 group">
                     <div className="text-zinc-500 dark:text-slate-300">
                       {/* v6.5: 统一使用 ExecutionFlow 样式，删除纯文本降级逻辑 */}
                       <ExecutionFlow
@@ -1916,6 +1916,11 @@ ${selectionContext.selected_text}
             </div>
           </div>
 
+          {/* 底部渐变遮罩 — 内容平滑淡出而非硬裁切 */}
+          {!isAtBottom && (
+            <div className="absolute bottom-0 left-0 right-0 h-10 pointer-events-none bg-gradient-to-t from-white dark:from-slate-900 to-transparent" />
+          )}
+
           {!isAtBottom && (
             <button
               type="button"
@@ -1948,37 +1953,37 @@ ${selectionContext.selected_text}
             </div>
           )}
 
-          {/* 批量 弃用/采纳 按钮 — 输入框上方 */}
-          {hasOperations && !isLoading && conversationId && (
-            <div className="flex items-center justify-end gap-2 mb-2">
-              <button
-                type="button"
-                onClick={() => {
-                  rollbackAllOperations();
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-zinc-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
-              >
-                <X size={14} />
-                弃用
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  await acceptAllOperations();
-                  window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
-                    detail: { work_id: workId }
-                  }));
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-green-600 border border-green-500/30 hover:bg-green-500/10 dark:text-green-400 transition-colors"
-              >
-                <Check size={14} />
-                采纳
-              </button>
-            </div>
-          )}
-
           {/* 模式选择 + 输入框（放在下方区域）*/}
-          <div className="rounded-3xl bg-white border border-gray-200 px-4 py-3 space-y-3 flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
+          <div className="relative">
+            {/* 批量 弃用/采纳 按钮 — 浮动在输入框上方，不占文档流 */}
+            {hasOperations && !isLoading && conversationId && (
+              <div className="absolute bottom-full right-0 mb-1.5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    rollbackAllOperations();
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-zinc-500 hover:bg-zinc-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <X size={14} />
+                  弃用
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await acceptAllOperations();
+                    window.dispatchEvent(new CustomEvent('agent-chapter-confirm', {
+                      detail: { work_id: workId }
+                    }));
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-green-600 border border-green-500/30 hover:bg-green-500/10 dark:text-green-400 transition-colors"
+                >
+                  <Check size={14} />
+                  采纳
+                </button>
+              </div>
+            )}
+            <div className="rounded-3xl bg-white border border-gray-200 px-4 py-3 space-y-3 flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
             <div className="relative">
               <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
                 {/* 选中文本前置（放在后，保持同一行逻辑）*/}
@@ -2109,6 +2114,7 @@ ${selectionContext.selected_text}
                 ) : null}
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>

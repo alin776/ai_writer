@@ -94,16 +94,16 @@ Generates names from curated lists or phoneme patterns.
 
 ```bash
 # Contemporary/historical from cultural lists
-python scripts/character_name.py --culture chinese --gender female
-python scripts/character_name.py --culture anglo --count 5
-python scripts/character_name.py --pool contemporary-american --count 10
+python skills/character/character-naming/scripts/character_name.py --culture chinese --gender female
+python skills/character/character-naming/scripts/character_name.py --culture anglo --count 5
+python skills/character/character-naming/scripts/character_name.py --pool contemporary-american --count 10
 
 # Fantasy from phoneme presets
-python scripts/character_name.py --fantasy elvish-like --count 10
-python scripts/character_name.py --fantasy harsh-fantasy --syllables 2-3
+python skills/character/character-naming/scripts/character_name.py --fantasy elvish-like --count 10
+python skills/character/character-naming/scripts/character_name.py --fantasy harsh-fantasy --syllables 2-3
 
 # With cast collision checking
-python scripts/character_name.py --culture korean --cast project-cast.json
+python skills/character/character-naming/scripts/character_name.py --culture korean --cast project-cast.json
 ```
 
 **Options:**
@@ -122,19 +122,19 @@ Manages cast tracking for collision detection and distribution analysis.
 
 ```bash
 # Initialize new project
-python scripts/cast_tracker.py init "Novel Title"
+python skills/character/character-naming/scripts/cast_tracker.py init "Novel Title"
 
 # Add character to tracking
-python scripts/cast_tracker.py add "Sarah Chen" --role protagonist --culture chinese-american
+python skills/character/character-naming/scripts/cast_tracker.py add "Sarah Chen" --role protagonist --culture chinese-american
 
 # Check if a name collides with existing cast
-python scripts/cast_tracker.py check "Marcus"
+python skills/character/character-naming/scripts/cast_tracker.py check "Marcus"
 
 # View current distribution
-python scripts/cast_tracker.py distribution
+python skills/character/character-naming/scripts/cast_tracker.py distribution
 
 # Get suggestions for underrepresented cultures
-python scripts/cast_tracker.py suggest
+python skills/character/character-naming/scripts/cast_tracker.py suggest
 ```
 
 ## Anti-Patterns
@@ -232,10 +232,13 @@ Located in `data/phoneme-presets/`:
 5. Check each suggestion against cast for collisions
 
 **Script usage:**
+> **路径提示**: 脚本位于 `skills/character/character-naming/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
-python scripts/cast_tracker.py init "Chicago Crime Novel"
-python scripts/character_name.py --culture anglo --full-name --count 5
-python scripts/character_name.py --culture hispanic --full-name --count 5
+python skills/character/character-naming/scripts/cast_tracker.py init "Chicago Crime Novel"
+python skills/character/character-naming/scripts/character_name.py --culture anglo --full-name --count 5
+python skills/character/character-naming/scripts/character_name.py --culture hispanic --full-name --count 5
 ```
 
 ### Example 2: Fantasy Novel
@@ -249,7 +252,7 @@ python scripts/character_name.py --culture hispanic --full-name --count 5
 
 **Script usage:**
 ```bash
-python scripts/character_name.py --fantasy elvish-like --syllables 2-3 --count 20
+python skills/character/character-naming/scripts/character_name.py --fantasy elvish-like --syllables 2-3 --count 20
 ```
 
 ### Example 3: Chen Proliferation Detected
@@ -262,7 +265,7 @@ python scripts/character_name.py --fantasy elvish-like --syllables 2-3 --count 2
 
 **Script usage:**
 ```bash
-python scripts/character_name.py --culture chinese --count 10 --json
+python skills/character/character-naming/scripts/character_name.py --culture chinese --count 10 --json
 # Pick from deep in the list, not the top
 ```
 
@@ -294,7 +297,7 @@ For complex fantasy languages, hand off phonology creation:
 # Generate full phoneme inventory with conlang
 python ../conlang/scripts/phonology.py --preset elvish_like --json > custom-phonology.json
 # Then use it for names
-python scripts/character_name.py --phonology custom-phonology.json --count 20
+python skills/character/character-naming/scripts/character_name.py --phonology custom-phonology.json --count 20
 ```
 
 ### With naming skill (if available)

@@ -379,13 +379,16 @@ For each concern:
 
 ## Available Tools
 
+> **路径提示**: 脚本位于 `skills/application/sensitivity-check/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ### sensitivity_audit.py
 
 Scans text for common pattern concerns.
 
 ```bash
-python scripts/sensitivity_audit.py manuscript.txt
-python scripts/sensitivity_audit.py --text "Sample passage..."
+python skills/application/sensitivity-check/scripts/sensitivity_audit.py chapters/01-xxx.md
+python skills/application/sensitivity-check/scripts/sensitivity_audit.py --text "Sample passage..."
 ```
 
 **Detects:**
@@ -401,7 +404,7 @@ python scripts/sensitivity_audit.py --text "Sample passage..."
 Maps characters and their representation.
 
 ```bash
-python scripts/representation_map.py characters.json
+python skills/application/sensitivity-check/scripts/representation_map.py characters.json
 ```
 
 **Reports:**

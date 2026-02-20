@@ -230,8 +230,11 @@ When contradictions arise:
 
 Create a new world bible structure:
 
+> **路径提示**: 脚本位于 `skills/application/shared-world/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
-python scripts/init_world.py "World Name"
+python skills/application/shared-world/scripts/init_world.py "World Name"
 ```
 
 Creates the full directory structure with template files.
@@ -241,7 +244,7 @@ Creates the full directory structure with template files.
 Add a new entry to the world bible:
 
 ```bash
-python scripts/add_entry.py \
+python skills/application/shared-world/scripts/add_entry.py \
   --category character \
   --name "Character Name" \
   --status proposed
@@ -254,7 +257,7 @@ Creates entry from template with proper metadata.
 Scan for potential contradictions:
 
 ```bash
-python scripts/check_conflicts.py world-bible/
+python skills/application/shared-world/scripts/check_conflicts.py world-bible/
 ```
 
 Identifies entries that may contradict each other.
@@ -264,7 +267,7 @@ Identifies entries that may contradict each other.
 Rebuild index files from entries:
 
 ```bash
-python scripts/build_index.py world-bible/
+python skills/application/shared-world/scripts/build_index.py world-bible/
 ```
 
 Updates all _index.md files with current entries.
@@ -274,7 +277,7 @@ Updates all _index.md files with current entries.
 Generate a single-file reference document:
 
 ```bash
-python scripts/export_reference.py world-bible/ --format md
+python skills/application/shared-world/scripts/export_reference.py world-bible/ --format md
 ```
 
 Creates a portable reference document for writers.

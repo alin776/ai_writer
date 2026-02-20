@@ -176,15 +176,19 @@ Mode should match function. Action in sequels feels rushed. Introspection in act
 ### analyze_scene.py
 Analyzes scene text for structure elements. Use when you need quick diagnostic on a specific scene.
 
+
+> **路径提示**: 脚本位于 `skills/structure/scene-sequencing/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
 # Analyze a scene file
-python scripts/analyze_scene.py scene.txt
+python skills/structure/scene-sequencing/scripts/analyze_scene.py scene.txt
 
 # Analyze text directly
-python scripts/analyze_scene.py --text "She needed to find the key..."
+python skills/structure/scene-sequencing/scripts/analyze_scene.py --text "She needed to find the key..."
 
 # Get JSON output for further processing
-python scripts/analyze_scene.py scene.txt --json
+python skills/structure/scene-sequencing/scripts/analyze_scene.py scene.txt --json
 ```
 
 **What it detects:**

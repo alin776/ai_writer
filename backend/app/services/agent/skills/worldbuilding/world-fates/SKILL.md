@@ -451,10 +451,13 @@ Add to entity entries in world-bible:
 
 Calculate current fate pressure for an entity.
 
+> **路径提示**: 脚本位于 `skills/worldbuilding/world-fates/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
-python scripts/fate-pressure.py "Entity Name" --bible ./world-bible
-python scripts/fate-pressure.py --all --bible ./world-bible
-python scripts/fate-pressure.py "Entity Name" --json
+python skills/worldbuilding/world-fates/scripts/fate-pressure.py "Entity Name" --bible ./world-bible
+python skills/worldbuilding/world-fates/scripts/fate-pressure.py --all --bible ./world-bible
+python skills/worldbuilding/world-fates/scripts/fate-pressure.py "Entity Name" --json
 ```
 
 ### fate-roll.py
@@ -462,9 +465,9 @@ python scripts/fate-pressure.py "Entity Name" --json
 Roll the wheel of fate for one or more entities.
 
 ```bash
-python scripts/fate-roll.py "Entity Name" --bible ./world-bible
-python scripts/fate-roll.py --trigger session-end --bible ./world-bible
-python scripts/fate-roll.py --high-pressure-only
+python skills/worldbuilding/world-fates/scripts/fate-roll.py "Entity Name" --bible ./world-bible
+python skills/worldbuilding/world-fates/scripts/fate-roll.py --trigger session-end --bible ./world-bible
+python skills/worldbuilding/world-fates/scripts/fate-roll.py --high-pressure-only
 ```
 
 ### fate-choice.py
@@ -472,8 +475,8 @@ python scripts/fate-roll.py --high-pressure-only
 Generate dramatic Tier 2 choices for high-pressure situations.
 
 ```bash
-python scripts/fate-choice.py "Entity Name" --bible ./world-bible
-python scripts/fate-choice.py "Entity Name" --antagonist "The Dark Queen"
+python skills/worldbuilding/world-fates/scripts/fate-choice.py "Entity Name" --bible ./world-bible
+python skills/worldbuilding/world-fates/scripts/fate-choice.py "Entity Name" --antagonist "The Dark Queen"
 ```
 
 ### propose-shift.py
@@ -481,7 +484,7 @@ python scripts/fate-choice.py "Entity Name" --antagonist "The Dark Queen"
 Generate a fate-shift proposal for human review.
 
 ```bash
-python scripts/propose-shift.py "Entity Name" \
+python skills/worldbuilding/world-fates/scripts/propose-shift.py "Entity Name" \
   --severity major --type fall --bible ./world-bible
 ```
 
@@ -490,7 +493,7 @@ python scripts/propose-shift.py "Entity Name" \
 Log risk exposure events that increase fate pressure.
 
 ```bash
-python scripts/exposure-log.py "Entity Name" \
+python skills/worldbuilding/world-fates/scripts/exposure-log.py "Entity Name" \
   --event "Survived assassination attempt" --pressure 0.15 --bible ./world-bible
 ```
 

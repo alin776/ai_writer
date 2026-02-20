@@ -272,21 +272,25 @@ Based on identified state, provide specific interventions. Generate elements if 
 
 Random element generator for each genre.
 
+
+> **路径提示**: 脚本位于 `skills/craft/genre-conventions/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ```bash
 # Random element from a genre
-python scripts/genre_elements.py mystery
+python skills/craft/genre-conventions/scripts/genre_elements.py mystery
 
 # Specific category within genre
-python scripts/genre_elements.py thriller --category ticking_clocks
+python skills/craft/genre-conventions/scripts/genre_elements.py thriller --category ticking_clocks
 
 # Multiple elements
-python scripts/genre_elements.py horror --count 3
+python skills/craft/genre-conventions/scripts/genre_elements.py horror --count 3
 
 # List all available genres and categories
-python scripts/genre_elements.py --list
+python skills/craft/genre-conventions/scripts/genre_elements.py --list
 
 # Combo from multiple genres
-python scripts/genre_elements.py --combo mystery,thriller
+python skills/craft/genre-conventions/scripts/genre_elements.py --combo mystery,thriller
 ```
 
 ### genre_check.py
@@ -295,13 +299,13 @@ Pattern-matching diagnostic for text samples.
 
 ```bash
 # Check text against specific genre
-python scripts/genre_check.py --genre mystery scene.txt
+python skills/craft/genre-conventions/scripts/genre_check.py --genre mystery scene.txt
 
 # Auto-detect likely genre
-python scripts/genre_check.py --analyze "Synopsis text here..."
+python skills/craft/genre-conventions/scripts/genre_check.py --analyze "Synopsis text here..."
 
 # Inline text check
-python scripts/genre_check.py --text "The detective arrived at dawn..." --genre mystery
+python skills/craft/genre-conventions/scripts/genre_check.py --text "The detective arrived at dawn..." --genre mystery
 ```
 
 ### genre_blend.py
@@ -310,13 +314,13 @@ Secondary genre integration helper.
 
 ```bash
 # Integration strategies for two genres
-python scripts/genre_blend.py mystery relationship
+python skills/craft/genre-conventions/scripts/genre_blend.py mystery relationship
 
 # Multiple secondary genres
-python scripts/genre_blend.py thriller --secondary humor,wonder
+python skills/craft/genre-conventions/scripts/genre_blend.py thriller --secondary humor,wonder
 
 # Analyze text for genre blend
-python scripts/genre_blend.py --analyze "A detective who falls in love while investigating..."
+python skills/craft/genre-conventions/scripts/genre_blend.py --analyze "A detective who falls in love while investigating..."
 ```
 
 ---

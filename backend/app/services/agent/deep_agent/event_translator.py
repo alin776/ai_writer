@@ -213,4 +213,6 @@ def _tool_description(tool_name: str, tool_input: Any) -> str:
             return f"语义搜索: {str(tool_input.get('query', ''))[:50]}"
         if tool_name == "task":
             return f"子任务: {str(tool_input.get('prompt', ''))[:50]}"
+        if tool_name == "execute":
+            return f"执行 {str(tool_input.get('command', ''))[:50]}"
     return tool_name

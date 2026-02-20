@@ -377,6 +377,8 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
           setFocusedDirPathRef.current(getParentPath(data));
           if (isDir) {
             node.toggle();
+          } else {
+            node.activate();
           }
         }}
         onContextMenu={(e) => {

@@ -382,13 +382,16 @@ Prose style is last-mile work. Complete developmental revision first.
 
 ## Available Tools
 
+> **路径提示**: 脚本位于 `skills/craft/prose-style/scripts/` 目录下。
+> 执行时必须使用从项目根目录出发的完整相对路径。
+
 ### prose_check.py
 
 Analyzes prose patterns for common issues.
 
 ```bash
-python scripts/prose_check.py chapter.txt
-python scripts/prose_check.py --text "The passive sentence was written..."
+python skills/craft/prose-style/scripts/prose_check.py chapters/01-xxx.md
+python skills/craft/prose-style/scripts/prose_check.py --text "The passive sentence was written..."
 ```
 
 **Detects:**
@@ -403,8 +406,8 @@ python scripts/prose_check.py --text "The passive sentence was written..."
 Analyzes rhythm and variety patterns.
 
 ```bash
-python scripts/rhythm.py chapter.txt
-python scripts/rhythm.py --text "Short. Then longer. Then short again."
+python skills/craft/prose-style/scripts/rhythm.py chapter.txt
+python skills/craft/prose-style/scripts/rhythm.py --text "Short. Then longer. Then short again."
 ```
 
 **Reports:**

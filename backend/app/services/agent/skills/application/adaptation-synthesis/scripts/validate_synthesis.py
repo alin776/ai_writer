@@ -1,543 +1,512 @@
 #!/usr/bin/env python3
-
-
-
 """
-Validate Synthesis
+validate_synthesis.py - Synthesis Validation Tool
 
 Checks synthesis documents for completeness, function coverage,
 and alignment with source DNA and target genre.
 
 Usage:
-  python scripts/validate-synthesis.py synthesis.json
-  python scripts/validate-synthesis.py synthesis.json --against source.json
-  python scripts/validate-synthesis.py synthesis.json --genre drama
-  python scripts/validate-synthesis.py synthesis.json --full
+  python validate_synthesis.py synthesis.json
+  python validate_synthesis.py synthesis.json --against source.json
+  python validate_synthesis.py synthesis.json --genre drama
+  python validate_synthesis.py synthesis.json --full
 """
 
 import sys
 import os
 import json
 import re
-import random
 from datetime import date
 
+# Ensure UTF-8 output on all platforms
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
-# == INTERFACES ===
+# == VALIDATION LOGIC ==
 
 
+def validate_completeness(synthesis):
+    notes = []
+    score = 0
+    max_score = 10
 
+    meta = synthesis.get("_meta", {})
 
+    # Check meta fields
+    if meta.get("synthesis_name"):
+        score += 1
+    else:
+        notes.append("Missing synthesis name")
 
-# == VALIDATION LOGIC ===
+    if meta.get("target_context"):
+        score += 1
+    else:
+        notes.append("Missing target context")
 
-def validateCompleteness(synthesis: SynthesisDocument): CheckResult {
-  notes: string[] = [];
-  score = 0;
-  maxScore = 10;
+    if meta.get("primary_source"):
+        score += 1
+    else:
+        notes.append("Missing primary source reference")
 
-  # Check meta fields
-  if (synthesis._meta?.synthesis_name) {
-    score += 1;
-  } else {
-    notes.append("Missing synthesis name");
-  }
+    if meta.get("target_genre"):
+        score += 1
+    else:
+        notes.append("Missing target genre")
 
-  if (synthesis._meta?.target_context) {
-    score += 1;
-  } else {
-    notes.append("Missing target context");
-  }
+    # Check context mapping
+    context_mapping = synthesis.get("context_mapping", {})
+    if context_mapping and len(context_mapping) > 0:
+        score += 2
+        if len(context_mapping) >= 4:
+            score += 1
+        else:
+            notes.append("Context mapping could be more detailed")
+    else:
+        notes.append("Missing context mapping")
 
-  if (synthesis._meta?.primary_source) {
-    score += 1;
-  } else {
-    notes.append("Missing primary source reference");
-  }
+    # Check function mappings
+    func_mapping = synthesis.get("function_to_form_mapping", {})
+    if func_mapping and len(func_mapping) > 0:
+        score += 2
+        mapping_count = len(func_mapping)
+        if mapping_count >= 5:
+            score += 1
+        else:
+            notes.append(f"Only {mapping_count} function mappings - consider adding more")
+    else:
+        notes.append("Missing function-to-form mappings")
 
-  if (synthesis._meta?.target_genre) {
-    score += 1;
-  } else {
-    notes.append("Missing target genre");
-  }
+    # Check character synthesis
+    char_synthesis = synthesis.get("character_synthesis", {})
+    if not char_synthesis or len(char_synthesis) == 0:
+        notes.append("Missing character synthesis")
 
-  # Check context mapping
-  if (synthesis.context_mapping and Object.keys(synthesis.context_mapping).length > 0) {
-    score += 2;
-    if (Object.keys(synthesis.context_mapping).length >= 4) {
-      score += 1;
-    } else {
-      notes.append("Context mapping could be more detailed");
-    }
-  } else {
-    notes.append("Missing context mapping");
-  }
-
-  # Check function mappings
-  if (synthesis.function_to_form_mapping and Object.keys(synthesis.function_to_form_mapping).length > 0) {
-    score += 2;
-    mappingCount = Object.keys(synthesis.function_to_form_mapping).length;
-    if (mappingCount >= 5) {
-      score += 1;
-    } else {
-      notes.append(f"Only {mappingCount} function mappings - consider adding more");
-    }
-  } else {
-    notes.append("Missing function-to-form mappings");
-  }
-
-  # Check character synthesis
-  if (synthesis.character_synthesis and Object.keys(synthesis.character_synthesis).length > 0) {
-    # Score already at max if everything above passes
-  } else {
-    notes.append("Missing character synthesis");
-  }
-
-  return {
-    status: score >= 8 ? "pass" : score >= 5 ? "warn" : "fail",
-    score,
-    max_score: maxScore,
-    notes
-  };
-}
-
-def validateOrthogonality(synthesis: SynthesisDocument): CheckResult {
-  notes: string[] = [];
-  score = 0;
-  maxScore = 10;
-
-  if (!synthesis.function_to_form_mapping) {
+    status = "pass" if score >= 8 else ("warn" if score >= 5 else "fail")
     return {
-      status: "fail",
-      score: 0,
-      max_score: maxScore,
-      notes: ["No function mappings to check for orthogonality"]
-    };
-  }
-
-  mappings = Object.entries(synthesis.function_to_form_mapping);
-  passedChecks = 0;
-  explicitlyMarked = 0;
-
-  for func, mapping in mappings) {
-    # Check if orthogonality was explicitly evaluated
-    if (mapping.orthogonality_check) {
-      explicitlyMarked++;
-      if (mapping.orthogonality_check.lower().includes("pass")) {
-        passedChecks++;
-      } else if (mapping.orthogonality_check.lower().includes("fail")) {
-        notes.append(f"Orthogonality FAILED for: {func}");
-      } else {
-        notes.append(f"Unclear orthogonality status for: {func}");
-      }
+        "status": status,
+        "score": score,
+        "max_score": max_score,
+        "notes": notes
     }
 
-    # Heuristic checks for surface translation
-    if (mapping.new_form and mapping.original_form) {
-      original = mapping.original_form.lower();
-      newForm = mapping.new_form.lower();
 
-      # Check for obvious 1:1 translations
-      surfaceIndicators = ["space ", "cyber", "future ", "sci-fi ", "fantasy "];
-      for indicator in surfaceIndicators) {
-        if (newForm.includes(indicator) and !original.includes(indicator)) {
-          notes.append(f"Possible surface translation: \"{mapping.new_form}\" - just adding setting prefix?");
-          break;
+def validate_orthogonality(synthesis):
+    notes = []
+    score = 0
+    max_score = 10
+
+    func_mapping = synthesis.get("function_to_form_mapping")
+    if not func_mapping:
+        return {
+            "status": "fail",
+            "score": 0,
+            "max_score": max_score,
+            "notes": ["No function mappings to check for orthogonality"]
         }
-      }
-    }
-  }
 
-  # Score based on explicit checks
-  if (mappings.length > 0) {
-    if (explicitlyMarked == mappings.length) {
-      score += 4;
-    } else if (explicitlyMarked > 0) {
-      score += 2;
-      notes.append(f"Only {explicitlyMarked}/{mappings.length} mappings have explicit orthogonality check");
-    } else {
-      notes.append("No explicit orthogonality checks recorded");
-    }
+    mappings = list(func_mapping.items())
+    passed_checks = 0
+    explicitly_marked = 0
 
-    passRate = passedChecks / mappings.length;
-    score += round(passRate * 6);
-  }
+    for func, mapping in mappings:
+        # Check if orthogonality was explicitly evaluated
+        orth_check = mapping.get("orthogonality_check", "")
+        if orth_check:
+            explicitly_marked += 1
+            if "pass" in orth_check.lower():
+                passed_checks += 1
+            elif "fail" in orth_check.lower():
+                notes.append(f"Orthogonality FAILED for: {func}")
+            else:
+                notes.append(f"Unclear orthogonality status for: {func}")
 
-  return {
-    status: score >= 8 ? "pass" : score >= 5 ? "warn" : "fail",
-    score,
-    max_score: maxScore,
-    notes
-  };
-}
+        # Heuristic checks for surface translation
+        new_form = mapping.get("new_form", "")
+        original_form = mapping.get("original_form", "")
+        if new_form and original_form:
+            original_lower = original_form.lower()
+            new_lower = new_form.lower()
 
-def validateFunctionCoverage(synthesis: SynthesisDocument, source: DNADocument | None): CheckResult {
-  notes: string[] = [];
-  score = 0;
-  maxScore = 10;
+            # Check for obvious 1:1 translations
+            surface_indicators = ["space ", "cyber", "future ", "sci-fi ", "fantasy "]
+            for indicator in surface_indicators:
+                if indicator in new_lower and indicator not in original_lower:
+                    notes.append(f'Possible surface translation: "{new_form}" - just adding setting prefix?')
+                    break
 
-  if (!synthesis.function_to_form_mapping) {
+    # Score based on explicit checks
+    if len(mappings) > 0:
+        if explicitly_marked == len(mappings):
+            score += 4
+        elif explicitly_marked > 0:
+            score += 2
+            notes.append(f"Only {explicitly_marked}/{len(mappings)} mappings have explicit orthogonality check")
+        else:
+            notes.append("No explicit orthogonality checks recorded")
+
+        pass_rate = passed_checks / len(mappings) if len(mappings) > 0 else 0
+        score += round(pass_rate * 6)
+
+    status = "pass" if score >= 8 else ("warn" if score >= 5 else "fail")
     return {
-      status: "fail",
-      score: 0,
-      max_score: maxScore,
-      notes: ["No function mappings present"]
-    };
-  }
-
-  mappedFunctions = Object.keys(synthesis.function_to_form_mapping);
-
-  # Basic: has some mappings
-  if (mappedFunctions.length > 0) {
-    score += 2;
-  }
-
-  # Check that mappings have functions_served
-  functionsServed = 0;
-  for mapping in Object.values(synthesis.function_to_form_mapping)) {
-    if (mapping.functions_served and mapping.functions_served.length > 0) {
-      functionsServed += mapping.functions_served.length;
+        "status": status,
+        "score": score,
+        "max_score": max_score,
+        "notes": notes
     }
-  }
 
-  if (functionsServed >= 10) {
-    score += 3;
-  } else if (functionsServed >= 5) {
-    score += 2;
-    notes.append("Consider documenting more functions served by each mapping");
-  } else {
-    score += 1;
-    notes.append("Few functions documented - synthesis may have gaps");
-  }
 
-  # If we have source DNA, check coverage
-  if (source and source.structural_requirements) {
-    requirements = source.structural_requirements;
-    covered = 0;
+def validate_function_coverage(synthesis, source):
+    notes = []
+    score = 0
+    max_score = 10
 
-    for req in requirements) {
-      # Check if any mapping mentions this requirement
-      reqWords = req.lower().split(/\s+/);
-      found = False;
-
-      for mapping in Object.values(synthesis.function_to_form_mapping)) {
-        mappingText = json.dumps(mapping).lower();
-        if (reqWords.some(word => word.length > 4 and mappingText.includes(word))) {
-          found = True;
-          break;
+    func_mapping = synthesis.get("function_to_form_mapping")
+    if not func_mapping:
+        return {
+            "status": "fail",
+            "score": 0,
+            "max_score": max_score,
+            "notes": ["No function mappings present"]
         }
-      }
 
-      if (found) covered++;
-    }
+    mapped_functions = list(func_mapping.keys())
 
-    coverageRate = covered / requirements.length;
-    score += round(coverageRate * 5);
+    # Basic: has some mappings
+    if len(mapped_functions) > 0:
+        score += 2
 
-    if (coverageRate < 1) {
-      notes.append(f"{requirements.length - covered}/{requirements.length} structural requirements may not be covered");
-    }
-  } else {
-    # No source to check against - assume reasonable coverage
-    score += 3;
-    notes.append("No source DNA provided - cannot verify full function coverage");
-  }
+    # Check that mappings have functions_served
+    functions_served = 0
+    for mapping in func_mapping.values():
+        fs = mapping.get("functions_served", [])
+        if fs and len(fs) > 0:
+            functions_served += len(fs)
 
-  return {
-    status: score >= 8 ? "pass" : score >= 5 ? "warn" : "fail",
-    score,
-    max_score: maxScore,
-    notes
-  };
-}
+    if functions_served >= 10:
+        score += 3
+    elif functions_served >= 5:
+        score += 2
+        notes.append("Consider documenting more functions served by each mapping")
+    else:
+        score += 1
+        notes.append("Few functions documented - synthesis may have gaps")
 
-def validateContextCoherence(synthesis: SynthesisDocument): CheckResult {
-  notes: string[] = [];
-  score = 0;
-  maxScore = 10;
+    # If we have source DNA, check coverage
+    if source and source.get("structural_requirements"):
+        requirements = source["structural_requirements"]
+        covered = 0
 
-  # Check context mapping exists and is substantive
-  if (!synthesis.context_mapping or Object.keys(synthesis.context_mapping).length == 0) {
+        for req in requirements:
+            # Check if any mapping mentions this requirement
+            req_words = req.lower().split()
+            found = False
+
+            for mapping in func_mapping.values():
+                mapping_text = json.dumps(mapping).lower()
+                if any(len(word) > 4 and word in mapping_text for word in req_words):
+                    found = True
+                    break
+
+            if found:
+                covered += 1
+
+        coverage_rate = covered / len(requirements) if len(requirements) > 0 else 0
+        score += round(coverage_rate * 5)
+
+        if coverage_rate < 1:
+            notes.append(f"{len(requirements) - covered}/{len(requirements)} structural requirements may not be covered")
+    else:
+        # No source to check against - assume reasonable coverage
+        score += 3
+        notes.append("No source DNA provided - cannot verify full function coverage")
+
+    status = "pass" if score >= 8 else ("warn" if score >= 5 else "fail")
     return {
-      status: "fail",
-      score: 0,
-      max_score: maxScore,
-      notes: ["No context mapping present"]
-    };
-  }
-
-  contextFields = Object.keys(synthesis.context_mapping);
-  contextValues = Object.values(synthesis.context_mapping);
-
-  # Basic: has context mapping
-  score += 2;
-
-  # Check for key context elements
-  desiredFields = ["setting", "power_structure", "information_control", "escape_prevention"];
-  fieldsPresent = 0;
-  for field in desiredFields) {
-    if (contextFields.some(f => f.lower().includes(field.replace("_", "")))) {
-      fieldsPresent++;
+        "status": status,
+        "score": score,
+        "max_score": max_score,
+        "notes": notes
     }
-  }
-  score += min(4, fieldsPresent);
-  if (fieldsPresent < desiredFields.length) {
-    notes.append(f"Consider adding context for: {desiredFields.filter(f =>
-      !contextFields.some(cf => cf.lower().includes(f.replace(\"_\", \"\")))
-    ).join(\", \")}");
-  }
 
-  # Check that context values are substantive (not just placeholders)
-  substantiveValues = contextValues.filter(v => v and v.length > 10);
-  if (substantiveValues.length == contextValues.length) {
-    score += 2;
-  } else {
-    notes.append("Some context values seem like placeholders");
-    score += 1;
-  }
 
-  # Check function mappings fit context
-  if (synthesis.function_to_form_mapping) {
-    contextText = json.dumps(synthesis.context_mapping).lower();
-    coherent = 0;
-    mappings = Object.values(synthesis.function_to_form_mapping);
+def validate_context_coherence(synthesis):
+    notes = []
+    score = 0
+    max_score = 10
 
-    for mapping in mappings) {
-      # Basic heuristic: new form should use words from context
-      if (mapping.new_form) {
-        formWords = mapping.new_form.lower().split(/\s+/);
-        if (formWords.some(w => w.length > 4 and contextText.includes(w))) {
-          coherent++;
+    # Check context mapping exists and is substantive
+    context_mapping = synthesis.get("context_mapping", {})
+    if not context_mapping or len(context_mapping) == 0:
+        return {
+            "status": "fail",
+            "score": 0,
+            "max_score": max_score,
+            "notes": ["No context mapping present"]
         }
-      }
-    }
 
-    if (mappings.length > 0) {
-      coherenceRate = coherent / mappings.length;
-      score += round(coherenceRate * 2);
-      if (coherenceRate < 0.5) {
-        notes.append("Some new forms may not fit the defined context");
-      }
-    }
-  }
+    context_fields = list(context_mapping.keys())
+    context_values = list(context_mapping.values())
 
-  return {
-    status: score >= 8 ? "pass" : score >= 5 ? "warn" : "fail",
-    score,
-    max_score: maxScore,
-    notes
-  };
-}
+    # Basic: has context mapping
+    score += 2
 
-def validateGenreAlignment(synthesis: SynthesisDocument, targetGenre: string | None, source: DNADocument | None): CheckResult {
-  notes: string[] = [];
-  score = 0;
-  maxScore = 10;
+    # Check for key context elements
+    desired_fields = ["setting", "power_structure", "information_control", "escape_prevention"]
+    fields_present = 0
+    for field in desired_fields:
+        if any(field.replace("_", "") in f.lower() for f in context_fields):
+            fields_present += 1
+    score += min(4, fields_present)
+    if fields_present < len(desired_fields):
+        missing = [f for f in desired_fields if not any(f.replace("_", "") in cf.lower() for cf in context_fields)]
+        notes.append(f"Consider adding context for: {', '.join(missing)}")
 
-  genre = targetGenre or synthesis._meta?.target_genre;
+    # Check that context values are substantive (not just placeholders)
+    substantive_values = [v for v in context_values if v and len(str(v)) > 10]
+    if len(substantive_values) == len(context_values):
+        score += 2
+    else:
+        notes.append("Some context values seem like placeholders")
+        score += 1
 
-  if (!genre) {
+    # Check function mappings fit context
+    func_mapping = synthesis.get("function_to_form_mapping")
+    if func_mapping:
+        context_text = json.dumps(context_mapping).lower()
+        coherent = 0
+        mappings = list(func_mapping.values())
+
+        for mapping in mappings:
+            # Basic heuristic: new form should use words from context
+            new_form = mapping.get("new_form", "")
+            if new_form:
+                form_words = new_form.lower().split()
+                if any(len(w) > 4 and w in context_text for w in form_words):
+                    coherent += 1
+
+        if len(mappings) > 0:
+            coherence_rate = coherent / len(mappings)
+            score += round(coherence_rate * 2)
+            if coherence_rate < 0.5:
+                notes.append("Some new forms may not fit the defined context")
+
+    status = "pass" if score >= 8 else ("warn" if score >= 5 else "fail")
     return {
-      status: "warn",
-      score: 5,
-      max_score: maxScore,
-      notes: ["No target genre specified - cannot validate alignment"]
-    };
-  }
-
-  # Has explicit genre
-  score += 2;
-
-  # Check if source genre matches (if available)
-  if (source?.emotional_core?.primary_genre) {
-    if (source.emotional_core.primary_genre.lower() == genre.lower()) {
-      score += 3;
-      notes.append("Target genre matches source primary genre");
-    } else {
-      notes.append(f"Source genre ({source.emotional_core.primary_genre}) differs from target ({genre}) - intentional shift?");
-      score += 1; # Not inherently wrong, but flag it
+        "status": status,
+        "score": score,
+        "max_score": max_score,
+        "notes": notes
     }
-  } else {
-    score += 2; # No source to compare
-  }
 
-  # Check tone synthesis for genre appropriateness
-  if (synthesis.tone_synthesis) {
-    score += 2;
-    # Basic genre-tone heuristics
-    tone = json.dumps(synthesis.tone_synthesis).lower();
-    genreLower = genre.lower();
 
-    if (genreLower == "horror" and !tone.includes("dread") and !tone.includes("fear") and !tone.includes("unease")) {
-      notes.append("Horror genre but tone doesn't mention dread/fear/unease");
+def validate_genre_alignment(synthesis, target_genre, source):
+    notes = []
+    score = 0
+    max_score = 10
+
+    genre = target_genre or synthesis.get("_meta", {}).get("target_genre")
+
+    if not genre:
+        return {
+            "status": "warn",
+            "score": 5,
+            "max_score": max_score,
+            "notes": ["No target genre specified - cannot validate alignment"]
+        }
+
+    # Has explicit genre
+    score += 2
+
+    # Check if source genre matches (if available)
+    source_genre = ""
+    if source:
+        source_genre = source.get("emotional_core", {}).get("primary_genre", "")
+    if source_genre:
+        if source_genre.lower() == genre.lower():
+            score += 3
+            notes.append("Target genre matches source primary genre")
+        else:
+            notes.append(f"Source genre ({source_genre}) differs from target ({genre}) - intentional shift?")
+            score += 1
+    else:
+        score += 2
+
+    # Check tone synthesis for genre appropriateness
+    tone_synthesis = synthesis.get("tone_synthesis")
+    if tone_synthesis:
+        score += 2
+        tone = json.dumps(tone_synthesis).lower()
+        genre_lower = genre.lower()
+
+        if genre_lower == "horror" and "dread" not in tone and "fear" not in tone and "unease" not in tone:
+            notes.append("Horror genre but tone doesn't mention dread/fear/unease")
+        if genre_lower == "humor" and "comic" not in tone and "funny" not in tone and "wit" not in tone:
+            notes.append("Humor genre but tone doesn't mention comedy elements")
+        if genre_lower == "drama" and "light" in tone and "comedy" in tone:
+            notes.append("Drama genre but tone seems light - intentional dramedy?")
+    else:
+        notes.append("No tone synthesis - harder to verify genre alignment")
+
+    # Check for explicit genre validation in document
+    validation = synthesis.get("validation", {})
+    genre_check = validation.get("genre_check", "")
+    if genre_check and "pass" in genre_check.lower():
+        score += 3
+    elif genre_check:
+        score += 1
+        notes.append("Genre check in document doesn't indicate clear pass")
+
+    status = "pass" if score >= 8 else ("warn" if score >= 5 else "fail")
+    return {
+        "status": status,
+        "score": score,
+        "max_score": max_score,
+        "notes": notes
     }
-    if (genreLower == "humor" and !tone.includes("comic") and !tone.includes("funny") and !tone.includes("wit")) {
-      notes.append("Humor genre but tone doesn't mention comedy elements");
+
+
+def run_validation(synthesis, source, target_genre):
+    completeness = validate_completeness(synthesis)
+    orthogonality = validate_orthogonality(synthesis)
+    function_coverage = validate_function_coverage(synthesis, source)
+    context_coherence = validate_context_coherence(synthesis)
+    genre_alignment = validate_genre_alignment(synthesis, target_genre, source)
+
+    checks = {
+        "function_coverage": function_coverage,
+        "orthogonality": orthogonality,
+        "context_coherence": context_coherence,
+        "genre_alignment": genre_alignment,
+        "completeness": completeness
     }
-    if (genreLower == "drama" and tone.includes("light") and tone.includes("comedy")) {
-      notes.append("Drama genre but tone seems light - intentional dramedy?");
+
+    # Aggregate issues and warnings
+    issues = []
+    warnings = []
+
+    for name, check in checks.items():
+        if check["status"] == "fail":
+            issues.append(f"{name}: FAILED ({check['score']}/{check['max_score']})")
+            for n in check["notes"]:
+                issues.append(f"  - {n}")
+        elif check["status"] == "warn":
+            warnings.append(f"{name}: WARNING ({check['score']}/{check['max_score']})")
+            for n in check["notes"]:
+                warnings.append(f"  - {n}")
+
+    # Determine overall status
+    fail_count = sum(1 for c in checks.values() if c["status"] == "fail")
+    warn_count = sum(1 for c in checks.values() if c["status"] == "warn")
+
+    if fail_count > 0:
+        overall_status = "fail"
+    elif warn_count > 1:
+        overall_status = "warn"
+    else:
+        overall_status = "pass"
+
+    # Determine readiness
+    ready_for = []
+    if overall_status == "pass":
+        ready_for.extend(["outline-collaborator", "drafting"])
+    elif overall_status == "warn":
+        ready_for.append("review and refinement")
+    else:
+        ready_for.append("address issues before proceeding")
+
+    return {
+        "synthesis_name": synthesis.get("_meta", {}).get("synthesis_name", "Unknown"),
+        "overall_status": overall_status,
+        "checks": checks,
+        "issues": issues,
+        "warnings": warnings,
+        "ready_for": ready_for
     }
-  } else {
-    notes.append("No tone synthesis - harder to verify genre alignment");
-  }
 
-  # Check for explicit genre validation in document
-  if (synthesis.validation?.genre_check?.lower().includes("pass")) {
-    score += 3;
-  } else if (synthesis.validation?.genre_check) {
-    score += 1;
-    notes.append("Genre check in document doesn't indicate clear pass");
-  }
 
-  return {
-    status: score >= 8 ? "pass" : score >= 5 ? "warn" : "fail",
-    score,
-    max_score: maxScore,
-    notes
-  };
-}
+# == FORMATTING ==
 
-def runValidation(synthesis: SynthesisDocument, source: DNADocument | None, targetGenre: string | None): ValidationResult {
-  completeness = validateCompleteness(synthesis);
-  orthogonality = validateOrthogonality(synthesis);
-  functionCoverage = validateFunctionCoverage(synthesis, source);
-  contextCoherence = validateContextCoherence(synthesis);
-  genreAlignment = validateGenreAlignment(synthesis, targetGenre, source);
 
-  checks = {
-    function_coverage: functionCoverage,
-    orthogonality: orthogonality,
-    context_coherence: contextCoherence,
-    genre_alignment: genreAlignment,
-    completeness: completeness
-  };
+def format_validation_result(result):
+    lines = []
 
-  # Aggregate issues and warnings
-  issues: string[] = [];
-  warnings: string[] = [];
+    if result["overall_status"] == "pass":
+        status_label = "[PASS]"
+    elif result["overall_status"] == "warn":
+        status_label = "[WARN]"
+    else:
+        status_label = "[FAIL]"
 
-  for name, check in checks.items()) {
-    if (check.status == "fail") {
-      issues.append(f"{name}: FAILED ({check.score}/{check.max_score})");
-      issues.append(...check.notes.map(n => f"  - {n}"));
-    } else if (check.status == "warn") {
-      warnings.append(f"{name}: WARNING ({check.score}/{check.max_score})");
-      warnings.append(...check.notes.map(n => f"  - {n}"));
-    }
-  }
+    lines.append(f"# Validation Result: {result['synthesis_name']}")
+    lines.append("")
+    lines.append(f"## Overall Status: {status_label} {result['overall_status'].upper()}")
+    lines.append("")
 
-  # Determine overall status
-  failCount = Object.values(checks).filter(c => c.status == "fail").length;
-  warnCount = Object.values(checks).filter(c => c.status == "warn").length;
+    lines.append("## Check Results")
+    lines.append("")
+    lines.append("| Check | Status | Score |")
+    lines.append("|-------|--------|-------|")
 
-  overallStatus: "pass" | "warn" | "fail";
-  if (failCount > 0) {
-    overallStatus = "fail";
-  } else if (warnCount > 1) {
-    overallStatus = "warn";
-  } else {
-    overallStatus = "pass";
-  }
+    for name, check in result["checks"].items():
+        if check["status"] == "pass":
+            emoji = "PASS"
+        elif check["status"] == "warn":
+            emoji = "WARN"
+        else:
+            emoji = "FAIL"
+        lines.append(f"| {name.replace('_', ' ')} | {emoji} | {check['score']}/{check['max_score']} |")
+    lines.append("")
 
-  # Determine readiness
-  readyFor: string[] = [];
-  if (overallStatus == "pass") {
-    readyFor.append("outline-collaborator", "drafting");
-  } else if (overallStatus == "warn") {
-    readyFor.append("review and refinement");
-  } else {
-    readyFor.append("address issues before proceeding");
-  }
+    if len(result["issues"]) > 0:
+        lines.append("## Issues (Must Fix)")
+        lines.append("")
+        for issue in result["issues"]:
+            lines.append(issue)
+        lines.append("")
 
-  return {
-    synthesis_name: synthesis._meta?.synthesis_name or "Unknown",
-    overall_status: overallStatus,
-    checks,
-    issues,
-    warnings,
-    ready_for: readyFor
-  };
-}
+    if len(result["warnings"]) > 0:
+        lines.append("## Warnings (Consider)")
+        lines.append("")
+        for warning in result["warnings"]:
+            lines.append(warning)
+        lines.append("")
 
-# == FORMATTING ===
+    lines.append("## Ready For")
+    lines.append("")
+    for ready in result["ready_for"]:
+        lines.append(f"- {ready}")
+    lines.append("")
 
-def formatValidationResult(result: ValidationResult): string {
-  lines: string[] = [];
+    # Detailed notes per check
+    lines.append("## Detailed Notes")
+    lines.append("")
+    for name, check in result["checks"].items():
+        if len(check["notes"]) > 0:
+            lines.append(f"### {name.replace('_', ' ')}")
+            for note in check["notes"]:
+                lines.append(f"- {note}")
+            lines.append("")
 
-  statusEmoji = result.overall_status == "pass" ? "[PASS]" :
-                      result.overall_status == "warn" ? "[WARN]" : "[FAIL]";
+    return "\n".join(lines)
 
-  lines.append(f"# Validation Result: {result.synthesis_name}");
-  lines.append("");
-  lines.append(f"## Overall Status: {statusEmoji} {result.overall_status.upper()}");
-  lines.append("");
 
-  lines.append("## Check Results");
-  lines.append("");
-  lines.append("| Check | Status | Score |");
-  lines.append("|-------|--------|-------|");
+# == MAIN ==
 
-  for name, check in Object.entries(result.checks)) {
-    emoji = check.status == "pass" ? "PASS" : check.status == "warn" ? "WARN" : "FAIL";
-    lines.append(f"| {name.replace(/_/g, \" \")} | {emoji} | {check.score}/{check.max_score} |");
-  }
-  lines.append("");
+def main():
+    args = sys.argv[1:]
 
-  if (result.issues.length > 0) {
-    lines.append("## Issues (Must Fix)");
-    lines.append("");
-    for issue in result.issues) {
-      lines.append(issue);
-    }
-    lines.append("");
-  }
-
-  if (result.warnings.length > 0) {
-    lines.append("## Warnings (Consider)");
-    lines.append("");
-    for warning in result.warnings) {
-      lines.append(warning);
-    }
-    lines.append("");
-  }
-
-  lines.append("## Ready For");
-  lines.append("");
-  for ready in result.ready_for) {
-    lines.append(f"- {ready}");
-  }
-  lines.append("");
-
-  # Detailed notes per check
-  lines.append("## Detailed Notes");
-  lines.append("");
-  for name, check in Object.entries(result.checks)) {
-    if (check.notes.length > 0) {
-      lines.append(f"### {name.replace(/_/g, \" \")}");
-      for note in check.notes) {
-        lines.append(f"- {note}");
-      }
-      lines.append("");
-    }
-  }
-
-  return lines.join("\n");
-}
-
-# == MAIN ===
-
-def main(): void {
-  args = sys.argv[1:];
-
-  # Help
-  if (args.includes("--help") or args.includes("-h")) {
-    print(f"Validate Synthesis
+    # Help
+    if "--help" in args or "-h" in args:
+        print("""Validate Synthesis
 
 Usage:
-  deno run --allow-read scripts/validate-synthesis.ts synthesis.json
-  deno run --allow-read scripts/validate-synthesis.ts synthesis.json --against source.json
-  deno run --allow-read scripts/validate-synthesis.ts synthesis.json --genre drama
-  deno run --allow-read scripts/validate-synthesis.ts synthesis.json --full
+  python validate_synthesis.py synthesis.json
+  python validate_synthesis.py synthesis.json --against source.json
+  python validate_synthesis.py synthesis.json --genre drama
+  python validate_synthesis.py synthesis.json --full
 
 Options:
   --against <file>   Source DNA to validate coverage against
@@ -551,79 +520,66 @@ Checks Performed:
   - Function Coverage: Are source functions served?
   - Context Coherence: Do forms fit the target context?
   - Genre Alignment: Does synthesis deliver intended emotional experience?
-");
-    sys.exit(0);
-  }
+""")
+        sys.exit(0)
 
-  isJson = args.includes("--json");
-  isFull = args.includes("--full");
+    is_json = "--json" in args
+    is_full = "--full" in args
 
-  # Parse arguments
-  againstIndex = args.indexOf("--against");
-  againstFile = againstIndex != -1 ? args[againstIndex + 1] : None;
+    # Parse arguments
+    against_index = args.index("--against") if "--against" in args else -1
+    against_file = args[against_index + 1] if against_index != -1 and against_index + 1 < len(args) else None
 
-  genreIndex = args.indexOf("--genre");
-  genre = genreIndex != -1 ? args[genreIndex + 1] : None;
+    genre_index = args.index("--genre") if "--genre" in args else -1
+    genre = args[genre_index + 1] if genre_index != -1 and genre_index + 1 < len(args) else None
 
-  # Find synthesis file (first positional argument)
-  skipIndices = new Set<number>();
-  if (againstIndex != -1) {
-    skipIndices.add(againstIndex);
-    skipIndices.add(againstIndex + 1);
-  }
-  if (genreIndex != -1) {
-    skipIndices.add(genreIndex);
-    skipIndices.add(genreIndex + 1);
-  }
+    # Find synthesis file (first positional argument)
+    skip_indices = set()
+    if against_index != -1:
+        skip_indices.add(against_index)
+        skip_indices.add(against_index + 1)
+    if genre_index != -1:
+        skip_indices.add(genre_index)
+        skip_indices.add(genre_index + 1)
 
-  synthesisFile: string | None = None;
-  for (i = 0; i < args.length; i++) {
-    if (!args[i].startswith("--") and !skipIndices.has(i)) {
-      synthesisFile = args[i];
-      break;
-    }
-  }
+    synthesis_file = None
+    for i in range(len(args)):
+        if not args[i].startswith("--") and i not in skip_indices:
+            synthesis_file = args[i]
+            break
 
-  if (!synthesisFile) {
-    print("Error: Please provide a synthesis file to validate");
-    print("Usage: deno run --allow-read scripts/validate-synthesis.ts synthesis.json");
-    sys.exit(1);
-  }
+    if not synthesis_file:
+        print("Error: Please provide a synthesis file to validate", file=sys.stderr)
+        print("Usage: python validate_synthesis.py synthesis.json", file=sys.stderr)
+        sys.exit(1)
 
-  # Load synthesis document
-  synthesis: SynthesisDocument;
-  try {
-    content = open(synthesisFile, "r", encoding="utf-8").read();
-    synthesis = json.loads(content);
-  } catch (e) {
-    print(f"Error reading synthesis file: {e}");
-    sys.exit(1);
-  }
+    # Load synthesis document
+    synthesis = None
+    try:
+        content = open(synthesis_file, "r", encoding="utf-8").read()
+        synthesis = json.loads(content)
+    except Exception as e:
+        print(f"Error reading synthesis file: {e}", file=sys.stderr)
+        sys.exit(1)
 
-  # Load source DNA if provided
-  source: DNADocument | None = None;
-  if (againstFile) {
-    try {
-      content = open(againstFile, "r", encoding="utf-8").read();
-      source = json.loads(content);
-    } catch (e) {
-      print(f"Error reading source DNA file: {e}");
-      sys.exit(1);
-    }
-  }
+    # Load source DNA if provided
+    source = None
+    if against_file:
+        try:
+            content = open(against_file, "r", encoding="utf-8").read()
+            source = json.loads(content)
+        except Exception as e:
+            print(f"Error reading source DNA file: {e}", file=sys.stderr)
+            sys.exit(1)
 
-  # Run validation
-  result = runValidation(synthesis, source, genre);
+    # Run validation
+    result = run_validation(synthesis, source, genre)
 
-  # Output
-  if (isJson) {
-    print(json.dumps(result, None, 2));
-  } else {
-    print(formatValidationResult(result));
-  }
-}
-
-main();
+    # Output
+    if is_json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(format_validation_result(result))
 
 
 if __name__ == "__main__":
