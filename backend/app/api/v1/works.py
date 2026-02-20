@@ -16,6 +16,7 @@ from app.models.channel_member import ChannelMember
 from app.schemas.work import WorkCreate, WorkUpdate, WorkResponse, WorkListResponse, WorkSummary
 from app.services.work_service import WorkService
 from app.services.cos_service import get_cos_service
+from app.services.knowledge_templates import ensure_knowledge_templates
 from app.schemas.worldview import WorldviewScanProgressResponse
 
 router = APIRouter()
@@ -179,6 +180,11 @@ async def create_work(
     from app.services.agent.deep_agent import DATA_ROOT
     work_dir = DATA_ROOT / str(current_user.id) / "works" / str(work.id)
     work_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        ensure_knowledge_templates(work_dir)
+    except Exception as exc:
+        # Best-effort only: work creation should not fail on template bootstrap errors.
+        logger.warning("[works] init knowledge templates skipped: %s", exc)
 
     return work
 

@@ -21,6 +21,7 @@ from app.services.agent.deep_agent.buffered_backend import BufferedFilesystemBac
 from app.services.agent.deep_agent.file_ops_tools import create_file_ops_tools
 from app.services.agent.deep_agent.prompts import build_system_prompt
 from app.services.agent.deep_agent.rag_tool import create_semantic_search_tool
+from app.services.knowledge_templates import ensure_knowledge_templates
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,11 @@ def create_writing_agent(
     work_id = str(work.id)
     work_dir = _get_work_dir(user_id, work_id)
     work_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        ensure_knowledge_templates(work_dir)
+    except Exception as exc:
+        # Best effort: do not block agent startup if template bootstrap fails.
+        logger.warning("Init knowledge templates skipped for work=%s: %s", work_id, exc)
 
     # 1. 创建缓冲后端
     backend = BufferedFilesystemBackend(root_dir=str(work_dir))

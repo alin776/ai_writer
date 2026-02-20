@@ -70,7 +70,7 @@ interface ToolLineProps extends StepFlowData {
   children?: React.ReactNode;
 }
 
-export function ToolLine({ status, toolName, toolInput, title, children }: ToolLineProps) {
+export function ToolLine({ status, toolName, toolInput, title, description, children }: ToolLineProps) {
   const displayText = formatToolLine(toolName, toolInput, title);
 
   // write_todos 不单独渲染为 ToolLine（由 TodoBlock 接管）
@@ -96,6 +96,11 @@ export function ToolLine({ status, toolName, toolInput, title, children }: ToolL
           {displayText}
         </span>
       </div>
+      {status === 'error' && description && (
+        <div className="ml-4 text-xs text-red-500 dark:text-red-400 break-all">
+          {description}
+        </div>
+      )}
       {/* 内嵌的 RevisionCard 等子元素 */}
       {children && <div className="ml-4">{children}</div>}
     </div>

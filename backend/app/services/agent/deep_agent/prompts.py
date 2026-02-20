@@ -6,6 +6,8 @@ System Prompt 构建器
 
 from pathlib import Path
 
+from app.core.config import settings
+
 GENRE_PROMPTS_DIR = Path(__file__).parent.parent / "genre_prompts"
 
 _GENRE_FILE_MAP = {
@@ -70,9 +72,16 @@ def build_system_prompt(work) -> str:
   正文内容
   ```
 - 大纲在 /knowledge/outline.md，世界观在 /knowledge/worldview.md，人物在 /knowledge/characters.md
+- 细分资料在 /knowledge/refs/*.md（时间线、势力、物品、术语、待确认设定等）
+
+## 知识更新策略（成本优先）
+- refs（/knowledge/refs/*.md）优先做增量更新，保持及时
+- 主文件（outline/characters/worldview）按里程碑合并：每{settings.KNOWLEDGE_MAIN_DOC_CHAPTER_INTERVAL}章或每{settings.KNOWLEDGE_MAIN_DOC_TIME_INTERVAL_MINUTES}分钟一次
+- 单次 refs 更新尽量不超过 {settings.KNOWLEDGE_REFS_DELTA_LIMIT} 条增量，避免大段重复改写
+- 高频编辑时采用去抖：{settings.WORLDVIEW_KNOWLEDGE_SYNC_DEBOUNCE_SECONDS} 秒窗口内合并处理
 
 ## 行为规则
-1. 写作前先阅读已有章节和设定文件，确保上下文连贯
+1. 写作前先阅读已有章节和核心设定文件（outline/characters/worldview），再按任务需要补充读取 refs 文件
 2. 新建章节用 write_file，修改已有章节用 edit_file；重命名文件用 rename_file，删除文件用 delete_file
 3. 创建章节时务必包含 frontmatter（title + status）
 4. 保持人物性格、世界观设定的前后一致性

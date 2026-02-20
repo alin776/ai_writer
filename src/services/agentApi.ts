@@ -400,7 +400,7 @@ class AgentApiService {
               // V1 遗留，忽略
               break;
             case 'step_complete':
-              callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolName: data.tool_name, toolCall: data.tool_call, status: data.status, timestamp: data.timestamp });
+              callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolName: data.tool_name, toolCall: data.tool_call, status: data.status, error: data.error, timestamp: data.timestamp });
               break;
             case 'output_ready':
               callbacks.onFlowEvent?.({ type: 'output_ready', title: data.title, content: data.content, intro: data.intro, introHighlight: data.intro_highlight, isApplicable: data.is_applicable, timestamp: data.timestamp });

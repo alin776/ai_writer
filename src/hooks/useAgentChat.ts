@@ -18,6 +18,110 @@ const cleanTaskDescription = (description: string): string => {
     .replace(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi, '');
 };
 
+type PendingChange = {
+  index?: number;
+  op_type?: string;
+  path?: string;
+  content_preview?: string;
+  old_string?: string;
+  new_string?: string;
+  chapter_id?: string;
+  chapter_title?: string;
+  old_title?: string;
+  new_title?: string;
+};
+
+const countNormalizedLines = (value?: string): number => {
+  if (!value) return 0;
+  const normalized = value.replace(/\n{2,}/g, '\n').replace(/^\n+|\n+$/g, '');
+  if (!normalized) return 0;
+  return normalized.split('\n').length;
+};
+
+const inferRevisionChapter = (change: PendingChange): { chapterId?: string; chapterTitle?: string } => {
+  const rawPath = typeof change.path === 'string' ? change.path : '';
+  const cleanPath = rawPath.replace(/^\/+/, '');
+  const chapterMatch = cleanPath.match(/^chapters\/(\d+)-[^/]+\.md$/i);
+
+  if (chapterMatch) {
+    return {
+      chapterId: change.chapter_id || `fs-${parseInt(chapterMatch[1], 10)}`,
+      chapterTitle: change.chapter_title,
+    };
+  }
+
+  if (!cleanPath) {
+    return {
+      chapterId: change.chapter_id,
+      chapterTitle: change.chapter_title,
+    };
+  }
+
+  const baseName = cleanPath.split('/').pop() || cleanPath;
+  const fallbackTitle = baseName.replace(/\.md$/i, '');
+  return {
+    chapterId: change.chapter_id || `doc:${cleanPath}`,
+    chapterTitle: change.chapter_title || fallbackTitle,
+  };
+};
+
+const buildRevisionFromChange = (change: PendingChange): RevisionFlowData | null => {
+  const index = typeof change.index === 'number' ? change.index : undefined;
+  if (index === undefined) return null;
+
+  const operation = change.op_type || 'edit';
+  const revisionType =
+    operation === 'write'
+      ? 'create'
+      : operation === 'rename'
+        ? 'rename'
+        : 'replace';
+
+  const chapterInfo = inferRevisionChapter(change);
+  const oldString = change.old_string || '';
+  const newString = change.new_string || '';
+
+  return {
+    revisionType,
+    status: 'pending',
+    operation,
+    path: change.path,
+    contentPreview: change.content_preview || '',
+    oldString,
+    newString,
+    chapterId: chapterInfo.chapterId,
+    chapterTitle: chapterInfo.chapterTitle,
+    oldTitle: change.old_title,
+    newTitle: change.new_title,
+    addLines: countNormalizedLines(newString),
+    delLines: countNormalizedLines(oldString),
+    index,
+  };
+};
+
+const collectRevisionIndices = (flowItems: FlowItem[]): Set<number> => {
+  const indices = new Set<number>();
+  for (const item of flowItems) {
+    let revision: RevisionFlowData | undefined;
+    if (item.type === 'step') {
+      revision = (item.data as StepFlowData).revision;
+    } else if (item.type === 'revision') {
+      revision = item.data as RevisionFlowData;
+    }
+
+    if (!revision) continue;
+    if (typeof revision.index === 'number') {
+      indices.add(revision.index);
+    }
+    if (Array.isArray((revision as any).indices)) {
+      for (const idx of (revision as any).indices as number[]) {
+        if (typeof idx === 'number') indices.add(idx);
+      }
+    }
+  }
+  return indices;
+};
+
 interface Message {
   role: 'user' | 'agent';
   content: string;
@@ -636,6 +740,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   // v6.7: 确保 running 状态至少显示 500ms，与 TaskList 同步
                   const MIN_RUNNING_DISPLAY_MS = 500;
                   const stepId = event.stepId;
+                  const finalStepStatus: StepFlowData['status'] = event.status === 'error' ? 'error' : 'done';
                   const timerKey = `step-${stepId}`;
                   const startTime = stepStartTimes.get(stepId);
                   const elapsedMs = startTime ? Date.now() - startTime : MIN_RUNNING_DISPLAY_MS;
@@ -664,7 +769,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                           const finalDescription = cleanTaskDescription(eventDescription) || stepData.description;
                           return {
                             ...item,
-                            data: { ...stepData, status: 'done' as const, description: finalDescription, toolCall: eventToolCall }
+                            data: { ...stepData, status: finalStepStatus, description: finalDescription, toolCall: eventToolCall }
                           };
                         }
                         return item;
@@ -688,7 +793,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                         const finalDescription = cleanTaskDescription(eventDescription) || stepData.description;
                         return {
                           ...item,
-                          data: { ...stepData, status: 'done' as const, description: finalDescription, toolCall: eventToolCall }
+                          data: { ...stepData, status: finalStepStatus, description: finalDescription, toolCall: eventToolCall }
                         };
                       }
                       return item;
@@ -714,10 +819,34 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   break;
                 }
                 case 'completion': {
+                  const completionData = event.data || {};
+                  const completionChanges = Array.isArray(completionData.changes)
+                    ? completionData.changes as PendingChange[]
+                    : [];
+                  if (completionChanges.length > 0) {
+                    const existingIndices = collectRevisionIndices(currentFlowItems);
+                    const missingChanges = completionChanges.filter((change) => {
+                      const idx = typeof change?.index === 'number' ? change.index : undefined;
+                      return idx !== undefined && !existingIndices.has(idx);
+                    });
+
+                    for (const change of missingChanges) {
+                      const revisionData = buildRevisionFromChange(change);
+                      if (!revisionData) continue;
+                      const revisionItem: FlowItem = {
+                        id: `flow-${Date.now()}-revision-fallback-${revisionData.index}`,
+                        type: 'revision',
+                        data: revisionData,
+                        timestamp,
+                      };
+                      currentFlowItems = [...currentFlowItems, revisionItem];
+                    }
+                  }
+
                   const item: FlowItem = {
                     id: `flow-${Date.now()}-completion`,
                     type: 'completion',
-                    data: { text: event.data?.text },
+                    data: { text: completionData.text },
                     timestamp,
                   };
                   currentFlowItems = [...currentFlowItems, item];

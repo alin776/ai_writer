@@ -671,11 +671,12 @@ async def _sync_worldview_cards_from_pending(
     backend: Any,
     touched_paths: list[str],
 ) -> dict[str, Any] | None:
-    """Best-effort: when AI changes tracked knowledge files, upsert worldview cards."""
+    """Best-effort: debounced knowledge->worldview sync for AI-applied edits."""
     if not touched_paths:
         return None
 
     from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
+    from app.services.knowledge_sync_scheduler import request_worldview_sync
 
     if not WorldviewKnowledgeBridge.has_tracked_path(touched_paths):
         return None
@@ -685,11 +686,12 @@ async def _sync_worldview_cards_from_pending(
         return None
 
     work_id = work_dir.name
-    bridge = WorldviewKnowledgeBridge(db)
-    return await bridge.sync_cards_from_knowledge(
+    return await request_worldview_sync(
+        db=db,
         work_id=work_id,
-        touched_paths=touched_paths,
         work_dir=work_dir,
+        touched_paths=touched_paths,
+        sync_mode=settings.WORLDVIEW_KNOWLEDGE_SYNC_MODE,
     )
 
 

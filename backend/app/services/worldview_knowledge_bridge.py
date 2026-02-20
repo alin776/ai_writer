@@ -128,6 +128,50 @@ def _safe_tags(value: Any) -> list[str]:
     return [text] if text else []
 
 
+def _append_meta(item: dict[str, Any], key: str, value: str) -> None:
+    """Keep unknown markdown keys in structured meta instead of polluting正文."""
+    field = (key or "").strip()
+    if not field:
+        return
+    text = (value or "").strip()
+    meta = item.setdefault("meta", {})
+    existing = meta.get(field)
+    if existing is None:
+        meta[field] = text
+        return
+    if isinstance(existing, list):
+        if text and text not in existing:
+            existing.append(text)
+        return
+    if text and text != existing:
+        meta[field] = [existing, text]
+
+
+def _normalize_heading(value: str) -> str:
+    return re.sub(r"\s+", "", (value or "").strip()).lower()
+
+
+def _is_characters_root_heading(value: str) -> bool:
+    normalized = _normalize_heading(value)
+    return normalized in {
+        "人物设定",
+        "人物",
+        "角色设定",
+        "角色",
+        "character",
+        "characters",
+    }
+
+
+def _is_probable_character_group_heading(value: str) -> bool:
+    normalized = _normalize_heading(value)
+    if not normalized:
+        return False
+    if normalized in {"主角", "配角", "反派", "次要角色", "其他人物", "人物关系"}:
+        return True
+    return normalized.endswith(("组", "阵营", "派系", "清单", "列表", "group", "team", "faction"))
+
+
 class WorldviewKnowledgeBridge:
     """Synchronize worldview cards with mirrored knowledge markdown files."""
 
@@ -209,17 +253,21 @@ class WorldviewKnowledgeBridge:
         *,
         touched_paths: Optional[list[str]] = None,
         work_dir: Optional[Path] = None,
+        sync_mode: str = "upsert",
     ) -> dict[str, Any]:
         """
         Parse tracked knowledge markdown files and upsert card data.
 
         Notes:
         - Upsert by natural key (name/title).
-        - No auto-delete for missing markdown entries.
+        - Optional strict mode can delete DB rows missing in markdown.
         """
         resolved_work_dir = await self._resolve_work_dir(work_id, work_dir)
         if not resolved_work_dir:
-            return {"created": {}, "updated": {}, "mirrored_files": []}
+            return {"created": {}, "updated": {}, "deleted": {}, "mirrored_files": []}
+
+        mode = self._normalize_sync_mode(sync_mode)
+        strict_mode = mode == "strict"
 
         touched = {_normalize_path(path) for path in (touched_paths or [])}
         touched_has_data = bool(touched)
@@ -233,6 +281,7 @@ class WorldviewKnowledgeBridge:
 
         created = {"characters": 0, "locations": 0, "settings": 0}
         updated = {"characters": 0, "locations": 0, "settings": 0}
+        deleted = {"characters": 0, "locations": 0, "settings": 0}
 
         if sync_characters:
             characters_path = self._pick_existing_path(
@@ -241,10 +290,13 @@ class WorldviewKnowledgeBridge:
                 "characters.md",
             )
             if characters_path and characters_path.exists():
-                parsed_characters = self._parse_characters_markdown(characters_path.read_text(encoding="utf-8"))
+                raw_text = characters_path.read_text(encoding="utf-8")
+                parsed_characters = self._parse_characters_markdown(raw_text)
                 c_created, c_updated = await self._upsert_characters(work_id, parsed_characters)
                 created["characters"] += c_created
                 updated["characters"] += c_updated
+                if strict_mode:
+                    deleted["characters"] += await self._delete_missing_characters(work_id, parsed_characters)
 
         if sync_worldview:
             worldview_path = self._pick_existing_path(
@@ -253,29 +305,39 @@ class WorldviewKnowledgeBridge:
                 "worldview.md",
             )
             if worldview_path and worldview_path.exists():
-                parsed_worldview = self._parse_worldview_markdown(worldview_path.read_text(encoding="utf-8"))
+                raw_text = worldview_path.read_text(encoding="utf-8")
+                parsed_worldview = self._parse_worldview_markdown(raw_text)
                 l_created, l_updated = await self._upsert_locations(work_id, parsed_worldview["locations"])
                 s_created, s_updated = await self._upsert_settings(work_id, parsed_worldview["settings"])
                 created["locations"] += l_created
                 updated["locations"] += l_updated
                 created["settings"] += s_created
                 updated["settings"] += s_updated
+                if strict_mode:
+                    deleted["locations"] += await self._delete_missing_locations(work_id, parsed_worldview["locations"])
+                    deleted["settings"] += await self._delete_missing_settings(work_id, parsed_worldview["settings"])
 
-        has_db_changes = any(value > 0 for value in created.values()) or any(value > 0 for value in updated.values())
+        has_db_changes = (
+            any(value > 0 for value in created.values())
+            or any(value > 0 for value in updated.values())
+            or any(value > 0 for value in deleted.values())
+        )
         if has_db_changes:
             await self.db.commit()
             self._invalidate_worldview_cache(work_id)
 
         mirror_result = {"updated_files": []}
-        # Keep markdown format stable after markdown-driven edits.
-        if sync_characters or sync_worldview:
+        # Only rewrite markdown when DB actually changed, avoid overriding user formatting on no-op edits.
+        if has_db_changes and (sync_characters or sync_worldview):
             mirror_result = await self.mirror_from_cards(work_id, work_dir=resolved_work_dir)
 
         return {
             "created": created,
             "updated": updated,
+            "deleted": deleted,
             "mirrored_files": mirror_result.get("updated_files", []),
             "has_db_changes": has_db_changes,
+            "sync_mode": mode,
         }
 
     async def _resolve_work_dir(self, work_id: str, fallback: Optional[Path]) -> Optional[Path]:
@@ -300,6 +362,14 @@ class WorldviewKnowledgeBridge:
         if legacy.exists():
             return legacy
         return preferred
+
+    @staticmethod
+    def _normalize_sync_mode(sync_mode: Optional[str]) -> str:
+        mode = (sync_mode or "upsert").strip().lower()
+        if mode not in {"upsert", "strict"}:
+            logger.warning("[WorldviewKnowledgeBridge] unknown sync_mode=%s, fallback to upsert", sync_mode)
+            return "upsert"
+        return mode
 
     @staticmethod
     def _render_characters_markdown(characters: list[Character]) -> str:
@@ -378,9 +448,17 @@ class WorldviewKnowledgeBridge:
         entries: list[dict[str, Any]] = []
         current: Optional[dict[str, Any]] = None
         last_field: Optional[str] = None
+        pending_h2_title: Optional[str] = None
+        current_group: Optional[str] = None
 
         heading_re = re.compile(r"^\s*(#{1,6})\s+(.+?)\s*$")
         kv_re = re.compile(r"^\s*[-*]\s*([^:：]+)\s*[:：]\s*(.*)\s*$")
+
+        def flush_current() -> None:
+            nonlocal current
+            if current and current.get("name"):
+                entries.append(current)
+            current = None
 
         for raw_line in text.splitlines():
             line = raw_line.rstrip("\r\n")
@@ -389,14 +467,33 @@ class WorldviewKnowledgeBridge:
                 level = len(heading_match.group(1))
                 title = heading_match.group(2).strip()
                 if level == 2:
-                    if current and current.get("name"):
-                        entries.append(current)
+                    flush_current()
+                    pending_h2_title = title
+                    current_group = None
+                    last_field = None
+                    continue
+                if level == 3:
+                    flush_current()
+                    if pending_h2_title and not _is_characters_root_heading(pending_h2_title):
+                        current_group = pending_h2_title
+                    else:
+                        current_group = None
+                    pending_h2_title = None
                     current = {"name": title}
+                    if current_group:
+                        current["group"] = current_group
                 last_field = None
                 continue
 
             if current is None:
-                continue
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if pending_h2_title and not _is_probable_character_group_heading(pending_h2_title):
+                    current = {"name": pending_h2_title}
+                    pending_h2_title = None
+                else:
+                    continue
 
             kv_match = kv_re.match(line)
             if kv_match:
@@ -415,8 +512,8 @@ class WorldviewKnowledgeBridge:
                     current["tags"] = _split_tags(value)
                     last_field = None
                 else:
-                    current["description"] = _join_lines(current.get("description"), f"{kv_match.group(1).strip()}：{value}")
-                    last_field = "description"
+                    _append_meta(current, kv_match.group(1), value)
+                    last_field = None
                 continue
 
             stripped = line.strip()
@@ -432,8 +529,7 @@ class WorldviewKnowledgeBridge:
             current["description"] = _join_lines(current.get("description"), stripped)
             last_field = "description"
 
-        if current and current.get("name"):
-            entries.append(current)
+        flush_current()
 
         return entries
 
@@ -442,7 +538,7 @@ class WorldviewKnowledgeBridge:
         locations: list[dict[str, Any]] = []
         settings: list[dict[str, Any]] = []
 
-        section = "settings"
+        section = "ignore"
         section_default_category: Optional[str] = None
         current_item: Optional[dict[str, Any]] = None
         current_kind: Optional[str] = None
@@ -481,11 +577,14 @@ class WorldviewKnowledgeBridge:
                     if section == "locations":
                         current_item = {"name": title}
                         current_kind = "location"
-                    else:
+                    elif section == "settings":
                         current_item = {"title": title}
                         if section_default_category:
                             current_item["category"] = section_default_category
                         current_kind = "setting"
+                    else:
+                        current_item = None
+                        current_kind = None
                     last_field = None
                     continue
 
@@ -510,11 +609,8 @@ class WorldviewKnowledgeBridge:
                         current_item["tags"] = _split_tags(value)
                         last_field = None
                     else:
-                        current_item["description"] = _join_lines(
-                            current_item.get("description"),
-                            f"{kv_match.group(1).strip()}：{value}",
-                        )
-                        last_field = "description"
+                        _append_meta(current_item, kv_match.group(1), value)
+                        last_field = None
                 elif current_kind == "setting":
                     if key in {"分类", "category"}:
                         current_item["category"] = value or None
@@ -526,11 +622,8 @@ class WorldviewKnowledgeBridge:
                         current_item["tags"] = _split_tags(value)
                         last_field = None
                     else:
-                        current_item["content"] = _join_lines(
-                            current_item.get("content"),
-                            f"{kv_match.group(1).strip()}：{value}",
-                        )
-                        last_field = "content"
+                        _append_meta(current_item, kv_match.group(1), value)
+                        last_field = None
                 continue
 
             stripped = line.strip()
@@ -569,8 +662,21 @@ class WorldviewKnowledgeBridge:
         if lowered in generic_setting_titles:
             return "settings", None
 
-        # Unknown sections are treated as setting categories (e.g. "物品", "势力").
-        return "settings", title or None
+        explicit_prefixes = ("设定:", "setting:", "category:")
+        for prefix in explicit_prefixes:
+            if lowered.startswith(prefix):
+                category = title.split(":", 1)[1].strip() if ":" in title else ""
+                return "settings", category or None
+
+        known_setting_categories = {
+            "物品", "势力", "组织", "种族", "历史", "规则", "力量体系", "文化", "宗教", "科技", "经济", "政治",
+            "items", "item", "factions", "faction", "rules", "rule", "culture", "religion", "technology",
+        }
+        if lowered in known_setting_categories:
+            return "settings", title
+
+        # Unknown section headers are ignored to avoid accidental upsert from notes/reference blocks.
+        return "ignore", None
 
     async def _upsert_characters(self, work_id: str, items: list[dict[str, Any]]) -> tuple[int, int]:
         existing = (
@@ -741,6 +847,51 @@ class WorldviewKnowledgeBridge:
             created += 1
 
         return created, updated
+
+    async def _delete_missing_characters(self, work_id: str, items: list[dict[str, Any]]) -> int:
+        keep = {_normalize_key((item.get("name") or "").strip()) for item in items if (item.get("name") or "").strip()}
+        if not keep:
+            logger.debug("[WorldviewKnowledgeBridge] strict delete skipped for characters: parsed list empty")
+            return 0
+        existing = (
+            await self.db.execute(select(Character).where(Character.work_id == work_id))
+        ).scalars().all()
+        deleted = 0
+        for row in existing:
+            if _normalize_key(row.name) not in keep:
+                await self.db.delete(row)
+                deleted += 1
+        return deleted
+
+    async def _delete_missing_locations(self, work_id: str, items: list[dict[str, Any]]) -> int:
+        keep = {_normalize_key((item.get("name") or "").strip()) for item in items if (item.get("name") or "").strip()}
+        if not keep:
+            logger.debug("[WorldviewKnowledgeBridge] strict delete skipped for locations: parsed list empty")
+            return 0
+        existing = (
+            await self.db.execute(select(Location).where(Location.work_id == work_id))
+        ).scalars().all()
+        deleted = 0
+        for row in existing:
+            if _normalize_key(row.name) not in keep:
+                await self.db.delete(row)
+                deleted += 1
+        return deleted
+
+    async def _delete_missing_settings(self, work_id: str, items: list[dict[str, Any]]) -> int:
+        keep = {_normalize_key((item.get("title") or "").strip()) for item in items if (item.get("title") or "").strip()}
+        if not keep:
+            logger.debug("[WorldviewKnowledgeBridge] strict delete skipped for settings: parsed list empty")
+            return 0
+        existing = (
+            await self.db.execute(select(Setting).where(Setting.work_id == work_id))
+        ).scalars().all()
+        deleted = 0
+        for row in existing:
+            if _normalize_key(row.title) not in keep:
+                await self.db.delete(row)
+                deleted += 1
+        return deleted
 
     @staticmethod
     def _invalidate_worldview_cache(work_id: str) -> None:

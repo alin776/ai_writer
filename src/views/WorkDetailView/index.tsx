@@ -1838,8 +1838,9 @@ const WorkDetailView: React.FC = () => {
             }))
         : [];
       const anchoredDiffPairs = normalizedDiffPairs.filter((pair) => pair.oldString.length > 0);
+      // 仅回放可定位的 diff；混入 oldString 为空的片段会让预览“漂移到开头”
       const replayDiffPairs = anchoredDiffPairs.length > 0
-        ? normalizedDiffPairs
+        ? anchoredDiffPairs
         : (normalizedDiffPairs.length > 0 ? [normalizedDiffPairs[normalizedDiffPairs.length - 1]] : []);
 
       const hasDirectNewString = typeof newString === 'string' && newString.length > 0;

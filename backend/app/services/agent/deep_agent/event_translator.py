@@ -66,6 +66,56 @@ def _now() -> str:
     return get_utc_now().isoformat()
 
 
+def _normalize_error_text(value: Any, max_len: int = 220) -> str | None:
+    """Normalize tool error text for step_complete display."""
+    if not isinstance(value, str):
+        return None
+    text = " ".join(value.split())
+    if not text:
+        return None
+    if len(text) > max_len:
+        return text[: max_len - 1] + "…"
+    return text
+
+
+def _extract_tool_error(output: Any) -> str | None:
+    """Best-effort extract error message from LangGraph on_tool_end output."""
+    if output is None:
+        return None
+
+    # Dataclass / object style output (e.g., EditResult.error / WriteResult.error)
+    if hasattr(output, "error"):
+        msg = _normalize_error_text(getattr(output, "error"))
+        if msg:
+            return msg
+
+    # Pydantic / dict-like output
+    if hasattr(output, "model_dump"):
+        try:
+            nested = _extract_tool_error(output.model_dump())
+            if nested:
+                return nested
+        except Exception:
+            pass
+
+    if isinstance(output, dict):
+        for key in ("error", "stderr", "message", "detail"):
+            msg = _normalize_error_text(output.get(key))
+            if msg and msg.lower() != "none":
+                return msg
+        status = str(output.get("status", "")).lower()
+        if status in {"error", "failed", "failure"}:
+            return "Tool execution failed"
+
+    # String output from tools often follows "Error: ..."
+    if isinstance(output, str):
+        stripped = output.strip()
+        if re.match(r"(?i)^error[:\s]", stripped):
+            return _normalize_error_text(stripped)
+
+    return None
+
+
 def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, Any] | None:
     """将 astream_events 事件翻译为前端 FlowEvent。
 
@@ -126,14 +176,21 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
     if kind == "on_tool_end":
         tool_name = name
         icon = _TOOL_ICONS.get(tool_name, "Wrench")
+        tool_error = _extract_tool_error(data.get("output"))
+        status = "error" if tool_error else "done"
+        if tool_error:
+            description = f"{tool_name} 失败: {tool_error}"
+        else:
+            description = f"{tool_name} 完成"
 
         return {
             "type": "step_complete",
             "step_id": counter.get_step_id(run_id),  # 通过 run_id 找回正确的 step_id
-            "description": f"{tool_name} 完成",
+            "description": description,
             "tool_name": tool_name,
             "tool_call": {"icon": icon, "name": tool_name},
-            "status": "done",
+            "status": status,
+            "error": tool_error,
             "timestamp": _now(),
         }
 
