@@ -30,6 +30,7 @@ from app.schemas.worldview import (
     WorldviewChangeListResponse
 )
 from app.services.worldview_service import WorldviewService
+from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
 from app.services.worldview_change_service import WorldviewChangeService
 from app.services.ai_guidelines_service import AIGuidelinesService
 from app.schemas.ai_guidelines import (
@@ -514,6 +515,25 @@ async def get_world_data(
     _cache_worldview_data(cache_key, response)
 
     return response
+
+
+@router.post("/works/{work_id}/knowledge/sync")
+async def sync_worldview_cards_to_knowledge(
+    work_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """手动触发：将世界观卡片镜像到 knowledge/*.md 文件。"""
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    bridge = WorldviewKnowledgeBridge(db)
+    result = await bridge.mirror_from_cards(work_id)
+    return {"status": "ok", **result}
 
 
 # ==================== Character（人物） 接口 ====================

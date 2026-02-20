@@ -1775,6 +1775,37 @@ ${selectionContext.selected_text}
                           const resolvedRequestId = requestId || revisionData?.requestId;
                           const targetChapterId = revisionData?.chapterId || chapterId;
                           const targetRevisionId = resolvedRequestId || itemId;
+                          const rawDiffPairs = (revisionData as any)?.diffPairs as Array<{
+                            oldString?: string;
+                            newString?: string;
+                          }> | undefined;
+                          const diffPairs = Array.isArray(rawDiffPairs)
+                            ? rawDiffPairs.filter((pair) => typeof pair?.newString === 'string')
+                            : [];
+
+                          const rawOldString = revisionData?.oldString;
+                          const rawNewString = revisionData?.newString;
+                          const isCreateRevision = revisionData?.revisionType === 'create';
+                          const hasRawOldString = typeof rawOldString === 'string' && rawOldString.length > 0;
+                          const hasRawNewString = typeof rawNewString === 'string' && rawNewString.length > 0;
+                          const canUseRawDiff = hasRawNewString && (hasRawOldString || isCreateRevision);
+
+                          // 累加修订时优先选择最后一个“可定位”的 diff 对，避免空 oldString 导致预览跑到开头
+                          const fallbackPair = [...diffPairs].reverse().find((pair) => (pair.oldString || '').length > 0)
+                            || diffPairs[diffPairs.length - 1];
+
+                          const previewOldString = canUseRawDiff
+                            ? (rawOldString ?? '')
+                            : fallbackPair?.oldString;
+                          const previewNewString = canUseRawDiff
+                            ? (rawNewString ?? '')
+                            : (
+                              fallbackPair?.newString
+                              ?? revisionData?.newContent
+                              ?? (revisionData as any)?.content
+                              ?? ''
+                            );
+
                           window.dispatchEvent(
                             new CustomEvent('agent-jump-revision', {
                               detail: {
@@ -1785,10 +1816,11 @@ ${selectionContext.selected_text}
                                 requestId: resolvedRequestId,
                                 position: revisionData?.editorPosition,
                                 revisionType: revisionData?.revisionType,
-                                originalContent: revisionData?.oldString || revisionData?.originalContent || '',
-                                modifiedContent: revisionData?.newString || revisionData?.newContent || '',
-                                oldString: revisionData?.oldString,
-                                newString: revisionData?.newString,
+                                originalContent: previewOldString ?? revisionData?.originalContent ?? '',
+                                modifiedContent: previewNewString,
+                                oldString: previewOldString,
+                                newString: previewNewString,
+                                diffPairs,
                                 path: revisionData?.path,
                               }
                             })

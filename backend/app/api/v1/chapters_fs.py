@@ -26,6 +26,7 @@ from app.services.agent.deep_agent import DATA_ROOT
 from app.services.agent.deep_agent.frontmatter import (
     build_chapter, chapter_filename, parse_chapter,
 )
+from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -99,6 +100,34 @@ def _safe_path(base: Path, user_path: str) -> Path:
             detail="Path traversal not allowed",
         )
     return resolved
+
+
+def _to_posix_rel_path(path: str) -> str:
+    """标准化相对路径为 posix 形式。"""
+    rel = (path or "").strip().replace("\\", "/")
+    while rel.startswith("./"):
+        rel = rel[2:]
+    return rel.lstrip("/")
+
+
+async def _sync_worldview_cards_from_knowledge(
+    db: AsyncSession,
+    work_id: str,
+    work_dir: Path,
+    touched_paths: list[str],
+) -> None:
+    """Best-effort: when tracked knowledge files change, upsert worldview cards."""
+    if not WorldviewKnowledgeBridge.has_tracked_path(touched_paths):
+        return
+    try:
+        bridge = WorldviewKnowledgeBridge(db)
+        await bridge.sync_cards_from_knowledge(
+            work_id=work_id,
+            touched_paths=touched_paths,
+            work_dir=work_dir,
+        )
+    except Exception as exc:
+        logger.warning("[chapters_fs] knowledge->worldview sync skipped: %s", exc)
 
 
 async def _get_work_and_dir(
@@ -448,6 +477,14 @@ async def write_file(
     file_path.parent.mkdir(parents=True, exist_ok=True)
     await asyncio.to_thread(file_path.write_text, request.content, "utf-8")
 
+    rel_path = _to_posix_rel_path(path)
+    await _sync_worldview_cards_from_knowledge(
+        db=db,
+        work_id=work_id,
+        work_dir=work_dir,
+        touched_paths=[rel_path],
+    )
+
     return FileContentResponse(path=path, content=request.content)
 
 
@@ -619,5 +656,13 @@ async def upload_knowledge_file(
     knowledge_dir.mkdir(parents=True, exist_ok=True)
     target = knowledge_dir / f"{stem}.md"
     await asyncio.to_thread(target.write_text, text, "utf-8")
+
+    rel_path = _to_posix_rel_path(f"knowledge/{stem}.md")
+    await _sync_worldview_cards_from_knowledge(
+        db=db,
+        work_id=work_id,
+        work_dir=work_dir,
+        touched_paths=[rel_path],
+    )
 
     return await asyncio.to_thread(_build_file_tree, work_dir)

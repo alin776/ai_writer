@@ -1,14 +1,24 @@
-from typing import List, Optional
+import re
+from pathlib import Path
+from typing import Any, List, Optional
+from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 
 from app.models.work import Work
-from app.models.chapter import Chapter
+from app.models.chapter import Chapter, ChapterStatus
 from app.schemas.work import WorkCreate, WorkUpdate
 from app.utils.cache import cache_result, CacheInvalidator
 from app.core.redis import CacheKey, CacheExpire
+from app.services.agent.deep_agent import DATA_ROOT
+from app.services.agent.deep_agent.frontmatter import parse_chapter
+
+
+_FS_CHAPTER_ID_RE = re.compile(r"^fs-(\d+)$", re.IGNORECASE)
+_FS_CHAPTER_FILE_RE = re.compile(r"^(\d+)-.+\.md$")
 
 
 class WorkService:
@@ -16,6 +26,59 @@ class WorkService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    @staticmethod
+    def _split_chapter_ids(chapter_ids: List[str]) -> tuple[list[UUID], list[int]]:
+        """Split chapter ids into DB UUID ids and fs-N numeric orders."""
+        uuid_ids: list[UUID] = []
+        fs_orders: list[int] = []
+        for raw in chapter_ids:
+            text = (raw or "").strip()
+            if not text:
+                continue
+            fs_match = _FS_CHAPTER_ID_RE.match(text)
+            if fs_match:
+                fs_orders.append(int(fs_match.group(1)))
+                continue
+            try:
+                uuid_ids.append(UUID(text))
+            except ValueError:
+                continue
+        return uuid_ids, fs_orders
+
+    @staticmethod
+    def _load_fs_chapters(work: Work) -> dict[int, dict[str, Any]]:
+        """Load chapter metadata/content from filesystem for the given work."""
+        chapters_dir = DATA_ROOT / str(work.author_id) / "works" / str(work.id) / "chapters"
+        if not chapters_dir.exists():
+            return {}
+
+        fs_chapters: dict[int, dict[str, Any]] = {}
+        for md_file in sorted(chapters_dir.glob("*.md")):
+            if not md_file.is_file():
+                continue
+            match = _FS_CHAPTER_FILE_RE.match(md_file.name)
+            if not match:
+                continue
+            order = int(match.group(1))
+            try:
+                raw = md_file.read_text("utf-8")
+                parsed = parse_chapter(raw)
+            except Exception:
+                continue
+
+            title = (parsed.get("title") or "").strip()
+            if not title:
+                stem_parts = Path(md_file.stem).name.split("-", 1)
+                title = stem_parts[1] if len(stem_parts) > 1 else f"Chapter {order}"
+
+            fs_chapters[order] = {
+                "title": title,
+                "content": parsed.get("content") or "",
+                "word_count": int(parsed.get("word_count") or 0),
+            }
+
+        return fs_chapters
     
     async def get_work_by_id(self, work_id: str, use_cache: bool = True) -> Optional[Work]:
         """
@@ -153,18 +216,66 @@ class WorkService:
         work.is_published = True
         work.published_at = datetime.now(timezone.utc)
 
-        # 更新选中章节的发布状态
-        if chapter_ids:
+        # 兼容两种章节 ID：
+        # 1) UUID（历史 DB 章节） 2) fs-N（文件系统章节）
+        uuid_ids, fs_orders = self._split_chapter_ids(chapter_ids or [])
+        fs_selected = set(fs_orders)
+        fs_chapters = self._load_fs_chapters(work) if fs_selected else {}
+
+        selected_filters = []
+        if uuid_ids:
+            selected_filters.append(Chapter.id.in_(uuid_ids))
+        if fs_selected:
+            selected_filters.append(Chapter.order.in_(sorted(fs_selected)))
+
+        selected_chapters: list[Chapter] = []
+        if selected_filters:
             result = await self.db.execute(
                 select(Chapter).where(
-                    Chapter.work_id == work_id,
-                    Chapter.id.in_(chapter_ids)
+                    Chapter.work_id == work.id,
+                    or_(*selected_filters),
                 )
             )
-            chapters = result.scalars().all()
-            for chapter in chapters:
-                chapter.is_published = True
-                chapter.published_at = datetime.now(timezone.utc)
+            selected_chapters = list(result.scalars().all())
+
+        # fs-N 对应章节在 DB 不存在时，按 order 补建一条，避免发布时报 UUID 错误
+        if fs_selected:
+            existing_by_order = {int(ch.order): ch for ch in selected_chapters}
+            for order in sorted(fs_selected):
+                payload = fs_chapters.get(order)
+                if payload is None:
+                    continue
+
+                chapter = existing_by_order.get(order)
+                if chapter is None:
+                    chapter = Chapter(
+                        work_id=work.id,
+                        title=payload["title"],
+                        content=payload["content"],
+                        order=order,
+                        word_count=payload["word_count"],
+                        status=ChapterStatus.DRAFT,
+                        is_published=False,
+                    )
+                    self.db.add(chapter)
+                    selected_chapters.append(chapter)
+                    existing_by_order[order] = chapter
+                else:
+                    # 用文件系统最新数据刷新基础字段，避免发布列表标题/字数过旧
+                    chapter.title = payload["title"]
+                    chapter.content = payload["content"]
+                    chapter.word_count = payload["word_count"]
+
+        publish_at = datetime.now(timezone.utc)
+        for chapter in selected_chapters:
+            chapter.is_published = True
+            chapter.status = ChapterStatus.PUBLISHED
+            chapter.published_at = publish_at
+
+        # 文件系统章节作为主源时，同步作品统计到最新值
+        if fs_chapters:
+            work.total_chapters = len(fs_chapters)
+            work.total_words = sum(int(item.get("word_count", 0)) for item in fs_chapters.values())
 
         await self.db.commit()
         await self.db.refresh(work)

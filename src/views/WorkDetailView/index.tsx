@@ -162,6 +162,22 @@ const WorkDetailView: React.FC = () => {
       return false;
     }
   }, [workId]);
+
+  const refreshFileTree = useCallback(async () => {
+    if (!workId) return;
+    try {
+      const tree = await docsFs.tree(workId);
+      setFileTree(tree);
+    } catch (error) {
+      console.warn('[WorkDetailView] Failed to refresh file tree:', error);
+    }
+  }, [workId]);
+
+  const handleWorldviewPanelDataUpdate = useCallback(() => {
+    // 世界观面板触发更新时，同时刷新卡片数据与文件树（知识库镜像文件）
+    void refreshWorldData();
+    void refreshFileTree();
+  }, [refreshWorldData, refreshFileTree]);
   const hasWorldviewCards = worldData.characters.length + worldData.locations.length + worldData.settings.length > 0;
 
   useEffect(() => {
@@ -1701,23 +1717,30 @@ const WorkDetailView: React.FC = () => {
         workId?: string;
         chapterId?: string;
         chapterTitle?: string;
+        revisionType?: string;
         originalContent?: string;
         modifiedContent?: string;
         oldString?: string;
         newString?: string;
+        diffPairs?: Array<{ oldString?: string; newString?: string }>;
         path?: string;
       }>;
       const {
         workId: targetWorkId,
         chapterId: targetChapterId,
         chapterTitle: targetChapterTitle,
+        revisionType,
         originalContent,
         modifiedContent,
         oldString,
         newString,
+        diffPairs,
         path: revisionPath,
       } = customEvent.detail || {};
       if (targetWorkId && targetWorkId !== workId) return;
+      const previewBaseContent = (
+        typeof oldString === 'string' && oldString.length > 0 ? oldString : undefined
+      ) ?? (typeof originalContent === 'string' ? originalContent : '');
 
       // 标记进入 diff 预览模式，跳过自动保存
       diffPreviewRef.current = true;
@@ -1751,11 +1774,11 @@ const WorkDetailView: React.FC = () => {
             dispatchDiff();
           }).catch((err) => {
             console.warn('[handleJumpRevision] docsFs.read failed:', err);
-            setCurrentChapterContent(modifiedContent || '');
+            setCurrentChapterContent(previewBaseContent);
             dispatchDiff();
           });
         } else {
-          setCurrentChapterContent(modifiedContent || '');
+          setCurrentChapterContent(previewBaseContent);
           dispatchDiff();
         }
         return;
@@ -1795,34 +1818,77 @@ const WorkDetailView: React.FC = () => {
               updatedAt: now,
               status: 'draft',
               _pending: true,
-              _diffOriginal: originalContent || '',
+              _diffOriginal: previewBaseContent,
               _diffModified: modifiedContent || '',
             } as any];
           });
           openEditorTab({ id: targetChapterId, title, order: num ?? 0 });
-          setCurrentChapterContent(modifiedContent || '');
+          setCurrentChapterContent(previewBaseContent);
           setCurrentChapterId(targetChapterId);
         }
       }
 
       // 打开 diff 视图（如果有修改内容）
-      if (modifiedContent) {
+      const normalizedDiffPairs = Array.isArray(diffPairs)
+        ? diffPairs
+            .filter((pair) => typeof pair?.newString === 'string' && pair.newString.length > 0)
+            .map((pair) => ({
+              oldString: typeof pair.oldString === 'string' ? pair.oldString : '',
+              newString: pair.newString as string,
+            }))
+        : [];
+      const anchoredDiffPairs = normalizedDiffPairs.filter((pair) => pair.oldString.length > 0);
+      const replayDiffPairs = anchoredDiffPairs.length > 0
+        ? normalizedDiffPairs
+        : (normalizedDiffPairs.length > 0 ? [normalizedDiffPairs[normalizedDiffPairs.length - 1]] : []);
+
+      const hasDirectNewString = typeof newString === 'string' && newString.length > 0;
+      const hasDirectOldString = typeof oldString === 'string' && oldString.length > 0;
+      const canUseDirectDiff = hasDirectNewString && (hasDirectOldString || revisionType === 'create');
+
+      const hasFallbackModified = typeof modifiedContent === 'string' && modifiedContent.length > 0;
+      const hasFallbackOriginal =
+        typeof originalContent === 'string' && (originalContent.length > 0 || revisionType === 'create');
+      const canUseFallbackDiff = hasFallbackModified && hasFallbackOriginal;
+
+      if (replayDiffPairs.length > 0 || canUseDirectDiff || canUseFallbackDiff) {
+        const requiresBaseReset =
+          replayDiffPairs.length > 0 && replayDiffPairs.every((pair) => pair.oldString.length === 0);
+        if (requiresBaseReset) {
+          // 无锚点预览必须基于旧内容渲染，否则会出现“预览 + 正文重复”。
+          setCurrentChapterContent(previewBaseContent);
+        }
         // 已存在章节: 等 FS 加载 (500ms)
         // 虚拟章节: 等 EditorWrapper key 重挂载 (100ms)
         // 同一章节: 无需等待
-        const delay = needDelay ? 500 : (targetChapterId !== currentChapterId ? 100 : 0);
+        const baseDelay = needDelay ? 500 : (targetChapterId !== currentChapterId ? 100 : 0);
+        const delay = baseDelay + (requiresBaseReset ? 120 : 0);
         setTimeout(() => {
-          if (oldString && newString) {
-            // edit_file 操作：直接用片段做内联 diff（插件会在文档中定位 oldString）
-            window.dispatchEvent(new CustomEvent('editor-inline-diff', {
-              detail: { oldString, newString }
-            }));
-          } else {
-            // write_file/create 操作：使用完整内容
-            window.dispatchEvent(new CustomEvent('editor-inline-diff', {
-              detail: { oldString: originalContent || '', newString: modifiedContent }
-            }));
+          if (replayDiffPairs.length > 0) {
+            replayDiffPairs.forEach((pair, index) => {
+              window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+                detail: {
+                  oldString: pair.oldString,
+                  newString: pair.newString,
+                  append: index > 0 && pair.oldString.length > 0
+                }
+              }));
+            });
+            return;
           }
+
+          if (canUseDirectDiff) {
+            // edit_file/create 操作：直接使用后端提供的 diff 字符串
+            window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+              detail: { oldString: oldString ?? '', newString: newString as string }
+            }));
+            return;
+          }
+
+          // 兜底：使用完整快照（适用于 create 或 replace_all）
+          window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+            detail: { oldString: originalContent ?? '', newString: modifiedContent as string }
+          }));
         }, delay);
       }
     };
@@ -1971,7 +2037,7 @@ const WorkDetailView: React.FC = () => {
                 initialTab={worldviewInitialTab}
                 targetItemId={worldviewTargetItemId}
                 onTargetItemScrolled={() => setWorldviewTargetItemId(undefined)}
-                onWorldDataUpdate={refreshWorldData}
+                onWorldDataUpdate={handleWorldviewPanelDataUpdate}
               />
             ) : (
               <EditorWrapper

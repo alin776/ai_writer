@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.novel_analysis import NovelAnalysis, AnalysisStatus
 from app.services.worldview_service import WorldviewService
+from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
 from app.services.worldview_progress_service import WorldviewProgressService
 from app.schemas.worldview import (
     CharacterCreate, LocationCreate, SettingCreate,
@@ -27,7 +28,7 @@ class WorldviewExtractionService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.worldview_service = WorldviewService(db)
+        self.worldview_service = WorldviewService(db, auto_sync_knowledge=False)
         self.progress_service = WorldviewProgressService(db)
 
     async def extract_from_analysis(
@@ -137,6 +138,12 @@ class WorldviewExtractionService:
             # 8. 标记完成
             if settings.WORLDVIEW_ENABLE_PROGRESS_PERSISTENCE:
                 await self.progress_service.mark_completed(work_id)
+
+            try:
+                bridge = WorldviewKnowledgeBridge(self.db)
+                await bridge.mirror_from_cards(work_id)
+            except Exception as sync_error:
+                logger.warning(f"[WorldviewExtraction] 卡片镜像到 knowledge 失败: {sync_error}")
 
             logger.info(f"世界观提取完成: {result}")
             return result
@@ -381,7 +388,7 @@ class WorldviewExtractionService:
         """处理单个角色批次"""
         from app.core.database import create_db_session
         async with create_db_session() as batch_db:
-            batch_service = WorldviewService(batch_db)
+            batch_service = WorldviewService(batch_db, auto_sync_knowledge=False)
 
             # 获取现有角色
             existing_characters = await batch_service.get_characters_by_work(work_id)
@@ -430,7 +437,7 @@ class WorldviewExtractionService:
         """处理单个地点批次"""
         from app.core.database import create_db_session
         async with create_db_session() as batch_db:
-            batch_service = WorldviewService(batch_db)
+            batch_service = WorldviewService(batch_db, auto_sync_knowledge=False)
 
             existing_locations = await batch_service.get_locations_by_work(work_id)
             existing_names = {loc.name: loc for loc in existing_locations}
@@ -475,7 +482,7 @@ class WorldviewExtractionService:
         """处理单个设定批次"""
         from app.core.database import create_db_session
         async with create_db_session() as batch_db:
-            batch_service = WorldviewService(batch_db)
+            batch_service = WorldviewService(batch_db, auto_sync_knowledge=False)
 
             existing_settings = await batch_service.get_settings_by_work(work_id)
             existing_titles = {setting.title: setting for setting in existing_settings}

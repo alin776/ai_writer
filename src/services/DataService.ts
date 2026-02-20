@@ -1772,6 +1772,20 @@ class DataServiceClass {
       selected_items: selectedItems
     });
   }
+
+  /**
+   * 手动将世界观卡片同步到 knowledge/*.md
+   * @param workId 作品ID
+   */
+  async syncWorldviewCardsToKnowledge(workId: string): Promise<{
+    status: string;
+    updatedFiles: string[];
+    charactersCount: number;
+    locationsCount: number;
+    settingsCount: number;
+  }> {
+    return this.adapter.post(`/worldview/works/${workId}/knowledge/sync`, {});
+  }
 }
 
 // 导出单例

@@ -867,12 +867,15 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   // v8: edit_file 操作 — 派发内联 Diff 事件到编辑器
                   // 仅章节文件才触发编辑器内联 diff（worldview.md 等非章节文件跳过）
                   const isChapterFile = !revisionPath || /chapters\//.test(revisionPath);
-                  if (isChapterFile && revisionData.oldString && revisionData.newString) {
+                  const hasNewString = typeof revisionData.newString === 'string' && revisionData.newString.length > 0;
+                  const hasOldString = typeof revisionData.oldString === 'string' && revisionData.oldString.length > 0;
+                  const isCreateRevision = revisionData.revisionType === 'create';
+                  if (isChapterFile && hasNewString && (hasOldString || isCreateRevision)) {
                     window.dispatchEvent(new CustomEvent('editor-inline-diff', {
                       detail: {
-                        oldString: revisionData.oldString,
+                        oldString: revisionData.oldString ?? '',
                         newString: revisionData.newString,
-                        append: accumulatedIndices.length > 1,  // 累加场景：追加装饰而非替换
+                        append: accumulatedIndices.length > 1 && hasOldString,
                       }
                     }));
                   }

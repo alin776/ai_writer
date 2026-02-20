@@ -27,8 +27,9 @@ logger = logging.getLogger(__name__)
 class WorldviewService:
     """世界观服务"""
     
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, *, auto_sync_knowledge: bool = True):
         self.db = db
+        self.auto_sync_knowledge = auto_sync_knowledge
 
     def _invalidate_worldview_cache(self, work_id: str) -> None:
         """失效世界观相关缓存（按作品维度）"""
@@ -39,6 +40,19 @@ class WorldviewService:
             ToolCache.invalidate(work_id=str(work_id), include_work_scope=True)
         except Exception as e:
             logger.debug(f"[WorldviewService] 缓存失效失败: {e}")
+
+    async def _sync_knowledge_mirror(self, work_id: str) -> None:
+        """将世界观卡片自动镜像到 knowledge/*.md。"""
+        if not self.auto_sync_knowledge or not work_id:
+            return
+        try:
+            from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
+
+            bridge = WorldviewKnowledgeBridge(self.db)
+            await bridge.mirror_from_cards(work_id)
+        except Exception as e:
+            # Best effort only; card writes should not fail because mirror write failed.
+            logger.warning(f"[WorldviewService] 知识库镜像失败: {e}")
     
     # ==================== Character 相关 ====================
     
@@ -63,6 +77,7 @@ class WorldviewService:
         await self.db.commit()
         await self.db.refresh(character)
         self._invalidate_worldview_cache(str(character.work_id))
+        await self._sync_knowledge_mirror(str(character.work_id))
         return character
     
     async def update_character(self, character_id: str, character_data: CharacterUpdate) -> Optional[Character]:
@@ -78,6 +93,7 @@ class WorldviewService:
         await self.db.commit()
         await self.db.refresh(character)
         self._invalidate_worldview_cache(str(character.work_id))
+        await self._sync_knowledge_mirror(str(character.work_id))
         return character
     
     async def delete_character(self, character_id: str) -> bool:
@@ -89,6 +105,7 @@ class WorldviewService:
         await self.db.delete(character)
         await self.db.commit()
         self._invalidate_worldview_cache(work_id)
+        await self._sync_knowledge_mirror(work_id)
         return True
     
     # ==================== Location 相关 ====================
@@ -114,6 +131,7 @@ class WorldviewService:
         await self.db.commit()
         await self.db.refresh(location)
         self._invalidate_worldview_cache(str(location.work_id))
+        await self._sync_knowledge_mirror(str(location.work_id))
         return location
     
     async def update_location(self, location_id: str, location_data: LocationUpdate) -> Optional[Location]:
@@ -129,6 +147,7 @@ class WorldviewService:
         await self.db.commit()
         await self.db.refresh(location)
         self._invalidate_worldview_cache(str(location.work_id))
+        await self._sync_knowledge_mirror(str(location.work_id))
         return location
     
     async def delete_location(self, location_id: str) -> bool:
@@ -140,6 +159,7 @@ class WorldviewService:
         await self.db.delete(location)
         await self.db.commit()
         self._invalidate_worldview_cache(work_id)
+        await self._sync_knowledge_mirror(work_id)
         return True
     
     # ==================== Setting 相关 ====================
@@ -165,6 +185,7 @@ class WorldviewService:
         await self.db.commit()
         await self.db.refresh(setting)
         self._invalidate_worldview_cache(str(setting.work_id))
+        await self._sync_knowledge_mirror(str(setting.work_id))
         return setting
     
     async def update_setting(self, setting_id: str, setting_data: SettingUpdate) -> Optional[Setting]:
@@ -180,6 +201,7 @@ class WorldviewService:
         await self.db.commit()
         await self.db.refresh(setting)
         self._invalidate_worldview_cache(str(setting.work_id))
+        await self._sync_knowledge_mirror(str(setting.work_id))
         return setting
     
     async def delete_setting(self, setting_id: str) -> bool:
@@ -191,6 +213,7 @@ class WorldviewService:
         await self.db.delete(setting)
         await self.db.commit()
         self._invalidate_worldview_cache(work_id)
+        await self._sync_knowledge_mirror(work_id)
         return True
     
     # ==================== WorkGuidelines 相关 ====================

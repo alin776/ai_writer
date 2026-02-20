@@ -15,9 +15,13 @@ import json
 import logging
 import os
 import re
+import subprocess
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from datetime import datetime
+from pathlib import Path, PurePosixPath
 from typing import Any
+
+import wcmatch.glob as wcglob
 
 from deepagents.backends.filesystem import (
     EditResult,
@@ -36,6 +40,7 @@ _FULLWIDTH_SPACE = "\u3000"
 
 # 模糊匹配：允许的最大字符差异比例
 _FUZZY_THRESHOLD = 0.05  # 5%
+_CHAPTER_FILE_PATH_RE = re.compile(r"^/chapters/(\d+)-[^/]+\.md$", re.IGNORECASE)
 
 
 def _build_format_transforms() -> list:
@@ -210,8 +215,9 @@ def _adapt_new_string(content: str, new_string: str) -> str:
 @dataclass
 class BufferOp:
     """单条缓冲操作"""
-    op_type: str  # "write" or "edit"
+    op_type: str  # "write" / "edit" / "rename" / "delete"
     path: str     # 虚拟路径（相对于 root_dir）
+    new_path: str | None = None     # rename 时的新路径
     content: str | None = None      # write 时的完整内容
     old_string: str | None = None   # edit 时的旧字符串
     new_string: str | None = None   # edit 时的新字符串
@@ -230,11 +236,321 @@ class BufferedFilesystemBackend(FilesystemBackend):
         super().__init__(root_dir=root_dir, **kwargs)
         self._buffer: list[BufferOp] = []
 
+    def _read_disk_content(self, file_path: str) -> str | None:
+        """Read normalized UTF-8 text from disk. Return None when file is missing."""
+        try:
+            file_path = self._resolve_existing_chapter_path(file_path)
+            resolved = self._resolve_path(file_path)
+            if not resolved.exists() or not resolved.is_file():
+                return None
+            return resolved.read_text(encoding="utf-8").replace("\r\n", "\n")
+        except (OSError, UnicodeDecodeError, ValueError):
+            return None
+
+    @staticmethod
+    def _normalize_tool_path(path: str) -> str:
+        """Normalize incoming tool paths to POSIX-style virtual paths."""
+        normalized = (path or "").replace("\\", "/")
+        normalized = re.sub(r"/{2,}", "/", normalized)
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized.lstrip('/')}"
+        return normalized or "/"
+
+    def _resolve_existing_chapter_path(self, path: str) -> str:
+        """Resolve stale /chapters/{num}-*.md aliases to current on-disk filename."""
+        normalized = self._normalize_tool_path(path)
+        match = _CHAPTER_FILE_PATH_RE.match(normalized)
+        if not match:
+            return normalized
+
+        try:
+            current = super()._resolve_path(normalized)
+            if current.exists() and current.is_file():
+                return normalized
+        except Exception:
+            return normalized
+
+        chapters_dir = self.cwd / "chapters"
+        if not chapters_dir.exists() or not chapters_dir.is_dir():
+            return normalized
+
+        chapter_num = int(match.group(1))
+        try:
+            candidates = sorted(chapters_dir.glob(f"{chapter_num:02d}-*.md"))
+        except OSError:
+            return normalized
+
+        for candidate in candidates:
+            try:
+                if not candidate.is_file():
+                    continue
+            except OSError:
+                continue
+
+            if self.virtual_mode:
+                try:
+                    return f"/{candidate.resolve().relative_to(self.cwd).as_posix()}"
+                except Exception:
+                    continue
+
+            return self._normalize_tool_path(str(candidate))
+
+        return normalized
+
+    @staticmethod
+    def _normalize_virtual_output_path(path: str, *, is_dir: bool = False) -> str:
+        """Normalize backend output paths so tools always see POSIX separators."""
+        normalized = (path or "").replace("\\", "/")
+        normalized = re.sub(r"/{2,}", "/", normalized)
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized.lstrip('/')}"
+        if is_dir and normalized != "/" and not normalized.endswith("/"):
+            normalized += "/"
+        if not is_dir and normalized != "/" and normalized.endswith("/"):
+            normalized = normalized.rstrip("/")
+        return normalized or "/"
+
+    @staticmethod
+    def _normalize_glob_pattern(pattern: str) -> str:
+        """Patch common model-emitted glob variants to valid recursive forms."""
+        normalized = (pattern or "").replace("\\", "/").strip()
+        if normalized.startswith("/"):
+            normalized = normalized.lstrip("/")
+        if normalized == "":
+            return "**/*"
+        if normalized == "**":
+            return "**/*"
+        if normalized.startswith("**") and not normalized.startswith("**/"):
+            normalized = f"**/{normalized[2:]}"
+        if normalized.endswith("/**"):
+            normalized = normalized.rstrip("/") + "/**/*"
+        return normalized
+
+    def _resolve_path(self, key: str) -> Path:
+        """Accept mixed separators from tools and keep virtual_mode checks intact."""
+        return super()._resolve_path(self._normalize_tool_path(key))
+
+    def ls_info(self, path: str) -> list[dict[str, Any]]:
+        infos = super().ls_info(path)
+        normalized: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for info in infos:
+            item = dict(info)
+            norm_path = self._normalize_virtual_output_path(
+                str(item.get("path", "")),
+                is_dir=bool(item.get("is_dir")),
+            )
+            if norm_path in seen:
+                continue
+            seen.add(norm_path)
+            item["path"] = norm_path
+            normalized.append(item)
+        normalized.sort(key=lambda x: str(x.get("path", "")))
+        return normalized
+
+    def glob_info(self, pattern: str, path: str = "/") -> list[dict[str, Any]]:
+        search_path = self.cwd if path == "/" else self._resolve_path(path)
+        if not search_path.exists() or not search_path.is_dir():
+            return []
+
+        normalized_pattern = self._normalize_glob_pattern(pattern)
+        flags = wcglob.GLOBSTAR | wcglob.BRACE
+
+        results: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        try:
+            for matched_path in search_path.rglob("*"):
+                try:
+                    if not matched_path.is_file():
+                        continue
+                except (PermissionError, OSError):
+                    continue
+
+                rel_posix = matched_path.relative_to(search_path).as_posix()
+                if not wcglob.globmatch(rel_posix, normalized_pattern, flags=flags):
+                    continue
+
+                if self.virtual_mode:
+                    try:
+                        virt_raw = f"/{matched_path.resolve().relative_to(self.cwd).as_posix()}"
+                    except Exception:
+                        continue
+                else:
+                    virt_raw = str(matched_path)
+                virt_path = self._normalize_virtual_output_path(virt_raw)
+                if virt_path in seen:
+                    continue
+                seen.add(virt_path)
+                try:
+                    st = matched_path.stat()
+                    results.append(
+                        {
+                            "path": virt_path,
+                            "is_dir": False,
+                            "size": int(st.st_size),
+                            "modified_at": datetime.fromtimestamp(st.st_mtime).isoformat(),
+                        }
+                    )
+                except OSError:
+                    results.append({"path": virt_path, "is_dir": False})
+        except (OSError, ValueError):
+            return []
+
+        results.sort(key=lambda x: str(x.get("path", "")))
+        return results
+
+    def _ripgrep_search_utf8(
+        self,
+        pattern: str,
+        base_full: Path,
+        include_glob: str | None,
+    ) -> dict[str, list[tuple[int, str]]] | None:
+        """Run ripgrep in bytes mode and decode as UTF-8 with replacement."""
+        cmd = ["rg", "--json", "-F"]
+        if include_glob:
+            cmd.extend(["--glob", include_glob])
+        cmd.extend(["--", pattern, str(base_full)])
+
+        try:
+            proc = subprocess.run(  # noqa: S603
+                cmd,
+                capture_output=True,
+                text=False,
+                timeout=30,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return None
+
+        stdout = proc.stdout.decode("utf-8", errors="replace")
+        results: dict[str, list[tuple[int, str]]] = {}
+        for line in stdout.splitlines():
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if data.get("type") != "match":
+                continue
+            pdata = data.get("data", {})
+            ftext = pdata.get("path", {}).get("text")
+            if not ftext:
+                continue
+            p = Path(ftext)
+            if self.virtual_mode:
+                try:
+                    virt = "/" + p.resolve().relative_to(self.cwd).as_posix()
+                except Exception:
+                    continue
+            else:
+                virt = str(p)
+            ln = pdata.get("line_number")
+            lt = pdata.get("lines", {}).get("text", "").rstrip("\n")
+            if ln is None:
+                continue
+            results.setdefault(virt, []).append((int(ln), lt))
+
+        return results
+
+    def _python_search_literal(
+        self,
+        pattern: str,
+        base_full: Path,
+        include_glob: str | None,
+    ) -> dict[str, list[tuple[int, str]]]:
+        regex = re.compile(re.escape(pattern))
+        flags = wcglob.GLOBSTAR | wcglob.BRACE
+        root = base_full if base_full.is_dir() else base_full.parent
+        candidates = [base_full] if base_full.is_file() else root.rglob("*")
+
+        results: dict[str, list[tuple[int, str]]] = {}
+        for fp in candidates:
+            try:
+                if not fp.is_file():
+                    continue
+            except (PermissionError, OSError):
+                continue
+
+            rel_posix = fp.relative_to(root).as_posix()
+            if include_glob and not (
+                wcglob.globmatch(rel_posix, include_glob, flags=flags)
+                or wcglob.globmatch(fp.name, include_glob, flags=flags)
+            ):
+                continue
+
+            try:
+                if fp.stat().st_size > self.max_file_size_bytes:
+                    continue
+            except OSError:
+                continue
+
+            content: str | None = None
+            for encoding in ("utf-8", "utf-8-sig", "gb18030"):
+                try:
+                    content = fp.read_text(encoding=encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+                except (PermissionError, OSError):
+                    content = None
+                    break
+            if content is None:
+                continue
+
+            for line_num, line in enumerate(content.splitlines(), 1):
+                if regex.search(line):
+                    if self.virtual_mode:
+                        try:
+                            virt_path = "/" + fp.resolve().relative_to(self.cwd).as_posix()
+                        except Exception:
+                            continue
+                    else:
+                        virt_path = str(fp)
+                    results.setdefault(virt_path, []).append((line_num, line))
+
+        return results
+
+    def grep_raw(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+    ) -> list[dict[str, Any]] | str:
+        try:
+            base_full = self._resolve_path(path or ".")
+        except ValueError:
+            return []
+
+        if not base_full.exists():
+            return []
+
+        include_glob = glob.replace("\\", "/") if glob else None
+        results = self._ripgrep_search_utf8(pattern, base_full, include_glob)
+        if results is None or not results:
+            fallback = self._python_search_literal(pattern, base_full, include_glob)
+            if results is None:
+                results = fallback
+            elif fallback:
+                results = fallback
+
+        matches: list[dict[str, Any]] = []
+        for fpath, items in results.items():
+            normalized_path = self._normalize_virtual_output_path(fpath)
+            for line_num, line_text in items:
+                matches.append(
+                    {
+                        "path": normalized_path,
+                        "line": int(line_num),
+                        "text": line_text,
+                    }
+                )
+        return matches
+
     # ─── 重写写操作：缓冲不落盘 ───
 
     def write(self, file_path: str, content: str) -> WriteResult:
         """write 操作存入缓冲区，不落盘。"""
         # 检查磁盘上是否已存在
+        file_path = self._normalize_tool_path(file_path)
         resolved = self._resolve_path(file_path)
         if resolved.exists():
             return WriteResult(
@@ -266,6 +582,8 @@ class BufferedFilesystemBackend(FilesystemBackend):
     ) -> EditResult:
         """edit 操作存入缓冲区，不落盘。先验证 old_string 匹配。"""
         # 行号模式检测：[LINES:起始行-结束行]
+        file_path = self._normalize_tool_path(file_path)
+        file_path = self._resolve_existing_chapter_path(file_path)
         m = re.match(r'^\[LINES:(\d+)-(\d+)\]$', old_string.strip())
         if m:
             return self._edit_by_lines(file_path, int(m.group(1)), int(m.group(2)), new_string)
@@ -353,6 +671,7 @@ class BufferedFilesystemBackend(FilesystemBackend):
 
         old_string 存实际行文本（保证 get_changes() 返回真实文本供前端 diff）。
         """
+        file_path = self._resolve_existing_chapter_path(file_path)
         current = self._replay(file_path)
         if current is None:
             return EditResult(error=f"Error: File '{file_path}' not found")
@@ -386,6 +705,50 @@ class BufferedFilesystemBackend(FilesystemBackend):
         )
         return EditResult(path=file_path, files_update=None, occurrences=1)
 
+    def rename_path(self, old_path: str, new_path: str) -> str | None:
+        """Buffer a rename operation. Returns an error string on failure."""
+        old_path = self._normalize_tool_path(old_path)
+        old_path = self._resolve_existing_chapter_path(old_path)
+        new_path = self._normalize_tool_path(new_path)
+
+        if old_path == new_path:
+            return "Error: Source and target path are the same"
+        if old_path == "/" or new_path == "/":
+            return "Error: Cannot rename root path"
+
+        current = self._replay(old_path)
+        if current is None:
+            return f"Error: File '{old_path}' not found"
+
+        if self._replay(new_path) is not None:
+            return f"Error: Target '{new_path}' already exists"
+
+        self._buffer.append(BufferOp(
+            op_type="rename",
+            path=old_path,
+            new_path=new_path,
+        ))
+        return None
+
+    def delete_path(self, file_path: str) -> str | None:
+        """Buffer a delete operation. Returns an error string on failure."""
+        file_path = self._normalize_tool_path(file_path)
+        file_path = self._resolve_existing_chapter_path(file_path)
+        if file_path == "/":
+            return "Error: Cannot delete root path"
+
+        current = self._replay(file_path)
+        if current is None:
+            return f"Error: File '{file_path}' not found"
+
+        self._buffer.append(BufferOp(
+            op_type="delete",
+            path=file_path,
+            old_string=current,
+            new_string="",
+        ))
+        return None
+
     # ─── 重写读操作：优先读缓冲区 ───
 
     def read(
@@ -395,73 +758,75 @@ class BufferedFilesystemBackend(FilesystemBackend):
         limit: int = 2000,
     ) -> str:
         """读文件，优先查缓冲区（含 replay），没有才读磁盘。"""
-        # 只有该文件在缓冲区中有操作时，才走 replay 路径
-        has_buffer_ops = any(op.path == file_path for op in self._buffer)
-        if has_buffer_ops:
-            replayed = self._replay(file_path)
-            if replayed is not None:
-                lines = replayed.splitlines()
-                start_idx = offset
-                end_idx = min(start_idx + limit, len(lines))
-                if start_idx >= len(lines):
-                    return f"Error: Line offset {offset} exceeds file length ({len(lines)} lines)"
-                selected = lines[start_idx:end_idx]
-                return format_content_with_line_numbers(selected, start_line=start_idx + 1)
+        file_path = self._normalize_tool_path(file_path)
+        file_path = self._resolve_existing_chapter_path(file_path)
+        replayed = self._replay(file_path)
+        if replayed is None:
+            return super().read(file_path, offset, limit)
 
-        # 缓冲区没有，走父类（读磁盘）
-        return super().read(file_path, offset, limit)
+        lines = replayed.splitlines()
+        start_idx = offset
+        end_idx = min(start_idx + limit, len(lines))
+        if start_idx >= len(lines):
+            return f"Error: Line offset {offset} exceeds file length ({len(lines)} lines)"
+        selected = lines[start_idx:end_idx]
+        return format_content_with_line_numbers(selected, start_line=start_idx + 1)
 
     # ─── 核心重放逻辑 ───
 
     def _replay(self, file_path: str) -> str | None:
-        """按序重放缓冲区操作，得到文件当前内容。
+        """Replay buffered operations and return current file content."""
+        file_path = self._normalize_tool_path(file_path)
+        file_path = self._resolve_existing_chapter_path(file_path)
+        state: dict[str, str] = {}
+        tombstones: set[str] = set()
 
-        三种情况：
-        1. 缓冲区有 write → 从 write 的 content 开始，叠加后续 edit
-        2. 缓冲区只有 edit → 先读磁盘内容，再依次 apply edit
-        3. 缓冲区和磁盘都没有 → 返回 None
+        def _current_content(path: str) -> str | None:
+            if path in state:
+                return state[path]
+            if path in tombstones:
+                return None
+            return self._read_disk_content(path)
 
-        Args:
-            file_path: 虚拟路径
-
-        Returns:
-            重放后的文件内容，若文件既不在缓冲区也不在磁盘则返回 None
-        """
-        # 筛选出该文件的所有操作（保持顺序）
-        ops = [op for op in self._buffer if op.path == file_path]
-
-        # 确定初始内容
-        content: str | None = None
-        start_idx = 0
-
-        for i, op in enumerate(ops):
+        for op in self._buffer:
             if op.op_type == "write":
-                # 最后一次 write 作为基础（之前的 write 被覆盖）
-                content = op.content or ""
-                start_idx = i + 1
+                state[op.path] = op.content or ""
+                tombstones.discard(op.path)
+                continue
 
-        # 如果缓冲区没有 write，尝试从磁盘读取
-        if content is None:
-            resolved = self._resolve_path(file_path)
-            if not resolved.exists() or not resolved.is_file():
-                return None
-            try:
-                content = resolved.read_text(encoding="utf-8")
-                content = content.replace("\r\n", "\n")
-            except (OSError, UnicodeDecodeError):
-                return None
-
-        # 从 start_idx 开始依次 apply edit
-        for op in ops[start_idx:]:
             if op.op_type == "edit":
+                content = _current_content(op.path)
+                if content is None:
+                    continue
                 result = perform_string_replacement(
                     content, op.old_string or "", op.new_string or "", op.replace_all
                 )
                 if not isinstance(result, str):
-                    content, _ = result
-                # 替换失败则跳过（不应发生，因为 edit() 已验证过）
+                    new_content, _ = result
+                    state[op.path] = new_content
+                    tombstones.discard(op.path)
+                continue
 
-        return content
+            if op.op_type == "rename":
+                new_path = self._normalize_tool_path(op.new_path or "")
+                content = _current_content(op.path)
+                if content is None:
+                    continue
+                state[new_path] = content
+                tombstones.discard(new_path)
+                state.pop(op.path, None)
+                tombstones.add(op.path)
+                continue
+
+            if op.op_type == "delete":
+                state.pop(op.path, None)
+                tombstones.add(op.path)
+
+        if file_path in state:
+            return state[file_path]
+        if file_path in tombstones:
+            return None
+        return self._read_disk_content(file_path)
 
     # ─── 审批操作 ───
 
@@ -487,6 +852,21 @@ class BufferedFilesystemBackend(FilesystemBackend):
             elif op.op_type == "edit":
                 item["old_string"] = op.old_string
                 item["new_string"] = op.new_string
+            elif op.op_type == "rename":
+                target_path = self._normalize_tool_path(op.new_path or "")
+                item["old_path"] = op.path
+                item["new_path"] = target_path
+                item["path"] = target_path
+                item["content_preview"] = f"{op.path} -> {target_path}"
+                item["old_title"] = PurePosixPath(op.path).stem
+                item["new_title"] = PurePosixPath(target_path).stem
+                item["chapter_title"] = item["new_title"]
+                item["old_string"] = ""
+                item["new_string"] = ""
+            elif op.op_type == "delete":
+                item["old_string"] = op.old_string or ""
+                item["new_string"] = ""
+                item["content_preview"] = (op.old_string or "")[:200]
             changes.append(item)
         return changes
 
@@ -520,6 +900,18 @@ class BufferedFilesystemBackend(FilesystemBackend):
                         fd = os.open(resolved, os.O_WRONLY | os.O_TRUNC, 0o644)
                         with os.fdopen(fd, "w", encoding="utf-8") as f:
                             f.write(new_content)
+                elif op.op_type == "rename":
+                    new_path = self._normalize_tool_path(op.new_path or "")
+                    src = self._resolve_path(op.path)
+                    dst = self._resolve_path(new_path)
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    os.rename(src, dst)
+                    affected.add(op.path)
+                    affected.add(new_path)
+                    continue
+                elif op.op_type == "delete":
+                    target = self._resolve_path(op.path)
+                    target.unlink()
                 affected.add(op.path)
             except Exception as e:
                 logger.error(f"[BufferedBackend] flush 操作失败: {op.op_type} {op.path}: {e}")
@@ -537,8 +929,8 @@ class BufferedFilesystemBackend(FilesystemBackend):
 
         op = self._buffer[index]
 
-        # 依赖检查：edit 不能脱离其 write 单独 flush
-        if op.op_type == "edit":
+        # 依赖检查：edit/rename/delete 不能脱离其 write 单独 flush
+        if op.op_type in {"edit", "rename", "delete"}:
             has_pending_write = any(
                 self._buffer[i].path == op.path and self._buffer[i].op_type == "write"
                 for i in range(index)
@@ -547,20 +939,37 @@ class BufferedFilesystemBackend(FilesystemBackend):
                 return None
 
         self._buffer.pop(index)
-        if op.op_type == "write":
-            resolved = self._resolve_path(op.path)
-            resolved.parent.mkdir(parents=True, exist_ok=True)
-            resolved.write_text(op.content or "", encoding="utf-8")
-        elif op.op_type == "edit":
-            resolved = self._resolve_path(op.path)
-            content = resolved.read_text(encoding="utf-8")
-            result = perform_string_replacement(
-                content, op.old_string or "", op.new_string or "", op.replace_all
-            )
-            if not isinstance(result, str):
+        try:
+            if op.op_type == "write":
+                resolved = self._resolve_path(op.path)
+                resolved.parent.mkdir(parents=True, exist_ok=True)
+                resolved.write_text(op.content or "", encoding="utf-8")
+                return op.path
+            if op.op_type == "edit":
+                resolved = self._resolve_path(op.path)
+                content = resolved.read_text(encoding="utf-8")
+                result = perform_string_replacement(
+                    content, op.old_string or "", op.new_string or "", op.replace_all
+                )
+                if isinstance(result, str):
+                    return None
                 new_content, _ = result
                 resolved.write_text(new_content, encoding="utf-8")
-        return op.path
+                return op.path
+            if op.op_type == "rename":
+                new_path = self._normalize_tool_path(op.new_path or "")
+                src = self._resolve_path(op.path)
+                dst = self._resolve_path(new_path)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                os.rename(src, dst)
+                return new_path
+            if op.op_type == "delete":
+                target = self._resolve_path(op.path)
+                target.unlink()
+                return op.path
+            return None
+        except Exception:
+            return None
 
     def discard(self) -> None:
         """审批拒绝：丢弃全部缓冲区。"""

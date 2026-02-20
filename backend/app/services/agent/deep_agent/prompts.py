@@ -73,7 +73,7 @@ def build_system_prompt(work) -> str:
 
 ## 行为规则
 1. 写作前先阅读已有章节和设定文件，确保上下文连贯
-2. 新建章节用 write_file，修改已有章节用 edit_file
+2. 新建章节用 write_file，修改已有章节用 edit_file；重命名文件用 rename_file，删除文件用 delete_file
 3. 创建章节时务必包含 frontmatter（title + status）
 4. 保持人物性格、世界观设定的前后一致性
 5. 使用自然流畅的中文，符合{genre_label}小说的文风

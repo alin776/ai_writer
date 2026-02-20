@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
-import { Users, MapPin, Settings2, Plus, Maximize2, RefreshCw } from 'lucide-react';
+import { Progress } from '../ui/progress';
+import { Users, MapPin, Settings2, Plus, Maximize2, RefreshCw, FileText } from 'lucide-react';
 import type { WorldData, Character, Location, Setting, WorldviewChanges } from '../../types/novel';
 import { WorldviewSyncDialog } from '../worldview/WorldviewSyncDialog';
 import { DataService } from '@/services/DataService';
@@ -32,6 +33,22 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
   const [syncApplying, setSyncApplying] = React.useState(false);
   const [syncError, setSyncError] = React.useState<string | null>(null);
   const [syncMode, setSyncMode] = React.useState<'extract' | 'scan'>('scan');
+  const [syncingKnowledge, setSyncingKnowledge] = React.useState(false);
+  const [syncProgress, setSyncProgress] = React.useState<{
+    visible: boolean;
+    value: number;
+    title: string;
+    detail?: string;
+    tone: 'running' | 'success' | 'error';
+  }>({
+    visible: false,
+    value: 0,
+    title: '',
+    detail: '',
+    tone: 'running',
+  });
+  const progressTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const progressCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 当 initialTab 变化时更新当前 tab
   React.useEffect(() => {
@@ -136,6 +153,83 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
     setSyncError(null);
   };
 
+  const clearProgressTimers = React.useCallback(() => {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+    if (progressCloseTimerRef.current) {
+      clearTimeout(progressCloseTimerRef.current);
+      progressCloseTimerRef.current = null;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    return () => clearProgressTimers();
+  }, [clearProgressTimers]);
+
+  const startSyncProgress = React.useCallback(() => {
+    clearProgressTimers();
+    setSyncProgress({
+      visible: true,
+      value: 8,
+      title: '正在同步到知识库...',
+      detail: '正在生成并写入 knowledge/*.md',
+      tone: 'running',
+    });
+    progressTimerRef.current = setInterval(() => {
+      setSyncProgress((prev) => {
+        if (!prev.visible || prev.tone !== 'running') return prev;
+        const next = prev.value < 40 ? prev.value + 8 : prev.value < 70 ? prev.value + 5 : prev.value + 3;
+        return { ...prev, value: Math.min(next, 90) };
+      });
+    }, 280);
+  }, [clearProgressTimers]);
+
+  const finishSyncProgress = React.useCallback((ok: boolean, detail: string) => {
+    clearProgressTimers();
+    setSyncProgress({
+      visible: true,
+      value: 100,
+      title: ok ? '同步完成' : '同步失败',
+      detail,
+      tone: ok ? 'success' : 'error',
+    });
+    progressCloseTimerRef.current = setTimeout(() => {
+      setSyncProgress((prev) => ({ ...prev, visible: false }));
+    }, ok ? 1400 : 2200);
+  }, [clearProgressTimers]);
+
+  // 手动将卡片同步到 knowledge/*.md
+  const handleSyncCardsToKnowledge = async () => {
+    if (syncingKnowledge) return;
+    setSyncingKnowledge(true);
+    startSyncProgress();
+    try {
+      const result = await DataService.syncWorldviewCardsToKnowledge(workId);
+      const updatedFiles = result.updatedFiles || [];
+      const updatedCount = updatedFiles.length;
+      const message =
+        updatedCount > 0
+          ? `已更新 ${updatedCount} 个知识库文件`
+          : '知识库文件已是最新状态';
+      showSuccess(
+        '卡片已同步到知识库',
+        `${message}（人物:${result.charactersCount} 地点:${result.locationsCount} 设定:${result.settingsCount}）`
+      );
+      // 触发父层刷新（世界观数据 + 文件树）
+      onWorldDataUpdate?.();
+      finishSyncProgress(true, message);
+    } catch (err: any) {
+      console.error('卡片同步到知识库失败:', err);
+      const errorMsg = err?.message || '请稍后重试';
+      showError('同步失败', errorMsg);
+      finishSyncProgress(false, errorMsg);
+    } finally {
+      setSyncingKnowledge(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* 固定的标签切换 */}
@@ -182,6 +276,16 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
               title="从章节同步世界观"
             >
               <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSyncCardsToKnowledge}
+              disabled={syncingKnowledge}
+              className="h-6 w-6 p-0 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:text-slate-400 dark:hover:text-emerald-400 dark:hover:bg-emerald-900/30 rounded-md transition-all disabled:opacity-60"
+              title="将卡片同步到知识库文件"
+            >
+              <FileText className={`h-3.5 w-3.5 ${syncingKnowledge ? 'animate-pulse' : ''}`} />
             </Button>
             <Button
               variant="ghost"
@@ -324,6 +428,30 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
         onApply={handleApplyChanges}
         mode={syncMode}
       />
+
+      {syncProgress.visible && (
+        <div className="fixed bottom-4 right-4 z-[10010] w-80 rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-lg backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/95">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-zinc-900 dark:text-slate-100">{syncProgress.title}</span>
+            <span className="text-[11px] text-zinc-500 dark:text-slate-400">{Math.round(syncProgress.value)}%</span>
+          </div>
+          <Progress
+            value={syncProgress.value}
+            className={`h-1.5 bg-zinc-200 dark:bg-slate-700 ${
+              syncProgress.tone === 'error'
+                ? '[&>div]:bg-red-500'
+                : syncProgress.tone === 'success'
+                  ? '[&>div]:bg-emerald-500'
+                  : '[&>div]:bg-blue-500'
+            }`}
+          />
+          {syncProgress.detail && (
+            <div className="mt-2 text-[11px] text-zinc-500 dark:text-slate-400">
+              {syncProgress.detail}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

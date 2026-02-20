@@ -20,6 +20,7 @@ from app.models.location import Location
 from app.models.setting import Setting
 from app.models.relationship import EntityRelationship
 from app.services.worldview_service import WorldviewService
+from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType
 from app.core.redis_client import redis_client
@@ -36,7 +37,8 @@ class WorldviewSyncService:
     def __init__(self, db: AsyncSession, user_id: str = None):
         self.db = db
         self.user_id = user_id
-        self.worldview_service = WorldviewService(db)
+        # Batch apply in this service may write many items; mirror once at the end.
+        self.worldview_service = WorldviewService(db, auto_sync_knowledge=False)
 
     async def extract_changes_from_chapter(
         self,
@@ -564,6 +566,11 @@ class WorldviewSyncService:
             work_id,
             ['characters', 'locations', 'settings', 'guidelines']
         )
+        try:
+            bridge = WorldviewKnowledgeBridge(self.db)
+            await bridge.mirror_from_cards(work_id)
+        except Exception as exc:
+            logger.warning("[世界观同步] 卡片镜像到 knowledge 失败: %s", exc)
         return stats
 
     def _iter_scan_batches(

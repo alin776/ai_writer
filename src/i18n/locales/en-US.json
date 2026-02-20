@@ -317,6 +317,7 @@
       "draft": "Draft"
     },
     "toolbar": {
+      "collapseChapterList": "Collapse chapters",
       "expandChapterList": "Expand chapters",
       "expandRightPanel": "Expand right panel",
       "aiAutoComplete": "AI Auto-complete",

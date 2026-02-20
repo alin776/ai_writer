@@ -666,6 +666,33 @@ def _delete_pending(key: str) -> None:
         logger.warning(f"[Pending] delete failed for {key}: {e}")
 
 
+async def _sync_worldview_cards_from_pending(
+    db: AsyncSession,
+    backend: Any,
+    touched_paths: list[str],
+) -> dict[str, Any] | None:
+    """Best-effort: when AI changes tracked knowledge files, upsert worldview cards."""
+    if not touched_paths:
+        return None
+
+    from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
+
+    if not WorldviewKnowledgeBridge.has_tracked_path(touched_paths):
+        return None
+
+    work_dir = Path(str(getattr(backend, "cwd", "")))
+    if not work_dir.name:
+        return None
+
+    work_id = work_dir.name
+    bridge = WorldviewKnowledgeBridge(db)
+    return await bridge.sync_cards_from_knowledge(
+        work_id=work_id,
+        touched_paths=touched_paths,
+        work_dir=work_dir,
+    )
+
+
 def _buffer_op_to_change(op, index: int) -> dict:
     """将单条 BufferOp 转换为 get_changes() 兼容的 dict，供实时 revision 使用。"""
     from app.services.agent.deep_agent.frontmatter import parse_chapter
@@ -680,6 +707,21 @@ def _buffer_op_to_change(op, index: int) -> dict:
     elif op.op_type == "edit":
         item["old_string"] = op.old_string
         item["new_string"] = op.new_string
+    elif op.op_type == "rename":
+        target_path = str(op.new_path or op.path)
+        item["old_path"] = op.path
+        item["new_path"] = target_path
+        item["path"] = target_path
+        item["content_preview"] = f"{op.path} -> {target_path}"
+        item["old_title"] = PurePosixPath(op.path).stem
+        item["new_title"] = PurePosixPath(target_path).stem
+        item["chapter_title"] = item["new_title"]
+        item["old_string"] = ""
+        item["new_string"] = ""
+    elif op.op_type == "delete":
+        item["old_string"] = op.old_string or ""
+        item["new_string"] = ""
+        item["content_preview"] = (op.old_string or "")[:200]
     return item
 
 
@@ -741,13 +783,26 @@ async def agent_v2_chat_stream(
                 checkpointer = await _get_checkpointer()
                 agent, backend = create_writing_agent(work, user_id, checkpointer=checkpointer)
 
-                # 构建输入（注入知识库引用）
+                # 构建输入（知识文件由模型通过工具按需读取）
                 user_content = request.message
                 if request.knowledge_files:
                     from app.services.agent.deep_agent import DATA_ROOT
+
                     work_dir = DATA_ROOT / user_id / "works" / request.work_id
-                    ref_parts = []
-                    for rel_path in request.knowledge_files:
+                    ref_parts: list[str] = []
+                    seen_paths: set[str] = set()
+                    for raw_path in request.knowledge_files:
+                        rel_path = (raw_path or "").strip().replace("\\", "/")
+                        while rel_path.startswith("./"):
+                            rel_path = rel_path[2:]
+                        rel_path = rel_path.lstrip("/")
+                        if not rel_path:
+                            continue
+                        lower_rel = rel_path.lower()
+                        if lower_rel in seen_paths:
+                            continue
+                        seen_paths.add(lower_rel)
+
                         fp = (work_dir / rel_path).resolve()
                         # 安全检查：防止目录穿越
                         if not str(fp).startswith(str(work_dir.resolve())):
@@ -873,6 +928,7 @@ async def get_v2_changes(
 async def accept_v2_changes(
     conversation_id: str,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """全部接受：将缓冲区写入磁盘。"""
     backend_key = f"{current_user.id}:{conversation_id}"
@@ -886,22 +942,35 @@ async def accept_v2_changes(
     affected = backend.flush()
     _delete_pending(backend_key)
 
+    worldview_sync: dict[str, Any] | None = None
+    try:
+        worldview_sync = await _sync_worldview_cards_from_pending(
+            db=db,
+            backend=backend,
+            touched_paths=affected,
+        )
+    except Exception as e:
+        logger.warning(f"[V2] knowledge->worldview sync failed: {e}")
+
     # flush 后更新向量索引（直接读磁盘文件，而非 backend.read()）
-    from app.services.agent.deep_agent.rag_tool import update_chapter_vectors
+    from app.services.agent.deep_agent.rag_tool import update_chapter_vectors, remove_chapter_vectors
     from app.services.agent.deep_agent.frontmatter import parse_chapter
 
     for path in affected:
         if "/chapters/" in path:
             try:
                 disk_path = backend._resolve_path(path)
+                work_id = Path(str(backend.cwd)).name
+                if not disk_path.exists() or not disk_path.is_file():
+                    remove_chapter_vectors(work_id, path)
+                    continue
                 raw = disk_path.read_text(encoding="utf-8")
                 parsed = parse_chapter(raw)
-                work_id = Path(str(backend.cwd)).name
                 update_chapter_vectors(work_id, path, parsed["content"])
             except Exception as e:
                 logger.warning(f"[V2] Failed to update vectors for {path}: {e}")
 
-    return {"status": "accepted", "affected_paths": affected}
+    return {"status": "accepted", "affected_paths": affected, "worldview_sync": worldview_sync}
 
 
 @router.post("/v2/changes/{conversation_id}/reject", summary="全部拒绝改动")
@@ -927,6 +996,7 @@ async def accept_v2_single_change(
     conversation_id: str,
     index: int,
     current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """单个接受：将指定操作写入磁盘。"""
     backend_key = f"{current_user.id}:{conversation_id}"
@@ -934,9 +1004,63 @@ async def accept_v2_single_change(
     if not backend:
         raise HTTPException(status_code=404, detail="No pending changes")
 
+    # 先捕获受影响路径（尤其是 rename 需要 old/new 两个路径），再执行 flush_single
+    changes = backend.get_changes()
+    if index < 0 or index >= len(changes):
+        raise HTTPException(status_code=400, detail="Invalid change index")
+
+    selected = changes[index]
+    touched_paths: list[str] = []
+    if selected.get("op_type") == "rename":
+        for candidate in (
+            selected.get("old_path"),
+            selected.get("new_path"),
+            selected.get("path"),
+        ):
+            if isinstance(candidate, str) and candidate and candidate not in touched_paths:
+                touched_paths.append(candidate)
+    else:
+        selected_path = selected.get("path")
+        if isinstance(selected_path, str) and selected_path:
+            touched_paths.append(selected_path)
+
     path = backend.flush_single(index)
     if path is None:
         raise HTTPException(status_code=400, detail="Invalid change index or has unresolved dependencies")
+    if not touched_paths:
+        touched_paths = [path]
+
+    worldview_sync: dict[str, Any] | None = None
+    try:
+        worldview_sync = await _sync_worldview_cards_from_pending(
+            db=db,
+            backend=backend,
+            touched_paths=touched_paths,
+        )
+    except Exception as e:
+        logger.warning(f"[V2] knowledge->worldview sync failed: {e}")
+
+    # 单个接受后同步章节向量索引（含 rename/delete 场景）
+    try:
+        from app.services.agent.deep_agent.rag_tool import (
+            remove_chapter_vectors,
+            update_chapter_vectors,
+        )
+        from app.services.agent.deep_agent.frontmatter import parse_chapter
+
+        work_id = Path(str(backend.cwd)).name
+        for touched_path in touched_paths:
+            if "/chapters/" not in touched_path:
+                continue
+            disk_path = backend._resolve_path(touched_path)
+            if not disk_path.exists() or not disk_path.is_file():
+                remove_chapter_vectors(work_id, touched_path)
+            else:
+                raw = disk_path.read_text(encoding="utf-8")
+                parsed = parse_chapter(raw)
+                update_chapter_vectors(work_id, touched_path, parsed["content"])
+    except Exception as e:
+        logger.warning(f"[V2] Failed to update vectors for single change {path}: {e}")
 
     # 缓冲区清空后移除
     if not backend.get_changes():
@@ -945,7 +1069,12 @@ async def accept_v2_single_change(
     else:
         _save_pending(backend_key, backend)
 
-    return {"status": "accepted", "path": path}
+    return {
+        "status": "accepted",
+        "path": path,
+        "affected_paths": touched_paths,
+        "worldview_sync": worldview_sync,
+    }
 
 
 @router.post("/v2/changes/{conversation_id}/reject/{index}", summary="单个拒绝改动")
