@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@lexical/react": "^0.25.0",
+    "@mdxeditor/editor": "^3.52.4",
     "@milkdown/crepe": "^7.18.0",
     "@milkdown/kit": "^7.18.0",
     "@milkdown/react": "^7.18.0",
@@ -69,6 +70,7 @@
     "reactflow": "^11.11.4",
     "recharts": "^2.15.4",
     "rehype-raw": "^7.0.0",
+    "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "streamdown": "^2.2.0",
     "tailwind-merge": "^3.3.1",

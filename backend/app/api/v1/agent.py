@@ -37,10 +37,19 @@ logger = logging.getLogger(__name__)
 SKILLS_ROOT = Path(__file__).resolve().parents[2] / "services" / "agent" / "skills"
 
 _GROUP_LABELS = {
+    # 原有
     "quality": "质量检查",
     "review": "创作分析",
     "statistics": "创作分析",
     "process": "创作辅助",
+    # 新增
+    "chinese-novel": "中文小说",
+    "core": "故事诊断",
+    "character": "角色塑造",
+    "structure": "结构设计",
+    "craft": "写作技法",
+    "worldbuilding": "世界构建",
+    "application": "应用工具",
 }
 
 
@@ -63,10 +72,14 @@ async def list_skills():
                 except yaml.YAMLError:
                     continue
                 group_key = skill_md.parent.parent.name
+                raw_tools = meta.get("allowed-tools", [])
+                allowed_tools = list(raw_tools) if isinstance(raw_tools, list) else []
                 skills.append({
                     "name": meta.get("name", ""),
                     "description": meta.get("description", ""),
                     "group": _GROUP_LABELS.get(group_key, group_key),
+                    "allowed_tools": allowed_tools,
+                    "content": parts[2].strip(),
                 })
     return skills
 
@@ -690,6 +703,11 @@ class V2ChatRequest(BaseModel):
     conversation_id: Optional[str] = Field(None)
     knowledge_files: Optional[List[str]] = Field(None)
     quoted_text: Optional[str] = Field(None, description="用户在编辑器中选中的引用文本")
+    skill: Optional[str] = Field(
+        None,
+        description="用户主动选择的 Skill 名称（如 chapter-review）",
+        pattern=r"^[a-z][a-z0-9\-]{0,63}$",
+    )
 
 
 class V2ChangesResponse(BaseModel):
@@ -765,6 +783,40 @@ async def agent_v2_chat_stream(
                 if request.quoted_text:
                     user_content = f"<quote>\n{request.quoted_text}\n</quote>\n\n{user_content}"
 
+                # 注入用户主动选择的 Skill 指令
+                loaded_skill_name = None
+                if request.skill:
+                    # 白名单校验：skill 名称必须对应实际存在的 SKILL.md
+                    valid_skill = False
+                    for skill_md in SKILLS_ROOT.rglob("SKILL.md"):
+                        try:
+                            raw = skill_md.read_text(encoding="utf-8")
+                            if raw.startswith("---"):
+                                parts = raw.split("---", 2)
+                                if len(parts) >= 3:
+                                    meta = yaml.safe_load(parts[1]) or {}
+                                    if meta.get("name") == request.skill:
+                                        valid_skill = True
+                                        break
+                        except Exception:
+                            continue
+
+                    if valid_skill:
+                        loaded_skill_name = request.skill
+                        # raw 已在验证循环中读取，提取正文（跳过 YAML frontmatter）
+                        skill_body = raw.split("---", 2)[2].strip() if raw.startswith("---") else raw
+                        user_content = (
+                            f"<directive>\n"
+                            f"用户选择了技能「{request.skill}」。\n"
+                            f"你 **必须严格** 按照以下技能 SOP 执行任务，"
+                            f"包括输出格式、评审维度、分级标准等所有细节。\n\n"
+                            f"{skill_body}\n"
+                            f"</directive>\n\n"
+                            f"{user_content}"
+                        )
+                    else:
+                        logger.warning("Unknown skill requested: %s", request.skill)
+
                 input_msg = {"messages": [{"role": "user", "content": user_content}]}
                 config = {
                     "configurable": {"thread_id": conversation_id},
@@ -778,6 +830,15 @@ async def agent_v2_chat_stream(
                     "timestamp": get_utc_now().isoformat(),
                 }
                 yield f"data: {json.dumps(header, ensure_ascii=False)}\n\n"
+
+                # 发送 skill_loaded 事件（仅当用户选择了有效技能时）
+                if loaded_skill_name:
+                    skill_event = {
+                        "type": "skill_loaded",
+                        "skill_name": loaded_skill_name,
+                        "timestamp": get_utc_now().isoformat(),
+                    }
+                    yield f"data: {json.dumps(skill_event, ensure_ascii=False)}\n\n"
 
                 # 流式运行 Agent（实时发送 revision）
                 _last_buffer_len = 0

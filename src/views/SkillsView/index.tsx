@@ -2,16 +2,13 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Search, Copy, Check, Zap, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import SkillEditor from '@/components/editor/SkillEditor';
 import { agentApi } from '@/services/agentApi';
+import type { Skill } from '@/types/agent';
 
-interface Skill {
-  name: string;
-  description: string;
-  group: string;
-  allowed_tools?: string[];
-  content?: string;
-}
-
-const GROUP_ORDER = ['质量检查', '创作分析', '创作辅助'];
+const GROUP_ORDER = [
+    '质量检查', '创作分析', '创作辅助',
+    '中文小说', '故事诊断', '角色塑造', '结构设计',
+    '写作技法', '世界构建', '应用工具',
+];
 
 // ── channel-style section header ──────────────────────────────────────────────
 function SectionHeader({
@@ -116,7 +113,7 @@ export default function SkillsView() {
         {/* ── left panel wrapper ────────────────────────────────────────── */}
         <div className="relative flex-shrink-0">
           <div
-            className={`${
+            className={`h-full ${
               isSidebarCollapsed ? 'w-0' : 'w-56 min-w-56'
             } transition-all duration-300 ease-in-out overflow-hidden border-r border-gray-100 dark:border-gray-700 flex flex-col bg-white dark:bg-gray-900`}
           >

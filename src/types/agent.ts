@@ -6,6 +6,15 @@ import { z } from 'zod';
 
 // ==================== 基础类型 ====================
 
+/** Agent Skill 定义（后端 GET /skills 返回） */
+export interface Skill {
+  name: string;
+  description: string;
+  group: string;
+  allowed_tools?: string[];
+  content?: string;
+}
+
 export interface AgentChatRequest {
   message: string;
   mode?: 'planning';  // Agent执行模式：planning(先规划再执行)
@@ -17,6 +26,8 @@ export interface AgentChatRequest {
   knowledge_files?: string[];
   /** 用户在编辑器中选中的引用文本 */
   quoted_text?: string;
+  /** 用户主动选择的 Skill 名称（如 chapter-review） */
+  skill?: string;
   context?: {
     chapter_context?: string;
     text?: string;

@@ -709,3 +709,135 @@ plan_generator（推断 downstream_tool，注入 retrieval_intent）
 - `_run_create`：locate_targets=[]，新建章节不需要 ✓
 
 修复后验证：语法通过，15 passed（12 + 3）
+
+---
+
+## 任务：在 WSL 的 Docker 中启动 Redis
+
+### 待办清单
+
+- [x] 步骤 1：检查项目内 Docker Compose 配置并确认 Redis 服务名
+- [ ] 步骤 2：执行 Redis 启动命令（仅启动 Redis 服务）
+- [ ] 步骤 3：检查容器运行状态与健康状态
+- [ ] 步骤 4：在 `todo.md` 添加 review 总结
+
+### Review
+
+- 待完成
+
+---
+
+## Skills 页面重构 + 用户自定义 Skill 规划
+
+### 已完成：SkillEditor 从 Tiptap 编辑器迁移到 react-markdown 渲染器
+
+**改动文件**：
+- `src/components/editor/SkillEditor.tsx`：整体重写。Tiptap WYSIWYG 编辑器 → react-markdown + react-syntax-highlighter 只读渲染组件
+  - 代码块：语言标签头部（大写）+ 复制按钮（✓ 反馈）+ Prism 语法高亮（oneDark/oneLight 双主题）
+  - 修复 `react-markdown` v10 的 block/inline 代码混淆：`pre` 组件统一处理块级代码，`code` 只处理行内
+  - 修复无语言标记的代码块（如决策树 `├└`）不渲染问题：fallback 到 `language="text"`
+  - 修复暗色模式"薄膜"问题：`codeTagProps={{ style: { background: 'transparent' } }}` 清除 oneDark 主题内层 `<code>` 自带背景
+  - 添加 `remark-breaks` 插件：解决 SKILL.md 中单换行被合并为空格的问题（Markdown 标准 vs Tiptap 宽松处理）
+  - 完整排版：h1-h3、p、ul/ol、blockquote、hr、strong、a、table（th/td）全部自定义渲染 + 深浅模式
+  - `useDarkMode()` hook：MutationObserver 监听 `<html class="dark">` 变化
+
+**清理**：
+- `src/styles/globals.css`：删除 104 行 `.skill-tiptap-body` 相关样式（1117-1220 行）
+- `package.json`：移除 5 个 Tiptap 包（`@tiptap/react`、`@tiptap/starter-kit`、`@tiptap/extension-placeholder`、`@tiptap/pm`、`tiptap-markdown`）
+- 新增依赖：`remark-breaks`
+
+**页面调整**：
+- `src/views/SkillsView/index.tsx`：移除顶部页眉栏（"AI 技能" 标题 + "新建技能" 按钮）；复制按钮去掉文字只留图标
+
+### 讨论结论：文件存储与部署持久化
+
+**现状**：
+- 章节内容以 .md 文件存储在 `data/users/{user_id}/works/{work_id}/chapters/`，数据库只存元数据
+- 内置 Skill 以 SKILL.md 文件存储在 `backend/app/services/agent/skills/` 下
+- `docker-compose.yml` 中 `data/` 目录**没有挂载为 Docker Volume**，容器重建会丢失所有用户章节数据
+
+**结论**：
+- 用户 Skill 采用文件系统存储（不用数据库），路径：`backend/data/user-skills/{user_id}/{skill-name}/SKILL.md`
+- 格式与内置 Skill 完全一致（YAML frontmatter + Markdown 正文），编辑体验是编辑完整 .md 文件
+- 多用户隔离靠目录名（user_id UUID）
+- **必须修复**：`docker-compose.yml` 添加 `./data:/app/data` volume 挂载，同时保护现有章节数据和未来用户 Skill 数据
+- 存储容量评估：500 用户 × 2000 章 × 2000 字 ≈ 6GB 磁盘空间，Docker Volume 完全够用，当前阶段无需对象存储（OSS/S3）
+
+### 待实施：用户自定义 Skill 功能
+
+详细计划见 `.claude/plans/modular-questing-flask.md`，核心要点：
+
+**后端**（修改 `backend/app/api/v1/agent.py`）：
+- 提取 `_load_builtin_skills()` + 新增 `_load_user_skills(user_id)`
+- `GET /skills` 合并返回内置（`builtin: true`）+ 用户（`builtin: false, full_markdown: "..."`）
+- 新增 `POST /skills`（创建 .md 文件）、`PUT /skills/{name}`（覆盖写入）、`DELETE /skills/{name}`（删除目录）
+- 零数据库改动，纯文件操作
+
+**前端**（修改 `src/views/SkillsView/index.tsx` + `src/services/agentApi.ts`）：
+- 列表区分内置（⚡ Zap 图标）vs 用户（✏️ Pencil 图标）
+- 用户 Skill 编辑模式：右侧面板切换为等宽字体 textarea，编辑完整 .md 文件（含 frontmatter）
+- 创建 Dialog → 生成模板 .md → 自动进入编辑模式
+- AlertDialog 二次确认删除
+
+### 讨论结论：AI 辅助 Skill 创建 — skill-creator 系统提示词
+
+**用户创建 Skill 的途径**：
+1. ~~用户手动上传~~（保留意见，暂不实施）
+2. **AI 辅助创建**：用户点击"使用文枢AI构建" → 跳转到 AI 对话 → Agent 引导用户通过对话构建 SKILL.md
+
+**参考来源**：Manus 的 `tasks/deepagents/skill-creator_prod/SKILL.md`（元技能——教 AI 如何创建 Skill）
+
+**Manus skill-creator vs 文枢 AI 的差异**：
+
+| 维度 | Manus | 文枢 AI |
+|------|-------|---------|
+| 范围 | 通用，任何领域 | 小说写作领域 |
+| Skill 结构 | SKILL.md + scripts/ + references/ + templates/ | 仅 SKILL.md（纯文本） |
+| 初始化 | `init_skill.py` 脚本 | 通过 API 创建文件 |
+| 验证 | `quick_validate.py` 脚本 | 后端做简单 frontmatter 校验 |
+| 交付 | `message` tool 发送 .skill 文件 | 直接保存到用户目录 |
+| 加载层级 | 3 级（metadata → body → resources） | 1 级（仅 SKILL.md） |
+
+**文枢 AI Skill 的五段式范式**（从 7 个内置 Skill 提炼）：
+
+```
+---
+name: xxx
+description: "中文描述 + Use when: (...) Keywords: ..."
+allowed-tools: [...]
+---
+
+# 标题
+
+## 心智模型 (Mental Model)
+   → "Before xxx, ask yourself:" 三问引导
+
+## 核心方法论 (Expert Rules / Decision Framework)
+   → 表格、决策树、分级标准等
+
+## NEVER 规则
+   → 5-6 条"绝对不要"
+
+## 边界情况
+   → 4-5 种特殊场景的处理方式
+
+## 输出格式
+   → 固定输出模板
+```
+
+**方案选择：方案 B — 独立系统提示词**
+
+- 放置路径：`backend/app/services/agent/prompts/skill-creator.md`（或类似路径）
+- 当用户发起"构建 Skill"对话时，后端把此提示词注入到 AI 对话的 system message 中
+- **不作为内置 Skill**，因为它不是给"写小说的 AI"用的，而是给"帮用户构建 Skill 的 AI"用的
+- 调用现有 `OpenAIService`（`backend/app/services/ai/openai_service.py`），不需要新建 AI 服务
+
+**skill-creator 提示词需要包含的内容**：
+1. 文枢 SKILL.md 的完整格式规范（YAML frontmatter 字段 + 五段式结构）
+2. 1-2 个精简的内置 Skill 示例片段（作为 few-shot example）
+3. 对话引导流程：理解需求（2-3 轮）→ 确认范围 → 生成完整 SKILL.md
+4. 小说写作领域的特定约束（角色、世界观、情节、伏笔等维度）
+
+**两个待解决的架构问题**：
+1. **对话作用域**：AI 聊天当前绑定 work_id（作品），但 Skill 构建是全局的 → `agent_sessions.work_id` 已支持 nullable，数据层无问题，需要前端/路由层支持
+2. **结果回填**：AI 生成 SKILL.md 后如何回填到 Skills 详情页 → 需设计"对话完成 → 自动保存到用户 Skill 目录 → 跳转/通知 Skills 页面"的流程

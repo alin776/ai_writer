@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # PostgreSQL 数据库
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: novelaide_postgres
     shm_size: 256m
     deploy:
@@ -25,6 +25,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
     networks:
       - novelaide_network
     healthcheck:
@@ -73,10 +74,12 @@ services:
       - ./app:/app/app
       - ./logs:/app/logs
       - ./uploads:/app/uploads
+      - app_data:/app/data
 
 volumes:
   postgres_data:
   redis_data:
+  app_data:
 
 networks:
   novelaide_network:

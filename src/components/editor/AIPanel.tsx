@@ -616,6 +616,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       mode: backendMode,
       work_id: workId,
       chapter_id: chapterId,
+      // Skill 提取到顶层字段，供后端 V2ChatRequest 直接读取
+      ...(context?.skill ? { skill: context.skill } : {}),
       context: {
         ...context,
         // 新增独立 selection 字段，推荐结构化
@@ -1277,6 +1279,7 @@ ${context.selected_text}
       chapter_id: chapterId,
       knowledge_files: knowledgeDocIds.length > 0 ? knowledgeDocIds : undefined,
       quoted_text: selectionContext?.selected_text || undefined,
+      skill: selectedSkill?.name || undefined,
       context: {
         chapter_context: chapterId ? `当前章节ID: ${chapterId}` : undefined,
         ...selectionPayload,
@@ -1289,7 +1292,6 @@ ${selectionContext.selected_text}
 ---
 用户指令: ${message}`
           : undefined,
-        ...(selectedSkill ? { skill: selectedSkill.name } : {}),
       },
     };
 
@@ -1466,12 +1468,12 @@ ${selectionContext.selected_text}
                   </span>
                 )}
                 {selectedSkill && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-3 py-1 text-[11px] border border-amber-200 shadow-sm dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700/60">
-                    <Zap className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                  <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
+                    <Zap className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
                     /{selectedSkill.name}
                     <button
                       type="button"
-                      className="hover:text-amber-900 transition-colors dark:hover:text-amber-100"
+                      className="hover:text-zinc-900 transition-colors dark:hover:text-slate-100"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={(e) => {
                         e.preventDefault();
@@ -2003,12 +2005,12 @@ ${selectionContext.selected_text}
                   </span>
                 )}
                 {selectedSkill && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-3 py-1 text-[11px] border border-amber-200 shadow-sm dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700/60">
-                    <Zap className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                  <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-700 px-3 py-1 text-[11px] border border-zinc-200 shadow-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
+                    <Zap className="w-3.5 h-3.5 text-zinc-600 dark:text-slate-400" />
                     /{selectedSkill.name}
                     <button
                       type="button"
-                      className="hover:text-amber-900 transition-colors dark:hover:text-amber-100"
+                      className="hover:text-zinc-900 transition-colors dark:hover:text-slate-100"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={(e) => {
                         e.preventDefault();
@@ -2228,9 +2230,9 @@ ${selectionContext.selected_text}
                 </div>
               </div>
             ) : atStage === 'skills' ? (
-              <div ref={menuRef} className="grid gap-2 items-start" style={{ gridTemplateColumns: `${MENU_COLUMN_WIDTH}px ${MENU_SKILLS_WIDTH}px` }}>
+              <div ref={menuRef} style={{ position: 'relative' }}>
                 {/* Left column: root options with "使用技能" highlighted */}
-                <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full self-start dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50">
+                <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50" style={{ width: MENU_COLUMN_WIDTH }}>
                   <div className="max-h-72 overflow-y-auto custom-scrollbar px-2 py-2" onWheel={stopMenuScrollChain}>
                     {filteredRootOptions.length > 0 ? (
                       filteredRootOptions.map((option, idx) => {
@@ -2264,7 +2266,7 @@ ${selectionContext.selected_text}
                   </div>
                 </div>
                 {/* Right column: skills list */}
-                <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden w-full -mt-4 dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50">
+                <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden dark:border-slate-800/70 dark:bg-slate-900 dark:text-slate-50" style={{ position: 'absolute', left: MENU_COLUMN_WIDTH + MENU_GAP, bottom: 0, width: MENU_SKILLS_WIDTH }}>
                   {/* 管理技能 header */}
                   <button
                     type="button"

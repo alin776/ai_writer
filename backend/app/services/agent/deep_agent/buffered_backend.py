@@ -1,20 +1,24 @@
 """
-BufferedFilesystemBackend — 带写缓冲的文件系统后端
+BufferedFilesystemBackend — 带写缓冲 + 脚本执行的文件系统后端
 
 继承 DeepAgents 的 FilesystemBackend，将 write/edit 操作缓冲到内存，
 不直接落盘。用户审批后调用 flush() 写入磁盘或 discard() 丢弃。
+同时实现 SandboxBackendProtocol，使 FilesystemMiddleware 启用 execute 工具。
 
 核心思路：
 - write() / edit() 不落盘，追加到 self._buffer 操作日志
 - read() 先查缓冲区（通过 _replay），没有才读磁盘
 - flush() 审批通过后将缓冲区全部写入磁盘
 - discard() 审批拒绝丢弃全部缓冲区
+- execute() 在 work_dir 内执行 shell 命令（受限沙箱）
 """
 
 import json
 import logging
 import os
 import re
+import subprocess
+import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -26,6 +30,7 @@ from deepagents.backends.filesystem import (
     format_content_with_line_numbers,
     perform_string_replacement,
 )
+from deepagents.backends.protocol import ExecuteResponse, SandboxBackendProtocol
 
 # ─── CJK 文本格式容错工具 ───
 
@@ -218,17 +223,70 @@ class BufferOp:
     replace_all: bool = False       # edit 时是否全部替换
 
 
-class BufferedFilesystemBackend(FilesystemBackend):
-    """带写缓冲的文件系统后端。
+class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
+    """带写缓冲 + 脚本执行能力的文件系统后端。
 
     Agent 执行期间的 write/edit 操作存入内存缓冲区，
     用户审批后调用 flush() 落盘或 discard() 丢弃。
+    同时支持 execute() 命令执行，使 Skill 脚本可运行。
     """
 
-    def __init__(self, root_dir: str | Path, **kwargs):
+    def __init__(self, root_dir: str | Path, *, timeout: float = 60.0,
+                 max_output: int = 100_000, **kwargs):
         kwargs.setdefault("virtual_mode", True)
         super().__init__(root_dir=root_dir, **kwargs)
         self._buffer: list[BufferOp] = []
+        self._timeout = timeout
+        self._max_output = max_output
+        self._id = f"buffered-{uuid.uuid4().hex[:8]}"
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+    # ─── 脚本执行（SandboxBackendProtocol） ───
+
+    def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
+        """在 work_dir 内执行 shell 命令（受限沙箱）。"""
+        if not command or not isinstance(command, str):
+            return ExecuteResponse(output="Error: empty command", exit_code=1)
+
+        effective_timeout = timeout if timeout is not None else self._timeout
+        try:
+            result = subprocess.run(
+                command, shell=True, capture_output=True, text=True,
+                timeout=effective_timeout, cwd=str(self.cwd),
+                env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            )
+            output_parts = []
+            if result.stdout:
+                output_parts.append(result.stdout)
+            if result.stderr:
+                for line in result.stderr.strip().split("\n"):
+                    output_parts.append(f"[stderr] {line}")
+            output = "\n".join(output_parts) if output_parts else "<no output>"
+
+            truncated = False
+            if len(output) > self._max_output:
+                output = output[:self._max_output] + \
+                    f"\n...truncated at {self._max_output} bytes"
+                truncated = True
+
+            if result.returncode != 0:
+                output = f"{output.rstrip()}\n\nExit code: {result.returncode}"
+
+            return ExecuteResponse(
+                output=output,
+                exit_code=result.returncode,
+                truncated=truncated,
+            )
+        except subprocess.TimeoutExpired:
+            return ExecuteResponse(
+                output=f"Error: timed out after {effective_timeout}s",
+                exit_code=124,
+            )
+        except Exception as e:
+            return ExecuteResponse(output=f"Error: {e}", exit_code=1)
 
     # ─── 重写写操作：缓冲不落盘 ───
 

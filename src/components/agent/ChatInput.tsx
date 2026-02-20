@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { docsFs } from '@/services/docsFs';
 import { agentApi } from '@/services/agentApi';
+import type { Skill } from '@/types/agent';
 
 interface ChatInputProps {
   onSend: (message: string, context?: any) => void;
@@ -95,9 +96,9 @@ export default function ChatInput({
   const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
   const [slashTriggerIndex, setSlashTriggerIndex] = useState<number | null>(null);
   const [slashMenuPosition, setSlashMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
-  const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; group: string }>>([]);
+  const [skillsList, setSkillsList] = useState<Skill[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(false);
-  const [selectedSkill, setSelectedSkill] = useState<{ name: string; description: string; group: string } | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -873,13 +874,13 @@ export default function ChatInput({
         {(selectedDocs.length > 0 || selectedSkill) && (
           <div className="flex flex-wrap gap-2 border border-dashed border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
             {selectedSkill && (
-              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-100">
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
                 <Zap className="w-3.5 h-3.5" />
                 <span>/{selectedSkill.name}</span>
                 <button
                   type="button"
                   onClick={removeSkill}
-                  className="p-0.5 rounded-full hover:bg-amber-100 text-amber-600"
+                  className="p-0.5 rounded-full hover:bg-blue-100 text-blue-600"
                   aria-label="移除技能"
                 >
                   <X className="w-3 h-3" />

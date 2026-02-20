@@ -13,6 +13,7 @@ import type {
   PlanResponse,
   ApprovalResponse,
   ApprovalActionRequest,
+  Skill,
   HistorySessionItem
 } from '../types/agent';
 
@@ -396,6 +397,9 @@ class AgentApiService {
             case 'step_start':
               callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, description: data.description, toolName: data.tool_name, toolInput: data.tool_input, status: data.status, timestamp: data.timestamp });
               break;
+            case 'skill_loaded':
+              callbacks.onFlowEvent?.({ type: 'skill_loaded', skillName: data.skill_name, timestamp: data.timestamp });
+              break;
             case 'knowledge_loaded':
               // V1 遗留，忽略
               break;
@@ -672,7 +676,7 @@ class AgentApiService {
   /**
    * 获取可用 Agent Skills 列表
    */
-  async getSkills(): Promise<Array<{ name: string; description: string; group: string }>> {
+  async getSkills(): Promise<Skill[]> {
     const response = await this.client.get('/skills');
     return response.data;
   }
