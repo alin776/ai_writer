@@ -49,7 +49,7 @@ class EvaluationService:
     async def evaluate_text(
         self,
         request: EvaluationRequest,
-        model_name: str = "gemini-2.5-flash"
+        model_name: str = "gpt-5.2"
     ) -> EvaluationResponse:
         """
         评价AI生成的文本

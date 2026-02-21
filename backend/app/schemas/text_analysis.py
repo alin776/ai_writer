@@ -107,7 +107,7 @@ class RewriteRequest(BaseModel):
             "mode": "expand",
             "context_before": "经过三天的跋涉...",
             "context_after": "他拿起剑...",
-            "model_names": ["gemini-2.5-pro"]
+            "model_names": ["gpt-5.2"]
         }
     })
 
@@ -122,7 +122,7 @@ class ModelResult(BaseModel):
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
-            "model_name": "gemini-2.5-pro",
+            "model_name": "gpt-5.2",
             "rewritten_text": "主角推开那扇厚重的木门，昏暗的房间中唯有一柄长剑泛着幽冷的寒光...",
             "word_count": 156,
             "elapsed_time": 2.3,
@@ -143,7 +143,7 @@ class RewriteResponse(BaseModel):
             "mode": "expand",
             "results": [
                 {
-                    "model_name": "gemini-2.5-pro",
+                    "model_name": "gpt-5.2",
                     "rewritten_text": "主角推开那扇厚重的木门...",
                     "word_count": 156,
                     "elapsed_time": 2.3,

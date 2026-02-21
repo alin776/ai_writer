@@ -103,7 +103,7 @@ class RewriteSessionListResponse(BaseModel):
       "context_before": "经过三天的跋涉...",
       "results": [
         {
-          "model_name": "gemini-2.5-pro",
+          "model_name": "gpt-5.2",
           "rewritten_text": "主角推开那扇厚重的木门...",
           "word_count": 156,
           "elapsed_time": 2.3,

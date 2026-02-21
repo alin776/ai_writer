@@ -12,12 +12,9 @@ class CostCalculator:
 
     # 模型定价 (单位: 美元/百万token)
     # 格式: {model_name: (input_price, output_price)}
-    # 项目统一使用 Google Gemini 2.5 系列模型
     PRICING: Dict[str, Tuple[float, float]] = {
-        # Google Gemini 2.5 系列（2025年官方定价）
-        "gemini-2.5-pro": (1.25, 10.0),          # 复杂任务 - 输入$1.25, 输出$10.00/M
-        "gemini-2.5-flash": (0.30, 2.50),        # 中等任务 - 输入$0.30, 输出$2.50/M
-        "gemini-2.5-flash-lite": (0.10, 0.40),   # 简单任务 - 输入$0.10, 输出$0.40/M
+        # GPT-5.2 (当前使用)
+        "gpt-5.2": (1.0, 2.0),
 
         # 默认定价（未知模型）
         "default": (1.0, 2.0),

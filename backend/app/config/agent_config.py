@@ -28,12 +28,12 @@ class AgentConfig(BaseSettings):
 
     # 默认模型
     DEFAULT_MODEL: str = Field(
-        default="gemini-2.5-flash",
+        default="gpt-5.2",
         description="默认使用的AI模型"
     )
 
     FALLBACK_MODEL: str = Field(
-        default="gemini-2.5-flash-lite",
+        default="gpt-5.2",
         description="降级使用的AI模型"
     )
 
@@ -317,7 +317,7 @@ class AgentConfig(BaseSettings):
                 "max_tokens": 2000
             },
             "complex": {
-                "model": "gemini-2.5-pro",
+                "model": "gpt-5.2",
                 "temperature": 0.8,
                 "max_tokens": 4000
             }

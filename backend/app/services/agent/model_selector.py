@@ -96,53 +96,51 @@ class ModelTier(BaseModel):
 
 # ==================== 预定义模型配置 ====================
 
-# 参考价格 (2025年1月, 单位: USD per 1M tokens)
-# Gemini 2.5 系列 (Google):
-# - gemini-2.5-pro: $1.25 input / $10.00 output (最高质量, 8K上下文)
-# - gemini-2.5-flash: $0.30 input / $2.50 output (平衡, 8K上下文)
-# - gemini-2.5-flash-lite: $0.10 input / $0.40 output (最便宜, 4K上下文)
+# 参考价格 (单位: USD per 1M tokens)
+# GPT-5.2 (当前使用):
+# - gpt-5.2: 统一模型，用于所有任务
 #
 # 其他模型参考:
 # - GPT-3.5 Turbo: $0.50 input / $1.50 output
 # - GPT-4 Turbo: $10.00 input / $30.00 output
 # - DeepSeek: $0.14 input / $0.28 output
 
-# 注意: 使用 Gemini 2.5 系列模型,成本优化效果更好
+# 注意: 当前统一使用 gpt-5.2 模型
 
 MODEL_TIERS: Dict[TaskComplexity, ModelTier] = {
-    # 简单任务: 使用 Gemini 2.5 Flash Lite (最便宜, 速度最快)
+    # 简单任务
     TaskComplexity.SIMPLE: ModelTier(
-        name="Gemini 2.5 Flash Lite",
-        provider="gemini",
-        model_id="gemini-2.5-flash-lite",
-        cost_per_1m_input=0.10,    # $0.10 per 1M tokens (2025官方定价)
-        cost_per_1m_output=0.40,   # $0.40 per 1M tokens (2025官方定价)
+        name="GPT-5.2",
+        provider="openai",
+        model_id="gpt-5.2",
+        cost_per_1m_input=1.0,
+        cost_per_1m_output=2.0,
         max_tokens=4096,
         speed="fast",
-        quality_score=7.0,
+        quality_score=8.0,
         recommended_for=[TaskComplexity.SIMPLE]
     ),
 
-    # 中等任务: 使用 Gemini 2.5 Flash (平衡成本和质量)
+    # 中等任务
     TaskComplexity.MEDIUM: ModelTier(
-        name="Gemini 2.5 Flash",
-        provider="gemini",
-        model_id="gemini-2.5-flash",
-        cost_per_1m_input=0.30,    # $0.30 per 1M tokens (2025官方定价)
-        cost_per_1m_output=2.50,   # $2.50 per 1M tokens (2025官方定价)
+        name="GPT-5.2",
+        provider="openai",
+        model_id="gpt-5.2",
+        cost_per_1m_input=1.0,
+        cost_per_1m_output=2.0,
         max_tokens=8192,
         speed="fast",
         quality_score=8.0,
         recommended_for=[TaskComplexity.MEDIUM]
     ),
 
-    # 复杂任务: 使用 Gemini 2.5 Pro (最高质量)
+    # 复杂任务
     TaskComplexity.COMPLEX: ModelTier(
-        name="Gemini 2.5 Pro",
-        provider="gemini",
-        model_id="gemini-2.5-pro",
-        cost_per_1m_input=1.25,    # $1.25 per 1M tokens (2025官方定价)
-        cost_per_1m_output=10.00,  # $10.00 per 1M tokens (2025官方定价)
+        name="GPT-5.2",
+        provider="openai",
+        model_id="gpt-5.2",
+        cost_per_1m_input=1.0,
+        cost_per_1m_output=2.0,
         max_tokens=8192,
         speed="medium",
         quality_score=9.0,

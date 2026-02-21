@@ -8,6 +8,9 @@ import traceback
 import os
 import sys
 
+# ⚡ 最早设置 HuggingFace 镜像，必须在任何 huggingface_hub / sentence_transformers 导入之前
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
 # 修复 Windows 控制台 UTF-8 编码问题（解决 emoji 输出导致的 UnicodeEncodeError）
 if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')

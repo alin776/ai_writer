@@ -1,13 +1,8 @@
 """
-Fast AI Service - 使用 gemini-2.5-flash-lite 快速模型
+Fast AI Service - 使用快速模型
 
 用于不需要高质量生成能力的轻量任务（检测、验证、分类等），
 使用快速模型可以大幅降低响应时间和成本。
-
-性能优势:
-- 响应速度: ~3-5秒 (vs gpt-4的15-30秒)
-- 成本: ~1/10 (vs gpt-4)
-- 适用场景: 检测、验证、分类等不需要复杂生成的任务
 """
 
 import httpx
@@ -23,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class FastAIService:
-    """基于 gemini-2.5-flash-lite 的快速 AI 服务
+    """快速 AI 服务
 
     专门用于需要快速响应但不需要高质量生成的场景：
     - AI痕迹检测
@@ -40,7 +35,7 @@ class FastAIService:
         """
         self.api_key = settings.OPENAI_API_KEY
         self.base_url = settings.OPENAI_BASE_URL
-        self.model = "gemini-2.5-flash-lite"  # 固定使用快速模型
+        self.model = "gpt-5.2"  # 固定使用快速模型
         self.timeout = timeout
         self.db = db  # ✅ 2025-12-14: 支持外层事务控制
         self.max_retries = 2  # 🔧 2025-12-15: 新增重试次数

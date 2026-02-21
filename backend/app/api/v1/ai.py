@@ -788,8 +788,8 @@ async def preload_metadata(
     {
       "models": [
     {
-      "id": "gemini-2.5-pro",
-      "name": "Gemini 2.5 Pro",
+      "id": "gpt-5.2",
+      "name": "GPT-5.2",
       "description": "擅长创意和细节描写",
       "enabled": true
     },
@@ -800,7 +800,7 @@ async def preload_metadata(
       "enabled": true
     }
       ],
-      "default_models": ["gemini-2.5-pro", "gpt-5"],
+      "default_models": ["gpt-5.2"],
       "max_models": 4
     }
     ```
@@ -975,10 +975,10 @@ async def evaluate_generated_content(
             user_id=current_user.id
         )
 
-        # 执行评价 (使用 gemini-2.5-flash - 成本低,速度快)
+        # 执行评价
         result = await evaluation_service.evaluate_text(
             request=request,
-            model_name="gemini-2.5-flash"
+            model_name="gpt-5.2"
         )
 
         logger.info(

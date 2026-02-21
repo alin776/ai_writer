@@ -25,7 +25,7 @@ class AICallLog(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # 调用信息
-    model_name = Column(String(100), nullable=False, index=True)  # AI模型名称 (如: gpt-4, gemini-2.5-pro)
+    model_name = Column(String(100), nullable=False, index=True)  # AI模型名称 (如: gpt-5.2)
     operation_type = Column(String(50), nullable=False, index=True)  # 操作类型 (如: continue, polish, summary, translate, expand, analyze_micro, analyze_macro)
 
     # 关联信息
