@@ -102,6 +102,12 @@ python skills/character/character-naming/scripts/character_name.py --pool contem
 python skills/character/character-naming/scripts/character_name.py --fantasy elvish-like --count 10
 python skills/character/character-naming/scripts/character_name.py --fantasy harsh-fantasy --syllables 2-3
 
+# 生成中文汉字名（姓+名组合）
+python skills/character/character-naming/scripts/character_name.py --culture chinese --script han --full-name --count 5
+
+# 生成中文汉字名（带碰撞检查）
+python skills/character/character-naming/scripts/character_name.py --culture chinese --script han --full-name --count 10 --cast cast-tracker.json --json
+
 # 带角色表碰撞检查
 python skills/character/character-naming/scripts/character_name.py --culture korean --cast project-cast.json
 ```
@@ -113,6 +119,7 @@ python skills/character/character-naming/scripts/character_name.py --culture kor
 - `--gender <m|f|n>` — 按性别列表筛选（如可用）
 - `--count <n>` — 生成名字数量（默认：5）
 - `--syllables <range>` — 奇幻名字的音节范围（例如 "2-3"）
+- `--script <system>` — 书写系统：pinyin（默认拼音）或 han（汉字输出）
 - `--cast <file>` — 角色表追踪 JSON 文件路径，用于碰撞检查
 - `--full-name` — 生成名 + 姓的组合
 - `--json` — 以 JSON 格式输出

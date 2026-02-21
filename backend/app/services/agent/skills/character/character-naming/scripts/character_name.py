@@ -7,6 +7,7 @@ Breaks LLM statistical defaults by using external entropy.
 
 Usage:
   python character_name.py --culture chinese --gender female
+  python character_name.py --culture chinese --script han --full-name --count 5
   python character_name.py --pool contemporary-american --count 5
   python character_name.py --fantasy elvish-like --count 10
   python character_name.py --culture anglo --cast cast.json
@@ -135,8 +136,24 @@ def list_available_presets():
     return sorted(presets)
 
 
-def generate_from_list(name_list, count, rng):
-    shuffled = rng.shuffle(name_list['names'])
+def extract_names(name_list, script='pinyin'):
+    """Extract name strings from a name list, respecting structured format.
+
+    Structured format entries are {"pinyin": "...", "hanzi": "..."}.
+    Plain format entries are simple strings (treated as pinyin).
+    """
+    names = name_list.get('names', [])
+    meta = name_list.get('_meta', {})
+    # Map CLI script value to data field key
+    field = 'hanzi' if script == 'han' else script
+    if meta.get('format') == 'structured' and names and isinstance(names[0], dict):
+        return [entry.get(field, entry.get('pinyin', '')) for entry in names]
+    return names
+
+
+def generate_from_list(name_list, count, rng, script='pinyin'):
+    names = extract_names(name_list, script)
+    shuffled = rng.shuffle(names)
     return shuffled[:min(count, len(shuffled))]
 
 
@@ -216,6 +233,7 @@ def main():
         print("  --count <n>         Number of names to generate (default: 5)")
         print("  --syllables <range> Syllable range for fantasy names (e.g., 2-3)")
         print("  --full-name         Generate given + surname combination")
+        print("  --script <system>   Writing system: pinyin (default) or han (Chinese characters)")
         print("  --cast <file>       Path to cast tracker JSON for collision checking")
         print("  --seed <n>          Seed for reproducible generation")
         print("  --json              Output as JSON")
@@ -257,6 +275,7 @@ def main():
     pool = get_arg('--pool')
     fantasy = get_arg('--fantasy')
     gender = get_arg('--gender')
+    script = get_arg('--script') or 'pinyin'
     count_str = get_arg('--count')
     count = int(count_str) if count_str else 5
     syllables_str = get_arg('--syllables')
@@ -324,10 +343,14 @@ def main():
             if not surname_list or not given_list:
                 print(f'Error: Could not load name lists for culture "{culture}". Use --list.', file=sys.stderr)
                 sys.exit(1)
-            surnames = generate_from_list(surname_list, count, rng)
-            given_names = generate_from_list(given_list, count, rng)
+            surnames = generate_from_list(surname_list, count, rng, script)
+            given_names = generate_from_list(given_list, count, rng, script)
             for i in range(count):
-                name = f"{given_names[i]} {surnames[i]}"
+                # Chinese convention: surname first, no space for hanzi
+                if script == 'han':
+                    name = f"{surnames[i]}{given_names[i]}"
+                else:
+                    name = f"{given_names[i]} {surnames[i]}"
                 generated = {'name': name, 'source': f"culture:{culture}"}
                 if cast:
                     coll = check_collision(name, cast)
@@ -341,7 +364,7 @@ def main():
             if not name_list:
                 print(f'Error: Could not load name list for culture "{culture}". Use --list.', file=sys.stderr)
                 sys.exit(1)
-            names = generate_from_list(name_list, count, rng)
+            names = generate_from_list(name_list, count, rng, script)
             for name in names:
                 generated = {'name': name, 'source': f"culture:{culture}:{list_type}"}
                 if cast:

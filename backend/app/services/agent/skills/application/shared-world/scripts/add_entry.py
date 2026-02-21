@@ -41,6 +41,22 @@ CATEGORIES = [
     'species',
 ]
 
+CATEGORY_ALIASES = {
+    'power_system': 'rule',
+    'power_systems': 'rules',
+    'magic_system': 'rule',
+    'magic_systems': 'rules',
+    'technology': 'rule',
+    'item': 'artifact',
+    'items': 'artifacts',
+    'creature': 'species',
+    'creatures': 'species',
+    'organization': 'faction',
+    'organizations': 'factions',
+    'place': 'location',
+    'places': 'locations',
+}
+
 STATUSES = ['established', 'proposed', 'deprecated', 'contradicted', 'speculative']
 
 
@@ -50,10 +66,17 @@ def get_date():
 
 
 def slugify(name):
-    """Convert a name to a URL-friendly slug."""
+    """Convert a name to a filesystem-friendly slug (supports CJK characters)."""
     slug = name.lower()
-    slug = re.sub(r'[^a-z0-9]+', '-', slug)
+    # Normalize common CJK middle dots to hyphens
+    slug = slug.replace('\u00b7', '-').replace('\uff65', '-').replace('\u30fb', '-')
+    # Keep word chars (letters, digits, underscore — Unicode-aware) and CJK ideographs
+    slug = re.sub(r'[^\w\u4e00-\u9fff]+', '-', slug, flags=re.UNICODE)
     slug = re.sub(r'(^-|-$)', '', slug)
+    # Fallback: if slug is empty after filtering, use a hash
+    if not slug:
+        import hashlib
+        slug = hashlib.md5(name.encode('utf-8')).hexdigest()[:8]
     return slug
 
 
@@ -256,10 +279,14 @@ def parse_args(args):
     if not options['category'] or not options['name']:
         return None
 
-    if options['category'].lower() not in CATEGORIES:
+    cat = options['category'].lower()
+    cat = CATEGORY_ALIASES.get(cat, cat)
+    options['category'] = cat
+    if cat not in CATEGORIES:
         print(f"Invalid category: {options['category']}", file=sys.stderr)
         valid = [c for c in CATEGORIES if not c.endswith('s')]
         print(f"Valid categories: {', '.join(valid)}", file=sys.stderr)
+        print(f"Aliases also accepted: {', '.join(sorted(CATEGORY_ALIASES.keys()))}", file=sys.stderr)
         return None
 
     if options['status'].lower() not in STATUSES:
@@ -289,6 +316,8 @@ Options:
 
 Categories:
   character, location, faction, event, rule, culture, artifact, species
+  Aliases: power_system→rule, magic_system→rule, technology→rule,
+           item→artifact, creature→species, organization→faction, place→location
 
 Statuses:
   established, proposed, deprecated, contradicted, speculative

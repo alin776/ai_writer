@@ -455,10 +455,24 @@ death_threshold = (fate_pressure - 0.5) × 2 × (1 - fortune_buffer / 5)
 > 执行时必须使用从项目根目录出发的完整相对路径。
 
 ```bash
-python skills/worldbuilding/world-fates/scripts/fate-pressure.py "Entity Name" --bible ./world-bible
-python skills/worldbuilding/world-fates/scripts/fate-pressure.py --all --bible ./world-bible
-python skills/worldbuilding/world-fates/scripts/fate-pressure.py "Entity Name" --json
+python skills/worldbuilding/world-fates/scripts/fate-pressure.py --power 3 --tenure 15 --vulns 5 --prots 3 --fortune 2 --exposure 0.3
+python skills/worldbuilding/world-fates/scripts/fate-pressure.py --power 3 --tenure 15 --vulns 5 --prots 3 --fortune 2 --exposure 0.3 --json
 ```
+
+**参数说明：**
+
+| 参数 | 类型 | 范围 | 说明 | 示例 |
+|------|------|------|------|------|
+| `--power` | int | 1-10 | 权力等级（1=村长 5=县级 10=帝王） | `--power 3` |
+| `--tenure` | int | ≥0 | 在位年数 | `--tenure 15` |
+| `--vulns` | **int** | ≥0 | 已知脆弱性**数量**（逐个计数，非评分） | `--vulns 5`（敌人3+矛盾2） |
+| `--prots` | **int** | ≥0 | 已知防护措施**数量**（逐个计数，非评分） | `--prots 3`（声望+武力+盟友） |
+| `--fortune` | int | 0-5 | 运气缓冲（0=厄运 3=中性 5=天命） | `--fortune 2` |
+| `--exposure` | float | 0-1 | 累积暴露度（0=隐藏 1=暴露） | `--exposure 0.3` |
+| `--name` | str | - | 实体名称（用于输出标题） | `--name "源顺镖局"` |
+| `--json` | flag | - | 输出 JSON 格式 | `--json` |
+
+> ⚠️ `--vulns` 和 `--prots` 必须为**整数计数**（列举具体条目后数数），不是 0-10 评分。如传入浮点数会截断为整数并发出警告。
 
 ### fate-roll.py
 

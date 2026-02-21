@@ -18,6 +18,12 @@ import json
 import os
 from datetime import date
 
+# Ensure UTF-8 output on all platforms
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 
 def count_syllables(name):
     vowels = re.findall(r'[aeiouy]+', name.lower())
@@ -143,7 +149,7 @@ def load_cast(path):
 def save_cast(path, cast):
     cast['_meta']['updated'] = date.today().isoformat()
     with open(path, 'w', encoding='utf-8') as f:
-        f.write(json.dumps(cast, indent=2))
+        f.write(json.dumps(cast, indent=2, ensure_ascii=False))
 
 
 def create_new_cast(project_name):

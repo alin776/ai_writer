@@ -3,16 +3,16 @@
 Fate Pressure Calculator
 
 Calculates current fate pressure for entities based on:
-- Power level (1-10)
-- Tenure modifier (0.5x - 2.5x)
-- Vulnerability score (0-10)
-- Protection factor (1-10)
-- Fortune buffer (0-5)
-- Risk exposure accumulation
+- Power level (int 1-10)
+- Tenure modifier (0.5x - 2.5x, derived from tenure years)
+- Vulnerability count (int, number of distinct vulnerabilities)
+- Protection count (int, number of distinct protections)
+- Fortune buffer (int 0-5)
+- Risk exposure accumulation (float 0-1)
 
 Usage:
     python fate-pressure.py --power 7 --tenure 40 --vulns 3 --prots 2 --fortune 2
-    python fate-pressure.py --json
+    python fate-pressure.py --power 3 --tenure 15 --vulns 5 --prots 3 --fortune 2 --exposure 0.3 --json
 """
 
 import json
@@ -161,6 +161,21 @@ def format_result(result, entity_name=None):
     return chr(10).join(lines)
 
 
+def _parse_int(value, flag_name):
+    """Parse a CLI value as int, accepting float input with truncation warning."""
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            result = int(float(value))
+            print("Warning: {} expects integer, got '{}', truncated to {}".format(
+                flag_name, value, result), file=sys.stderr)
+            return result
+        except ValueError:
+            print("Error: {} expects integer, got '{}'".format(flag_name, value), file=sys.stderr)
+            sys.exit(1)
+
+
 def main():
     args = sys.argv[1:]
     if "--help" in args or "-h" in args:
@@ -170,14 +185,17 @@ def main():
         print("  python fate-pressure.py [options]")
         print()
         print("Options:")
-        print("  --power <n>       Power level (1-10, default: 5)")
-        print("  --tenure <years>  Years in power (default: 5)")
-        print("  --vulns <n>       Number of vulnerabilities (default: 0)")
-        print("  --prots <n>       Number of protections (default: 0)")
-        print("  --fortune <n>     Fortune buffer (0-5, default: 3)")
-        print("  --exposure <n>    Accumulated exposure (0-1, default: 0)")
-        print("  --name <name>     Entity name for output")
-        print("  --json            Output as JSON")
+        print("  --power <int>       权力等级 (整数 1-10, 1=村长 5=县级 10=帝王, 默认: 5)")
+        print("  --tenure <int>      在位年数 (整数, 默认: 5)")
+        print("  --vulns <int>       已知脆弱性数量 (整数计数, 非评分; 例: 敌人3个+内部矛盾2个=5, 默认: 0)")
+        print("  --prots <int>       已知防护措施数量 (整数计数, 非评分; 例: 声望+武力+盟友=3, 默认: 0)")
+        print("  --fortune <int>     运气缓冲 (整数 0-5, 0=极端厄运 3=中性 5=天命所归, 默认: 3)")
+        print("  --exposure <float>  累积暴露度 (小数 0.0-1.0, 0=完全隐藏 1=完全暴露, 默认: 0)")
+        print("  --name <name>       实体名称 (用于输出标题)")
+        print("  --json              输出 JSON 格式")
+        print()
+        print("Example:")
+        print("  python fate-pressure.py --power 3 --tenure 15 --vulns 5 --prots 3 --fortune 2 --exposure 0.3")
         sys.exit(0)
 
     power = 5
@@ -192,15 +210,15 @@ def main():
     i = 0
     while i < len(args):
         if args[i] == "--power" and i + 1 < len(args):
-            i += 1; power = int(args[i])
+            i += 1; power = _parse_int(args[i], "--power")
         elif args[i] == "--tenure" and i + 1 < len(args):
-            i += 1; tenure = int(args[i])
+            i += 1; tenure = _parse_int(args[i], "--tenure")
         elif args[i] == "--vulns" and i + 1 < len(args):
-            i += 1; vuln_count = int(args[i])
+            i += 1; vuln_count = _parse_int(args[i], "--vulns")
         elif args[i] == "--prots" and i + 1 < len(args):
-            i += 1; prot_count = int(args[i])
+            i += 1; prot_count = _parse_int(args[i], "--prots")
         elif args[i] == "--fortune" and i + 1 < len(args):
-            i += 1; fortune = float(args[i])
+            i += 1; fortune = _parse_int(args[i], "--fortune")
         elif args[i] == "--exposure" and i + 1 < len(args):
             i += 1; exposure = float(args[i])
         elif args[i] == "--name" and i + 1 < len(args):

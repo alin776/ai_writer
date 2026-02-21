@@ -190,6 +190,47 @@ END FOR
 | 40-59 | 重写 | 带失败约束重新生成 |
 | < 40 | 拒绝 | 从大纲重新起草 |
 
+### ⚠️ MANDATORY: 使用 score_scene.py 脚本评分
+
+评估循环中的综合评分**必须**通过 `execute` 工具调用 `score_scene.py` 脚本完成。
+
+> **禁止**用 LLM 自行评分或委托子 Agent 评审。
+> 如果脚本调用失败，应报告错误而非回退到手动评审。
+
+**调用方式：**
+
+```bash
+python skills/application/chapter-drafter/scripts/score_scene.py --json '<evaluation_json>'
+```
+
+**JSON 输入格式：**
+
+```json
+{
+  "scene": "第4章, 场景1",
+  "passes": [
+    {
+      "pass": "scene-sequencing",
+      "criteria": [
+        {"name": "Goal clarity", "rating": "PASS"},
+        {"name": "Conflict escalation", "rating": "WARN", "notes": "升级不够明显"},
+        {"name": "Disaster quality", "rating": "PASS"},
+        {"name": "Sequel presence", "rating": "PASS"},
+        {"name": "Scene-sequel ratio", "rating": "PASS"}
+      ]
+    },
+    {"pass": "character-arc", "criteria": [...]},
+    {"pass": "cliche-transcendence", "criteria": [...]},
+    {"pass": "dialogue", "criteria": [...]},
+    {"pass": "prose-style", "criteria": [...]}
+  ]
+}
+```
+
+**每个 criterion 的 rating 只能是**: `"PASS"`, `"WARN"`, `"FAIL"` 三选一。
+
+脚本将返回综合分、决策（ACCEPT/REVISE/REWRITE/REJECT）和失败标准列表。你必须根据脚本返回的决策执行对应操作。
+
 ---
 
 ## 迭代限制
