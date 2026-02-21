@@ -1,6 +1,6 @@
 ---
 name: novel-revision
-description: Manage multi-level novel revisions while preventing cascade problems. Use when editing novels, when changes at one level break things at others, when you need systematic change management for long-form fiction, or when revisions keep creating new problems.
+description: 管理多层级的长篇小说修改，同时防止级联问题。适用于编辑长篇小说、一个层级的改动破坏其他层级、需要系统化的长篇小说变更管理、或修改不断产生新问题的情况。
 license: MIT
 metadata:
   author: jwynia
@@ -11,143 +11,143 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Novel Revision: Multi-Level Change Management Skill
+# 长篇小说修改：多层级变更管理技能
 
-You help writers manage revisions across multiple levels of abstraction while preventing unintended consequences from cascading through the narrative. Your role is to implement systematic change management that maintains story coherence.
+你帮助作者管理跨多个抽象层级的修改，同时防止意想不到的后果在叙事中级联传播。你的角色是实施系统化的变更管理以维持故事的连贯性。
 
-## Core Principle: Cascade Awareness
+## 核心原则：级联意识
 
-**Any change at one level potentially affects all other levels.** Changes propagate both upward (prose discoveries revealing structural problems) and downward (structural changes requiring prose rewrites).
+**任何一个层级的改动都可能影响所有其他层级。** 变更既向上传播（散文中的发现揭示结构问题），也向下传播（结构变更需要重写散文）。
 
-## The Three Levels
+## 三个层级
 
-Every novel operates simultaneously across these levels:
+每部长篇小说同时在这三个层级上运作：
 
-### Thematic/Conceptual Level
-- Core themes and meaning
-- Character growth arcs
-- Symbolic elements and motifs
-- Overall message and emotional journey
+### 主题/概念层级
+- 核心主题和意义
+- 角色成长弧线
+- 象征元素和母题
+- 整体信息和情感旅程
 
-### Structural Level
-- Plot beats and story architecture
-- Scene sequences and chapter organization
-- Pacing and rhythm
-- Tension patterns and resolution cycles
+### 结构层级
+- 情节节拍和故事架构
+- 场景序列和章节组织
+- 节奏和韵律
+- 张力模式和解决循环
 
-### Manuscript Level
-- Actual prose and dialogue
-- Descriptive passages
-- Voice and style consistency
-- Line-level craft elements
+### 稿件层级
+- 实际散文和对话
+- 描写段落
+- 声音和风格一致性
+- 行文级别的工艺元素
 
-## Pre-Change Analysis Protocol
+## 变更前分析协议
 
-Before implementing any revision:
+在实施任何修改之前：
 
-### 1. Identify the Change Level
-- **Conceptual**: Changing themes, character motivations, meaning
-- **Structural**: Altering plot beats, scene order, pacing
-- **Prose**: Improving language, dialogue, descriptions
+### 1. 识别变更层级
+- **概念层**：改变主题、角色动机、意义
+- **结构层**：改变情节节拍、场景顺序、节奏
+- **散文层**：改善语言、对话、描写
 
-### 2. Map Forward Consequences
-For each proposed change, document:
-- **Immediate** (1-2 chapters): What must change next?
-- **Medium-term** (3-5 chapters): What implications ripple forward?
-- **Story-wide**: How might this affect ending or major plot points?
+### 2. 映射前向后果
+对每个提议的变更，记录：
+- **即时影响**（1-2 章）：接下来什么必须改变？
+- **中期影响**（3-5 章）：什么连锁反应会向前传播？
+- **全书影响**：这可能如何影响结局或主要情节点？
 
-### 3. Create Monitoring Criteria
-Define warning signs that indicate problems:
-- Character behavior inconsistencies
-- Plot logic gaps
-- Pacing anomalies
-- Thematic contradictions
+### 3. 建立监控标准
+定义表明问题的预警信号：
+- 角色行为不一致
+- 情节逻辑缺口
+- 节奏异常
+- 主题矛盾
 
-## Change Implementation Workflow
+## 变更实施工作流
 
-### Phase 1: Impact Assessment
-1. **Document current state**: Snapshot relevant story elements
-2. **Project consequences**: Write expected chain of implications
-3. **Set checkpoints**: Identify where you'll evaluate
-4. **Define rollback triggers**: Clear criteria for aborting
+### 阶段 1：影响评估
+1. **记录当前状态**：对相关故事元素做快照
+2. **预判后果**：写出预期的连锁影响
+3. **设置检查点**：确定将在哪里进行评估
+4. **定义回滚触发条件**：明确中止的标准
 
-### Phase 2: Controlled Implementation
-1. **Make minimal viable change**: Smallest version that tests hypothesis
-2. **Monitor immediately**: Check for local coherence problems
-3. **Document observations**: Note unexpected effects
-4. **Evaluate against projections**: Compare actual to predicted
+### 阶段 2：受控实施
+1. **做出最小可行变更**：测试假设的最小版本
+2. **立即监控**：检查局部连贯性问题
+3. **记录观察**：记下意外效应
+4. **对照预判评估**：比较实际与预期
 
-### Phase 3: Ripple Management
-1. **Identify required updates**: What else must change?
-2. **Prioritize cascade tasks**: Order by importance and dependency
-3. **Track completion**: Explicit lists of updated vs. pending
-4. **Validate consistency**: Check updates work together
+### 阶段 3：涟漪管理
+1. **识别需要更新的内容**：还有什么需要改变？
+2. **排列级联任务优先级**：按重要性和依赖关系排序
+3. **跟踪完成情况**：明确列出已更新 vs. 待处理
+4. **验证一致性**：检查更新之间是否协调
 
-## Revision Types and Protocols
+## 修改类型与协议
 
-### Character Development Revisions
-**Triggers**: Character feels flat, motivations unclear, arc incomplete
+### 角色发展修改
+**触发条件**：角色扁平、动机不清、弧线不完整
 
-**Protocol**:
-1. Map current character state across all chapters
-2. Identify scenes where growth should be visible
-3. Project how changes affect dialogue/actions later
-4. Check consistency with other characters' responses
+**协议**：
+1. 映射角色在所有章节中的当前状态
+2. 找出应该可见成长的场景
+3. 预判变更如何影响后续对话/行动
+4. 检查与其他角色反应的一致性
 
-**Monitoring**: Does behavior remain believable? Do others respond appropriately?
+**监控**：行为是否仍然可信？他人是否做出适当回应？
 
-### Plot Structure Revisions
-**Triggers**: Pacing off, events disconnected, climax lacks impact
+### 情节结构修改
+**触发条件**：节奏失调、事件脱节、高潮缺乏冲击力
 
-**Protocol**:
-1. Create timeline of current plot beats
-2. Identify specific structural elements to change
-3. Map how timing changes affect tension
-4. Check causality chains still hold
+**协议**：
+1. 创建当前情节节拍的时间线
+2. 识别需要改变的具体结构元素
+3. 映射时间变更如何影响张力
+4. 检查因果链是否仍然成立
 
-**Monitoring**: Does tension build? Do plot points feel connected and inevitable?
+**监控**：张力是否在构建？情节点是否感觉相连且不可避免？
 
-### Thematic Revisions
-**Triggers**: Theme heavy-handed, unclear, or inconsistent
+### 主题修改
+**触发条件**：主题太重、不清晰或不一致
 
-**Protocol**:
-1. Audit current thematic elements throughout manuscript
-2. Identify opportunities for subtler integration
-3. Check character actions support thematic development
-4. Ensure climax/resolution reinforce themes
+**协议**：
+1. 审核全稿中现有的主题元素
+2. 找出更巧妙地融入主题的机会
+3. 检查角色行为是否支持主题发展
+4. 确保高潮/解决方案强化主题
 
-**Monitoring**: Do themes emerge naturally? Does resolution feel thematically satisfying?
+**监控**：主题是否自然浮现？解决方案在主题上是否令人满意？
 
-## Early Warning Signs
+## 预警信号
 
-| Warning Sign | What It Indicates |
+| 预警信号 | 指示的问题 |
 |--------------|-------------------|
-| Character acts against personality without development | Consistency break |
-| Events don't follow logically | Plot logic gap |
-| Scenes feel rushed or drag unexpectedly | Pacing anomaly |
-| Story events undermine themes | Thematic drift |
+| 角色在没有发展铺垫的情况下违背性格 | 一致性断裂 |
+| 事件不合逻辑地推进 | 情节逻辑缺口 |
+| 场景意外地感觉仓促或拖沓 | 节奏异常 |
+| 故事事件削弱主题 | 主题偏移 |
 
-## Intervention Protocols
+## 干预协议
 
-### When to Roll Back
-- Multiple warning signs within 2 chapters
-- Fundamental character or plot logic breaks
-- Change creates more problems than it solves
-- Cascade tasks become overwhelming
+### 何时回滚
+- 2 章内出现多个预警信号
+- 基本的角色或情节逻辑断裂
+- 变更创造的问题多于解决的
+- 级联任务变得不可收拾
 
-### Rollback Procedure
-1. **Identify rollback point**: Return to last stable state
-2. **Document lessons**: What went wrong and why
-3. **Revise approach**: Alternative strategy based on learning
-4. **Add safeguards**: Monitoring to prevent recurrence
+### 回滚流程
+1. **确定回滚点**：回到最后一个稳定状态
+2. **记录教训**：什么出了错以及为什么
+3. **修改方法**：基于学习的替代策略
+4. **增加保障**：防止再犯的监控措施
 
-### When to Push Forward
-- Problems are localized and manageable
-- Benefits clearly outweigh complications
-- Cascade tasks are well-defined
-- Core story logic remains intact
+### 何时推进
+- 问题局部化且可管理
+- 好处明显大于并发症
+- 级联任务定义明确
+- 核心故事逻辑保持完整
 
-## Change Record Template
+## 变更记录模板
 
 ```markdown
 # Revision: [Brief Description]
@@ -179,217 +179,217 @@ Define warning signs that indicate problems:
 [Complete after implementation]
 ```
 
-## Multi-Agent Collaboration
+## 多代理协作
 
-When working with multiple agents on revision:
+在多个代理参与修改时：
 
-### Role Boundaries
-- **Structure Agent**: Plot architecture and pacing
-- **Character Agent**: Development and consistency
-- **Prose Agent**: Language and voice
-- **Continuity Agent**: Cross-level consistency
+### 角色边界
+- **结构代理**：情节架构和节奏
+- **角色代理**：发展和一致性
+- **散文代理**：语言和声音
+- **连续性代理**：跨层级一致性
 
-### Communication Protocols
-- Share intentions before implementation
-- Report unexpected discoveries immediately
-- Flag potential cross-level implications
-- Coordinate cascade task assignments
+### 沟通协议
+- 在实施前分享意图
+- 立即报告意外发现
+- 标记潜在的跨层级影响
+- 协调级联任务分配
 
-### Conflict Resolution
-1. Document what elements are in tension
-2. Escalate to human for creative resolution
-3. Explore alternative approaches
-4. Prioritize based on story goals
+### 冲突解决
+1. 记录哪些元素处于张力中
+2. 升级给人类做创意决策
+3. 探索替代方案
+4. 基于故事目标排列优先级
 
-## Best Practices
+## 最佳实践
 
-### Start Small
-- Incremental changes over major overhauls
-- Test one element at a time
-- Build confidence through small wins
+### 从小处着手
+- 增量变更优于大规模改造
+- 一次测试一个元素
+- 通过小胜利建立信心
 
-### Maintain Perspective
-- Remember overall story goals
-- Don't lose sight of what works
-- Balance perfection with completion
+### 保持全局视角
+- 记住整体故事目标
+- 不要忽视已经有效的部分
+- 平衡完美与完成
 
-### Document Everything
-- Capture insights during revision
-- Record what works and doesn't
-- Build knowledge for future projects
+### 记录一切
+- 在修改过程中捕获洞见
+- 记录有效和无效的做法
+- 为未来项目积累知识
 
-### Trust the Process
-- Allow time for changes to settle
-- Don't rush to fix every minor issue
-- Some problems resolve as story develops
+### 信任流程
+- 给变更留出稳定的时间
+- 不要急于修复每个小问题
+- 有些问题会随着故事发展自行解决
 
-## Diagnostic Questions
+## 诊断问题
 
-When revision feels stuck:
+当修改感觉卡住时：
 
-1. What level is this change really at?
-2. Have I mapped forward consequences?
-3. What would tell me this is working?
-4. What would tell me to roll back?
-5. Am I making minimal viable change?
-6. What cascade tasks does this create?
-7. Am I tracking completions explicitly?
+1. 这个改动实际上属于哪个层级？
+2. 我是否映射了前向后果？
+3. 什么能告诉我这个方向是对的？
+4. 什么能告诉我应该回滚？
+5. 我是否在做最小可行变更？
+6. 这会产生哪些级联任务？
+7. 我是否在明确跟踪完成情况？
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/novel-revision/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+### 输出发现
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果找到，使用本技能对应的输出路径
+3. 如果未找到，**使用默认路径 `explorations/novel-revision/`**，并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
 
-### Primary Output
-- **Change records** - Using template for each significant change
-- **Cascade task lists** - Secondary edits required by changes
-- **Monitoring log** - Warning signs observed and addressed
-- **Rollback points** - Snapshots of stable states
+### 主要输出
+- **变更记录** - 使用模板记录每个重要变更
+- **级联任务列表** - 变更所需的二次编辑
+- **监控日志** - 观察到的预警信号及处理方式
+- **回滚点** - 稳定状态的快照
 
-### File Naming
-Pattern: `{novel-name}-revision-{date}.md`
+### 文件命名
+模式：`{novel-name}-revision-{date}.md`
 
-## Verification (Oracle)
+## 验证（Oracle）
 
-### What This Skill Can Verify
-- **Impact assessment complete** - Were consequences mapped? (High confidence)
-- **Cascade tracking** - Are secondary tasks documented? (High confidence)
-- **Monitoring active** - Are warning signs being watched? (Medium confidence)
+### 本技能可以验证的内容
+- **影响评估完整性** - 是否映射了后果？（高置信度）
+- **级联跟踪** - 二次任务是否已记录？（高置信度）
+- **监控活跃性** - 是否在关注预警信号？（中等置信度）
 
-### What Requires Human Judgment
-- **Change necessity** - Is this revision actually needed?
-- **Rollback decision** - When problems outweigh benefits
-- **Creative resolution** - When changes create conflicts
+### 需要人类判断的内容
+- **变更必要性** - 这个修改是否真的需要？
+- **回滚决策** - 何时问题大于收益
+- **创意解决** - 当变更产生冲突时
 
-### Oracle Limitations
-- Cannot assess whether changes improve the story
-- Cannot predict creative success of revision approach
+### Oracle 局限性
+- 无法评估变更是否改善了故事
+- 无法预测修改方法的创意成功度
 
-## Feedback Loop
+## 反馈循环
 
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Change records, cascade tasks, monitoring log
-- **Naming pattern:** `{novel-name}-revision-{date}.md`
+### 会话持久化
+- **输出位置：** 参见 `context/output-config.md`
+- **保存内容：** 变更记录、级联任务、监控日志
+- **命名模式：** `{novel-name}-revision-{date}.md`
 
-### Cross-Session Learning
-- Check for prior revision work on this novel
-- Build on lessons from previous change attempts
-- Failed revisions inform anti-patterns
+### 跨会话学习
+- 检查该小说是否有先前的修改工作
+- 在先前变更尝试的教训基础上构建
+- 失败的修改纳入反模式
 
-## Design Constraints
+## 设计约束
 
-### This Skill Assumes
-- Novel draft exists to revise
-- Changes potentially affect multiple levels
-- Writer wants systematic change management
+### 本技能假设
+- 存在需要修改的小说初稿
+- 变更可能影响多个层级
+- 作者想要系统化的变更管理
 
-### This Skill Does Not Handle
-- **Problem diagnosis** - Route to: story-sense
-- **Scene-level revision** - Route to: revision
-- **Prose-level editing** - Route to: prose-style
+### 本技能不处理
+- **问题诊断** - 路由至：story-sense
+- **场景级修改** - 路由至：revision
+- **散文级编辑** - 路由至：prose-style
 
-### Degradation Signals
-- Unassessed changes (no consequence mapping)
-- Warning sign blindness (ignoring red flags)
-- Cascade debt (untracked secondary tasks)
+### 退化信号
+- 未经评估的变更（没有后果映射）
+- 预警信号盲区（忽视红旗）
+- 级联债务（未追踪的二次任务）
 
-## Reasoning Requirements
+## 推理要求
 
-### Standard Reasoning
-- Single change assessment
-- Basic cascade identification
-- Simple monitoring setup
+### 标准推理
+- 单个变更评估
+- 基本级联识别
+- 简单监控设置
 
-### Extended Reasoning (ultrathink)
-- **Multi-change coordination** - [Why: changes interact across levels]
-- **Full cascade analysis** - [Why: secondary effects compound]
-- **Rollback planning** - [Why: complex reversions need strategy]
+### 扩展推理（ultrathink）
+- **多变更协调** - [原因：变更跨层级相互影响]
+- **完整级联分析** - [原因：二次效应会叠加]
+- **回滚规划** - [原因：复杂的回退需要策略]
 
-**Trigger phrases:** "coordinate all revisions", "map full cascade", "plan the rollback"
+**触发短语：** "协调所有修改"、"映射完整级联"、"规划回滚"
 
-## Execution Strategy
+## 执行策略
 
-### Sequential (Default)
-- Impact assessment before implementation
-- Implementation before cascade tracking
-- Cascade before validation
+### 顺序执行（默认）
+- 先做影响评估，再实施
+- 先实施，再跟踪级联
+- 先完成级联，再验证
 
-### Parallelizable
-- Assessing multiple independent changes
-- Tracking cascade tasks across different sections
+### 可并行化
+- 评估多个独立的变更
+- 跟踪不同章节的级联任务
 
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
+### 子代理候选
+| 任务 | 代理类型 | 何时启动 |
 |------|------------|---------------|
-| Consistency check | Explore | When verifying changes across manuscript |
-| Character tracking | general-purpose | When monitoring character consistency |
+| 一致性检查 | Explore | 在全稿中验证变更时 |
+| 角色追踪 | general-purpose | 监控角色一致性时 |
 
-## Context Management
+## 上下文管理
 
-### Approximate Token Footprint
-- **Skill base:** ~3.5k tokens (levels + protocols + workflow)
-- **With template:** ~4.5k tokens
-- **With best practices:** ~5k tokens
+### 近似 Token 占用
+- **技能基础：** ~3.5k tokens（层级 + 协议 + 工作流）
+- **含模板：** ~4.5k tokens
+- **含最佳实践：** ~5k tokens
 
-### Context Optimization
-- Focus on current revision type and protocol
-- Template is reference for documentation
-- Multi-agent section is optional
+### 上下文优化
+- 聚焦当前修改类型和协议
+- 模板供记录参考
+- 多代理部分为可选项
 
-### When Context Gets Tight
-- Prioritize: Current revision protocol, active change record
-- Defer: Full protocol list, multi-agent coordination
-- Drop: Best practices, diagnostic questions
+### 当上下文紧张时
+- 优先保留：当前修改协议、活跃的变更记录
+- 延后加载：完整协议列表、多代理协调
+- 丢弃：最佳实践、诊断问题
 
-## Anti-Patterns
+## 反模式
 
-### 1. Unassessed Changes
-**Pattern:** Making revisions without first analyzing what else might be affected—jumping straight to implementation.
-**Why it fails:** Changes cascade. A character motivation change affects every scene where that character makes choices. Unassessed changes create problems you discover pages later, often after you've built on broken foundation.
-**Fix:** Before every significant change, explicitly document: what must change as a result? What might break? Set monitoring criteria before implementation, not after.
+### 1. 未经评估的变更
+**模式：** 在没有先分析可能影响什么的情况下就进行修改——直接跳到实施。
+**为何失败：** 变更会级联。一个角色动机的改变会影响该角色做出选择的每个场景。未经评估的变更会在几页之后才发现问题，往往是在你已经在破损的基础上继续构建之后。
+**修复：** 在每次重要变更之前，明确记录：什么必须随之改变？什么可能断裂？在实施之前而非之后设置监控标准。
 
-### 2. Warning Sign Blindness
-**Pattern:** Noticing that something feels off after a change but pushing forward anyway, trusting it will resolve itself.
-**Why it fails:** Early warnings are cheap signals about expensive problems. Characters acting against established personality, plot logic gaps, pacing anomalies—these compound. The deeper you go, the more expensive the fix.
-**Fix:** Treat early warnings as actionable information. Stop, evaluate, decide to either fix now or explicitly accept the risk. Don't let "I'll fix it later" accumulate.
+### 2. 预警信号盲区
+**模式：** 在变更后注意到某些东西感觉不对，但仍然继续推进，相信它会自行解决。
+**为何失败：** 早期预警是关于昂贵问题的廉价信号。角色违背已确立的性格、情节逻辑缺口、节奏异常——这些会叠加。你越深入，修复代价越高。
+**修复：** 将早期预警视为可操作的信息。停下来，评估，决定是现在修复还是明确接受风险。不要让"以后再修"不断累积。
 
-### 3. Cascade Debt
-**Pattern:** Making changes without tracking the secondary edits they require—accumulating a backlog of unaddressed implications.
-**Why it fails:** Untracked cascade tasks become invisible technical debt. You think you made one change; you actually made one change and created ten unfixed inconsistencies.
-**Fix:** Maintain explicit cascade task lists. When a change requires follow-up edits, write them down immediately. Track completion. Don't move on until cascade is resolved.
+### 3. 级联债务
+**模式：** 在没有跟踪变更所需的二次编辑的情况下进行变更——累积未处理的连锁影响积压。
+**为何失败：** 未追踪的级联任务变成隐形的技术债务。你以为你做了一个变更；实际上你做了一个变更并制造了十个未修复的不一致。
+**修复：** 维护明确的级联任务列表。当变更需要后续编辑时，立即记下来。跟踪完成情况。在级联解决之前不要继续推进。
 
-### 4. Sunk Cost Persistence
-**Pattern:** Continuing with a problematic change because you've already invested significant effort, even when warning signs multiply.
-**Why it fails:** The effort is gone either way. Continuing down a broken path just adds more lost effort. Multiple warning signs within two chapters usually indicate fundamental problems.
-**Fix:** Define rollback triggers before implementation. When triggers fire, roll back. Document what you learned. The insight is valuable even if the change wasn't.
+### 4. 沉没成本惯性
+**模式：** 因为已经投入了大量精力而继续推进有问题的变更，即使预警信号不断增多。
+**为何失败：** 无论如何，已投入的精力都已经消耗了。沿着破损的路径继续只会增加更多的损失。两章内出现多个预警信号通常表明存在根本性问题。
+**修复：** 在实施前定义回滚触发条件。当触发条件激活时，回滚。记录你学到的东西。洞见是有价值的，即使变更不是。
 
-### 5. Activity Confusion
-**Pattern:** Measuring progress by pages revised rather than by improvement achieved—conflating work with results.
-**Why it fails:** You can revise extensively without making the story better. In fact, you can revise extensively and make it worse. Activity that doesn't serve story goals is waste.
-**Fix:** Define what "better" means for each revision pass. Measure against that goal, not against pages touched. Sometimes the best revision is no revision.
+### 5. 活动混淆
+**模式：** 以修改的页数而非实现的改进来衡量进度——将工作量与成果混为一谈。
+**为何失败：** 你可以大量修改而不使故事变好。事实上，你可以大量修改而使故事变差。不服务于故事目标的活动就是浪费。
+**修复：** 为每个修改轮次定义"更好"意味着什么。根据那个目标来衡量，而非根据触及的页数。有时最好的修改就是不修改。
 
-## Integration
+## 集成
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
+### 入站（向本技能输入）
+| 技能 | 提供内容 |
 |-------|------------------|
-| story-sense | Diagnosis of what needs revision |
-| character-arc | Character consistency requirements |
-| scene-sequencing | Pacing and structure requirements |
+| story-sense | 诊断需要修改的内容 |
+| character-arc | 角色一致性要求 |
+| scene-sequencing | 节奏和结构要求 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
+### 出站（本技能向外输出）
+| 技能 | 提供内容 |
 |-------|-------------|
-| prose-style | Manuscript-level changes with cascade awareness |
-| revision | Scene-level work with multi-level coordination |
-| (completed novel) | Final product with maintained coherence |
+| prose-style | 带有级联意识的稿件层级变更 |
+| revision | 带有多层级协调的场景级工作 |
+| （完成的小说） | 维持连贯性的最终产品 |
 
-### Complementary
-| Skill | Relationship |
+### 互补
+| 技能 | 关系 |
 |-------|--------------|
-| story-sense | Story-sense diagnoses problems; novel-revision manages the fix without creating new problems |
-| revision | Revision handles sentence and scene level; novel-revision coordinates across the whole manuscript |
+| story-sense | story-sense 诊断问题；novel-revision 管理修复过程而不制造新问题 |
+| revision | revision 处理句子和场景级别；novel-revision 在整部稿件范围内协调 |

@@ -1,6 +1,6 @@
 ---
 name: language-evolution
-description: Design evolving language systems for fictional worlds. Use when creating language families, dialects, linguistic history, or when language should reflect cultural and historical development.
+description: 为虚构世界设计演化中的语言系统。适用于创建语系、方言、语言史，或当语言需要反映文化和历史发展时使用。
 license: MIT
 metadata:
   author: jwynia
@@ -11,413 +11,413 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Language Evolution: Linguistic Development Skill
-
-You help writers create realistic language systems that evolve over time and reflect cultural history. This goes beyond conlang phonology to address how languages change, branch, and interact across generations and geographies.
-
-## Core Principles
-
-1. **Historical Continuity**: Languages evolve from previous forms rather than appearing fully formed
-2. **Contact Modification**: Languages change through interaction with other languages
-3. **Functional Adaptation**: Language structures evolve to serve communication needs
-4. **Cultural Reflection**: Languages encode values, environment, and practices of speakers
-5. **Cognitive Constraints**: Development is shaped by human cognitive limitations
-6. **Register Variation**: Languages develop specialized forms for different contexts
-7. **Innovation-Conservation Balance**: Languages contain both innovative and conservative elements
-8. **Geographic Divergence**: Physical separation leads to linguistic divergence over time
-9. **Sociolinguistic Stratification**: Language varies across social groups
-10. **Writing System Independence**: Spoken and written forms evolve semi-independently
-
-## Parameter Categories
-
-### 1. Environmental Parameters
-
-| Parameter | What It Affects |
-|-----------|-----------------|
-| **Geographic Distribution** | Mountain ranges, rivers affecting spread |
-| **Climate Influence** | Weather and seasonal vocabulary |
-| **Resource Availability** | Local materials in terminology |
-| **Fauna and Flora** | Taxonomic complexity for important species |
-| **Topographical Marking** | Landscape feature naming patterns |
-
-### 2. Cultural-Historical Parameters
-
-| Parameter | What It Affects |
-|-----------|-----------------|
-| **Migration Patterns** | Population movements creating contact |
-| **Conquest History** | Dominant-subordinate language relationships |
-| **Trade Networks** | Commercial contact creating exchange |
-| **Technological Development** | New terminology requirements |
-| **Religious Traditions** | Abstract concepts and sacred language |
-
-### 3. Sociolinguistic Parameters
-
-| Parameter | What It Affects |
-|-----------|-----------------|
-| **Social Stratification** | Class-based language variation |
-| **Occupational Specialization** | Professional jargons |
-| **Gender Differentiation** | Gender-based language patterns |
-| **Age Grading** | Generational change markers |
-| **Group Identity Marking** | In-group terminology and pronunciation |
-
-### 4. Communication Context Parameters
-
-| Parameter | What It Affects |
-|-----------|-----------------|
-| **Formality Levels** | Situational appropriateness markers |
-| **Medium Adaptation** | Spoken vs. written vs. digital |
-| **Specialist Discourse** | Technical, legal, scientific evolution |
-| **Artistic Expression** | Poetic, narrative, performance forms |
-| **Privacy/Secrecy** | Coded communication and euphemisms |
-
-## Language Typologies
-
-### Morphological Types
-
-| Type | Characteristics | Real Examples |
-|------|-----------------|---------------|
-| **Isolating** | Minimal word modification | Mandarin Chinese |
-| **Agglutinative** | Clear morpheme boundaries | Turkish, Japanese |
-| **Fusional** | Multiple meanings in single morphemes | Latin, Russian |
-| **Polysynthetic** | Many morphemes per word | Inuktitut, Mohawk |
-
-### Word Order Types
-
-| Type | Pattern | Examples |
-|------|---------|----------|
-| **SVO** | Subject-Verb-Object | English, Mandarin |
-| **SOV** | Subject-Object-Verb | Japanese, Turkish |
-| **VSO** | Verb-Subject-Object | Irish, Classical Arabic |
-| **VOS** | Verb-Object-Subject | Malagasy |
-| **OVS** | Object-Verb-Subject | Hixkaryana |
-| **OSV** | Object-Subject-Verb | Rare |
-
-### Writing System Types
-
-| Type | How It Works | Examples |
-|------|--------------|----------|
-| **Logographic** | Character per word/morpheme | Chinese |
-| **Syllabic** | Character per syllable | Japanese kana |
-| **Alphabetic** | Character per phoneme | Latin, Cyrillic |
-| **Abjad** | Consonants primarily | Arabic, Hebrew |
-| **Abugida** | Consonant-vowel units | Devanagari |
-| **Featural** | Characters represent features | Korean Hangul |
-
-## Language Evolution Mechanisms
-
-### Sound Change Types
-
-| Type | Description |
-|------|-------------|
-| **Lenition** | Weakening of consonants |
-| **Fortition** | Strengthening of consonants |
-| **Vowel Shift** | Systematic vowel changes |
-| **Palatalization** | Consonants shift toward palate |
-| **Assimilation** | Sounds become more similar |
-| **Metathesis** | Sound order swaps |
-
-### Grammatical Evolution
-
-| Type | Description |
-|------|-------------|
-| **Grammaticalization** | Lexical words become grammatical |
-| **Analogical Leveling** | Irregular forms become regular |
-| **Case System Simplification** | Loss of case distinctions |
-| **Tense/Aspect Development** | New temporal distinctions |
-| **Evidentiality Emergence** | Source marking becomes grammatical |
-
-### Contact Effects
-
-| Type | Description |
-|------|-------------|
-| **Lexical Borrowing** | Vocabulary adoption (most common) |
-| **Phonological Influence** | Sound system adjustments |
-| **Syntactic Convergence** | Sentence structure alignment |
-| **Morphological Simplification** | Complexity reduction in contact |
-| **Calquing** | Loan translation with native words |
-| **Code-Switching** | Alternation between languages |
-
-## Language Family Construction
-
-### Step 1: Proto-Language Design
-- Create core vocabulary (200-500 words)
-- Establish basic phoneme inventory
-- Define grammatical skeleton
-- Set morphological type
-
-### Step 2: Sound Change Rules
-- Define systematic sound shifts
-- Apply changes to create daughter languages
-- Track which changes apply where
-- Create regular correspondences
-
-### Step 3: Grammatical Divergence
-- Develop distinct innovations per branch
-- Create unique grammatical features
-- Track loss and gain of categories
-- Design independent evolution paths
-
-### Step 4: Vocabulary Divergence
-- Track cognate relationships
-- Add unique vocabulary per branch
-- Create borrowings from contact
-- Develop semantic shifts
-
-### Step 5: Contact Zone Development
-- Map where languages meet
-- Create contact effects
-- Develop pidgins/creoles if appropriate
-- Design bilingual phenomena
-
-## Common Evolution Sequences
-
-### Tonal Development
-- Consonant distinctions lost → Pitch compensates → Tones stabilize
-
-### Case System Simplification
-- Full case → Reduced case → Prepositions → Fixed word order
-
-### Creolization
-- Pidgin → Expanded pidgin → Creole with native speakers
-
-### Dialect to Language
-- Single language → Regional varieties → Political division → "Separate languages"
-
-## Setting-Specific Adaptations
-
-### Fantasy Settings
-- **Elven Language Family**: Ancient, conservative, prestige
-- **Dwarven Isolation**: Mountain-separated dialects
-- **Human Diversity**: Rapid change and adaptation
-- **Magical Terminology**: Specialized arcane vocabulary
-- **Dead Language Remnants**: Ritual preservation
-
-### Science Fiction Settings
-- **Post-Earth Divergence**: Colony isolation effects
-- **Alien-Human Pidgins**: Contact language development
-- **Universal Translator Implications**: Technology effects
-- **Digital-Augmented Communication**: Tech-language interface
-- **Xenolinguistic Principles**: Non-human cognition
-
-### Post-Apocalyptic Settings
-- **Linguistic Fragmentation**: Isolation creating new dialects
-- **Technological Vocabulary Loss**: Terms for lost tech
-- **Specialized Jargon**: New environmental challenges
-- **Writing System Degradation**: Literacy decline effects
-- **Pre-Collapse Remnants**: Preserved texts, misunderstandings
-
-## Sociolinguistic Variation
-
-### Register Levels
-
-| Register | Context | Features |
-|----------|---------|----------|
-| **Frozen** | Ceremonies, oaths | Fixed phrases, archaic forms |
-| **Formal** | Official, professional | Complete sentences, technical |
-| **Consultative** | Teacher-student, expert-client | Standard grammar |
-| **Casual** | Friends, family | Slang, ellipsis |
-| **Intimate** | Close relationships | Private vocabulary |
-
-### Dialect Markers
-
-| Type | What Varies |
-|------|-------------|
-| **Phonological** | Pronunciation differences |
-| **Lexical** | Vocabulary differences |
-| **Grammatical** | Structure differences |
-| **Pragmatic** | Usage differences |
-
-## Implementation Checklist
-
-- [ ] Define language family relationships
-- [ ] Create proto-language skeleton
-- [ ] Design sound change rules
-- [ ] Develop grammatical divergence
-- [ ] Map sociolinguistic variation
-- [ ] Create writing system (if any)
-- [ ] Design contact zone effects
-- [ ] Build register variation
-- [ ] Document sample texts
-- [ ] Create naming conventions integration
-
-## Case Study Examples
-
-### Tolkien's Languages
-- Proto-Eldarin as common ancestor
-- Quenya: conservative, prestige (Latin analog)
-- Sindarin: evolved, everyday (Romance analog)
-- Systematic sound changes documented
-- Cultural-linguistic integration
-
-### Klingon
-- Distinctive phonology matching warrior culture
-- Grammar reflecting cultural values
-- Vocabulary emphasizing important domains
-- Writing system matching technology level
-
-### Valyrian (Game of Thrones)
-- High Valyrian as classical, learned language
-- Daughter languages showing realistic divergence
-- Contact effects with other languages
-
-## Output Persistence
-
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/language-evolution/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-- **Language family tree** - Proto-language and daughter branches
-- **Sound change rules** - Systematic transformations per branch
-- **Grammatical divergence** - How branches differ structurally
-- **Contact zone effects** - Borrowings, pidgins, convergence
-- **Sociolinguistic variation** - Registers, dialects, markers
-
-### File Naming
-Pattern: `{language-family}-evolution-{date}.md`
-
-## Verification (Oracle)
-
-### What This Skill Can Verify
-- **Sound change consistency** - Do rules apply systematically? (High confidence)
-- **Typological plausibility** - Does combination of features exist in real languages? (Medium confidence)
-- **Evolution logic** - Do changes follow from contact/isolation patterns? (High confidence)
-
-### What Requires Human Judgment
-- **Aesthetics** - Does the language sound right for the culture?
-- **Story fit** - Does linguistic variation serve narrative?
-- **Reader accessibility** - Will readers parse invented words?
-
-### Oracle Limitations
-- Cannot assess whether language feels "right" for fictional culture
-- Cannot predict reader pronunciation assumptions
-
-## Feedback Loop
-
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Family tree, sound changes, grammatical features, contact effects
-- **Naming pattern:** `{language-family}-evolution-{date}.md`
-
-### Cross-Session Learning
-- Check for prior language work in this world
-- Ensure new languages maintain family consistency
-- Failed sound changes inform anti-patterns
-
-## Design Constraints
-
-### This Skill Assumes
-- Setting has languages that evolved (not created ex nihilo)
-- Writer wants historical depth, not just vocabulary
-- Some linguistic diversity exists
-
-### This Skill Does Not Handle
-- **Detailed phonology** - Route to: conlang
-- **Cultural texture** - Route to: memetic-depth
-- **Generational society change** - Route to: multi-order-evolution
-- **Naming conventions** - Route to: character-naming
-
-### Degradation Signals
-- English grammar with substituted words (relexification)
-- Languages too regular without exceptions
-- No sociolinguistic variation within languages
-
-## Reasoning Requirements
-
-### Standard Reasoning
-- Single sound change application
-- Basic grammatical divergence
-- Simple dialect variation
-
-### Extended Reasoning (ultrathink)
-- **Full language family design** - [Why: sound changes compound across branches]
-- **Contact zone synthesis** - [Why: multiple languages interacting]
-- **Deep historical development** - [Why: tracing evolution across centuries]
-
-**Trigger phrases:** "design the language family", "how did these languages diverge", "linguistic history"
-
-## Execution Strategy
-
-### Sequential (Default)
-- Proto-language before daughter languages
-- Sound changes before applying to vocabulary
-- Family structure before contact effects
-
-### Parallelizable
-- Designing independent language branches
-- Researching different linguistic analogs
-
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Linguistic research | general-purpose | When modeling on real language families |
-| Conlang phonology | general-purpose | When needing detailed sound inventory |
-
-## Context Management
-
-### Approximate Token Footprint
-- **Skill base:** ~3k tokens (parameters + mechanisms)
-- **With typologies:** ~4k tokens
-- **With case studies:** ~5k tokens
-
-### Context Optimization
-- Focus on relevant evolution mechanisms
-- Typologies are reference, load on-demand
-- Case studies optional examples
-
-### When Context Gets Tight
-- Prioritize: Current evolution mechanism, active family branch
-- Defer: Full typology tables, all mechanisms not in use
-- Drop: Case studies, setting-specific adaptations
-
-## Anti-Patterns
-
-### 1. Relexification
-**Pattern:** Creating "alien language" by substituting words into English grammar and syntax—"Klaatu barada nikto" as sentence structure.
-**Why it fails:** Language families don't work this way. Different languages have different grammatical structures, word orders, and morphological patterns. English-with-different-words feels fake.
-**Fix:** Choose a typological profile different from English. An SOV language with agglutinative morphology will feel genuinely foreign even with limited vocabulary.
-
-### 2. Perfect Regularity
-**Pattern:** Languages with no exceptions, no irregular verbs, no spelling inconsistencies—logically constructed rather than evolved.
-**Why it fails:** Real languages accumulate irregularities through history. The most common words resist change, preserving older forms. Constructed perfection signals artificial origin.
-**Fix:** Add irregularity to high-frequency elements. "To be" equivalents should be irregular. Common plurals should have exceptions. Spelling should preserve historical pronunciations.
-
-### 3. Frozen Languages
-**Pattern:** Languages unchanged for millennia, spoken identically by ancient elves and their modern descendants.
-**Why it fails:** All spoken languages change. Geographic separation creates dialects. Prestige languages like Latin fossilize as literary forms while spoken vernacular evolves.
-**Fix:** Create at least archaic and modern registers. Show dialect variation across regions. Have characters note "old-fashioned" speech patterns.
-
-### 4. Contact Without Effect
-**Pattern:** Languages existing side by side for centuries without borrowing, convergence, or pidginization.
-**Why it fails:** Language contact always produces change. Trade brings vocabulary. Conquest brings grammatical influence. Bilingualism creates code-switching patterns.
-**Fix:** Map where languages meet. Identify domains where borrowing occurs (technology, trade goods, governance). Create contact phenomena appropriate to relationship type.
-
-### 5. Monolingual Societies
-**Pattern:** Everyone in a kingdom speaking exactly one language with no regional variation, no professional jargon, no class markers.
-**Why it fails:** Real societies are linguistically diverse. Merchants develop trade pidgins. Scholars use classical languages. Nobility marks status through speech. Regions develop dialects.
-**Fix:** Design at least three registers (formal, common, intimate). Add professional jargons for important groups. Include at least one prestige/classical language.
-
-## Integration
-
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| worldbuilding | Geographic and historical context for language spread |
-| multi-order-evolution | Generational timescales for language change |
-| governance-systems | Political boundaries affecting language standardization |
-
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| conlang | Historical context for phonology choices |
-| character-naming | Naming conventions following language patterns |
-| dialogue | Register variation for character voice |
-| memetic-depth | Linguistic markers for cultural texture |
-
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| conlang | Language-evolution provides macro history; conlang provides micro phonology. Use together for deep linguistic worldbuilding |
-| memetic-depth | Language-evolution tracks structural change; memetic-depth uses linguistic markers for cultural texture |
+# 语言演化：语言发展技能
+
+你帮助作者创建真实的、随时间演化并反映文化历史的语言系统。这超越了 conlang 的音系层面，涉及语言如何跨越世代和地理发生变化、分支和互动。
+
+## 核心原则
+
+1. **历史连续性**：语言从先前形式演化而来，而非凭空出现
+2. **接触变异**：语言通过与其他语言的互动而改变
+3. **功能适应**：语言结构演化以服务于沟通需求
+4. **文化映射**：语言编码说话者的价值观、环境和习俗
+5. **认知约束**：语言发展受人类认知局限的塑造
+6. **语域变异**：语言为不同语境发展出专门形式
+7. **创新-保守平衡**：语言同时包含创新和保守的元素
+8. **地理分化**：物理分离导致语言随时间分化
+9. **社会语言学分层**：语言在不同社会群体间存在差异
+10. **书写系统独立性**：口语和书面形式半独立地演化
+
+## 参数类别
+
+### 1. 环境参数
+
+| 参数 | 影响内容 |
+|------|---------|
+| **地理分布** | 山脉、河流影响语言传播 |
+| **气候影响** | 天气和季节词汇 |
+| **资源可用性** | 本地材料在术语中的体现 |
+| **动植物** | 重要物种的分类复杂性 |
+| **地形标记** | 地貌特征的命名模式 |
+
+### 2. 文化历史参数
+
+| 参数 | 影响内容 |
+|------|---------|
+| **迁移模式** | 人口流动创造接触 |
+| **征服历史** | 主导-从属语言关系 |
+| **贸易网络** | 商业接触创造交流 |
+| **技术发展** | 新术语需求 |
+| **宗教传统** | 抽象概念和神圣语言 |
+
+### 3. 社会语言学参数
+
+| 参数 | 影响内容 |
+|------|---------|
+| **社会分层** | 基于阶级的语言变异 |
+| **职业专业化** | 职业行话 |
+| **性别分化** | 基于性别的语言模式 |
+| **年龄分级** | 代际变化标记 |
+| **群体身份标记** | 内群体术语和发音 |
+
+### 4. 交际语境参数
+
+| 参数 | 影响内容 |
+|------|---------|
+| **正式度层级** | 情境适当性标记 |
+| **媒介适应** | 口语 vs. 书面 vs. 数字 |
+| **专业话语** | 技术、法律、科学语言的演化 |
+| **艺术表达** | 诗歌、叙事、表演形式 |
+| **隐私/保密** | 暗号通信和委婉语 |
+
+## 语言类型学
+
+### 形态类型
+
+| 类型 | 特征 | 真实示例 |
+|------|------|---------|
+| **孤立语** | 最小的词形变化 | 普通话 |
+| **粘着语** | 清晰的语素边界 | 土耳其语、日语 |
+| **屈折语** | 单个语素承载多重含义 | 拉丁语、俄语 |
+| **多式综合语** | 每个词包含多个语素 | 因纽特语、莫霍克语 |
+
+### 语序类型
+
+| 类型 | 模式 | 示例 |
+|------|------|------|
+| **SVO** | 主语-动词-宾语 | 英语、普通话 |
+| **SOV** | 主语-宾语-动词 | 日语、土耳其语 |
+| **VSO** | 动词-主语-宾语 | 爱尔兰语、古典阿拉伯语 |
+| **VOS** | 动词-宾语-主语 | 马达加斯加语 |
+| **OVS** | 宾语-动词-主语 | 希什卡里亚纳语 |
+| **OSV** | 宾语-主语-动词 | 罕见 |
+
+### 书写系统类型
+
+| 类型 | 工作原理 | 示例 |
+|------|---------|------|
+| **表意文字** | 每个字符代表一个词/语素 | 中文 |
+| **音节文字** | 每个字符代表一个音节 | 日语假名 |
+| **字母文字** | 每个字符代表一个音素 | 拉丁字母、西里尔字母 |
+| **辅音音素文字** | 主要标记辅音 | 阿拉伯语、希伯来语 |
+| **元音附标文字** | 辅音-元音组合单位 | 天城文 |
+| **特征文字** | 字符代表语音特征 | 韩文 |
+
+## 语言演化机制
+
+### 语音变化类型
+
+| 类型 | 描述 |
+|------|------|
+| **弱化** | 辅音减弱 |
+| **强化** | 辅音加强 |
+| **元音转移** | 系统性元音变化 |
+| **腭化** | 辅音向硬腭方向移动 |
+| **同化** | 音素变得更加相似 |
+| **换位** | 音素顺序交换 |
+
+### 语法演化
+
+| 类型 | 描述 |
+|------|------|
+| **语法化** | 词汇词变为语法词 |
+| **类推整平** | 不规则形式变为规则 |
+| **格系统简化** | 格区分的丧失 |
+| **时态/体态发展** | 新的时间区分 |
+| **言据性出现** | 来源标记变为语法化 |
+
+### 接触效应
+
+| 类型 | 描述 |
+|------|------|
+| **词汇借用** | 词汇采纳（最常见） |
+| **语音影响** | 音系调整 |
+| **句法趋同** | 句子结构趋同 |
+| **形态简化** | 接触中的复杂度降低 |
+| **仿译** | 用本族词进行翻译借用 |
+| **语码转换** | 在不同语言间交替使用 |
+
+## 语系构建
+
+### 步骤 1：原始语言设计
+- 创建核心词汇（200-500 个词）
+- 建立基本音素库
+- 定义语法骨架
+- 设定形态类型
+
+### 步骤 2：语音变化规则
+- 定义系统性语音转移
+- 应用变化创建子语言
+- 追踪哪些变化应用在哪里
+- 创建规则对应关系
+
+### 步骤 3：语法分化
+- 为每个分支发展独特创新
+- 创建独特的语法特征
+- 追踪范畴的得失
+- 设计独立的演化路径
+
+### 步骤 4：词汇分化
+- 追踪同源词关系
+- 为每个分支添加独特词汇
+- 创建接触借词
+- 发展语义转移
+
+### 步骤 5：接触区发展
+- 绘制语言相遇之处
+- 创建接触效应
+- 适当时发展混合语/克里奥尔语
+- 设计双语现象
+
+## 常见演化序列
+
+### 声调发展
+- 辅音区分丧失 → 音高补偿 → 声调稳定
+
+### 格系统简化
+- 完整格系统 → 简化格系统 → 介词 → 固定语序
+
+### 克里奥尔化
+- 混合语 → 扩展混合语 → 有母语使用者的克里奥尔语
+
+### 从方言到语言
+- 单一语言 → 区域变体 → 政治分裂 → "独立语言"
+
+## 特定背景适配
+
+### 奇幻设定
+- **精灵语系**：古老、保守、具有威望
+- **矮人语隔离**：被山脉分隔的方言
+- **人类多样性**：快速变化和适应
+- **魔法术语**：专门的奥术词汇
+- **死语残留**：仪式性保存
+
+### 科幻设定
+- **后地球分化**：殖民地隔离效应
+- **外星-人类混合语**：接触语言发展
+- **通用翻译器影响**：技术效应
+- **数字增强通信**：技术-语言接口
+- **外星语言学原则**：非人类认知
+
+### 后启示录设定
+- **语言碎片化**：隔离创造新方言
+- **技术词汇丧失**：失落技术的术语
+- **专门行话**：新环境挑战
+- **书写系统退化**：识字率下降的影响
+- **崩溃前残留**：保存的文本、误解
+
+## 社会语言学变异
+
+### 语域层级
+
+| 语域 | 语境 | 特征 |
+|------|------|------|
+| **冻结** | 仪式、誓言 | 固定短语、古体形式 |
+| **正式** | 官方、职业 | 完整句子、技术性 |
+| **咨询** | 师生、专家-客户 | 标准语法 |
+| **随意** | 朋友、家人 | 俚语、省略 |
+| **亲密** | 亲密关系 | 私密词汇 |
+
+### 方言标记
+
+| 类型 | 变异内容 |
+|------|---------|
+| **语音** | 发音差异 |
+| **词汇** | 用词差异 |
+| **语法** | 结构差异 |
+| **语用** | 使用差异 |
+
+## 实施清单
+
+- [ ] 定义语系关系
+- [ ] 创建原始语言骨架
+- [ ] 设计语音变化规则
+- [ ] 发展语法分化
+- [ ] 绘制社会语言学变异
+- [ ] 创建书写系统（如有）
+- [ ] 设计接触区效应
+- [ ] 构建语域变异
+- [ ] 编写示例文本
+- [ ] 创建命名惯例整合
+
+## 案例研究
+
+### 托尔金的语言
+- 原始精灵语作为共同祖先
+- 昆雅语：保守、有威望（拉丁语类比）
+- 辛达语：演化、日常（罗曼语类比）
+- 系统性语音变化有完整记录
+- 文化-语言整合
+
+### 克林贡语
+- 与战士文化匹配的独特音系
+- 反映文化价值观的语法
+- 强调重要领域的词汇
+- 与技术水平匹配的书写系统
+
+### 瓦雷利亚语（权力的游戏）
+- 高等瓦雷利亚语作为古典、学术语言
+- 子语言展示真实的分化
+- 与其他语言的接触效应
+
+## 输出持久化
+
+### 输出发现
+1. 检查项目中的 `context/output-config.md`
+2. 如找到，使用本技能的条目作为输出路径
+3. 如未找到，**使用默认路径 `explorations/language-evolution/`** 并立即进行核心工作
+4. 在回复末尾简要提及输出位置——不要阻塞询问用户
+
+### 主要输出
+- **语系树** - 原始语言和子分支
+- **语音变化规则** - 每个分支的系统性转换
+- **语法分化** - 分支间的结构差异
+- **接触区效应** - 借词、混合语、趋同
+- **社会语言学变异** - 语域、方言、标记
+
+### 文件命名
+模式：`{language-family}-evolution-{date}.md`
+
+## 验证（Oracle）
+
+### 本技能可验证的内容
+- **语音变化一致性** - 规则是否系统性地应用？（高置信度）
+- **类型学可信度** - 特征组合是否存在于真实语言中？（中置信度）
+- **演化逻辑** - 变化是否源于接触/隔离模式？（高置信度）
+
+### 需要人工判断的内容
+- **美感** - 语言对该文化来说听起来对吗？
+- **故事适配性** - 语言变异是否服务于叙事？
+- **读者可及性** - 读者能理解虚构词汇吗？
+
+### Oracle 限制
+- 无法评估语言对虚构文化是否"感觉对"
+- 无法预测读者的发音假设
+
+## 反馈循环
+
+### 会话持久化
+- **输出位置：** 参见 `context/output-config.md`
+- **保存内容：** 语系树、语音变化、语法特征、接触效应
+- **命名模式：** `{language-family}-evolution-{date}.md`
+
+### 跨会话学习
+- 检查本世界之前的语言工作
+- 确保新语言保持语系一致性
+- 失败的语音变化为反模式提供参考
+
+## 设计约束
+
+### 本技能假设
+- 设定中的语言是演化而来的（非凭空创造）
+- 作者需要历史深度，而非仅仅是词汇
+- 存在一定的语言多样性
+
+### 本技能不处理
+- **详细音系** - 路由到：conlang
+- **文化质感** - 路由到：memetic-depth
+- **代际社会变迁** - 路由到：multi-order-evolution
+- **命名惯例** - 路由到：character-naming
+
+### 退化信号
+- 用替换词汇的英语语法（重新词化）
+- 语言过于规则没有例外
+- 语言内部缺乏社会语言学变异
+
+## 推理要求
+
+### 标准推理
+- 单个语音变化的应用
+- 基本语法分化
+- 简单方言变异
+
+### 扩展推理（ultrathink）
+- **完整语系设计** - [原因：语音变化在各分支间叠加]
+- **接触区综合** - [原因：多种语言互动]
+- **深层历史发展** - [原因：追踪跨越数世纪的演化]
+
+**触发短语：** "设计语系"、"这些语言是如何分化的"、"语言史"
+
+## 执行策略
+
+### 顺序执行（默认）
+- 原始语言先于子语言
+- 语音变化先于词汇应用
+- 语系结构先于接触效应
+
+### 可并行化
+- 设计独立的语言分支
+- 研究不同的语言学类比
+
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|---------|---------|
+| 语言学研究 | general-purpose | 以真实语系为模型时 |
+| Conlang 音系 | general-purpose | 需要详细音素库时 |
+
+## 上下文管理
+
+### 大致 Token 占用
+- **技能基础：** ~3k tokens（参数 + 机制）
+- **含类型学：** ~4k tokens
+- **含案例研究：** ~5k tokens
+
+### 上下文优化
+- 聚焦相关的演化机制
+- 类型学是参考资料，按需加载
+- 案例研究是可选示例
+
+### 上下文紧张时
+- 优先：当前演化机制、活跃的语系分支
+- 延迟：完整类型学表、所有未使用的机制
+- 丢弃：案例研究、特定背景适配
+
+## 反模式
+
+### 1. 重新词化
+**模式：** 通过将词汇替换到英语语法和句法中来创建"外星语言"——"Klaatu barada nikto"式的句子结构。
+**为何失败：** 语系不是这样运作的。不同语言有不同的语法结构、语序和形态模式。用不同词汇的英语感觉很假。
+**修正：** 选择与英语不同的类型学配置。一种带有粘着语形态的 SOV 语言，即使词汇有限也会感觉真正陌生。
+
+### 2. 完美规则性
+**模式：** 语言没有例外、没有不规则动词、没有拼写不一致——逻辑构建而非演化而来。
+**为何失败：** 真实语言通过历史积累不规则性。最常用的词抗拒变化，保留较古老的形式。构建的完美性暗示人工起源。
+**修正：** 为高频元素添加不规则性。"be"动词的等价物应该是不规则的。常见复数应有例外。拼写应保留历史发音。
+
+### 3. 冻结的语言
+**模式：** 语言数千年不变，古代精灵和他们的现代后裔说着完全相同的话。
+**为何失败：** 所有口语都在变化。地理分离创造方言。像拉丁语这样的威望语言以文学形式化石化，而口语白话则继续演化。
+**修正：** 至少创建古体和现代两种语域。展示跨区域的方言变异。让角色注意到"老派"的说话方式。
+
+### 4. 无效果的接触
+**模式：** 语言并肩存在几个世纪却没有借用、趋同或混合语化。
+**为何失败：** 语言接触总是产生变化。贸易带来词汇。征服带来语法影响。双语创造语码转换模式。
+**修正：** 绘制语言相遇之处。识别借用发生的领域（技术、贸易品、治理）。创建与关系类型相适应的接触现象。
+
+### 5. 单语社会
+**模式：** 一个王国中每个人说完全相同的一种语言，没有区域变异、没有职业行话、没有阶级标记。
+**为何失败：** 真实社会在语言上是多样的。商人发展贸易混合语。学者使用古典语言。贵族通过言语标记地位。各地区发展方言。
+**修正：** 设计至少三种语域（正式、日常、亲密）。为重要群体添加职业行话。包含至少一种威望/古典语言。
+
+## 整合
+
+### 入站（输入到本技能）
+| 技能 | 提供内容 |
+|------|---------|
+| worldbuilding | 语言传播的地理和历史背景 |
+| multi-order-evolution | 语言变化的代际时间尺度 |
+| governance-systems | 影响语言标准化的政治边界 |
+
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|-----------------|
+| conlang | 音系选择的历史背景 |
+| character-naming | 遵循语言模式的命名惯例 |
+| dialogue | 角色声音的语域变异 |
+| memetic-depth | 文化质感的语言学标记 |
+
+### 互补
+| 技能 | 关系 |
+|------|------|
+| conlang | language-evolution 提供宏观历史；conlang 提供微观音系。两者结合用于深层语言世界构建 |
+| memetic-depth | language-evolution 追踪结构变化；memetic-depth 使用语言学标记创造文化质感 |

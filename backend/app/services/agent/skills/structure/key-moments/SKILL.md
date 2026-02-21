@@ -1,6 +1,6 @@
 ---
 name: key-moments
-description: Structure stories around essential emotional moments using Rodriguez's approach integrated with elemental genres. Use when plotting feels mechanical, when emotional beats need defining, or when building stories from vivid scenes rather than plot outlines.
+description: 使用 Rodriguez 方法结合元素类型理论，围绕核心情感时刻构建故事。适用于情节规划感觉机械化、需要定义情感节拍、或希望从生动场景而非情节大纲出发构建故事的情况。
 license: MIT
 metadata:
   author: jwynia
@@ -11,392 +11,392 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Key Moments: Genre-Driven Emotional Beats Skill
+# 关键时刻：类型驱动的情感节拍技能
 
-You help writers identify and sequence the essential emotional experiences that define their story's genre, then build the world, characters, and connective tissue around those moments. Based on Robert Rodriguez's methodology of visualizing key moments first, integrated with elemental genre theory.
+你帮助作者识别和排列定义其故事类型的核心情感体验，然后围绕这些时刻构建世界、角色和连接组织。基于 Robert Rodriguez 先构想关键时刻的方法论，结合元素类型理论。
 
-## Core Principle
+## 核心原则
 
-**Stories are defined by emotional experiences, not plot mechanics. Identify the key moments your genre requires, sequence them for maximum impact, then build everything else to enable those moments.**
+**故事由情感体验定义，而非情节机制。识别你的类型所需的关键时刻，将它们按最大冲击力排列，然后围绕这些时刻构建其他一切。**
 
-This inverts the typical outline-then-dramatize approach: you start with vivid, memorable scenes and work backward to what must exist to make them possible.
+这颠倒了典型的"先大纲后戏剧化"的方法：你从生动、令人难忘的场景出发，逆向推导出使这些场景成为可能所需的一切。
 
-## The Seven Principles
+## 七大原则
 
-1. **Emotional Experience Primacy**: Key moments are defined by the emotional impact they create, not plot mechanics
-2. **Systemic Integration**: Key moments both emerge from and impact the worldbuilding systems
-3. **Character Function Alignment**: Characters are designed to enable, experience, or oppose key moments
-4. **Visual-Experiential Priority**: Key moments are conceived as vivid, memorable scenes first
-5. **Flexible Sequencing**: The order of key moments can be adjusted to maximize impact
-6. **Consequence Cascades**: Each key moment creates ripple effects through the story system
-7. **Bridging Efficiency**: Connective scenes serve multiple functions in world and character development
+1. **情感体验优先**：关键时刻由其创造的情感冲击定义，而非情节机制
+2. **系统性整合**：关键时刻既产生于世界构建系统，也影响这些系统
+3. **角色功能对齐**：角色被设计来促成、体验或对抗关键时刻
+4. **视觉-体验优先**：关键时刻首先被构想为生动、难忘的场景
+5. **灵活排列**：关键时刻的顺序可以调整以最大化冲击力
+6. **后果级联**：每个关键时刻在故事系统中产生涟漪效应
+7. **桥接效率**：连接场景在世界和角色发展中服务于多重功能
 
-## Key Moments by Elemental Genre
+## 各元素类型的关键时刻
 
-### Wonder
+### 奇观
 
-| Key Moment Type | Emotional Experience | Story Function |
+| 关键时刻类型 | 情感体验 | 故事功能 |
 |-----------------|----------------------|----------------|
-| **Initial Encounter** | Surprise and awe | Establishes spectacular nature of setting/concept |
-| **Scale Revelation** | Humbling realization of vastness | Contextualizes protagonist's place |
-| **Perspective Shift** | Paradigm change in understanding | Forces reevaluation of assumptions |
-| **Wonder Escalation** | Intensification of awe | Raises stakes and deepens engagement |
-| **Transcendent Integration** | Meaning-making through wonder | Provides thematic resolution |
+| **初次邂逅** | 惊讶与敬畏 | 确立设定/概念的壮观性质 |
+| **尺度揭示** | 对浩瀚的谦卑认知 | 定位主角的位置 |
+| **视角转换** | 认知范式的改变 | 迫使重新审视假设 |
+| **奇观升级** | 敬畏感的加强 | 提升利害关系并深化沉浸 |
+| **超越整合** | 通过奇观获取意义 | 提供主题性解决 |
 
-### Mystery
+### 悬疑
 
-| Key Moment Type | Emotional Experience | Story Function |
+| 关键时刻类型 | 情感体验 | 故事功能 |
 |-----------------|----------------------|----------------|
-| **Question Inception** | Curiosity activation | Establishes central puzzle |
-| **Pattern Recognition** | Satisfaction of connection | Provides momentum and engagement |
-| **False Resolution** | Surprise from misdirection | Creates complexity and extends engagement |
-| **Progressive Revelation** | Deepening understanding | Builds toward solution |
-| **Solution Crystallization** | Illumination and closure | Completes emotional journey |
+| **问题萌发** | 好奇心被激活 | 确立核心谜题 |
+| **模式识别** | 建立联系的满足感 | 提供动力和参与感 |
+| **虚假解答** | 因误导而惊讶 | 创造复杂性并延长参与 |
+| **渐进揭示** | 理解的深化 | 向解答方向推进 |
+| **解答结晶** | 顿悟与闭合感 | 完成情感旅程 |
 
-### Adventure
+### 冒险
 
-| Key Moment Type | Emotional Experience | Story Function |
+| 关键时刻类型 | 情感体验 | 故事功能 |
 |-----------------|----------------------|----------------|
-| **Threshold Crossing** | Excitement of departure | Transitions to adventure world |
-| **Capability Test** | Confidence from competence | Establishes protagonist's abilities |
-| **Resource Depletion** | Vulnerability from loss | Forces adaptation and growth |
-| **Ultimate Challenge** | Fear and determination | Tests protagonist's limits |
-| **Return Transformation** | Pride and perspective | Demonstrates growth from journey |
+| **跨越门槛** | 出发的兴奋 | 过渡到冒险世界 |
+| **能力试炼** | 来自胜任力的信心 | 确立主角的能力 |
+| **资源耗竭** | 因失去而脆弱 | 迫使适应和成长 |
+| **终极挑战** | 恐惧与决心 | 测试主角的极限 |
+| **归来转变** | 自豪与新视角 | 展示旅程带来的成长 |
 
-### Horror
+### 恐怖
 
-| Key Moment Type | Emotional Experience | Story Function |
+| 关键时刻类型 | 情感体验 | 故事功能 |
 |-----------------|----------------------|----------------|
-| **Wrongness Glimpse** | Unease from dissonance | Establishes threat potential |
-| **Safety Violation** | Shock from boundary breach | Demonstrates vulnerability |
-| **Threat Escalation** | Escalating dread | Raises stakes |
-| **Failed Solution** | Despair from ineffectuality | Deepens hopelessness |
-| **Confrontation** | Terror meets courage | Provides climactic moment |
+| **异常一瞥** | 因违和感产生的不安 | 确立威胁的潜力 |
+| **安全侵犯** | 因边界被突破的震惊 | 展示脆弱性 |
+| **威胁升级** | 不断升级的恐惧 | 提升利害关系 |
+| **失败的解决方案** | 因无力感产生的绝望 | 深化绝望感 |
+| **正面对决** | 恐惧遇上勇气 | 提供高潮时刻 |
 
-### Thriller
+### 惊悚
 
-| Key Moment Type | Emotional Experience | Story Function |
+| 关键时刻类型 | 情感体验 | 故事功能 |
 |-----------------|----------------------|----------------|
-| **Stakes Establishment** | Concern for outcome | Sets up tension framework |
-| **Deadline Imposition** | Anxiety from time pressure | Creates urgency |
-| **Near Miss** | Relief with lingering tension | Maintains engagement through peaks/valleys |
-| **Option Elimination** | Mounting pressure | Forces protagonist into harder choices |
-| **Decision Under Duress** | Catharsis through action | Provides climactic release |
+| **利害确立** | 对结果的关切 | 搭建张力框架 |
+| **截止期限** | 时间压力带来的焦虑 | 创造紧迫感 |
+| **惊险一刻** | 伴有余悸的释然 | 通过起伏维持参与感 |
+| **选项缩减** | 不断增加的压力 | 迫使主角做出更艰难的选择 |
+| **压力下的抉择** | 通过行动获得宣泄 | 提供高潮释放 |
 
-### Relationship
+### 关系
 
-| Key Moment Type | Emotional Experience | Story Function |
+| 关键时刻类型 | 情感体验 | 故事功能 |
 |-----------------|----------------------|----------------|
-| **Significant Connection** | Recognition of potential | Establishes relationship basis |
-| **Intimacy Deepening** | Warmth from vulnerability | Develops emotional investment |
-| **Value Conflict** | Frustration from differences | Creates meaningful obstacles |
-| **Relationship Crisis** | Heartbreak or betrayal | Tests connection's resilience |
-| **Reconciliation/Resolution** | Emotional closure | Completes relationship arc |
+| **重要连接** | 对潜力的认知 | 确立关系基础 |
+| **亲密深化** | 因坦诚相见而温暖 | 发展情感投入 |
+| **价值冲突** | 因差异而挫败 | 创造有意义的障碍 |
+| **关系危机** | 心碎或背叛 | 测试连接的韧性 |
+| **和解/解决** | 情感闭合 | 完成关系弧线 |
 
-### Drama
+### 戏剧
 
-| Key Moment Type | Emotional Experience | Story Function |
+| 关键时刻类型 | 情感体验 | 故事功能 |
 |-----------------|----------------------|----------------|
-| **Internal Conflict Revelation** | Recognition of contradiction | Establishes character struggle |
-| **External Pressure Point** | Stress from circumstances | Forces character choices |
-| **Failure Moment** | Shame from inadequacy | Deepens character journey |
-| **Truth Confrontation** | Painful self-awareness | Catalyzes change |
-| **Character Evolution** | Self-actualization | Demonstrates growth |
+| **内部冲突揭示** | 对矛盾的认知 | 确立角色挣扎 |
+| **外部压力点** | 来自环境的压力 | 迫使角色做出选择 |
+| **失败时刻** | 因无能为力的羞耻 | 深化角色旅程 |
+| **真相对峙** | 痛苦的自我认知 | 催化改变 |
+| **角色进化** | 自我实现 | 展示成长 |
 
-### Issue
+### 议题
 
-| Key Moment Type | Emotional Experience | Story Function |
+| 关键时刻类型 | 情感体验 | 故事功能 |
 |-----------------|----------------------|----------------|
-| **Perspective Challenge** | Intellectual discomfort | Establishes issue's complexity |
-| **Stake Personalization** | Emotional investment | Makes abstract concrete |
-| **Complexity Recognition** | Cognitive expansion | Prevents simplistic resolution |
-| **Position Testing** | Value/belief examination | Forces intellectual honesty |
-| **Perspective Integration** | Nuanced understanding | Provides thematic resolution |
+| **视角挑战** | 智识上的不适 | 确立议题的复杂性 |
+| **利害个人化** | 情感投入 | 将抽象变为具体 |
+| **复杂性认知** | 认知拓展 | 防止简单化解决 |
+| **立场检验** | 价值/信念审视 | 迫使智识诚实 |
+| **视角整合** | 细致入微的理解 | 提供主题性解决 |
 
-### Ensemble
+### 群像
 
-| Key Moment Type | Emotional Experience | Story Function |
+| 关键时刻类型 | 情感体验 | 故事功能 |
 |-----------------|----------------------|----------------|
-| **Group Formation** | Belonging potential | Establishes the collective |
-| **Role Establishment** | Identity within community | Defines character functions |
-| **Group Fracture** | Loyalty testing | Creates internal conflict |
-| **Collective Challenge** | Shared adversity | Forces cooperation |
-| **Synergy Moment** | Strength through unity | Demonstrates group value |
+| **群体形成** | 归属的可能性 | 确立集体 |
+| **角色确立** | 社群中的身份认同 | 定义角色功能 |
+| **群体裂痕** | 忠诚度测试 | 创造内部冲突 |
+| **集体挑战** | 共同的逆境 | 迫使合作 |
+| **协同时刻** | 团结中的力量 | 展示群体价值 |
 
-## Implementation Process
+## 实施流程
 
-### Phase 1: Key Moment Identification and Sequencing
+### 第一阶段：关键时刻的识别与排列
 
-**Step 1: Determine Primary and Secondary Genres**
-- Identify the core emotional experiences you want readers to have
-- Select corresponding primary and secondary elemental genres
+**步骤 1：确定主要和次要类型**
+- 识别你希望读者获得的核心情感体验
+- 选择对应的主要和次要元素类型
 
-**Step 2: Select Critical Key Moments**
-- Choose 3-5 essential moments from the primary genre
-- Add 2-3 supporting moments from the secondary genre
-- Ensure moments create emotional variety and progression
+**步骤 2：选择关键时刻**
+- 从主要类型中选择 3-5 个核心时刻
+- 从次要类型中添加 2-3 个辅助时刻
+- 确保时刻创造情感多样性和递进感
 
-**Step 3: Sequence Moments Optimally**
-- Arrange chronologically as a starting point
-- Consider emotional pacing and tension curves
-- Allow for non-linear presentation if appropriate
+**步骤 3：最优排列**
+- 以时间顺序为起点进行排列
+- 考虑情感节奏和张力曲线
+- 如果合适，允许非线性呈现
 
-**Step 4: Visualize Each Moment**
-- Create concrete scene concepts for each key moment
-- Focus on sensory details and emotional impact
-- Define how each moment changes character or world understanding
+**步骤 4：构想每个时刻**
+- 为每个关键时刻创建具体的场景概念
+- 聚焦于感官细节和情感冲击
+- 定义每个时刻如何改变角色或世界的认知
 
-### Phase 2: World Integration
+### 第二阶段：世界整合
 
-**Step 1: Determine Required World Elements**
-- What must exist in the world for each key moment to occur?
-- What causal relationships connect world systems to key moments?
-- What consequences do key moments create in the world?
+**步骤 1：确定所需的世界元素**
+- 世界中必须存在什么才能让每个关键时刻发生？
+- 世界系统与关键时刻之间存在哪些因果关系？
+- 关键时刻在世界中产生哪些后果？
 
-**Step 2: Design Supporting Systems**
-- Power structures that enable or oppose key moments
-- Organizations with stakes in key moment outcomes
-- Economic and belief systems creating appropriate pressures
+**步骤 2：设计支持系统**
+- 促成或对抗关键时刻的权力结构
+- 在关键时刻结果中拥有利害关系的组织
+- 创造适当压力的经济和信仰系统
 
-### Phase 3: Character Function
+### 第三阶段：角色功能
 
-**Step 1: Identify Required Character Functions**
-- What roles must be filled for each key moment?
-- Assign functions to specific characters
-- Ensure protagonist experiences the most significant moments
+**步骤 1：识别所需的角色功能**
+- 每个关键时刻需要填充哪些角色？
+- 将功能分配给具体角色
+- 确保主角体验最重要的时刻
 
-**Step 2: Create Character Arcs**
-- Design development paths intersecting with key moments
-- Ensure character growth enables progression through moments
-- Create change arcs that pay off in specific key moments
+**步骤 2：创建角色弧线**
+- 设计与关键时刻交叉的发展路径
+- 确保角色成长能够推动时刻的递进
+- 创建在特定关键时刻中获得回报的变化弧线
 
-### Phase 4: Connective Tissue
+### 第四阶段：连接组织
 
-**Step 1: Identify Bridging Requirements**
-- What must happen between key moments?
-- What character and world state changes are needed?
-- What time, distance, and knowledge gaps need filling?
+**步骤 1：识别桥接需求**
+- 关键时刻之间必须发生什么？
+- 需要哪些角色和世界状态的变化？
+- 需要填补哪些时间、距离和知识上的差距？
 
-**Step 2: Design Multifunctional Bridge Scenes**
-- Create connective scenes serving multiple purposes
-- Advance character development while moving toward key moments
-- Reveal world information relevant to upcoming moments
+**步骤 2：设计多功能桥接场景**
+- 创建服务于多重目的的连接场景
+- 在推进向下一个关键时刻的同时发展角色
+- 揭示与即将到来的时刻相关的世界信息
 
-**Step 3: Install Setup-Payoff Mechanics**
-- Plant necessary elements for later key moments
-- Create foreshadowing enhancing later emotional impact
-- Establish rules or limitations significant later
+**步骤 3：安装铺垫-回收机制**
+- 为后续关键时刻埋下必要元素
+- 创建增强后续情感冲击的伏笔
+- 确立在后续具有重要意义的规则或限制
 
-### Phase 5: Testing and Refinement
+### 第五阶段：测试与优化
 
-**Evaluate Emotional Progression**:
-- Do key moments create intended emotional journey?
-- Are there gaps or redundancies in emotional experience?
-- Should moment intensity or sequence be adjusted?
+**评估情感递进**：
+- 关键时刻是否创造了预期的情感旅程？
+- 情感体验中是否存在缺口或冗余？
+- 时刻的强度或顺序是否需要调整？
 
-**Verify Causal Logic**:
-- Does each key moment follow logically from preceding elements?
-- Do character decisions leading to moments make sense?
-- Do world systems create appropriate conditions for moments?
+**验证因果逻辑**：
+- 每个关键时刻是否从前序元素中合理地推导而来？
+- 导致各时刻发生的角色决策是否合理？
+- 世界系统是否为各时刻创造了适当的条件？
 
-**Test for Genre Satisfaction**:
-- Are primary genre emotional experiences most prominent?
-- Does secondary genre support rather than overshadow primary?
-- Are genre-specific satisfaction conditions met?
+**检验类型满足度**：
+- 主要类型的情感体验是否最为突出？
+- 次要类型是否支持而非遮盖主要类型？
+- 类型特定的满足条件是否得到满足？
 
-## Worked Example: Wonder + Mystery
+## 完整示例：奇观 + 悬疑
 
-**Concept**: An oceanographer discovers unusual bioluminescent patterns that appear to form a communication system, leading to evidence of an ancient aquatic civilization.
+**概念**：一位海洋学家发现了异常的生物发光模式，这些模式似乎构成了一个通信系统，最终导向一个古老水下文明的证据。
 
-**Wonder Key Moments** (Primary):
-1. **Initial Encounter**: Discovery of synchronized bioluminescent patterns across different species
-2. **Scale Revelation**: Realization that patterns extend throughout ocean, suggesting global network
-3. **Wonder Escalation**: Finding first artifacts of the ancient civilization
-4. **Transcendent Integration**: Communication breakthrough with the still-extant consciousness
+**奇观关键时刻**（主要）：
+1. **初次邂逅**：发现不同物种间同步的生物发光模式
+2. **尺度揭示**：意识到这些模式遍布整个海洋，暗示着全球网络
+3. **奇观升级**：找到古老文明的第一批遗物
+4. **超越整合**：与仍然存在的意识取得沟通突破
 
-**Mystery Key Moments** (Secondary):
-1. **Question Inception**: Why did this civilization disappear from human awareness?
-2. **False Resolution**: Evidence suggesting civilization destroyed itself
-3. **Solution Crystallization**: Discovery that civilization evolved beyond physical form
+**悬疑关键时刻**（次要）：
+1. **问题萌发**：为什么这个文明从人类认知中消失了？
+2. **虚假解答**：暗示该文明自我毁灭的证据
+3. **解答结晶**：发现该文明已进化超越物质形态
 
-**Character Functions**:
-- **Wonder Experiencer**: Oceanographer protagonist with personal connection to the ocean
-- **Mystery Solver**: Research partner with cryptographic expertise
-- **Opposition Force**: Government/corporate agent wanting to weaponize discovery
-- **Wonder Skeptic**: Scientific community representative demanding proof
-- **Knowledge Keeper**: Elderly mentor with folklore knowledge hinting at ancient truth
+**角色功能**：
+- **奇观体验者**：与海洋有个人联结的海洋学家主角
+- **谜题解答者**：拥有密码学专业知识的研究伙伴
+- **对抗力量**：想要将发现武器化的政府/企业特工
+- **奇观怀疑者**：要求证据的科学界代表
+- **知识守护者**：拥有暗示古老真相的民间传说知识的年迈导师
 
-**Connective Tissue**:
-- Research funding challenges forcing creative approaches
-- Relationship development between protagonist and research partner
-- Escalating interest from outside forces as discoveries become harder to hide
-- Progressive decoding providing partial clues
+**连接组织**：
+- 科研经费困难迫使采取创造性方法
+- 主角与研究伙伴之间的关系发展
+- 随着发现越来越难以隐藏，外部势力的兴趣不断升级
+- 渐进式解码提供部分线索
 
-## Advantages
+## 优势
 
-1. **Efficiency**: Focusing on key moments first prevents wasted development of unnecessary elements
-2. **Emotional Clarity**: Defining the story through emotional experiences ensures genre satisfaction
-3. **Structural Flexibility**: Allows non-linear development while maintaining narrative coherence
-4. **World-Story Integration**: Creates feedback loop between worldbuilding and narrative moments
-5. **Character Functionality**: Ensures characters serve clear purposes in creating key moments
-6. **Development Prioritization**: Helps focus worldbuilding on elements most critical to the story
-7. **Revision Guidance**: Provides clear framework for identifying what's working and what isn't
+1. **高效性**：首先聚焦关键时刻避免了对不必要元素的无效开发
+2. **情感清晰度**：通过情感体验定义故事确保了类型满足
+3. **结构灵活性**：允许非线性开发同时维持叙事连贯性
+4. **世界-故事整合**：在世界构建和叙事时刻之间创建反馈循环
+5. **角色功能性**：确保角色在创造关键时刻中服务于明确目的
+6. **开发优先级**：帮助将世界构建聚焦于对故事最关键的元素
+7. **修改指导**：提供清晰的框架来识别哪些有效、哪些无效
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/key-moments/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+### 输出发现
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果找到，使用本技能对应的输出路径
+3. 如果未找到，**使用默认路径 `explorations/key-moments/`**，并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
 
-### Primary Output
-- **Genre selection** - Primary and secondary elemental genres
-- **Key moments list** - 5-8 essential emotional beats
-- **Character functions** - Roles needed for each moment
-- **Connective tissue** - Bridge scenes between moments
+### 主要输出
+- **类型选择** - 主要和次要元素类型
+- **关键时刻列表** - 5-8 个核心情感节拍
+- **角色功能** - 每个时刻所需的角色
+- **连接组织** - 时刻之间的桥接场景
 
-### File Naming
-Pattern: `{story-name}-moments-{date}.md`
+### 文件命名
+模式：`{story-name}-moments-{date}.md`
 
-## Verification (Oracle)
+## 验证（Oracle）
 
-### What This Skill Can Verify
-- **Genre alignment** - Do moments match primary genre? (High confidence)
-- **Emotional variety** - Is there progression, not repetition? (High confidence)
-- **Causal logic** - Do moments follow from character/world? (Medium confidence)
+### 本技能可以验证的内容
+- **类型对齐** - 时刻是否匹配主要类型？（高置信度）
+- **情感多样性** - 是否有递进而非重复？（高置信度）
+- **因果逻辑** - 时刻是否从角色/世界中产生？（中等置信度）
 
-### What Requires Human Judgment
-- **Emotional impact** - Will these moments land?
-- **Bridge efficiency** - Are connective scenes serving multiple purposes?
-- **Genre satisfaction** - Does overall sequence fulfill genre promise?
+### 需要人类判断的内容
+- **情感冲击** - 这些时刻能否打动人？
+- **桥接效率** - 连接场景是否服务于多重目的？
+- **类型满足度** - 整体序列是否实现了类型承诺？
 
-### Oracle Limitations
-- Cannot assess whether moments will emotionally resonate
-- Cannot predict reader engagement with specific beats
+### Oracle 局限性
+- 无法评估时刻是否能引起情感共鸣
+- 无法预测读者对特定节拍的参与度
 
-## Feedback Loop
+## 反馈循环
 
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Genres, moments, functions, bridges
-- **Naming pattern:** `{story-name}-moments-{date}.md`
+### 会话持久化
+- **输出位置：** 参见 `context/output-config.md`
+- **保存内容：** 类型、时刻、功能、桥接
+- **命名模式：** `{story-name}-moments-{date}.md`
 
-### Cross-Session Learning
-- Check for prior key moment work on this story
-- Ensure moments maintain consistency with changes
-- Failed emotional beats inform anti-patterns
+### 跨会话学习
+- 检查该故事是否有先前的关键时刻工作
+- 确保时刻与变更保持一致性
+- 失败的情感节拍纳入反模式
 
-## Design Constraints
+## 设计约束
 
-### This Skill Assumes
-- Story has genre (emotional experience goal)
-- Moments can be identified (not pure slice-of-life)
-- Writer wants emotional structure, not just plot
+### 本技能假设
+- 故事具有类型（情感体验目标）
+- 时刻可以被识别（非纯粹的日常叙事）
+- 作者想要情感结构，而不仅仅是情节
 
-### This Skill Does Not Handle
-- **Genre identification** - Route to: genre-conventions
-- **Scene-level pacing** - Route to: scene-sequencing
-- **Character arc details** - Route to: character-arc
+### 本技能不处理
+- **类型识别** - 路由至：genre-conventions
+- **场景级节奏** - 路由至：scene-sequencing
+- **角色弧线细节** - 路由至：character-arc
 
-### Degradation Signals
-- Plot-first injection (emotion retrofit)
-- Genre mismatch (wrong emotional beats)
-- Moment inflation (everything climactic)
+### 退化信号
+- 情节优先注入（情感后期补缀）
+- 类型错配（错误的情感节拍）
+- 时刻膨胀（一切都成高潮）
 
-## Reasoning Requirements
+## 推理要求
 
-### Standard Reasoning
-- Single genre moment selection
-- Basic character function assignment
-- Simple bridge identification
+### 标准推理
+- 单一类型的时刻选择
+- 基本角色功能分配
+- 简单桥接识别
 
-### Extended Reasoning (ultrathink)
-- **Full moment sequence** - [Why: all moments must create emotional journey]
-- **Multi-genre integration** - [Why: primary/secondary must balance]
-- **World-moment coordination** - [Why: world must enable moments naturally]
+### 扩展推理（ultrathink）
+- **完整时刻序列** - [原因：所有时刻必须创造情感旅程]
+- **多类型整合** - [原因：主要/次要类型必须平衡]
+- **世界-时刻协调** - [原因：世界必须自然地促成时刻]
 
-**Trigger phrases:** "design the complete emotional arc", "integrate both genres", "coordinate world with moments"
+**触发短语：** "设计完整的情感弧线"、"整合两种类型"、"协调世界与时刻"
 
-## Execution Strategy
+## 执行策略
 
-### Sequential (Default)
-- Genre selection before moment identification
-- Moments before character functions
-- Functions before connective tissue
+### 顺序执行（默认）
+- 先选择类型，再识别时刻
+- 先确定时刻，再分配角色功能
+- 先分配功能，再设计连接组织
 
-### Parallelizable
-- Designing moments for different genres
-- Research into different emotional progressions
+### 可并行化
+- 为不同类型设计时刻
+- 研究不同的情感递进方式
 
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
+### 子代理候选
+| 任务 | 代理类型 | 何时启动 |
 |------|------------|---------------|
-| Genre research | general-purpose | When exploring genre emotional requirements |
-| Story consistency | Explore | When checking moments against existing story |
+| 类型研究 | general-purpose | 探索类型情感需求时 |
+| 故事一致性 | Explore | 检查时刻与现有故事的匹配时 |
 
-## Context Management
+## 上下文管理
 
-### Approximate Token Footprint
-- **Skill base:** ~4k tokens (genres + implementation)
-- **With worked example:** ~5k tokens
-- **With all genres:** ~6k tokens
+### 近似 Token 占用
+- **技能基础：** ~4k tokens（类型 + 实施流程）
+- **含完整示例：** ~5k tokens
+- **含所有类型：** ~6k tokens
 
-### Context Optimization
-- Focus on primary genre moments only
-- Full genre tables are reference
-- Worked example optional
+### 上下文优化
+- 仅关注主要类型的时刻
+- 完整类型表格供参考
+- 完整示例为可选项
 
-### When Context Gets Tight
-- Prioritize: Primary genre moments, current phase
-- Defer: Secondary genre details, all genre tables
-- Drop: Worked example, advantages list
+### 当上下文紧张时
+- 优先保留：主要类型时刻、当前阶段
+- 延后加载：次要类型细节、所有类型表格
+- 丢弃：完整示例、优势列表
 
-## Anti-Patterns
+## 反模式
 
-### 1. Plot-First Injection
-**Pattern:** Building the plot outline first, then trying to locate where to insert emotional beats.
-**Why it fails:** Emotion retrofitted to plot feels mechanical. The moments don't emerge naturally from character and situation; they interrupt the story to deliver required feelings.
-**Fix:** Start with the emotional experiences you want readers to have. Build backward: what situations create those emotions? What characters would be in those situations? What world enables those situations?
+### 1. 情节优先注入
+**模式：** 先构建情节大纲，然后试图定位在哪里插入情感节拍。
+**为何失败：** 后期嫁接到情节上的情感感觉机械。时刻不是自然地从角色和情境中产生；它们打断故事来传递必需的感受。
+**修复：** 从你希望读者获得的情感体验出发。逆向构建：什么情境创造这些情感？什么角色会处于这些情境中？什么世界促成这些情境？
 
-### 2. Genre Mismatch
-**Pattern:** Choosing key moments that deliver different emotional experiences than the primary genre promises.
-**Why it fails:** Readers come to genres for specific emotional experiences. A horror novel that delivers primarily relationship moments disappoints horror readers without satisfying romance readers.
-**Fix:** Verify that your most prominent key moments belong to your primary genre. Secondary genre moments support; they don't dominate. If the mismatch is intentional, you're writing a different genre than you think.
+### 2. 类型错配
+**模式：** 选择的关键时刻传递的情感体验与主要类型的承诺不同。
+**为何失败：** 读者为特定的情感体验而来到某个类型。一部主要传递关系时刻的恐怖小说既让恐怖读者失望，也无法满足言情读者。
+**修复：** 验证你最突出的关键时刻属于你的主要类型。次要类型的时刻是辅助性的，而非主导性的。如果错配是有意为之，你写的其实是与你以为的不同的类型。
 
-### 3. Logistics-Only Bridges
-**Pattern:** Connective scenes that only move characters from one key moment to the next without developing character, world, or theme.
-**Why it fails:** Readers feel the pacing sag in bridge sections. They're just waiting for the next interesting thing. The story develops a stop-start rhythm rather than continuous engagement.
-**Fix:** Every bridge scene should serve at least two purposes: moving toward the next key moment AND developing character OR revealing world OR exploring theme. If a scene only serves logistics, compress or cut it.
+### 3. 纯物流式桥接
+**模式：** 连接场景只是将角色从一个关键时刻移动到下一个，而没有发展角色、世界或主题。
+**为何失败：** 读者在桥接段落感到节奏下沉。他们只是在等待下一个有趣的事情。故事发展出走走停停的节奏，而非持续的参与。
+**修复：** 每个桥接场景应至少服务于两个目的：推进向下一个关键时刻，同时发展角色或揭示世界或探索主题。如果一个场景只服务于物流功能，压缩或删除它。
 
-### 4. Moment Inflation
-**Pattern:** Treating every scene as a key moment, loading the story with climactic experiences.
-**Why it fails:** Without contrast, high-intensity moments lose impact. Emotional fatigue sets in. Readers become numb when everything is equally important.
-**Fix:** Limit key moments to 5-8 per story. Let some scenes be quieter. The valleys make the peaks feel taller. Save your strongest moments for where they'll have maximum impact.
+### 4. 时刻膨胀
+**模式：** 把每个场景都当作关键时刻，让故事充满高潮体验。
+**为何失败：** 没有对比，高强度时刻就失去冲击力。情感疲劳随之而来。当一切同等重要时，读者变得麻木。
+**修复：** 将关键时刻限制在每个故事 5-8 个。让一些场景更安静。低谷使高峰显得更高。将最强的时刻留在能产生最大冲击力的位置。
 
-### 5. Forced Causation
-**Pattern:** Key moments that don't follow logically from established character and world but happen because the plot needs them.
-**Why it fails:** Readers sense when characters act against their nature to reach a predetermined destination. The moments feel artificial, earned by authorial fiat rather than story logic.
-**Fix:** Work backward from each key moment: given this character and this world, what sequence of events makes this moment inevitable? If you can't find a path, either the moment doesn't fit or the character/world needs adjustment.
+### 5. 强制因果
+**模式：** 关键时刻不是从已确立的角色和世界中合理产生，而是因为情节需要它们而发生。
+**为何失败：** 读者能感觉到角色违背了自身本性去达到预设的目的地。时刻感觉虚假，是作者的强制安排而非故事逻辑赢得的。
+**修复：** 从每个关键时刻逆向推导：给定这个角色和这个世界，什么样的事件序列使这个时刻成为必然？如果你找不到一条路径，要么时刻不合适，要么角色/世界需要调整。
 
-## Integration
+## 集成
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
+### 入站（向本技能输入）
+| 技能 | 提供内容 |
 |-------|------------------|
-| genre-conventions | Genre-specific emotional requirements |
-| story-sense | Diagnosis of what emotions are missing or misplaced |
-| character-arc | Character states that enable or resist key moments |
+| genre-conventions | 类型特定的情感需求 |
+| story-sense | 诊断哪些情感缺失或错位 |
+| character-arc | 促成或抵抗关键时刻的角色状态 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
+### 出站（本技能向外输出）
+| 技能 | 提供内容 |
 |-------|-------------|
-| scene-sequencing | Clear emotional targets for scene construction |
-| worldbuilding | World requirements to enable key moments |
-| outline-collaborator | Structural skeleton built around emotional beats |
+| scene-sequencing | 场景构建的清晰情感目标 |
+| worldbuilding | 促成关键时刻的世界需求 |
+| outline-collaborator | 围绕情感节拍构建的结构骨架 |
 
-### Complementary
-| Skill | Relationship |
+### 互补
+| 技能 | 关系 |
 |-------|--------------|
-| genre-conventions | Key-moments defines the emotional beats; genre-conventions ensures they satisfy genre expectations |
-| scene-sequencing | Key-moments identifies what moments matter; scene-sequencing structures the approach and aftermath |
+| genre-conventions | key-moments 定义情感节拍；genre-conventions 确保它们满足类型期待 |
+| scene-sequencing | key-moments 识别哪些时刻重要；scene-sequencing 构建接近和余波的结构 |

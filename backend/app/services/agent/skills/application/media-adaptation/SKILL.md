@@ -1,6 +1,6 @@
 ---
 name: media-adaptation
-description: Systematically analyze existing media to extract transferable elements for new settings. Use when adapting TV, film, or games to fiction, translating tropes across genres, or transforming genre elements for new contexts.
+description: 系统性分析现有媒体，提取可迁移元素用于新设定。适用于将电视、电影或游戏改编为小说，跨类型转化叙事套路，或将类型元素转化到新语境中。
 license: MIT
 metadata:
   author: jwynia
@@ -11,249 +11,249 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Media Adaptation
+# 媒体改编
 
-## Purpose
+## 目的
 
-Systematically analyze existing media (TV, film, games, etc.) to extract transferable elements that can be authentically transformed for new settings, particularly science fiction. Captures what makes originals compelling while creating genuinely new works rather than superficial reskins.
+系统性分析现有媒体（电视、电影、游戏等），提取可迁移元素，使其在新设定（尤其是科幻设定）中得到真实的转化。捕捉原作之所以引人入胜的核心要素，同时创造出真正的新作品，而非肤浅的换皮。
 
-## Core Principle
+## 核心原则
 
-**Transform, don't transplant.** The goal is to understand WHY something works and recreate that function in a new context, not to simply change surface details.
-
----
-
-## Phase 1: Core Appeal Identification
-
-### Emotional Experience Analysis
-
-**Questions:**
-- What emotional journey does the audience take?
-- What specific moments create the strongest response?
-- What underlying fears or desires does this tap into?
-- How does tension build and release throughout?
-
-**Document:**
-- Primary emotional arc
-- Peak emotional moments
-- Underlying psychological appeal
-- Tension/release pattern
-
-### Power Dynamic Analysis
-
-**Questions:**
-- Who has power and why?
-- What creates vulnerability in the system?
-- How do underdogs gain agency?
-- What institutional pressures shape behavior?
-
-**Document:**
-- Power sources
-- System vulnerabilities
-- Agency mechanisms
-- Institutional pressures
-
-### Conflict Architecture
-
-**Questions:**
-- What creates the central tension?
-- How do individual goals conflict with systemic demands?
-- What makes resolution difficult but not impossible?
-- Where do moral complexities emerge?
-
-**Document:**
-- Central tension structure
-- Individual vs. system conflicts
-- Resolution barriers
-- Moral complexity sources
+**转化，而非移植。** 目标是理解某个元素为何有效，并在新语境中重建其功能，而不是简单地更换表面细节。
 
 ---
 
-## Phase 2: Element Classification
+## 阶段一：核心吸引力识别
 
-### Universal Elements (Direct Transfer)
+### 情感体验分析
 
-Elements that work across any setting because they tap into fundamental human nature:
+**问题：**
+- 观众经历了怎样的情感旅程？
+- 哪些具体时刻引发了最强烈的反应？
+- 它触及了哪些潜在的恐惧或欲望？
+- 张力是如何在整个过程中建立和释放的？
 
-**Emotional Universals:**
-- Fear of the unknown
-- Desire for justice/fairness
-- Need for belonging/community
-- Drive for competence/mastery
-- Search for meaning/purpose
+**记录：**
+- 主要情感弧线
+- 情感高峰时刻
+- 深层心理吸引力
+- 张力/释放模式
 
-**Relationship Dynamics:**
-- Mentor/apprentice bonds
-- Unlikely partnerships
-- Family loyalty vs. duty conflicts
-- Trust building through shared adversity
-- Betrayal and redemption arcs
+### 权力动态分析
 
-**Structural Tensions:**
-- Individual agency vs. institutional control
-- Short-term survival vs. long-term consequences
-- Competing loyalties and obligations
-- Resource scarcity creating difficult choices
-- Information asymmetry driving conflict
+**问题：**
+- 谁拥有权力，为什么？
+- 是什么造成了系统中的脆弱性？
+- 弱势方如何获得主体性？
+- 制度性压力如何塑造行为？
 
-### Setting-Dependent Elements (Translation Required)
+**记录：**
+- 权力来源
+- 系统脆弱性
+- 主体性获取机制
+- 制度性压力
 
-Elements tied to specific contexts that need equivalents in new settings:
+### 冲突架构
 
-| Original Element | Translation Question | Examples |
-|------------------|----------------------|----------|
-| Authority Structures | What creates legitimate authority? | Corporate security, planetary governance, AI arbitration |
-| Resource Systems | What resources create power? | Energy allocation, genetic access, data privileges |
-| Communication Networks | How does information flow? | Quantum networks, AI surveillance, bioelectric signals |
-| Enforcement Mechanisms | How are rules enforced? | Exile, memory modification, economic isolation |
+**问题：**
+- 什么构成了核心张力？
+- 个体目标如何与系统要求产生冲突？
+- 是什么让解决困难但并非不可能？
+- 道德复杂性在哪里显现？
 
-### Culture-Specific Elements (Replacement Required)
-
-Elements too tied to specific cultures/times to transfer meaningfully:
-- Specific cultural practices or beliefs
-- Historical references and contexts
-- Technology tied to particular development paths
-- Social structures unique to specific societies
-
-**Replacement Strategy:**
-1. Maintain the underlying function
-2. Create new forms that serve the same story purpose
-3. Ensure replacements emerge logically from new setting
-4. Test that replacements generate similar emotional responses
+**记录：**
+- 核心张力结构
+- 个体与系统的冲突
+- 解决障碍
+- 道德复杂性来源
 
 ---
 
-## Phase 3: Systemic Translation
+## 阶段二：元素分类
 
-### Environmental Pressure Analysis
+### 通用元素（可直接迁移）
 
-1. Identify survival/social pressures in original
-2. Map equivalent pressures in new environment
-3. Trace how new pressures modify social structures
-4. Identify new conflict opportunities
+跨设定通用的元素，因为它们触及人性的根本：
 
-### Power Structure Evolution
+**情感共性：**
+- 对未知的恐惧
+- 对正义/公平的渴望
+- 对归属感/社群的需求
+- 对能力/精通的追求
+- 对意义/目的的探寻
 
-1. List all sources of power/influence in original
-2. For each, identify underlying principle (competence, resources, legitimacy)
-3. Create equivalents operating on same principles
-4. Consider entirely new power sources from new setting
+**关系动态：**
+- 师徒纽带
+- 意想不到的搭档
+- 家庭忠诚与责任的冲突
+- 通过共同逆境建立信任
+- 背叛与救赎弧线
 
-### Conflict Evolution Mapping
+**结构性张力：**
+- 个体主体性与制度控制
+- 短期生存与长期后果
+- 竞争性的忠诚与义务
+- 资源稀缺导致的艰难抉择
+- 信息不对称驱动的冲突
 
-1. Map conflict resolution barriers in original
-2. Identify which barriers persist in new setting
-3. Determine how new elements create new barriers
-4. Discover how new elements provide new solution paths
+### 设定依赖元素（需要转化）
 
----
+与特定语境绑定、需要在新设定中找到等价物的元素：
 
-## Phase 4: Authenticity Validation
+| 原始元素 | 转化问题 | 示例 |
+|----------|----------|------|
+| 权威结构 | 什么构成合法权威？ | 企业安保、行星治理、AI 仲裁 |
+| 资源体系 | 什么资源创造权力？ | 能源分配、基因获取、数据特权 |
+| 通信网络 | 信息如何流动？ | 量子网络、AI 监控、生物电信号 |
+| 执行机制 | 规则如何执行？ | 流放、记忆修改、经济隔离 |
 
-### Systemic Consistency Check
+### 文化特定元素（需要替换）
 
-- Do all elements emerge logically from setting premises?
-- Are power structures sustainable given environmental constraints?
-- Do conflict patterns make sense given social organization?
-- Would translated elements create desired emotional experience?
+过于绑定特定文化/时代、无法有效迁移的元素：
+- 特定文化习俗或信仰
+- 历史参照和语境
+- 与特定发展路径绑定的技术
+- 特定社会独有的社会结构
 
-### Cultural Sensitivity Review
-
-- Have you inadvertently imported problematic cultural assumptions?
-- Do translations respect the complexity of issues involved?
-- Are you presenting harmful systems as normative or critiquing them?
-- Do new elements create new forms of potential harm or injustice?
-
-### Originality Assessment
-
-- Is this sufficiently transformed to be genuinely new?
-- Do new elements add meaningful complexity beyond cosmetic changes?
-- Would someone familiar with original see this as derivative or inspired-by?
-- Does this work stand alone without knowledge of original?
-
----
-
-## Quick Reference: Translation Priorities
-
-**Essential (Must Transfer):**
-- Fundamental emotional experience
-- Core power dynamics
-- Central tension structure
-- Key relationship patterns
-
-**Adaptive (Modify to Fit):**
-- Authority sources and structures
-- Resource systems and constraints
-- Communication methods and barriers
-- Enforcement mechanisms and consequences
-
-**Replacement (Create New):**
-- Specific cultural practices
-- Historical contexts and references
-- Setting-specific technologies
-- Unique social institutions
+**替换策略：**
+1. 保持底层功能
+2. 创建服务于相同故事目的的新形式
+3. 确保替换物从新设定中自然产生
+4. 测试替换物是否产生类似的情感反应
 
 ---
 
-## Example: Police Procedural → Sci-Fi
+## 阶段三：系统性转化
 
-### Original Analysis
-- **Core Appeal:** Order from chaos through competent investigation
-- **Power Dynamics:** Legal authority vs. criminal freedom, bureaucracy vs. justice
-- **Conflict Architecture:** Limited resources, jurisdictional constraints, time pressure
+### 环境压力分析
 
-### Translation
-- **New Setting:** Interplanetary corporate territories with competing legal systems
-- **New Pressures:** Communication delays, jurisdictional complexity, resource scarcity
-- **New Conflicts:** Corporate law vs. universal law, evidence across light-years, witness diaspora
+1. 识别原作中的生存/社会压力
+2. 在新环境中映射等价压力
+3. 追踪新压力如何改变社会结构
+4. 识别新的冲突机会
 
-### Validation
-- **Systemic Logic:** Corporate territories make sense for resource extraction economics
-- **Emotional Core:** Still provides order-from-chaos satisfaction
-- **Originality:** Environmental constraints create genuinely new story possibilities
+### 权力结构演化
+
+1. 列出原作中所有权力/影响力来源
+2. 对每个来源，识别其底层原则（能力、资源、合法性）
+3. 创建基于相同原则运作的等价物
+4. 考虑新设定中全新的权力来源
+
+### 冲突演化映射
+
+1. 映射原作中的冲突解决障碍
+2. 识别哪些障碍在新设定中持续存在
+3. 确定新元素如何创造新障碍
+4. 发现新元素如何提供新的解决路径
 
 ---
 
-## Anti-Patterns
+## 阶段四：真实性验证
 
-### 1. The Cosmetic Reskin
-**Pattern:** Changing surface details (costumes, technology, names) without transforming underlying dynamics. "It's the same story but in space."
-**Why it fails:** Audiences recognize the original immediately. The adaptation feels derivative rather than inspired. No new insights emerge from the new context.
-**Fix:** Identify what FUNCTION each element serves, then find what naturally creates that function in the new setting. The new version should work even if audiences never heard of the original.
+### 系统一致性检查
 
-### 2. The Fidelity Trap
-**Pattern:** Treating faithfulness to source as the primary virtue. "We have to include this because it was in the original."
-**Why it fails:** Not everything translates. Forcing elements that don't fit the new context breaks immersion. Fidelity to form can betray fidelity to function.
-**Fix:** Prioritize what makes the original WORK over what HAPPENS in it. Some elements may need to be replaced entirely to serve the same function.
+- 所有元素是否从设定前提中自然产生？
+- 在环境约束下，权力结构是否可持续？
+- 考虑到社会组织方式，冲突模式是否合理？
+- 转化后的元素是否能创造预期的情感体验？
 
-### 3. The Genre Collision
-**Pattern:** Adapting without considering how genre expectations change. A tragedy translated into an action setting becomes unintentionally comedic.
-**Why it fails:** Genre carries audience expectations. The same plot beats land differently in different genre contexts. Tonal whiplash destroys engagement.
-**Fix:** Map the emotional journey explicitly. Verify that adapted elements deliver the same emotional beats in the new genre context.
+### 文化敏感性审查
 
-### 4. The Surface Diversity
-**Pattern:** Translating cultural elements by swapping demographics without understanding cultural function. "We'll just make them aliens instead."
-**Why it fails:** Cultural elements often serve specific narrative functions. Superficial swaps may lose the function or import problematic assumptions to new contexts.
-**Fix:** Understand why cultural elements existed in the original. Create new elements that serve the same narrative function while emerging naturally from the new setting.
+- 是否无意中引入了有问题的文化假设？
+- 转化是否尊重了相关议题的复杂性？
+- 你是在将有害系统呈现为常态，还是在批判它们？
+- 新元素是否创造了新形式的潜在伤害或不公？
 
-### 5. The Unexplored Implication
-**Pattern:** Translating an element without considering how it would actually work in the new context. "They use swords because the original had swords" in a setting with abundant energy weapons.
-**Why it fails:** Breaks world coherence. Audiences ask "why don't they just..." constantly. The adaptation feels like it wasn't thought through.
-**Fix:** Run each translated element through consequence cascade. If it doesn't make sense in context, find what DOES make sense that serves the same function.
+### 原创性评估
 
-## Integration Points
+- 转化程度是否足以成为真正的新作品？
+- 新元素是否在表面改动之外增加了实质性的复杂度？
+- 熟悉原作的人会认为这是衍生品还是受其启发？
+- 这部作品在不了解原作的情况下是否能独立成立？
 
-**Inbound:**
-- When adapting existing media to new settings
-- When analyzing what makes stories work
-- When developing genre mashups
+---
 
-**Outbound:**
-- To worldbuilding for new settings
-- To character development within adapted structures
-- To plot development using translated conflicts
+## 快速参考：转化优先级
 
-**Complementary:**
-- `dna-extraction`: For more detailed functional analysis
-- `adaptation-synthesis`: For combining multiple source extractions
-- `worldbuilding`: For developing the target setting
+**必须迁移：**
+- 核心情感体验
+- 核心权力动态
+- 核心张力结构
+- 关键关系模式
+
+**适应性调整：**
+- 权威来源和结构
+- 资源体系和约束
+- 通信方式和障碍
+- 执行机制和后果
+
+**替换创新：**
+- 特定文化习俗
+- 历史语境和参照
+- 设定特定的技术
+- 独特的社会制度
+
+---
+
+## 示例：警察程序剧 → 科幻
+
+### 原作分析
+- **核心吸引力：** 通过有能力的调查从混乱中建立秩序
+- **权力动态：** 法律权威 vs. 犯罪自由，官僚机构 vs. 正义
+- **冲突架构：** 有限资源、管辖权限制、时间压力
+
+### 转化
+- **新设定：** 拥有竞争性法律体系的星际企业领地
+- **新压力：** 通信延迟、管辖权复杂性、资源稀缺
+- **新冲突：** 企业法 vs. 通用法、跨光年的证据、证人散居
+
+### 验证
+- **系统逻辑：** 企业领地对资源开采经济来说合理
+- **情感核心：** 仍然提供从混乱中建立秩序的满足感
+- **原创性：** 环境约束创造了真正新的故事可能性
+
+---
+
+## 反模式
+
+### 1. 表面换皮
+**模式：** 只更改表面细节（服装、技术、名称）而不转化底层动态。"同样的故事，只是搬到了太空。"
+**为何失败：** 观众立刻认出原作。改编感觉是衍生品而非受启发之作。新语境没有产生新的洞见。
+**修正：** 识别每个元素的功能是什么，然后找到在新设定中自然产生该功能的东西。新版本即使观众从未听说过原作，也应该能独立成立。
+
+### 2. 忠实度陷阱
+**模式：** 将对原作的忠实视为首要美德。"我们必须包含这个，因为原作里有。"
+**为何失败：** 并非所有东西都能转化。强行植入不适合新语境的元素会破坏沉浸感。对形式的忠实可能背叛对功能的忠实。
+**修正：** 优先考虑是什么让原作有效，而非原作中发生了什么。某些元素可能需要完全替换才能服务于相同的功能。
+
+### 3. 类型碰撞
+**模式：** 改编时不考虑类型期望如何变化。一个悲剧转化到动作设定后变成了无意间的喜剧。
+**为何失败：** 类型承载着观众的期望。同样的情节节拍在不同类型语境中效果完全不同。基调割裂会摧毁参与感。
+**修正：** 明确映射情感旅程。验证改编后的元素在新类型语境中是否能传递相同的情感节拍。
+
+### 4. 表面多元
+**模式：** 通过交换人口统计特征来转化文化元素，但不理解其文化功能。"我们把他们变成外星人就好了。"
+**为何失败：** 文化元素通常服务于特定的叙事功能。肤浅的替换可能丢失功能，或将有问题的假设带入新语境。
+**修正：** 理解文化元素在原作中为何存在。创建服务于相同叙事功能的新元素，同时确保它们从新设定中自然产生。
+
+### 5. 未探索的含义
+**模式：** 转化一个元素但不考虑它在新语境中实际如何运作。"他们用剑是因为原作里用剑"——而设定中有大量能量武器。
+**为何失败：** 破坏世界一致性。观众不断追问"他们为什么不直接……"。改编感觉没有经过深思熟虑。
+**修正：** 让每个转化后的元素通过后果连锁反应测试。如果在语境中不合理，找到合理的、服务于相同功能的替代方案。
+
+## 集成点
+
+**入站：**
+- 将现有媒体改编到新设定时
+- 分析故事之所以有效的原因时
+- 开发类型混搭时
+
+**出站：**
+- 用于新设定的世界构建
+- 用于改编结构中的角色塑造
+- 用于使用转化后冲突的情节开发
+
+**互补：**
+- `dna-extraction`：用于更详细的功能分析
+- `adaptation-synthesis`：用于组合多个来源的提取结果
+- `worldbuilding`：用于开发目标设定

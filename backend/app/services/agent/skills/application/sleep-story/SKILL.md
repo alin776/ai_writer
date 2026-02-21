@@ -1,6 +1,6 @@
 ---
 name: sleep-story
-description: Write stories designed to help listeners fall asleep. Use for bedtime podcasts, meditation content, calming narratives, or any content where the goal is gentle cognitive engagement that fades naturally into rest.
+description: 编写旨在帮助听众入睡的故事。适用于睡前播客、冥想内容、安抚性叙事，或任何以温和认知参与自然过渡到休息为目标的内容。
 license: MIT
 metadata:
   author: jwynia
@@ -11,350 +11,350 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Sleep Story: Calming Narrative Skill
+# 睡眠故事：安抚叙事技能
 
-You help writers create stories specifically designed to accompany listeners into sleep. These are verbal lullabies disguised as narratives—occupying the mind just enough to prevent racing thoughts while naturally fading as attention wavers.
+你帮助作者创作专门设计用于陪伴听众进入睡眠的故事。这些是伪装成叙事的口头摇篮曲——恰好占用足够的心智以阻止思绪奔涌，同时在注意力开始游移时自然消退。
 
-## Core Principle: The Gentle Cognitive Load
+## 核心原则：温和的认知负荷
 
-Sleep stories occupy the mind just enough to prevent racing thoughts while naturally fading as attention wavers. The goal is not to entertain but to accompany someone into sleep. The best sleep story is one the listener never hears the end of.
+睡眠故事恰好占用足够的心智以阻止思绪奔涌，同时在注意力游移时自然消退。目标不是娱乐，而是陪伴某人入睡。最好的睡眠故事是听众永远不会听到结尾的那种。
 
-## The Five Pillars
+## 五大支柱
 
-### 1. Momentum Without Urgency
-Stories should move forward but never rush. Each sentence flows like a slow river.
+### 1. 有动力但不急迫
+故事应向前推进但从不匆忙。每句话像缓流的河水。
 
-**Instead of**: "Sarah rushed to the market before it closed."
+**不要写**："莎拉赶在市场关门前冲了过去。"
 
-**Write**: "Sarah walked along the cobblestone path toward the market square, her basket swaying gently with each step. The afternoon sun cast long shadows between the buildings."
+**应该写**："莎拉沿着鹅卵石小路走向市场广场，篮子随着她的每一步轻轻摇摆。午后的阳光在建筑之间投下长长的影子。"
 
-### 2. Description Over Action
-Paint scenes rather than chronicle events. Linger on sensory details without dramatic purpose.
+### 2. 描写重于行动
+描绘场景而非记录事件。在没有戏剧目的的感官细节上流连。
 
-### 3. Repetitive Comfort Patterns
-Use recurring elements that create familiarity:
-- Counting things (steps, breaths, items)
-- Listing similar objects with slight variations
-- Returning to the same sensory anchors
-- Circular routes that end where they began
+### 3. 重复的安慰模式
+使用创造熟悉感的反复出现的元素：
+- 计数事物（步伐、呼吸、物品）
+- 列出带有细微变化的同类物品
+- 反复回到相同的感官锚点
+- 终点即起点的环形路线
 
-### 4. Present Tense Immersion
-Present tense creates a dreamlike quality where the listener exists in the moment.
+### 4. 现在时沉浸
+现在时创造一种梦境般的质感，让听众存在于当下。
 
-**Example**: "You are walking through the garden. The gravel crunches softly beneath your feet. To your left, lavender plants release their fragrance into the evening air."
+**示例**："你正走过花园。碎石在你脚下轻轻嘎吱作响。左边，薰衣草植株将它们的芬芳释放到傍晚的空气中。"
 
-### 5. The Fade Protocol
-Structure stories to naturally decrease in interest and complexity.
-
-- **Beginning**: Mildly intriguing setup
-- **Middle**: Gentle exploration
-- **End**: Infinite possibility for continuation without resolution
+### 5. 淡出协议
+将故事结构设计为兴趣和复杂度自然递减。
+
+- **开头**：温和而略有吸引力的设定
+- **中间**：轻柔的探索
+- **结尾**：无限延续的可能性，无需解决
 
-## Story Templates
+## 故事模板
 
-### Template A: The Wandering Observer
-1. Character arrives at a peaceful location
-2. Slow exploration with detailed observations
-3. Small, satisfying tasks performed
-4. Gradual settling into rest
-
-### Template B: The Gentle Routine
-1. Character begins a calming routine
-2. Each step described in loving detail
-3. Sensory focus on textures, temperatures, sounds
-4. Natural conclusion in rest or contemplation
-
-**Example activities**: Making tea, tending houseplants, organizing a collection, preparing a reading nook
-
-### Template C: The Infinite Journey
-1. Travel through a peaceful landscape
-2. No destination or arrival necessary
-3. Focus on the journey itself
-4. Can continue indefinitely
-
-**Example**: "The train moves steadily through the countryside. Fields of wheat stretch to the horizon. Occasionally, a small farmhouse appears in the distance. The rhythmic sound of the rails: click-clack, click-clack."
-
-## Language Techniques
+### 模板 A：漫游的观察者
+1. 角色抵达一个宁静的地点
+2. 带有详细观察的缓慢探索
+3. 执行小而令人满足的任务
+4. 逐渐安顿下来休息
+
+### 模板 B：温柔的日常
+1. 角色开始一项安抚性的例行活动
+2. 每一步都被用充满爱意的细节描述
+3. 感官聚焦于质感、温度、声音
+4. 以休息或沉思自然结束
+
+**示例活动**：泡茶、照料室内植物、整理收藏品、准备阅读角
+
+### 模板 C：无尽旅程
+1. 穿越宁静的风景
+2. 不需要目的地或到达
+3. 聚焦于旅程本身
+4. 可以无限延续
+
+**示例**："火车平稳地穿过乡间。麦田延伸到地平线。偶尔，远处出现一座小农舍。铁轨有节奏的声响：咔嗒-咔嗒，咔嗒-咔嗒。"
+
+## 语言技巧
 
-### Softening Words
-Use words with soft consonants and flowing sounds:
-- Gentle, slowly, quietly, softly
-- Drifting, floating, wandering, meandering
-- Warm, smooth, peaceful, calm
+### 柔和词汇
+使用带有柔和辅音和流畅音感的词汇：
+- 轻柔、缓缓、静静、柔柔
+- 漂浮、飘荡、游走、蜿蜒
+- 温暖、光滑、宁静、平和
 
-### Avoid Harsh Sounds
-Replace jarring words:
-- "Crash" → "settle"
-- "Bright" → "gentle glow"
-- "Quick" → "unhurried"
-- "Excited" → "content"
+### 避免刺耳的声音
+替换刺耳的词汇：
+- "碰撞" → "安放"
+- "明亮" → "柔光"
+- "急促" → "不紧不慢"
+- "兴奋" → "满足"
 
-### The Power of "And"
-Connect thoughts with "and" rather than "but" or "however":
+### "和"的力量
+用"和"而非"但是"或"然而"来连接思绪：
 
-"The path winds through the forest, and the trees create a canopy overhead, and somewhere a stream babbles over smooth stones, and the air carries the scent of pine."
+"小径蜿蜒穿过森林，树木在头顶形成华盖，某处小溪在光滑的石头上潺潺流淌，空气中弥漫着松树的气息。"
 
-## Sensory Layering Guide
+## 感官分层指南
 
-### Visual
-- Soft, warm lighting (amber, golden, gentle)
-- Muted colors (dusty rose, sage green, warm gray)
-- Gentle movement (swaying, drifting, floating)
-- Comfortable distances (cozy, enclosed, intimate)
+### 视觉
+- 柔和、温暖的光线（琥珀色、金色、柔和的）
+- 低饱和的颜色（淡玫瑰色、鼠尾草绿、暖灰色）
+- 轻柔的运动（摇曳、漂浮、飘荡）
+- 舒适的距离（温馨、围合、亲密）
 
-### Auditory
-- Natural rhythms (rain, waves, breathing)
-- Soft mechanical sounds (clock ticking, fan humming)
-- Muffled distant sounds (faraway train, muted voices)
-- Gentle nature sounds (rustling leaves, quiet birds)
+### 听觉
+- 自然节奏（雨声、海浪、呼吸）
+- 柔和的机械声（钟表滴答、风扇嗡嗡）
+- 模糊的远处声音（远方火车、低语）
+- 轻柔的自然声（沙沙作响的树叶、安静的鸟鸣）
 
-### Tactile
-- Soft textures (velvet, wool, smooth wood)
-- Comfortable temperatures (warm but not hot)
-- Gentle pressure (heavy blanket, soft cushion)
-- Smooth surfaces (polished stone, worn leather)
-
-### Olfactory
-- Comforting scents (baking bread, lavender, vanilla)
-- Natural aromas (rain, earth, wood)
-- Subtle fragrances (old books, clean linen)
-
-## Common Settings
-
-### Indoor Sanctuaries
-- Libraries after closing
-- Cozy bookshops
-- Quiet museums
-- Empty cafes at dusk
-- Candlelit churches
-- Artist's studios
-- Greenhouse conservatories
-
-### Natural Spaces
-- Moonlit gardens
-- Misty forests
-- Quiet beaches at dawn
-- Mountain meadows
-- Desert under stars
-- Gentle riversides
-- Snow-covered landscapes
-
-### Transitional Spaces
-- Night trains
-- Boats on calm water
-- Hot air balloons
-- Cable cars
-- Quiet airports at night
-- Walking paths
-
-## Pacing Guidelines
-
-### Sentence Structure
-- Mix medium and long sentences
-- Avoid short, punchy statements
-- Use flowing punctuation (commas over periods)
-- Create natural breathing spaces
-
-### Paragraph Flow
-- 3-5 sentences per paragraph
-- Each paragraph one complete micro-scene
-- Gentle transitions between paragraphs
-- No sudden scene changes
-
-### Story Arc
-- 10-15 minutes for complete stories
-- No climax or resolution needed
-- Can stop at any point without frustration
-- Each section self-contained
-
-### Reading Speed
-Test at 120-140 words per minute (slower than normal reading)
-
-## Example Opening
-
-> The lighthouse keeper's cottage sits at the edge of the world, where the land meets the endless sea. You approach along the winding path, wild grasses brushing against your legs with each step. The late afternoon sun warms your shoulders while a gentle breeze carries the salt-sweet scent of the ocean.
-
-> The cottage itself is small and sturdy, built from weathered gray stones that have stood against countless storms. Roses climb the eastern wall, their pink blooms nodding in the breeze. The red painted door stands slightly ajar, and through the gap, you can see the warm glow of lamplight.
-
-## Writing Exercises
-
-### Exercise 1: The Five-Sense Room
-Describe a room using all five senses, at least two sentences per sense. Focus on comfort and safety.
-
-### Exercise 2: The Infinite List
-Create a list of collection items (shells, books, tea cups) with gentle variations. Aim for 10+ items without tension.
-
-### Exercise 3: The Routine Ritual
-Describe making tea in 300+ words, focusing on each micro-action and sensation.
-
-### Exercise 4: The Journey Nowhere
-Write about traveling through landscape with no destination. Focus on what passes, not where you're going.
-
-## Quick Reference Checklist
-
-- [ ] Present tense or second person perspective
-- [ ] Soft consonants and flowing language
-- [ ] Rich sensory details without drama
-- [ ] Repetitive, predictable patterns
-- [ ] No cliffhangers or mysteries
-- [ ] Gentle pacing throughout
-- [ ] Comfortable, safe settings
-- [ ] Natural fade potential
-- [ ] Tested at 120-140 wpm reading speed
-- [ ] No sudden sounds or harsh words
-
-## Output Persistence
-
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/sleep-story/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-- **Template used** - Wandering observer, gentle routine, or infinite journey
-- **Setting choice** - Indoor sanctuary, natural space, or transitional
-- **Sensory layers** - Visual, auditory, tactile, olfactory details
-- **Story draft** - Complete narrative (10-15 minutes at 120-140 wpm)
-
-### File Naming
-Pattern: `{setting}-sleep-{date}.md`
-
-## Verification (Oracle)
-
-### What This Skill Can Verify
-- **Pacing test** - Read at 120-140 wpm without rushing? (High confidence)
-- **Language softness** - Harsh consonants/sudden words absent? (High confidence)
-- **Stakes absence** - No tension, urgency, or mystery? (High confidence)
-
-### What Requires Human Judgment
-- **Calming quality** - Does it actually feel restful?
-- **Sensory balance** - Are layers appropriate for sleep induction?
-- **Personal resonance** - Will target audience connect with setting?
-
-### Oracle Limitations
-- Cannot assess whether story induces sleepiness
-- Cannot predict individual response to calming content
-
-## Feedback Loop
-
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Template, setting, sensory layers, final draft
-- **Naming pattern:** `{setting}-sleep-{date}.md`
-
-### Cross-Session Learning
-- Check for prior sleep stories to avoid repetition
-- Listener feedback on what worked/didn't
-- Failed calming attempts inform anti-patterns
-
-## Design Constraints
-
-### This Skill Assumes
-- Goal is sleep induction, not entertainment
-- Listener is trying to fall asleep
-- Audio or read-aloud delivery
-
-### This Skill Does Not Handle
-- **Meditation scripts** - Different structure and purpose
-- **Regular fiction** - Route to: prose-style
-- **Ambient soundscapes** - Not narrative-based
-
-### Degradation Signals
-- Hidden tension (deadline, mystery, stakes)
-- Engagement habits (hooks, rising action)
-- Resolution compulsion (need for ending)
-
-## Reasoning Requirements
-
-### Standard Reasoning
-- Single template selection
-- Basic sensory layer design
-- Simple pacing check
-
-### Extended Reasoning (ultrathink)
-- **Full story development** - [Why: all elements must sustain calming quality]
-- **Custom setting creation** - [Why: novel environments need complete design]
-- **Series consistency** - [Why: multiple stories in same world]
-
-**Trigger phrases:** "write the complete sleep story", "create a new setting", "design a series"
-
-## Execution Strategy
-
-### Sequential (Default)
-- Template selection before setting
-- Setting before sensory layers
-- Layers before drafting
-
-### Parallelizable
-- Developing multiple settings
-- Creating sensory layer lists for different environments
-
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Setting research | general-purpose | When creating authentic real-world locations |
-| Pacing analysis | general-purpose | When testing reading speed and flow |
-
-## Context Management
-
-### Approximate Token Footprint
-- **Skill base:** ~2.5k tokens (pillars + templates + techniques)
-- **With settings:** ~3.5k tokens
-- **With exercises:** ~4k tokens
-
-### Context Optimization
-- Focus on active template and setting
-- Sensory guide is reference
-- Exercises optional for learning
-
-### When Context Gets Tight
-- Prioritize: Five pillars, active template
-- Defer: Full settings list, all sensory layers
-- Drop: Writing exercises, example opening
-
-## Anti-Patterns
-
-### 1. Disguised Drama
-**Pattern:** Creating what appears to be a calming story but embedding subtle tension—a journey with an arrival deadline, a task with failure stakes, a mystery to solve.
-**Why it fails:** The human brain detects narrative tension even when it's mild. Listeners engage to see the outcome, which is the opposite of what sleep requires. Any "will they/won't they" question activates alertness.
-**Fix:** Eliminate all stakes. The journey has no destination. The task has no consequence. Nothing depends on anything. The story describes what is happening, not what might happen.
-
-### 2. Engagement Habits
-**Pattern:** Using techniques from regular fiction—plot hooks, character development, rising action—because they're what you know how to write.
-**Why it fails:** Good fiction keeps readers awake to find out what happens. Sleep stories must deliberately avoid what makes regular fiction work. Writing on autopilot produces the wrong kind of story.
-**Fix:** Consciously invert your instincts. If a sentence makes you want to know what happens next, that's a signal to revise. The best sleep story is one you'd never finish if you were trying to stay awake.
-
-### 3. Sensory Jarring
-**Pattern:** Including harsh sounds, sudden actions, or intense sensory descriptions even in otherwise calm narratives.
-**Why it fails:** A single "the door slammed" or "bright light flooded" can trigger alertness. Harsh consonants and sudden verbs create acoustic and mental disruption.
-**Fix:** Read aloud and listen for jarring moments. Replace every sudden word with a gradual one. Soften every hard consonant cluster. The acoustic texture should be as smooth as the content.
-
-### 4. Speed Creep
-**Pattern:** Unconsciously accelerating pacing as you write, sentences getting shorter, events moving faster.
-**Why it fails:** Faster pacing signals importance, which signals attention needed. The listener's nervous system responds to rhythm even when content is calm.
-**Fix:** Set a timer and read aloud. Aim for 120-140 words per minute—significantly slower than normal reading speed. If you're rushing, the listener's attention will follow.
-
-### 5. Resolution Compulsion
-**Pattern:** Feeling you must end the story properly, with conclusion and satisfaction.
-**Why it fails:** Endings create a wake-point. The listener who's drifting realizes "oh, it's ending" and snaps back to attention. The goal is for the story to continue forever or fade imperceptibly.
-**Fix:** Write stories that have no natural endpoint. The train journey continues. The garden walk goes on. The tea is always brewing. Structure the story so stopping at any point feels complete.
-
-## Integration
-
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| prose-style | Sentence-level craft for flow and rhythm |
-| worldbuilding | Calm, safe settings to describe in detail |
-
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| (specialized format - primarily terminal) | Sleep stories are end products rather than inputs to other skills |
-
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| prose-style | Sleep-story applies prose techniques with specific constraints; prose-style provides the underlying craft |
-| voice-analysis | Understanding voice patterns helps maintain consistent, calming tone throughout |
+### 触觉
+- 柔软的质感（天鹅绒、羊毛、光滑的木头）
+- 舒适的温度（温暖但不热）
+- 轻柔的压力（厚重的毯子、柔软的靠垫）
+- 光滑的表面（抛光的石头、磨旧的皮革）
+
+### 嗅觉
+- 令人安慰的气味（烘焙面包、薰衣草、香草）
+- 自然的芳香（雨后的泥土、木头）
+- 淡淡的香气（旧书、干净的亚麻布）
+
+## 常见场景
+
+### 室内避风港
+- 闭馆后的图书馆
+- 温馨的书店
+- 安静的博物馆
+- 黄昏时空荡的咖啡馆
+- 烛光教堂
+- 画家工作室
+- 温室
+
+### 自然空间
+- 月光花园
+- 雾中森林
+- 黎明的安静海滩
+- 山间草甸
+- 星空下的沙漠
+- 宁静的河畔
+- 白雪覆盖的风景
+
+### 过渡空间
+- 夜间火车
+- 平静水面上的小船
+- 热气球
+- 缆车
+- 深夜安静的机场
+- 步行小径
+
+## 节奏指南
+
+### 句子结构
+- 混合使用中等长度和长句
+- 避免短促有力的陈述
+- 使用流畅的标点（逗号多于句号）
+- 创造自然的呼吸空间
+
+### 段落流
+- 每段 3-5 句
+- 每段一个完整的微场景
+- 段落之间温和过渡
+- 没有突然的场景转换
+
+### 故事弧线
+- 完整故事 10-15 分钟
+- 不需要高潮或解决
+- 可以在任何点停下而不会产生挫败感
+- 每个部分自成一体
+
+### 朗读速度
+以每分钟 120-140 个词测试（比正常阅读速度慢）
+
+## 开头示例
+
+> 灯塔守护人的小屋坐落在世界的边缘，大地在这里遇见无尽的大海。你沿着蜿蜒的小径走来，野草随着你的每一步轻轻拂过你的腿。午后的阳光温暖着你的肩膀，而轻柔的微风带来海洋的咸甜气息。
+
+> 小屋本身小而坚固，由经年风化的灰色石头砌成，它们经受过无数风暴。玫瑰攀爬在东墙上，粉色的花朵在微风中轻轻点头。红色的门漆微微打开，透过缝隙，你可以看到温暖的灯光。
+
+## 写作练习
+
+### 练习一：五感房间
+使用全部五种感官描述一个房间，每种感官至少两句话。聚焦于舒适和安全。
+
+### 练习二：无尽清单
+创建一个收藏品清单（贝壳、书籍、茶杯），带有温和的变化。目标 10+ 件物品，不带张力。
+
+### 练习三：日常仪式
+用 300+ 个词描述泡茶的过程，聚焦于每一个微动作和感觉。
+
+### 练习四：无目的旅程
+写一段穿越风景的旅行，没有目的地。聚焦于经过的事物，而非你要去哪里。
+
+## 快速参考清单
+
+- [ ] 现在时或第二人称视角
+- [ ] 柔和辅音和流畅的语言
+- [ ] 丰富的感官细节但无戏剧性
+- [ ] 重复、可预测的模式
+- [ ] 没有悬念或悬疑
+- [ ] 全程轻柔的节奏
+- [ ] 舒适、安全的场景
+- [ ] 自然淡出的可能性
+- [ ] 以 120-140 wpm 朗读速度测试
+- [ ] 没有突然的声音或刺耳的词汇
+
+## 输出持久化
+
+### 输出发现
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果存在，使用本技能的条目获取输出路径
+3. 如果不存在，**使用默认路径 `explorations/sleep-story/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因为询问用户而阻塞
+
+### 主要输出
+- **使用的模板** - 漫游的观察者、温柔的日常或无尽旅程
+- **场景选择** - 室内避风港、自然空间或过渡空间
+- **感官分层** - 视觉、听觉、触觉、嗅觉细节
+- **故事草稿** - 完整叙事（以 120-140 wpm 朗读 10-15 分钟）
+
+### 文件命名
+模式：`{setting}-sleep-{date}.md`
+
+## 验证（预言机）
+
+### 本技能可验证的内容
+- **节奏测试** - 以 120-140 wpm 朗读不赶吗？（高置信度）
+- **语言柔和度** - 刺耳辅音/突然词汇是否缺席？（高置信度）
+- **无利害关系** - 没有张力、紧迫感或悬疑？（高置信度）
+
+### 需要人类判断的内容
+- **安抚品质** - 它实际上让人感到放松吗？
+- **感官平衡** - 分层是否适合诱导睡眠？
+- **个人共鸣** - 目标受众是否会与场景产生连接？
+
+### 预言机限制
+- 无法评估故事是否诱发困倦
+- 无法预测个体对安抚内容的反应
+
+## 反馈循环
+
+### 会话持久化
+- **输出位置：** 见 `context/output-config.md`
+- **保存内容：** 模板、场景、感官分层、最终草稿
+- **命名模式：** `{setting}-sleep-{date}.md`
+
+### 跨会话学习
+- 检查先前的睡眠故事以避免重复
+- 听众对有效/无效内容的反馈
+- 失败的安抚尝试可作为反模式参考
+
+## 设计约束
+
+### 本技能假设
+- 目标是诱导睡眠，而非娱乐
+- 听众正在试图入睡
+- 音频或朗读方式交付
+
+### 本技能不处理
+- **冥想脚本** - 不同的结构和目的
+- **常规小说** - 转至：prose-style
+- **环境音景** - 非叙事性的
+
+### 退化信号
+- 隐藏的张力（截止期限、悬疑、利害关系）
+- 参与性写作习惯（钩子、角色发展、上升动作）
+- 解决冲动（需要结局）
+
+## 推理要求
+
+### 标准推理
+- 单一模板选择
+- 基本感官分层设计
+- 简单节奏检查
+
+### 扩展推理（ultrathink）
+- **完整故事开发** - [原因：所有元素必须维持安抚品质]
+- **自定义场景创建** - [原因：新环境需要完整设计]
+- **系列一致性** - [原因：同一世界中的多个故事]
+
+**触发短语：** "写完整的睡眠故事"、"创建一个新场景"、"设计一个系列"
+
+## 执行策略
+
+### 顺序执行（默认）
+- 模板选择先于场景
+- 场景先于感官分层
+- 分层先于起草
+
+### 可并行
+- 开发多个场景
+- 为不同环境创建感官分层列表
+
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|----------|----------|
+| 场景研究 | general-purpose | 创建真实世界地点时 |
+| 节奏分析 | general-purpose | 测试朗读速度和流畅度时 |
+
+## 上下文管理
+
+### 近似 Token 占用
+- **技能基础：** ~2.5k tokens（支柱 + 模板 + 技巧）
+- **含场景：** ~3.5k tokens
+- **含练习：** ~4k tokens
+
+### 上下文优化
+- 聚焦于活跃的模板和场景
+- 感官指南是参考
+- 练习是可选的学习材料
+
+### 上下文紧张时
+- 优先：五大支柱、活跃模板
+- 延后：完整场景列表、所有感官分层
+- 丢弃：写作练习、开头示例
+
+## 反模式
+
+### 1. 伪装的戏剧
+**模式：** 创建看似安抚的故事，但嵌入了微妙的张力——有到达期限的旅程、有失败风险的任务、需要解决的悬疑。
+**为何失败：** 人脑即使在张力温和时也会检测到叙事张力。听众会参与进来以看到结果，这恰恰与睡眠所需相反。任何"会不会"的问题都会激活警觉性。
+**修正：** 消除所有利害关系。旅程没有目的地。任务没有后果。什么都不取决于什么。故事描述正在发生什么，而非可能发生什么。
+
+### 2. 参与性写作习惯
+**模式：** 使用常规小说的技巧——情节钩子、角色发展、上升动作——因为这些是你知道如何写的东西。
+**为何失败：** 好的小说让读者保持清醒以了解接下来发生什么。睡眠故事必须刻意避免让常规小说有效的那些东西。自动驾驶式写作会产生错误类型的故事。
+**修正：** 有意识地逆转你的本能。如果一句话让你想知道接下来会发生什么，那就是需要修改的信号。最好的睡眠故事是如果你试图保持清醒就永远不会读完的那种。
+
+### 3. 感官冲击
+**模式：** 在本来平静的叙事中包含刺耳的声音、突然的动作或强烈的感官描述。
+**为何失败：** 一个"门砰地关上"或"强光涌入"就能触发警觉性。刺耳的辅音和突然的动词造成声学和心理上的干扰。
+**修正：** 大声朗读并留意冲击性的时刻。将每一个突然的词替换为渐进的词。柔化每一个辅音群。声学质感应该和内容一样平滑。
+
+### 4. 速度蠕变
+**模式：** 写作时不自觉地加速节奏，句子变短，事件推进加快。
+**为何失败：** 更快的节奏暗示重要性，重要性暗示需要注意。即使内容平静，听众的神经系统也会对节奏做出反应。
+**修正：** 设定计时器并大声朗读。目标是每分钟 120-140 个词——比正常阅读速度显著慢。如果你在赶，听众的注意力也会跟着赶。
+
+### 5. 结局执念
+**模式：** 觉得必须给故事一个适当的结尾，要有结论和满足感。
+**为何失败：** 结尾创造一个唤醒点。正在迷糊的听众意识到"哦，要结束了"然后猛然回神。目标是让故事永远继续或不知不觉地消退。
+**修正：** 写没有自然终点的故事。火车旅程继续着。花园散步在继续。茶永远在泡着。将故事结构设计为在任何点停下都感觉完整。
+
+## 集成
+
+### 入站（为本技能提供输入）
+| 技能 | 提供内容 |
+|------|----------|
+| prose-style | 用于流畅和节奏的句子层级技巧 |
+| worldbuilding | 可详细描述的平静、安全场景 |
+
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|-------------------|
+| （专门格式——主要是终端产品） | 睡眠故事是最终产品而非其他技能的输入 |
+
+### 互补
+| 技能 | 关系 |
+|------|------|
+| prose-style | sleep-story 以特定约束应用散文技巧；prose-style 提供底层技巧基础 |
+| voice-analysis | 理解声音模式有助于全程维持一致的安抚基调 |

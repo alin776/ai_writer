@@ -1,6 +1,6 @@
 ---
 name: flash-fiction
-description: Diagnose and fix problems in flash fiction and micro fiction. Use when flash fiction feels weak, when writing stories under 1500 words, when working with micro fiction, sudden fiction, or compressed narrative forms.
+description: 诊断和修正闪小说与微型小说中的问题。适用于闪小说感觉薄弱、写作1500字以下的故事、处理微型小说、突然小说或压缩叙事形式时。
 license: MIT
 metadata:
   author: jwynia
@@ -11,52 +11,52 @@ metadata:
 allowed-tools: [read_file, write_file, edit_file, glob, grep, execute]
 ---
 
-# Flash Fiction Diagnostic
+# 闪小说诊断
 
-## Purpose
+## 目的
 
-Diagnose and fix problems in flash fiction and micro fiction (typically under 1500 words). Flash fiction demands exceptional craft efficiency—every word must serve multiple purposes. This skill identifies which dimension needs attention when a piece isn't working.
+诊断和修正闪小说与微型小说（通常1500字以下）中的问题。闪小说要求极高的技巧效率——每个词都必须服务于多重目的。该技能识别当作品不起作用时需要关注的维度。
 
-## Quick Reference
+## 快速参考
 
-| State | Signal | Core Issue |
-|-------|--------|------------|
-| FF1 | Opening doesn't hook | Structure/Pacing problem |
-| FF2 | Characters feel thin | Character compression failure |
-| FF3 | Beginning/ending disconnect | Frame weakness |
-| FF4 | Everything on surface | Subtext missing |
-| FF5 | Prose feels flat | Imagery/figurative language weak |
-| FF6 | Setting generic | Sensory detail lacking |
-| FF7 | Theme absent or preachy | Thematic development off |
-| FF8 | Words don't sing | Language precision/rhythm issues |
-| FF9 | Something feels "off" | Logical consistency breach |
+| 状态 | 信号 | 核心问题 |
+|------|------|---------|
+| FF1 | 开头没有钩子 | 结构/节奏问题 |
+| FF2 | 角色感觉单薄 | 角色压缩失败 |
+| FF3 | 开头/结尾断裂 | 框架薄弱 |
+| FF4 | 一切在表面 | 缺少潜台词 |
+| FF5 | 散文感觉平淡 | 意象/修辞语言薄弱 |
+| FF6 | 背景通用 | 感官细节缺乏 |
+| FF7 | 主题缺失或说教 | 主题发展偏差 |
+| FF8 | 文字不歌唱 | 语言精准度/节奏问题 |
+| FF9 | 某处感觉"不对" | 逻辑一致性破裂 |
 
-## Diagnostic States
+## 诊断状态
 
-### FF1: Structure & Pacing Failure
+### FF1：结构与节奏失败
 
-**Symptoms:**
-- Opening doesn't grab
-- Middle sags or rushes
-- Ending feels abrupt or dragged
-- Word count not distributed well
-- Arc feels incomplete
+**症状：**
+- 开头不吸引人
+- 中间拖沓或急促
+- 结尾感觉突兀或拖拉
+- 字数分配不佳
+- 弧线感觉不完整
 
-**Diagnostic Questions:**
-1. Does the first sentence create immediate engagement?
-2. Is there a clear turning point?
-3. Does each paragraph advance multiple purposes (plot + character + theme)?
-4. Is the scope appropriate for the word count?
-5. Is information released at optimal moments?
+**诊断问题：**
+1. 第一句话是否创造了立即的参与感？
+2. 有没有清晰的转折点？
+3. 每个段落是否推进了多重目的（情节 + 角色 + 主题）？
+4. 范围是否适合字数？
+5. 信息是否在最佳时刻释放？
 
-**Interventions:**
-- Map the arc: beginning → rising action → climax → resolution
-- Calculate word distribution across sections
-- Strengthen opening hook (in medias res, mystery, declaration)
-- Ensure ending provides closure while leaving resonance
-- Cut any paragraph that only does one thing
+**干预措施：**
+- 映射弧线：开头 → 上升 → 高潮 → 结局
+- 计算各部分的字数分配
+- 加强开头钩子（从中间开始、悬念、声明）
+- 确保结尾提供闭合感同时留下余韵
+- 删除只做一件事的段落
 
-**Transformation Pattern:**
+**转化模式：**
 ```
 WEAK: "Sarah had been working at the firm for three years when she found the file."
 STRONG: "The file had no label—just a smudge of what looked like dried blood along its edge."
@@ -64,30 +64,30 @@ STRONG: "The file had no label—just a smudge of what looked like dried blood a
 
 ---
 
-### FF2: Character Compression Failure
+### FF2：角色压缩失败
 
-**Symptoms:**
-- Characters feel generic or interchangeable
-- Too much backstory exposition
-- Character change feels unearned
-- Relationships explained rather than shown
-- No sense of life beyond the page
+**症状：**
+- 角色感觉通用或可互换
+- 太多背景故事说明
+- 角色变化感觉不够充分
+- 关系被解释而非展示
+- 没有超出纸面的生命感
 
-**Diagnostic Questions:**
-1. Is each character introduced through revealing action?
-2. Can history be inferred without explicit backstory?
-3. Do defining objects/mannerisms reveal essence?
-4. Is the character arc shown through parallel actions?
-5. Do relationships emerge through interaction, not explanation?
+**诊断问题：**
+1. 每个角色是否通过揭示性动作被介绍？
+2. 历史能否在不显式回溯的情况下被推断？
+3. 定义性物品/举止是否揭示了本质？
+4. 角色弧线是否通过平行动作展示？
+5. 关系是否通过互动而非解释浮现？
 
-**Interventions:**
-- Replace generic description with character-specific detail
-- Convert backstory exposition to implications
-- Ensure first action reveals personality
-- Show change through decision pattern shifts
-- Establish relationships through what's unspoken
+**干预措施：**
+- 用角色特有的细节替换通用描述
+- 将背景故事说明转换为暗示
+- 确保第一个动作揭示个性
+- 通过决策模式的变化展示改变
+- 通过未言之事建立关系
 
-**Transformation Pattern:**
+**转化模式：**
 ```
 WEAK: "James had PTSD from the war. He moved to escape memories."
 STRONG: "James flinched at the turkey platter's clatter, hand reaching for the phantom sidearm.
@@ -97,30 +97,30 @@ of strangers before meeting them."
 
 ---
 
-### FF3: Beginning/Ending Frame Weakness
+### FF3：开头/结尾框架薄弱
 
-**Symptoms:**
-- Opening and closing feel disconnected
-- No sense of journey despite brevity
-- Ending doesn't fulfill opening's promise
-- First/last images don't resonate
-- Structure feels arbitrary
+**症状：**
+- 开头和结尾感觉脱节
+- 尽管简短却没有旅程感
+- 结尾没有兑现开头的承诺
+- 首尾意象不产生共鸣
+- 结构感觉随意
 
-**Diagnostic Questions:**
-1. What does the opening promise the reader?
-2. Does the ending fulfill or meaningfully subvert that promise?
-3. Is there a first/last image relationship (echo, transformation, contrast)?
-4. Does the ending feel both surprising and inevitable?
-5. What emotion persists after reading?
+**诊断问题：**
+1. 开头向读者承诺了什么？
+2. 结尾是否兑现或有意义地颠覆了那个承诺？
+3. 首尾意象之间是否有关系（回声、转化、对比）？
+4. 结尾是否既出乎意料又不可避免？
+5. 阅读后什么情感持续？
 
-**Interventions:**
-- Identify the implicit contract the opening creates
-- Ensure closing image relates to opening image
-- Consider circular structure (return with transformation)
-- Strengthen final sentence for resonance
-- Check that emotional journey is complete
+**干预措施：**
+- 确定开头创造的隐性契约
+- 确保结尾意象与开头意象相关
+- 考虑循环结构（带转化的回归）
+- 加强最后一句的余韵
+- 检查情感旅程是否完整
 
-**Transformation Pattern:**
+**转化模式：**
 ```
 WEAK ENDING: "So they decided not to sell. They were happy. The end."
 STRONG ENDING: "Daniel returned the FOR SALE sign to the garage, laid it beside the smaller
@@ -129,30 +129,30 @@ one from his childhood treehouse. Some prices, they'd decided, were too steep to
 
 ---
 
-### FF4: Subtext Missing
+### FF4：缺少潜台词
 
-**Symptoms:**
-- Everything stated explicitly
-- No layers beneath surface
-- Readers don't participate in meaning-making
-- Backstory dumped, not implied
-- No iceberg effect
+**症状：**
+- 一切都明确陈述
+- 表面之下没有层次
+- 读者不参与意义的构建
+- 背景故事被倾倒而非暗示
+- 没有冰山效应
 
-**Diagnostic Questions:**
-1. What is stated that could be implied?
-2. What is strategically left unsaid?
-3. Are there meaningful gaps for readers to fill?
-4. Does the visible portion suggest invisible depth?
-5. Is ambiguity purposeful or accidental?
+**诊断问题：**
+1. 什么被说出了但可以被暗示？
+2. 有什么被策略性地未说？
+3. 是否有留给读者填补的有意义空白？
+4. 可见部分是否暗示了不可见的深度？
+5. 模糊性是有意的还是偶然的？
 
-**Interventions:**
-- Convert explicit statements to implications
-- Create strategic gaps (narrative ellipsis)
-- Withhold information for revelation impact
-- Apply iceberg theory: show tip, imply mass below
-- Ensure backstory emerges through objects/actions, not explanation
+**干预措施：**
+- 将显式陈述转换为暗示
+- 创造策略性空白（叙事省略）
+- 为揭示的冲击力保留信息
+- 应用冰山理论：展示冰山一角，暗示水下的巨大体量
+- 确保背景故事通过物品/动作浮现，而非解释
 
-**Transformation Pattern:**
+**转化模式：**
 ```
 EXPLICIT: "John never recovered from his divorce. He felt bitter about Maria leaving him."
 IMPLIED: "John twisted his wedding ring finger, a reflex unchanged by three years and
@@ -162,30 +162,30 @@ the laugh before the face."
 
 ---
 
-### FF5: Imagery & Figurative Language Weak
+### FF5：意象与修辞语言薄弱
 
-**Symptoms:**
-- Prose feels flat or utilitarian
-- Metaphors cliched or absent
-- No pattern to imagery
-- Symbols heavy-handed or missing
-- Descriptions don't resonate
+**症状：**
+- 散文感觉平淡或功利
+- 比喻老套或缺失
+- 意象没有模式
+- 象征过于明显或缺失
+- 描写不产生共鸣
 
-**Diagnostic Questions:**
-1. Are comparisons fresh and precise?
-2. Do metaphors/similes serve multiple purposes (character + theme + emotion)?
-3. Is there an imagery pattern that develops?
-4. Are symbolic objects naturally integrated?
-5. Is there balance between concrete and abstract?
+**诊断问题：**
+1. 比较是否新鲜而精确？
+2. 隐喻/明喻是否服务于多重目的（角色 + 主题 + 情感）？
+3. 是否有发展中的意象模式？
+4. 象征性物品是否自然融入？
+5. 具体与抽象之间是否平衡？
 
-**Interventions:**
-- Replace clichéd comparisons with original ones
-- Ensure figurative language reveals character perspective
-- Build related image patterns that develop
-- Select symbolic objects that can transform meaning
-- Ground abstract concepts in concrete imagery
+**干预措施：**
+- 用原创的替换老套的比较
+- 确保修辞语言揭示角色视角
+- 建立发展中的相关意象模式
+- 选择能转化含义的象征性物品
+- 用具体意象锚定抽象概念
 
-**Transformation Pattern:**
+**转化模式：**
 ```
 FLAT: "The factory was abandoned and looked sad."
 RICH: "Machinery hulked under dust shrouds, metal teeth gleaming in fractured light
@@ -194,30 +194,30 @@ between boarded windows. No one suggested splitting up."
 
 ---
 
-### FF6: Setting & Sensory Detail Lacking
+### FF6：背景与感官细节缺乏
 
-**Symptoms:**
-- Location generic or absent
-- Only visual sense engaged
-- Setting doesn't serve character/theme
-- Atmosphere missing
-- Environment feels like backdrop, not participant
+**症状：**
+- 地点通用或缺失
+- 只有视觉感被调动
+- 背景不服务于角色/主题
+- 氛围缺失
+- 环境像布景板而非参与者
 
-**Diagnostic Questions:**
-1. How quickly is the reader oriented in specific time/place?
-2. Are multiple senses engaged?
-3. Does setting reveal character without stating it?
-4. Does environment reinforce theme?
-5. Is atmospheric mood established through concrete detail?
+**诊断问题：**
+1. 读者多快被定位到具体的时间/地点？
+2. 多种感官是否被调动？
+3. 背景是否在不直说的情况下揭示角色？
+4. 环境是否强化了主题？
+5. 是否通过具体细节建立了情绪氛围？
 
-**Interventions:**
-- Replace generic settings with specific, revealing locations
-- Incorporate non-visual senses (sound, smell, touch, taste)
-- Make setting details reveal character relationship to place
-- Align physical environment with thematic concerns
-- Embed mood in concrete details, not stated atmosphere
+**干预措施：**
+- 用具体的、揭示性的地点替换通用背景
+- 加入非视觉感官（声音、气味、触觉、味觉）
+- 使背景细节揭示角色与地方的关系
+- 使物理环境与主题关切对齐
+- 在具体细节中嵌入情绪，而非陈述氛围
 
-**Transformation Pattern:**
+**转化模式：**
 ```
 GENERIC: "The coffee shop was busy. People sat drinking coffee."
 SPECIFIC: "The Fallout Shelter Café's concrete walls trapped steam from twenty
@@ -227,30 +227,30 @@ with grinding beans and Ella Fitzgerald's crackled vinyl."
 
 ---
 
-### FF7: Thematic Development Off
+### FF7：主题发展偏差
 
-**Symptoms:**
-- Theme absent or unclear
-- Theme stated, not embodied
-- Didactic/preachy tone
-- Single perspective dominates
-- Ending oversimplifies
+**症状：**
+- 主题缺失或不清晰
+- 主题被陈述而非体现
+- 说教/布道的语气
+- 单一视角主导
+- 结尾过度简化
 
-**Diagnostic Questions:**
-1. Is the theme identifiable without being heavy-handed?
-2. Does theme emerge from character and situation (not imposed)?
-3. Are multiple perspectives on the theme represented?
-4. Is thematic content conveyed through concrete details?
-5. Does the conclusion deepen rather than simplify?
+**诊断问题：**
+1. 主题是否可以识别而不显得刻意？
+2. 主题是否从角色和情境中自然浮现（而非强加）？
+3. 是否呈现了对主题的多种视角？
+4. 主题内容是否通过具体细节传达？
+5. 结论是否加深而非简化？
 
-**Interventions:**
-- Embody theme in action and object, not statement
-- Show theme through specific circumstances, then let readers generalize
-- Include multiple viewpoints on the thematic question
-- Replace "character realized that..." with demonstrating action
-- Preserve complexity in the conclusion
+**干预措施：**
+- 通过行动和物品而非陈述来体现主题
+- 通过具体情境展示主题，然后让读者自行概括
+- 包含对主题问题的多种观点
+- 用展示的行动替换"角色意识到……"
+- 在结论中保持复杂性
 
-**Transformation Pattern:**
+**转化模式：**
 ```
 STATED: "Carl realized that trust was essential for relationships."
 EMBODIED: "Carl handed her the combination to the safe where he kept
@@ -259,30 +259,30 @@ his mother's letters, then turned away so he wouldn't see her expression."
 
 ---
 
-### FF8: Language Precision & Rhythm Issues
+### FF8：语言精准度与节奏问题
 
-**Symptoms:**
-- Weak verbs (walked, went, was)
-- Vague nouns (thing, stuff, area)
-- Unnecessary modifiers
-- Sentence monotony
-- No musicality
+**症状：**
+- 动词无力（走了、去了、是）
+- 名词模糊（东西、那个、区域）
+- 不必要的修饰语
+- 句式单调
+- 没有音乐性
 
-**Diagnostic Questions:**
-1. Does each verb precisely capture the specific action?
-2. Are nouns concrete and specific?
-3. Does each modifier meaningfully sharpen understanding?
-4. Are sentence lengths and structures varied?
-5. Do sound patterns enhance (alliteration, rhythm, cadence)?
+**诊断问题：**
+1. 每个动词是否精确捕捉了具体动作？
+2. 名词是否具体而特定？
+3. 每个修饰语是否有意义地增进了理解？
+4. 句子长度和结构是否有变化？
+5. 音韵模式是否增强效果（头韵、节奏、韵律）？
 
-**Interventions:**
-- Replace weak verbs with precise, energetic alternatives
-- Substitute general nouns with specific, sensory-rich ones
-- Eliminate redundant or decorative modifiers
-- Vary sentence structure for rhythm and emphasis
-- Develop sound patterns that match meaning
+**干预措施：**
+- 用精确、有力的替代品替换无力的动词
+- 用具体的、感官丰富的名词替换通用名词
+- 删除冗余或装饰性修饰语
+- 变化句式结构以产生节奏和强调
+- 发展与含义匹配的音韵模式
 
-**Transformation Pattern:**
+**转化模式：**
 ```
 WEAK: "She went across the field quickly."
 PRECISE: "She slashed through the wheat, scattering husks."
@@ -293,30 +293,30 @@ VARIED: "He opened the door and looked inside. Nothing. The door clicked shut as
 
 ---
 
-### FF9: Logical Consistency Breach
+### FF9：逻辑一致性破裂
 
-**Symptoms:**
-- Something feels "off" even if hard to identify
-- Physical impossibilities
-- Timeline contradictions
-- Characters know things they shouldn't
-- Rules established then broken
+**症状：**
+- 某处感觉"不对"即使难以确定
+- 物理上的不可能
+- 时间线矛盾
+- 角色知道他们不该知道的事
+- 规则建立后被打破
 
-**Diagnostic Questions:**
-1. Do objects function consistently?
-2. Does the timeline allow events as described?
-3. Do characters know only what they could realistically know?
-4. Are physical limitations respected?
-5. If rules are bent, is it consistent?
+**诊断问题：**
+1. 物品是否一致地运作？
+2. 时间线是否允许所描述的事件？
+3. 角色是否只知道他们能合理知道的？
+4. 物理限制是否被尊重？
+5. 如果规则被弯曲，是否一致？
 
-**Interventions:**
-- Map physical movement and verify possibility
-- Chart events chronologically with durations
-- Check character knowledge boundaries
-- Verify cause-effect proportionality
-- Document world rules and check consistent application
+**干预措施：**
+- 映射物理移动并验证可能性
+- 按时间顺序绘制事件及其持续时间
+- 检查角色的知识边界
+- 验证因果比例
+- 记录世界规则并检查一致应用
 
-**Transformation Pattern:**
+**转化模式：**
 ```
 IMPOSSIBLE: "She finished her shift at midnight, drove 30 miles home,
 cooked dinner, and was in bed by 12:15."
@@ -326,106 +326,106 @@ closer to the hospital meant she could be cooking within minutes."
 
 ---
 
-## Evaluation Checklist
+## 评估清单
 
-For any flash fiction piece:
+对任何闪小说作品：
 
-**Structure (FF1)**
-- [ ] First sentence hooks
-- [ ] Each paragraph serves multiple purposes
-- [ ] Clear arc despite compression
-- [ ] Scope matches word count
+**结构（FF1）**
+- [ ] 第一句有钩子
+- [ ] 每个段落服务于多重目的
+- [ ] 尽管压缩但有清晰的弧线
+- [ ] 范围匹配字数
 
-**Character (FF2)**
-- [ ] Characters introduced through revealing action
-- [ ] History inferred, not explained
-- [ ] Change shown through action
+**角色（FF2）**
+- [ ] 角色通过揭示性动作被介绍
+- [ ] 历史被推断而非解释
+- [ ] 变化通过动作展示
 
-**Frame (FF3)**
-- [ ] Opening/closing images relate
-- [ ] Ending fulfills or transforms promise
-- [ ] Emotional journey complete
+**框架（FF3）**
+- [ ] 首尾意象相关
+- [ ] 结尾兑现或转化了承诺
+- [ ] 情感旅程完整
 
-**Subtext (FF4)**
-- [ ] More implied than stated
-- [ ] Strategic gaps for reader participation
-- [ ] Iceberg effect achieved
+**潜台词（FF4）**
+- [ ] 暗示多于陈述
+- [ ] 策略性空白留给读者参与
+- [ ] 冰山效应达成
 
-**Imagery (FF5)**
-- [ ] Fresh figurative language
-- [ ] Imagery patterns develop
-- [ ] Symbols naturally integrated
+**意象（FF5）**
+- [ ] 新鲜的修辞语言
+- [ ] 意象模式发展
+- [ ] 象征自然融入
 
-**Setting (FF6)**
-- [ ] Specific time/place established quickly
-- [ ] Multiple senses engaged
-- [ ] Setting serves theme
+**背景（FF6）**
+- [ ] 快速建立具体时间/地点
+- [ ] 多种感官被调动
+- [ ] 背景服务于主题
 
-**Theme (FF7)**
-- [ ] Theme emerges, not stated
-- [ ] Multiple perspectives present
-- [ ] Complexity preserved
+**主题（FF7）**
+- [ ] 主题浮现而非陈述
+- [ ] 呈现多种视角
+- [ ] 保持复杂性
 
-**Language (FF8)**
-- [ ] Precise verbs
-- [ ] Concrete nouns
-- [ ] Sentence variety
-- [ ] Musicality present
+**语言（FF8）**
+- [ ] 精确的动词
+- [ ] 具体的名词
+- [ ] 句式变化
+- [ ] 音乐性存在
 
-**Consistency (FF9)**
-- [ ] Physics work
-- [ ] Timeline possible
-- [ ] Knowledge boundaries respected
-
----
-
-## Anti-Patterns
-
-### The Miniature Novel
-Trying to compress a novel-length story into flash length. Flash fiction is not a summary—it's a complete experience in miniature. Choose a scope that fits.
-
-### The Twist Dependency
-Relying entirely on a surprise ending. If the story only works with the twist, the preceding content isn't pulling weight. The journey should matter.
-
-### The Vignette Trap
-Beautiful prose without narrative movement. Flash fiction still needs change—something must be different by the end, even if subtle.
+**一致性（FF9）**
+- [ ] 物理规律有效
+- [ ] 时间线可能
+- [ ] 知识边界被尊重
 
 ---
 
-## Integration Points
+## 反模式
 
-**Inbound:**
-- From `story-sense`: After identifying story state
-- From `drafting`: During first draft creation
-- From `revision`: For line-level polish
+### 微型小说
+试图将长篇小说级别的故事压缩到闪小说的长度。闪小说不是概要——它是微缩的完整体验。选择适合的范围。
 
-**Outbound:**
-- To `prose-style`: For deeper language work
-- To `dialogue`: For conversation problems
-- To `endings`: For closure issues
+### 反转依赖
+完全依赖惊奇的结尾。如果故事只有反转才有效，前面的内容没有发挥作用。旅程本身应该重要。
 
-**Complementary:**
-- `scene-sequencing`: Single-scene pacing
-- `character-arc`: Compressed transformation
-- `cliche-transcendence`: Fresh imagery generation
+### 小品陷阱
+优美的散文但没有叙事运动。闪小说仍然需要变化——到结尾时必须有所不同，即使是微妙的。
 
 ---
 
-## Word Count Guidance
+## 整合点
 
-| Length | Name | Focus Priority |
-|--------|------|----------------|
-| <100 | Drabble | Single image, single moment, maximum compression |
-| 100-500 | Micro fiction | One scene, one shift, implication over statement |
-| 500-1000 | Flash fiction | Small arc, 1-2 scenes, full iceberg effect |
-| 1000-1500 | Sudden fiction | Multiple scenes possible, more character room |
-| 1500-2500 | Short short | Approaching short story territory |
+**入站：**
+- 来自 `story-sense`：确定故事状态后
+- 来自 `drafting`：初稿创作过程中
+- 来自 `revision`：行级打磨时
+
+**出站：**
+- 到 `prose-style`：进行更深入的语言工作
+- 到 `dialogue`：处理对话问题
+- 到 `endings`：处理结尾问题
+
+**互补：**
+- `scene-sequencing`：单场景节奏
+- `character-arc`：压缩的转变
+- `cliche-transcendence`：生成新鲜意象
 
 ---
 
-## Sources
+## 字数指南
 
-Frameworks synthesized from flash fiction craft analysis, incorporating principles from:
-- Hemingway's iceberg theory
-- John Gardner on the "vivid and continuous dream"
-- Compression techniques from poetry applied to prose
+| 长度 | 名称 | 重点优先级 |
+|------|------|-----------|
+| <100 | 百字微小说 | 单一意象、单一时刻、最大压缩 |
+| 100-500 | 微型小说 | 一个场景、一次转变、暗示胜于陈述 |
+| 500-1000 | 闪小说 | 小弧线、1-2个场景、完整冰山效应 |
+| 1000-1500 | 突然小说 | 可以有多个场景、更多角色空间 |
+| 1500-2500 | 极短篇 | 接近短篇小说领域 |
+
+---
+
+## 参考来源
+
+框架综合自闪小说写作技巧分析，融合了以下原则：
+- 海明威的冰山理论
+- 约翰·加德纳关于"生动而持续的梦境"的论述
+- 来自诗歌的压缩技术应用于散文

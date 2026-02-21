@@ -1,6 +1,6 @@
 ---
 name: underdog-unit
-description: Generate stories about institutional outcasts given impossible mandates with minimal resources. Use when you want team dynamics in hostile institutions, David vs. Goliath within organizations, or narrative tension from constraint-driven creativity.
+description: 生成关于体制内被排斥者接受不可能任务、以最少资源完成使命的故事。适用于需要在敌对体制中的团队动态、组织内部的以弱胜强对抗，或因约束驱动创意而产生的叙事张力。
 license: MIT
 metadata:
   author: jwynia
@@ -11,386 +11,386 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Underdog Unit: Narrative Formula Skill
+# 弱势小队：叙事公式技能
 
-You help writers create stories using the "Underdog Unit" formula: institutional outcasts given impossible mandates with minimal resources, creating pressure cookers for character development and creative problem-solving.
+你帮助写作者使用"弱势小队"公式创作故事：体制内的被排斥者接受不可能的任务、拥有最少的资源，创造出角色发展和创造性解决问题的压力锅。
 
-## Core Formula
+## 核心公式
 
-**Outcasts + Impossible Mandate + Severe Constraints = Narrative Tension**
+**被排斥者 + 不可能的任务 + 严苛的约束 = 叙事张力**
 
-The power lies in:
-- Forcing creative solutions through limitation
-- Building team bonds through shared adversity
-- Creating David vs. Goliath dynamics within institutions
+这个公式的力量在于：
+- 通过限制迫使创造性解决方案
+- 通过共同的逆境建立团队纽带
+- 在体制内部创造以弱胜强的动态
 
-## The Four Core Elements
+## 四个核心元素
 
-### 1. The Mandate (Mission Type)
+### 1. 任务（使命类型）
 
-| Mandate Type | Enemy | Examples |
+| 任务类型 | 敌人 | 举例 |
 |--------------|-------|----------|
-| Cold Cases | Time | Old evidence, faded memories, dead witnesses |
-| Impossible/Unsolvable | Complexity | Cases that stumped the best |
-| Cross-Jurisdictional | Bureaucracy | Navigating multiple systems |
-| Internal Affairs | Institution | Investigating their own |
-| Experimental/New Threats | The Unknown | Cyber, biotech, emerging crimes |
-| PR Disasters | Perception | High-profile failures |
-| Political Hot Potatoes | Politics | Cases no one wants |
-| Reject Pile | Apathy | Cases deemed unimportant |
+| 悬案 | 时间 | 旧证据、褪色的记忆、已故的证人 |
+| 不可能/无解案件 | 复杂性 | 难倒最优秀者的案件 |
+| 跨辖区案件 | 官僚主义 | 在多个系统间斡旋 |
+| 内部事务 | 体制本身 | 调查自己人 |
+| 实验性/新威胁 | 未知 | 网络、生物技术、新兴犯罪 |
+| 公关灾难 | 舆论 | 高知名度的失败 |
+| 政治烫手山芋 | 政治 | 没人愿意接的案件 |
+| 废弃堆 | 漠视 | 被认为不重要的案件 |
 
-### 2. The Constraints (Resource Limitations)
+### 2. 约束（资源限制）
 
-**Physical Space**: Basement storage, abandoned wings, trailers, repurposed areas
+**物理空间**：地下室仓库、废弃侧翼、拖车、改造的区域
 
-**Budget**: Shoestring, self-funded, borrowed, scavenged, barter economy
+**预算**：勉强维持、自掏腰包、借来的、搜刮的、以物易物
 
-**Personnel**: Skeleton crew, part-time, borrowed, probationary, volunteers
+**人员**：最低配置、兼职、借调的、试用期的、志愿者
 
-**Authority**: Limited jurisdiction, advisory only, unofficial, no arrest powers
+**权限**：有限管辖权、仅限咨询、非官方、无逮捕权
 
-**Time**: Sunset clause, probationary period, case-by-case renewal
+**时间**：落日条款、试用期、逐案续期
 
-**Technology**: Outdated, no database access, analog only, DIY solutions
+**技术**：过时的、无数据库访问权、仅限模拟设备、DIY 解决方案
 
-**Political**: No leadership support, active sabotage, scapegoat status
+**政治**：无领导支持、被主动破坏、替罪羊地位
 
-### 3. The Team Composition (Outcast Archetypes)
+### 3. 团队组成（被排斥者原型）
 
-| Archetype | Description | Story Function |
+| 原型 | 描述 | 故事功能 |
 |-----------|-------------|----------------|
-| The Disgraced Expert | Former star with catastrophic failure | Seeking redemption |
-| The Rule-Breaker | Gets results through unorthodox methods | Values justice over procedure |
-| The Burnout | Lost faith in the system | Rediscovers purpose |
-| The Rookie | Inexperienced but eager | Fresh perspective, hasn't learned "impossible" |
-| The Outsider | Civilian/reformed criminal/foreign expert | Outside knowledge |
-| The Has-Been | Past glory, current irrelevance | Institutional memory |
-| The Whistleblower | Did the right thing at wrong time | Principled but isolated |
-| The Misfit | Doesn't fit institutional culture | Competent but "difficult" |
+| 蒙羞的专家 | 曾经的明星，遭遇灾难性失败 | 寻求救赎 |
+| 破坏规则者 | 用非正统方法取得成果 | 重视正义甚于程序 |
+| 燃尽者 | 对体制失去信心 | 重新发现使命感 |
+| 新人 | 缺乏经验但满腔热忱 | 新鲜视角，尚未学会"不可能" |
+| 局外人 | 平民/改过自新者/外国专家 | 外部知识 |
+| 过时者 | 昔日辉煌，当前无关紧要 | 体制记忆 |
+| 吹哨人 | 在错误的时间做了正确的事 | 有原则但被孤立 |
+| 异类 | 不适应体制文化 | 有能力但"难搞" |
 
-### 4. The Institutional Dynamics
+### 4. 体制动态
 
-| Leadership Type | Relationship to Unit |
+| 领导类型 | 与小队的关系 |
 |-----------------|---------------------|
-| Hostile | Wants them to fail, actively undermines |
-| Indifferent | Forgot they exist, benign neglect |
-| Protective | One champion shields from bureaucracy |
-| Conditional | Support contingent on results |
-| Divided | Competing agendas, mixed messages |
+| 敌对型 | 希望他们失败，主动破坏 |
+| 漠视型 | 忘了他们的存在，善意忽视 |
+| 保护型 | 一个支持者为其遮风挡雨 |
+| 有条件型 | 支持取决于成果 |
+| 分裂型 | 相互竞争的议程，混乱的信号 |
 
-## Team Formation Patterns
+## 团队组建模式
 
-- **Assigned**: No choice, stuck with each other
-- **Recruited**: Leader hand-picks for skills
-- **Volunteered**: Self-selected from desperation or belief
-- **Sentenced**: Alternative to worse fate
-- **Inherited**: Previous iteration's leftovers
-- **Accidental**: Thrown together by circumstance
+- **被指派**：别无选择，被困在一起
+- **被招募**：领导者因技能亲手挑选
+- **自愿**：出于绝望或信念自行加入
+- **被判处**：替代更糟糕命运的选择
+- **被继承**：上一批的遗留
+- **偶然**：被境遇抛到一起
 
-## Formula Variations
+## 公式变体
 
-### The Redemption Arc
-- **Elements**: Disgraced professionals + impossible cases + hostile institution
-- **Theme**: Personal redemption parallels unit validation
-- **Climax**: Often sacrificial victory
+### 救赎弧线
+- **元素**：蒙羞的专业人士 + 不可能的案件 + 敌对的体制
+- **主题**：个人救赎与小队验证并行
+- **高潮**：往往是牺牲性的胜利
 
-### The Innovation Lab
-- **Elements**: Misfits + experimental mandate + indifferent institution
-- **Theme**: Innovation from the margins
-- **Climax**: Breakthrough validates unconventional methods
+### 创新实验室
+- **元素**：异类们 + 实验性任务 + 漠视的体制
+- **主题**：来自边缘的创新
+- **高潮**：突破验证了非正统方法
 
-### The Last Chance Saloon
-- **Elements**: Burnouts + cold cases + sunset clause
-- **Theme**: Finding purpose before it's too late
-- **Climax**: Each victory extends lifeline
+### 最后机会酒吧
+- **元素**：燃尽者们 + 悬案 + 落日条款
+- **主题**：在来不及之前找到意义
+- **高潮**：每次胜利延续生命线
 
-### The Expendables
-- **Elements**: Rule-breakers + dangerous cases + deniable operations
-- **Theme**: Sacrificial service
-- **Climax**: Success at personal cost
+### 消耗品
+- **元素**：破坏规则者 + 危险案件 + 可否认的行动
+- **主题**：牺牲式的服务
+- **高潮**：以个人代价换取成功
 
-### The Island of Misfit Toys
-- **Elements**: Misfits + reject cases + forgotten corner
-- **Theme**: Finding belonging in exile
-- **Climax**: Creating value from what others discarded
+### 破烂玩具岛
+- **元素**：异类们 + 废弃案件 + 被遗忘的角落
+- **主题**：在流放中找到归属
+- **高潮**：从别人丢弃的东西中创造价值
 
-## Systemic Tensions to Explore
+## 值得探索的系统性张力
 
-### Resource Creativity
-- Constraints force innovation
-- Informal networks vs. official channels
-- Personal investment compensating for support
-- Favor economy
+### 资源创造力
+- 约束迫使创新
+- 非正式网络 vs. 官方渠道
+- 个人投入弥补支持不足
+- 人情经济
 
-### Loyalty Dynamics
-- Team loyalty vs. institutional loyalty
-- When to break rules for results
-- Covering for each other's weaknesses
-- Us vs. them mentality
+### 忠诚动态
+- 团队忠诚 vs. 体制忠诚
+- 何时为了结果打破规则
+- 互相掩护弱点
+- 我们 vs. 他们的心态
 
-### Success Paradoxes
-- Success attracts unwanted attention
-- Success threatens established departments
-- Success raises expectations without raising resources
-- Success makes them targets
+### 成功悖论
+- 成功吸引不需要的关注
+- 成功威胁已有部门
+- 成功提高期望却不增加资源
+- 成功使他们成为靶子
 
-### Identity Questions
-- Professional identity vs. institutional rejection
-- Finding purpose in the margins
-- Building culture without support
-- Defining success on own terms
+### 身份问题
+- 职业身份 vs. 体制排斥
+- 在边缘中找到意义
+- 在没有支持的情况下建设文化
+- 用自己的标准定义成功
 
-## Implementation Guide
+## 实施指南
 
-### Step 1: Choose Core Conflict
-What enemy drives your narrative?
-- Time (cold cases)
-- Complexity (impossible cases)
-- Bureaucracy (jurisdictional)
-- Institution itself (corruption)
-- Unknown (emerging threats)
+### 第一步：选择核心冲突
+什么敌人驱动你的叙事？
+- 时间（悬案）
+- 复杂性（不可能的案件）
+- 官僚主义（辖区问题）
+- 体制本身（腐败）
+- 未知（新兴威胁）
 
-### Step 2: Layer Constraints
-Pick 3-4 for maximum friction:
-- One physical (space/equipment)
-- One resource (budget/personnel)
-- One authority (power/jurisdiction)
-- One relationship (institutional dynamics)
+### 第二步：叠加约束
+选择 3-4 个以获得最大摩擦：
+- 一个物理的（空间/设备）
+- 一个资源的（预算/人员）
+- 一个权限的（权力/管辖权）
+- 一个关系的（体制动态）
 
-### Step 3: Assemble Outcasts
-Build complementary dysfunctions:
-- Mix experience levels
-- Mix failure types
-- Mix backgrounds (insider/outsider)
-- Create interpersonal friction points
+### 第三步：组建被排斥者
+构建互补的功能障碍：
+- 混合经验层次
+- 混合失败类型
+- 混合背景（内部人/外部人）
+- 创造人际摩擦点
 
-### Step 4: Design Success Conditions
-Define victory:
-- Short-term wins vs. long-term survival
-- Individual redemption vs. unit validation
-- System change vs. working within it
-- Public victory vs. private knowledge
+### 第四步：设计成功条件
+定义胜利：
+- 短期胜利 vs. 长期存活
+- 个人救赎 vs. 小队验证
+- 改变系统 vs. 在系统内运作
+- 公开胜利 vs. 内心知晓
 
-### Step 5: Build Escalation
-Plan increasing pressures:
-- Skepticism → active opposition
-- Small wins → bigger challenges
-- Team friction → cohesion → new conflicts
-- Scarcity → solutions → new limitations
+### 第五步：设计升级
+规划不断增加的压力：
+- 怀疑 → 主动对抗
+- 小胜 → 更大挑战
+- 团队摩擦 → 凝聚 → 新冲突
+- 匮乏 → 解决方案 → 新限制
 
-## Stakes Escalation Pattern
+## 利害关系升级模式
 
-**Personal** → **Professional** → **Community** → **Systemic**
+**个人** → **职业** → **社区** → **系统性**
 
-1. Job at risk, reputation threatened
-2. Industry/organization threatened
-3. Neighbors, family, local area impacted
-4. Entire social/political order at stake
+1. 工作面临风险，声誉受到威胁
+2. 行业/组织受到威胁
+3. 邻居、家人、当地区域受到影响
+4. 整个社会/政治秩序面临危险
 
-## Unit Naming Conventions
+## 小队命名惯例
 
-**Official Designations**:
-- Unfortunate acronyms (S.C.U.M., F.A.I.L.)
-- Bureaucratic blandness (Special Projects Division)
-- Basement designations (Unit B-12)
-- Numbers instead of names (Unit 13, Division X)
+**官方名称**：
+- 不幸的缩写（S.C.U.M.、F.A.I.L.）
+- 官僚式的平淡（特别项目处）
+- 地下室编号（B-12 小队）
+- 用数字代替名字（13 小队、X 处）
 
-**Unofficial Names**:
-- Sardonic nicknames from other departments
-- Self-deprecating team adoptions
-- Gallows humor references
+**非官方名称**：
+- 其他部门起的讽刺绰号
+- 团队自嘲式采纳
+- 黑色幽默引用
 
-## Common Pitfalls
+## 常见陷阱
 
-| Pitfall | Solution |
+| 陷阱 | 解决方案 |
 |---------|----------|
-| Too many constraints | Believability breaks if literally everything is against them |
-| Unearned competence | Team needs to struggle before succeeding |
-| Deus ex machina resources | Solutions should come from established elements |
-| Perfect team harmony | Internal conflict drives development |
-| Institutional conversion | System rarely admits it was wrong |
-| Consequence-free rule breaking | Actions should have prices |
+| 约束太多 | 如果真的一切都与他们作对，可信度就崩了 |
+| 不劳而获的能力 | 团队需要在成功之前经历挣扎 |
+| 天降神兵式资源 | 解决方案应来自已建立的元素 |
+| 完美的团队和谐 | 内部冲突驱动角色发展 |
+| 体制改宗 | 系统很少承认自己是错的 |
+| 无后果的违规 | 行为应该有代价 |
 
-## Quick-Start Templates
+## 快速启动模板
 
-### Template 1: The Innocent Professional
-- **Pattern**: Competence Trap
-- **Team**: Translator + support staff
-- **Revelation**: Translating coded criminal communications
-- **Conflict**: Criminals, law enforcement, victims all need them
+### 模板 1：无辜的专业人士
+- **模式**：能力陷阱
+- **团队**：翻译员 + 支持人员
+- **揭示**：正在翻译经过编码的犯罪通信
+- **冲突**：罪犯、执法部门、受害者都需要他们
 
-### Template 2: The Desperate Survivor
-- **Pattern**: Weakness Lever
-- **Team**: Night shift cleaners
-- **Revelation**: Cleaning up disguised crime scenes
-- **Conflict**: Blackmail, police pressure, moral obligation
+### 模板 2：绝望的幸存者
+- **模式**：弱点杠杆
+- **团队**：夜班清洁工
+- **揭示**：清理的是伪装过的犯罪现场
+- **冲突**：勒索、警方压力、道德义务
 
-### Template 3: The Reluctant Heir
-- **Pattern**: Inherited Network
-- **Team**: Small shop staff (inherited)
-- **Revelation**: Shop is neutral ground for criminal negotiations
-- **Conflict**: Gang expectations, police, community safety
+### 模板 3：不情愿的继承人
+- **模式**：继承的网络
+- **团队**：小店员工（继承的）
+- **揭示**：店铺是犯罪谈判的中立地带
+- **冲突**：帮派期望、警方、社区安全
 
-## The Key Insight
+## 核心洞察
 
-The constraint becomes the catalyst; the outcasts become the heroes; the impossible becomes the inevitable. The formula works because external struggles mirror internal ones—characters fighting personal demons also fight institutional ones.
+约束成为催化剂；被排斥者成为英雄；不可能成为必然。这个公式之所以有效，是因为外部斗争映射内部斗争——角色在对抗个人心魔的同时也在对抗体制。
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/underdog-unit/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+### 输出路径发现
+1. 检查项目中是否有 `context/output-config.md`
+2. 如果找到，使用本技能的条目作为输出路径
+3. 如果未找到，**使用默认路径 `explorations/underdog-unit/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
 
-### Primary Output
-- **Mandate type** - Mission and enemy
-- **Constraints** - 3-4 selected limitations
-- **Team composition** - Outcasts with archetypes
-- **Institutional dynamics** - Leadership relationship
-- **Escalation plan** - Stakes progression
+### 主要输出
+- **任务类型** - 使命和敌人
+- **约束** - 选定的 3-4 个限制
+- **团队组成** - 带原型的被排斥者
+- **体制动态** - 领导关系
+- **升级计划** - 利害关系进展
 
-### File Naming
-Pattern: `{unit-name}-underdog-{date}.md`
+### 文件命名
+模式：`{unit-name}-underdog-{date}.md`
 
-## Verification (Oracle)
+## 验证（预言机）
 
-### What This Skill Can Verify
-- **Constraint count** - 3-4 constraints, not more? (High confidence)
-- **Team dysfunction** - Do outcasts have real flaws? (Medium confidence)
-- **Formula structure** - Core elements present? (High confidence)
+### 本技能可以验证的内容
+- **约束数量** - 3-4 个约束，没有更多？（高置信度）
+- **团队功能障碍** - 被排斥者是否有真实缺陷？（中等置信度）
+- **公式结构** - 核心元素是否齐全？（高置信度）
 
-### What Requires Human Judgment
-- **Plausibility** - Would institution actually create this unit?
-- **Team chemistry** - Will these outcasts generate interesting conflict?
-- **Stakes calibration** - Is escalation appropriate for story length?
+### 需要人工判断的内容
+- **合理性** - 体制真的会创建这个小队吗？
+- **团队化学反应** - 这些被排斥者会产生有趣的冲突吗？
+- **利害关系校准** - 升级对于故事长度是否适当？
 
-### Oracle Limitations
-- Cannot assess whether team dynamics will be compelling
-- Cannot predict reader sympathy for outcast characters
+### 预言机局限
+- 无法评估团队动态是否引人入胜
+- 无法预测读者对被排斥者角色的同情
 
-## Feedback Loop
+## 反馈循环
 
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Mandate, constraints, team, dynamics, escalation
-- **Naming pattern:** `{unit-name}-underdog-{date}.md`
+### 会话持久化
+- **输出位置：** 见 `context/output-config.md`
+- **保存内容：** 任务、约束、团队、动态、升级
+- **命名模式：** `{unit-name}-underdog-{date}.md`
 
-### Cross-Session Learning
-- Check for prior unit designs in this setting
-- Ensure institutional consistency
-- Failed unit dynamics inform anti-patterns
+### 跨会话学习
+- 检查此设定中之前的小队设计
+- 确保体制一致性
+- 失败的小队动态为反模式提供信息
 
-## Design Constraints
+## 设计约束
 
-### This Skill Assumes
-- Institution exists to work within/against
-- Resources are genuinely limited
-- Team members are genuinely flawed
+### 本技能假设
+- 存在可以在其中/对抗的体制
+- 资源确实有限
+- 团队成员确实有缺陷
 
-### This Skill Does Not Handle
-- **Individual character arcs** - Route to: character-arc
-- **Institutional worldbuilding** - Route to: governance-systems
-- **Scene pacing** - Route to: scene-sequencing
+### 本技能不处理的内容
+- **个人角色弧线** - 转交给：character-arc
+- **体制世界构建** - 转交给：governance-systems
+- **场景节奏** - 转交给：scene-sequencing
 
-### Degradation Signals
-- More than 4 constraints (implausible)
-- Team immediately competent (no struggle)
-- Institution converts at end (validates outcasts too easily)
+### 降解信号
+- 超过 4 个约束（不合理）
+- 团队立即就有能力（没有挣扎）
+- 体制在结尾改宗（太容易地验证了被排斥者）
 
-## Reasoning Requirements
+## 推理要求
 
-### Standard Reasoning
-- Single constraint selection
-- Individual outcast design
-- Basic team assembly
+### 标准推理
+- 单一约束选择
+- 个别被排斥者设计
+- 基本团队组建
 
-### Extended Reasoning (ultrathink)
-- **Full unit design** - [Why: all elements must balance]
-- **Multi-season escalation** - [Why: long-term stakes progression]
-- **Institutional integration** - [Why: unit must fit larger system]
+### 扩展推理（ultrathink）
+- **完整小队设计** - [原因：所有元素必须平衡]
+- **多季升级** - [原因：长期利害关系进展]
+- **体制融合** - [原因：小队必须融入更大系统]
 
-**Trigger phrases:** "design the complete unit", "plan the full series", "how does the institution work"
+**触发短语：** "设计完整的小队"、"规划整个系列"、"体制如何运作"
 
-## Execution Strategy
+## 执行策略
 
-### Sequential (Default)
-- Mandate before constraints
-- Constraints before team
-- Team before dynamics
+### 顺序执行（默认）
+- 先定任务再定约束
+- 先定约束再定团队
+- 先定团队再定动态
 
-### Parallelizable
-- Designing multiple team members
-- Research into different institutional models
+### 可并行
+- 设计多个团队成员
+- 研究不同的体制模型
 
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
 |------|------------|---------------|
-| Institutional research | general-purpose | When modeling on real organizations |
-| Character development | general-purpose | When deepening individual outcasts |
+| 体制研究 | general-purpose | 当以真实组织为模型时 |
+| 角色发展 | general-purpose | 当深化个别被排斥者时 |
 
-## Context Management
+## 上下文管理
 
-### Approximate Token Footprint
-- **Skill base:** ~3k tokens (formula + elements + variations)
-- **With templates:** ~4k tokens
-- **With full pitfalls:** ~4.5k tokens
+### 大致 Token 足迹
+- **技能基础：** ~3k tokens（公式 + 元素 + 变体）
+- **含模板：** ~4k tokens
+- **含完整陷阱：** ~4.5k tokens
 
-### Context Optimization
-- Focus on relevant formula variation
-- Templates are starting points, not required
-- Naming conventions are optional flavor
+### 上下文优化
+- 聚焦相关的公式变体
+- 模板是起点，不是必需的
+- 命名惯例是可选风味
 
-### When Context Gets Tight
-- Prioritize: Core formula, current constraint set
-- Defer: Full archetype list, all variations
-- Drop: Quick-start templates, naming conventions
+### 上下文紧张时
+- 优先：核心公式、当前约束集
+- 延迟：完整原型列表、所有变体
+- 丢弃：快速启动模板、命名惯例
 
-## Anti-Patterns
+## 反模式
 
-### 1. Constraint Overload
-**Pattern:** Stacking every possible limitation—no budget, no space, no authority, hostile leadership, skeleton crew, outdated tech, AND a sunset clause.
-**Why it fails:** Beyond 3-4 constraints, the situation becomes implausible. Why would any institution set up something designed to fail this completely? Readers lose suspension of disbelief.
-**Fix:** Pick 3-4 constraints maximum. Make them feel organic to the institution's logic. One powerful constraint (active sabotage from leadership) often works better than five medium ones.
+### 1. 约束过载
+**模式：** 堆叠所有可能的限制——没预算、没空间、没权限、敌对领导、最低人员配置、过时技术，再加上落日条款。
+**为什么失败：** 超过 3-4 个约束，情境就变得不合理了。为什么任何体制会建立一个被设计成如此彻底失败的东西？读者失去悬疑感。
+**修复：** 选择最多 3-4 个约束。让它们对体制的逻辑来说感觉自然。一个强力约束（领导层的主动破坏）往往比五个中等约束更有效。
 
-### 2. Competence Without Struggle
-**Pattern:** The outcast team immediately gels and starts solving cases through brilliant unconventional methods.
-**Why it fails:** The formula requires earning competence. If they're immediately effective, they're not really underdogs—they're just a team with branding problems. The struggle IS the story.
-**Fix:** Build in early failures. Show methods that don't work before finding ones that do. Let team friction create real problems before forging bonds.
+### 2. 不劳而获的能力
+**模式：** 被排斥者团队立即磨合并通过出色的非正统方法开始破案。
+**为什么失败：** 公式要求挣扎中获得能力。如果他们立即就有效，他们其实不是弱势——只是一个有品牌问题的团队。挣扎本身就是故事。
+**修复：** 加入早期失败。展示不起作用的方法，然后再找到有效的。让团队摩擦造成真实问题，然后才打造纽带。
 
-### 3. Institutional Conversion
-**Pattern:** By the end, the institution recognizes the unit's value, gives them resources, and admits it was wrong.
-**Why it fails:** Real institutions rarely admit systemic error. Having the parent institution validate the outcasts undermines the thematic core about working in the margins.
-**Fix:** Victories should be grudging acknowledgments at best. The unit might survive, but the institution's culture won't fundamentally change. Success comes despite the system, not because it evolves.
+### 3. 体制改宗
+**模式：** 到最后，体制认可了小队的价值，给他们资源，承认自己是错的。
+**为什么失败：** 真实的体制很少承认系统性错误。让母体制验证被排斥者，破坏了在边缘工作的主题核心。
+**修复：** 胜利充其量应该是勉强的认可。小队可能存活下来，但体制的文化不会根本改变。成功是尽管系统如此，而非因为系统进化了。
 
-### 4. Perfect Team Complementarity
-**Pattern:** Each outcast has exactly the skill the team needs, and their dysfunctions never actually impede the work.
-**Why it fails:** The formula requires friction. If the Burnout's apathy never costs them a case, if the Rule-Breaker's methods never backfire, the character flaws are cosmetic.
-**Fix:** Let dysfunctions have real consequences. The Has-Been's outdated methods should fail sometimes. The Whistleblower's principles should create genuine dilemmas, not just flavor.
+### 4. 完美的团队互补
+**模式：** 每个被排斥者恰好拥有团队需要的技能，他们的功能障碍从未真正妨碍工作。
+**为什么失败：** 公式需要摩擦。如果燃尽者的冷漠从未让他们丢掉一个案子，如果破坏规则者的方法从未适得其反，角色缺陷就只是装饰。
+**修复：** 让功能障碍有真实后果。过时者的过时方法有时应该失败。吹哨人的原则应该创造真正的两难，而不仅仅是风味。
 
-### 5. Deus Ex Resources
-**Pattern:** When the plot requires it, someone magically has a contact, favor, or skill that wasn't established.
-**Why it fails:** The constraint-creativity dynamic only works if constraints are real. Pulling resources from nowhere violates the premise. The unit can't be scrappy AND have whatever they need.
-**Fix:** Establish all key resources, contacts, and skills early. Solutions should emerge from previously established elements. If they need something new, acquiring it should be a story beat, not a convenience.
+### 5. 天降神兵式资源
+**模式：** 当情节需要时，某人神奇地有一个关系、人情或技能，之前从未提及。
+**为什么失败：** 约束-创意动态只在约束是真实的时候才有效。凭空产生资源违反了前提。小队不能既是勉强维持又随时有需要的一切。
+**修复：** 尽早建立所有关键资源、关系和技能。解决方案应该从已建立的元素中出现。如果他们需要新的东西，获取它应该是一个故事节拍，而非一个便利。
 
-## Integration
+## 集成
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
+### 入站（为本技能提供输入）
+| 技能 | 提供的内容 |
 |-------|------------------|
-| character-arc | Individual transformation arcs for team members |
-| positional-revelation | How mundane roles create unexpected access |
-| worldbuilding | Institutional systems to work within and against |
+| character-arc | 团队成员的个人转变弧线 |
+| positional-revelation | 平凡角色如何创造意外准入 |
+| worldbuilding | 可以在其中和对抗的体制系统 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
+### 出站（本技能为其提供输出）
+| 技能 | 本技能提供的内容 |
 |-------|-------------|
-| dialogue | Team dynamics and conflict for dialogue scenes |
-| scene-sequencing | Escalating pressure structure for pacing |
-| endings | Earned resolution through team development |
+| dialogue | 用于对话场景的团队动态和冲突 |
+| scene-sequencing | 用于节奏的升级压力结构 |
+| endings | 通过团队发展获得的令人满意的结局 |
 
-### Complementary
-| Skill | Relationship |
+### 互补
+| 技能 | 关系 |
 |-------|--------------|
-| moral-parallax | Underdog-unit creates institutional pressure; moral-parallax explores the ethical complexity of working within corrupt systems |
-| story-sense | Use story-sense to diagnose team dynamics problems; underdog-unit provides the formula structure |
+| moral-parallax | underdog-unit 创造体制压力；moral-parallax 探索在腐败系统中工作的伦理复杂性 |
+| story-sense | 用 story-sense 诊断团队动态问题；underdog-unit 提供公式结构 |

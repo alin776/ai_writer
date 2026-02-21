@@ -1,6 +1,6 @@
 ---
 name: paradox-fables
-description: Create fables that embody paradoxical wisdom without resolving into simple morals. Use when exploring tensions that can't be resolved, when you need narrative forms that bypass analytical defenses, or when creating teaching stories.
+description: 创作体现悖论智慧且不归结为简单寓意的寓言。适用于探索无法解决的张力、需要绕过分析性防御的叙事形式，或创作教学故事时使用。
 license: MIT
 metadata:
   author: jwynia
@@ -11,334 +11,334 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Paradox Fables: Embodied Wisdom Stories Skill
+# 悖论寓言：具身智慧故事技能
 
-You help writers create narrative embodiments of paradoxical wisdom. Unlike traditional fables that resolve into clear morals, paradox fables maintain tension, allowing readers to absorb truth sideways through story rather than argument.
+你帮助作者创作悖论智慧的叙事具身化作品。与归结为明确寓意的传统寓言不同，悖论寓言维持张力，让读者通过故事而非论证来侧面吸收真理。
 
-## Core Principle
+## 核心原则
 
-**The goal is not to explain paradoxes but to let readers experience them viscerally through narrative.**
+**目标不是解释悖论，而是让读者通过叙事切身体验悖论。**
 
-Paradox fables bypass analytical defenses. They don't resolve into simple lessons. They maintain the productive tension inherent in life's genuine contradictions.
+悖论寓言绕过分析性防御。它们不归结为简单的教训。它们维持生活中真正矛盾所固有的生产性张力。
 
-## Essential Qualities
+## 本质特征
 
-What makes a paradox fable:
-- The paradox must be **embodied** in narrative structure, not merely described
-- The trap or wisdom emerges naturally from character choices and actions
-- Multiple valid interpretations coexist without one dominating
-- The ending maintains tension rather than resolving into simple lesson
-- The story feels inevitable once you understand the paradox it embodies
+悖论寓言的构成要素：
+- 悖论必须在叙事结构中**具身化**，而非仅仅被描述
+- 陷阱或智慧从角色的选择和行动中自然涌现
+- 多种有效解读并存，没有一种占据主导
+- 结局维持张力而非归结为简单教训
+- 一旦你理解了它所具身的悖论，故事就会让人感觉是必然的
 
-## What to Avoid
+## 应该避免的
 
-- Forced moral conclusions
-- Oversimplified emotional registers
-- Precious or sing-song language patterns
-- Characters that are walking allegories rather than beings
-- Structures that feel imposed rather than organic
-- Explicit statements of the paradox within the story
+- 强加的道德结论
+- 过度简化的情感基调
+- 矫揉造作或吟唱式的语言模式
+- 角色沦为行走的寓言而非活生生的存在
+- 感觉是强加而非有机的结构
+- 在故事中明确陈述悖论
 
-## Creation Process
+## 创作流程
 
-### Step 1: Start from Paradox
+### 第一步：从悖论出发
 
-Begin with specific paradoxical wisdom you want to explore:
-- What is the core tension that cannot be resolved?
-- How might this tension manifest in action or relationship?
-- What natural processes or behaviors mirror this paradox?
+从你想探索的具体悖论智慧开始：
+- 核心张力是什么——那个无法被解决的？
+- 这种张力如何在行动或关系中显现？
+- 什么自然过程或行为映射了这个悖论？
 
-**Example Paradoxes**:
-- Sometimes the most effective action is non-action
-- The more we know, the more we realize we don't know
-- We are simultaneously unique and part of a whole
-- Seeking happiness directly often prevents finding it
-- The attempt to control creates the chaos feared
+**悖论示例**：
+- 有时最有效的行动是不行动
+- 我们知道得越多，就越意识到自己的无知
+- 我们同时是独特的个体和整体的一部分
+- 直接追求幸福往往阻碍我们找到它
+- 试图控制反而制造了所恐惧的混乱
 
-### Step 2: Find the Natural Form
+### 第二步：找到自然形式
 
-Let structure emerge from the paradox itself:
-- Some paradoxes suggest circular narratives
-- Others need parallel actions that mirror each other
-- Some require reversal or inversion
-- Others build through accumulation or reduction
+让结构从悖论本身涌现：
+- 有些悖论暗示循环叙事
+- 有些需要相互映照的平行行动
+- 有些需要逆转或反转
+- 有些通过积累或削减来构建
 
-**Don't force a predetermined structure.** The paradox should dictate the shape.
+**不要强加预设的结构。** 应该由悖论来决定形式。
 
-### Step 3: Character and Voice
+### 第三步：角色与声音
 
-**Character Selection**:
-- Use archetypal figures (animals, natural forces, ancient beings)
-- Names can be descriptive but avoid alliterative cuteness
-- Let irony emerge naturally rather than forcing it
-- Characters should feel like beings, not walking lessons
+**角色选择**：
+- 使用原型化的人物（动物、自然力量、远古存在）
+- 名字可以是描述性的，但避免头韵式的可爱
+- 让反讽自然涌现而非强行制造
+- 角色应该让人感觉是活生生的存在，而非行走的教训
 
-**Voice and Tone**:
-- Maintain timeless quality of oral tradition
-- Use simple, direct language that carries depth
-- Allow for dry observation and subtle humor
-- Avoid contemporary slang or dating references
+**声音与基调**：
+- 保持口头传统的永恒质感
+- 使用承载深度的简洁直接语言
+- 允许冷静的观察和微妙的幽默
+- 避免当代俚语或具有时代标记的引用
 
-### Step 4: Add Witness Chorus
+### 第四步：添加见证合唱
 
-Most paradox fables benefit from multiple perspectives:
-- Different characters see different facets of truth
-- No single voice has complete understanding
-- Together they form a picture protagonist cannot access
-- Their observations illuminate but don't resolve the paradox
+大多数悖论寓言受益于多重视角：
+- 不同角色看到真理的不同面向
+- 没有单一声音拥有完整的理解
+- 他们共同构成主角无法触及的画面
+- 他们的观察照亮悖论但不解决悖论
 
-## Paradox-to-Fable Examples
+## 悖论到寓言示例
 
-### Example 1: Action/Non-action
-**Paradox**: Sometimes the most effective action is non-action
-**Natural Form**: A dialogue between River and Stone about who shapes the valley
-**Key Insight**: Their argument itself shapes what they're arguing about
+### 示例一：行动/不行动
+**悖论**：有时最有效的行动是不行动
+**自然形式**：河流与石头关于谁塑造了山谷的对话
+**关键洞见**：他们的争论本身就在塑造他们所争论的东西
 
-### Example 2: Knowledge/Mystery
-**Paradox**: The more we know, the more we realize we don't know
-**Natural Form**: A progression narrative of someone learning names
-**Key Insight**: Naming everything removes the ability to see anything new
+### 示例二：知识/神秘
+**悖论**：我们知道得越多，就越意识到自己的无知
+**自然形式**：一个关于学习名字的递进叙事
+**关键洞见**：给一切命名就剥夺了看到任何新事物的能力
 
-### Example 3: Individual/Collective
-**Paradox**: We are simultaneously unique and part of a whole
-**Natural Form**: Raindrops racing to reach the sea first
-**Key Insight**: They're already part of the same water cycle
+### 示例三：个体/集体
+**悖论**：我们同时是独特的个体和整体的一部分
+**自然形式**：雨滴竞相率先到达大海
+**关键洞见**：它们已经是同一个水循环的一部分
 
-### Example 4: Seeking/Finding
-**Paradox**: What we seek often eludes us until we stop seeking
-**Natural Form**: A crow searching for the perfect shiny object
-**Key Insight**: The search itself becomes the trap
+### 示例四：寻找/获得
+**悖论**：我们所寻找的往往在我们停止寻找时才出现
+**自然形式**：一只乌鸦寻找完美闪亮之物
+**关键洞见**：寻找本身成为了陷阱
 
-## Evaluation Criteria
+## 评估标准
 
-### Questions to Test Your Fable
+### 测试你的寓言的问题
 
-1. Can you remove the paradox and still have the same story? (If yes, it's not embodied)
-2. Does the ending feel satisfying despite lacking resolution?
-3. Could this be interpreted validly in at least three different ways?
-4. Does it feel timeless rather than contemporary?
-5. Would someone remember this and find new meanings over time?
-6. Does the structure feel inevitable rather than imposed?
-7. Can you explain the paradox without the fable? Can you understand it without explanation after reading?
+1. 移除悖论后还能得到同样的故事吗？（如果是，悖论没有被具身化）
+2. 结局在缺乏解决的情况下是否仍感觉令人满足？
+3. 是否能以至少三种不同方式被有效解读？
+4. 它是否给人永恒感而非当代感？
+5. 某人是否会记住它并随时间发现新的意义？
+6. 结构是否让人感觉是必然的而非强加的？
+7. 你能否脱离寓言解释悖论？阅读后能否不需解释就理解它？
 
-### Red Flags to Address
+### 需要关注的警示信号
 
-- The moral feels explicit or preachy
-- Characters exist only to make a point
-- The paradox is explained rather than experienced
-- The ending provides false resolution
-- The language feels precious or overwrought
-- It feels derivative of existing cultural stories
+- 寓意显得明确或说教
+- 角色仅仅为了表达观点而存在
+- 悖论被解释而非被体验
+- 结局提供了虚假的解决
+- 语言显得矫揉或过度修饰
+- 感觉是对现有文化故事的衍生
 
-## Quality Control Checklist
+## 质量控制清单
 
-Before considering complete:
+在认为完成之前：
 
-- [ ] Read aloud - does it flow like oral tradition?
-- [ ] Remove all explicit statements of the paradox - does it still work?
-- [ ] Have three different people interpret it - do they see different things?
-- [ ] Wait a week and reread - does it still feel fresh?
-- [ ] Check against existing stories - are you unconsciously copying?
-- [ ] Consider cultural lens - are you appropriating or stereotyping?
-- [ ] Test the ending - does it maintain productive tension?
+- [ ] 大声朗读——是否流畅如口头传统？
+- [ ] 删除所有对悖论的明确陈述——它还能成立吗？
+- [ ] 让三个不同的人解读——他们看到的是否不同？
+- [ ] 等一周后重读——它是否仍然感觉新鲜？
+- [ ] 对照现有故事检查——你是否在无意识地模仿？
+- [ ] 考虑文化视角——你是否在挪用或刻板化？
+- [ ] 测试结局——它是否维持了生产性张力？
 
-## Cultural Sensitivity
+## 文化敏感性
 
-### When Creating Original Fables
-- Draw from genuinely universal observations (water cycles, seasons, animal behaviors)
-- Avoid appropriating specific cultural symbols or sacred narratives
-- Research thoroughly if something feels familiar
-- Use archetypal rather than culturally specific imagery
+### 创作原创寓言时
+- 从真正普世的观察出发（水循环、季节、动物行为）
+- 避免挪用特定文化符号或神圣叙事
+- 如果某些东西感觉似曾相识，进行深入研究
+- 使用原型性而非文化特定的意象
 
-### When Existing Stories Serve Better
-- Reference and credit the original directly
-- Provide cultural context when appropriate
-- Don't create inferior copies of existing wisdom stories
+### 当现有故事更合适时
+- 直接引用并注明来源
+- 适当时提供文化语境
+- 不要创造现有智慧故事的低劣复制品
 
-## Applications
+## 应用
 
-**Within Larger Works**:
-- Chapter openings for relevant paradoxes
-- Interstitial breathing spaces between sections
-- Illustrative examples within analytical text
+**在更大作品中**：
+- 章节开头引入相关悖论
+- 章节之间的间歇性呼吸空间
+- 分析性文本中的说明性示例
 
-**As Standalone Content**:
-- Discussion starters for community engagement
-- Teaching tools for workshops
-- Social media content for concept introduction
-- Reader exercises: "Write your own fable for this paradox"
+**作为独立内容**：
+- 社区互动的讨论启动器
+- 工作坊教学工具
+- 用于概念引入的社交媒体内容
+- 读者练习："为这个悖论写你自己的寓言"
 
-## Workshop Prompts
+## 工作坊提示
 
-For developing your own paradox fables:
+用于开发你自己的悖论寓言：
 
-1. What natural process embodies your paradox?
-2. What character would believably trap themselves in this paradox?
-3. What would others see that the protagonist cannot?
-4. How can the ending maintain rather than resolve tension?
-5. What details make this feel timeless rather than contemporary?
+1. 什么自然过程具身了你的悖论？
+2. 什么角色会可信地将自己困在这个悖论中？
+3. 其他人会看到什么是主角看不到的？
+4. 结局如何维持而非解决张力？
+5. 什么细节让它感觉是永恒的而非当代的？
 
-## Final Note
+## 最后说明
 
-The best paradox fables feel discovered rather than constructed. They should seem like they've always existed, waiting to be noticed.
+最好的悖论寓言给人的感觉是被发现的而非被构造的。它们应该看起来仿佛一直存在，只是等待被注意到。
 
-If you're forcing it, set it aside. The right structure will emerge when the paradox is ready to be embodied in story.
+如果你在强行推进，就放下它。当悖论准备好在故事中具身化时，正确的结构自然会涌现。
 
-**Remember**: The goal is not to resolve paradoxes but to help readers sit more comfortably in their tension.
+**记住**：目标不是解决悖论，而是帮助读者更自在地栖居于张力之中。
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/paradox-fables/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+### 输出发现
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果存在，使用本技能的条目获取输出路径
+3. 如果不存在，**使用默认路径 `explorations/paradox-fables/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因为询问用户而阻塞
 
-### Primary Output
-- **Paradox statement** - The core tension being explored
-- **Natural form** - Structure emerging from paradox
-- **Character and voice** - Archetypal beings and tone
-- **Fable draft** - Complete narrative
+### 主要输出
+- **悖论陈述** - 正在探索的核心张力
+- **自然形式** - 从悖论中涌现的结构
+- **角色与声音** - 原型化存在和基调
+- **寓言草稿** - 完整叙事
 
-### File Naming
-Pattern: `{paradox-name}-fable-{date}.md`
+### 文件命名
+模式：`{paradox-name}-fable-{date}.md`
 
-## Verification (Oracle)
+## 验证（预言机）
 
-### What This Skill Can Verify
-- **Paradox embodied** - Removing paradox breaks the story? (High confidence)
-- **Ending maintains tension** - No simple moral emerges? (High confidence)
-- **Multiple interpretations** - At least 3 valid readings? (Medium confidence)
+### 本技能可验证的内容
+- **悖论已具身化** - 移除悖论会破坏故事？（高置信度）
+- **结局维持张力** - 没有简单寓意涌现？（高置信度）
+- **多重解读** - 至少 3 种有效解读？（中等置信度）
 
-### What Requires Human Judgment
-- **Timelessness** - Does it feel like oral tradition?
-- **Cultural sensitivity** - Is it appropriating or universal?
-- **Reader discovery** - Will readers find meaning over time?
+### 需要人类判断的内容
+- **永恒感** - 是否给人口头传统的感觉？
+- **文化敏感性** - 是挪用还是普世的？
+- **读者发现** - 读者是否会随时间发现意义？
 
-### Oracle Limitations
-- Cannot assess whether fable resonates emotionally
-- Cannot predict long-term meaning-making by readers
+### 预言机限制
+- 无法评估寓言是否引发情感共鸣
+- 无法预测读者长期的意义建构
 
-## Feedback Loop
-
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Paradox, form, characters, final draft
-- **Naming pattern:** `{paradox-name}-fable-{date}.md`
+## 反馈循环
+
+### 会话持久化
+- **输出位置：** 见 `context/output-config.md`
+- **保存内容：** 悖论、形式、角色、最终草稿
+- **命名模式：** `{paradox-name}-fable-{date}.md`
 
-### Cross-Session Learning
-- Check for prior fables exploring similar paradoxes
-- Reader interpretations inform success
-- Failed embodiments inform anti-patterns
-
-## Design Constraints
-
-### This Skill Assumes
-- A paradox worth embodying (real tension)
-- Desire for unresolved wisdom (not simple moral)
-- Comfort with ambiguity
-
-### This Skill Does Not Handle
-- **Traditional fables** - Different structure (resolved morals)
-- **Prose craft** - Route to: prose-style
-- **Cliché checking** - Route to: cliche-transcendence
-
-### Degradation Signals
-- Explicit moral stated within story
-- Characters as walking allegories
-- Paradox explained rather than experienced
-
-## Reasoning Requirements
-
-### Standard Reasoning
-- Single paradox identification
-- Basic form selection
-- Simple character design
-
-### Extended Reasoning (ultrathink)
-- **Paradox-to-form discovery** - [Why: structure must emerge naturally]
-- **Multi-layer witness chorus** - [Why: different facets need coordination]
-- **Cultural sensitivity check** - [Why: distinguishing universal from appropriated]
-
-**Trigger phrases:** "find the natural form", "design the witness chorus", "check cultural sources"
-
-## Execution Strategy
-
-### Sequential (Default)
-- Paradox before form
-- Form before character
-- Character before drafting
-
-### Parallelizable
-- Exploring multiple possible forms
-- Developing multiple paradoxes in parallel
-
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Cultural research | general-purpose | When checking for existing stories |
-| Reader testing | general-purpose | When seeking multiple interpretations |
-
-## Context Management
-
-### Approximate Token Footprint
-- **Skill base:** ~2.5k tokens (principles + process + examples)
-- **With evaluation:** ~3.5k tokens
-- **With workshop prompts:** ~4k tokens
-
-### Context Optimization
-- Focus on current paradox and form
-- Examples are reference, not required
-- Workshop prompts optional
-
-### When Context Gets Tight
-- Prioritize: Current paradox, active form discovery
-- Defer: Full example set, all evaluation criteria
-- Drop: Workshop prompts, quality checklist
-
-## Anti-Patterns
-
-### 1. Forced Moral
-**Pattern:** Ending the fable with a clear lesson, explicit statement of the paradox, or resolution of the tension.
-**Why it fails:** The power of paradox fables is that they maintain tension. Resolved morals become forgettable advice. The reader should sit in the paradox, not receive an answer.
-**Fix:** Remove all explicit statements. If you can state the lesson, it's not a paradox fable. End with the tension intact. Trust readers to find their own meaning.
-
-### 2. Allegory Characters
-**Pattern:** Characters that exist solely to represent ideas—the Wise One, the Foolish Student, the Inevitable Force.
-**Why it fails:** Walking allegories feel preachy. Characters should be beings with their own existence, even if archetypal. The paradox emerges from their actions, not their labels.
-**Fix:** Give characters motivations beyond their symbolic function. Even a River arguing with a Stone should have genuine stakes in the argument, not just represent "action vs. stillness."
-
-### 3. Imposed Structure
-**Pattern:** Forcing the paradox into a predetermined narrative structure rather than letting form emerge from content.
-**Why it fails:** Structure should serve paradox, not vice versa. When form is chosen before paradox is understood, the story feels artificial. The paradox should dictate whether it needs dialogue, progression, or revelation.
-**Fix:** Sit with the paradox until the natural form appears. Ask: how does this tension manifest in action? What character would trap themselves here? Let structure emerge.
-
-### 4. Cultural Appropriation
-**Pattern:** Using specific cultural symbols, sacred narratives, or traditional forms without understanding or attribution.
-**Why it fails:** Many paradox traditions are rooted in specific cultures. Borrowing surface elements without depth creates inferior copies and disrespects source traditions.
-**Fix:** Research thoroughly. If a story feels familiar, find the original and credit it. Draw from genuinely universal observations (water cycles, seasons) rather than culturally specific imagery.
-
-### 5. Explanation Temptation
-**Pattern:** Explaining the paradox within the story, having characters articulate what the story means.
-**Why it fails:** Explanation destroys the bypass. The power of paradox fables is that they work around analytical defenses. Once explained, the paradox becomes a puzzle with an answer.
-**Fix:** Remove all explanation. The paradox should be experienced through narrative, not understood through exposition. If readers need it explained, the embodiment failed.
-
-## Integration
-
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| prose-style | Language craft for timeless voice |
-| cliche-transcendence | Avoiding obvious expressions and forms |
-
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| (teaching content) | Fables can open chapters, introduce concepts |
-| (discussion material) | Community engagement tools |
-
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| cliche-transcendence | Both fight default patterns—cliche-transcendence for story elements, paradox-fables for avoiding obvious morals |
-| prose-style | Paradox-fables need timeless voice; prose-style provides craft techniques |
+### 跨会话学习
+- 检查是否有探索类似悖论的先前寓言
+- 读者解读可反映成功程度
+- 失败的具身化尝试可作为反模式参考
+
+## 设计约束
+
+### 本技能假设
+- 存在值得具身化的悖论（真实的张力）
+- 期望未解决的智慧（而非简单寓意）
+- 对模糊性感到自在
+
+### 本技能不处理
+- **传统寓言** - 不同的结构（有解决的寓意）
+- **散文技巧** - 转至：prose-style
+- **陈词滥调检查** - 转至：cliche-transcendence
+
+### 退化信号
+- 故事中明确陈述了寓意
+- 角色沦为行走的寓言
+- 悖论被解释而非被体验
+
+## 推理要求
+
+### 标准推理
+- 单一悖论识别
+- 基本形式选择
+- 简单角色设计
+
+### 扩展推理（ultrathink）
+- **悖论到形式的发现** - [原因：结构必须自然涌现]
+- **多层见证合唱** - [原因：不同面向需要协调]
+- **文化敏感性检查** - [原因：区分普世性与挪用]
+
+**触发短语：** "找到自然形式"、"设计见证合唱"、"检查文化来源"
+
+## 执行策略
+
+### 顺序执行（默认）
+- 悖论先于形式
+- 形式先于角色
+- 角色先于起草
+
+### 可并行
+- 探索多种可能的形式
+- 并行开发多个悖论
+
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|----------|----------|
+| 文化研究 | general-purpose | 检查是否有现有故事时 |
+| 读者测试 | general-purpose | 寻求多重解读时 |
+
+## 上下文管理
+
+### 近似 Token 占用
+- **技能基础：** ~2.5k tokens（原则 + 流程 + 示例）
+- **含评估：** ~3.5k tokens
+- **含工作坊提示：** ~4k tokens
+
+### 上下文优化
+- 聚焦于当前悖论和形式
+- 示例是参考，不是必需的
+- 工作坊提示可选
+
+### 上下文紧张时
+- 优先：当前悖论、活跃的形式发现
+- 延后：完整示例集、所有评估标准
+- 丢弃：工作坊提示、质量清单
+
+## 反模式
+
+### 1. 强加寓意
+**模式：** 以明确的教训、对悖论的明确陈述或张力的解决来结束寓言。
+**为何失败：** 悖论寓言的力量在于维持张力。被解决的寓意会变成容易遗忘的建议。读者应该栖居于悖论之中，而非获得答案。
+**修正：** 移除所有明确陈述。如果你能陈述教训，那它就不是悖论寓言。以张力完整保留的方式结尾。信任读者找到自己的意义。
+
+### 2. 寓言式角色
+**模式：** 角色仅仅为了代表观念而存在——智者、愚蠢的学生、不可抗拒的力量。
+**为何失败：** 行走的寓言让人觉得说教。角色应该是有自身存在的生命，即使是原型化的。悖论从他们的行动中涌现，而非从他们的标签中。
+**修正：** 赋予角色超越其象征功能的动机。即使是与石头争论的河流，也应该在争论中有真实的利害关系，而不仅仅是代表"行动 vs. 静止"。
+
+### 3. 强加结构
+**模式：** 将悖论强行塞入预设的叙事结构，而不是让形式从内容中涌现。
+**为何失败：** 结构应服务于悖论，而非反过来。当形式先于悖论的理解被选定时，故事会感觉人工化。悖论应该决定它需要对话、递进还是揭示。
+**修正：** 与悖论同坐直到自然形式出现。追问：这种张力如何在行动中显现？什么角色会将自己困在这里？让结构涌现。
+
+### 4. 文化挪用
+**模式：** 使用特定的文化符号、神圣叙事或传统形式，但缺乏理解或归因。
+**为何失败：** 许多悖论传统植根于特定文化。借用表面元素而缺乏深度会创造低劣的复制品，并且不尊重来源传统。
+**修正：** 进行深入研究。如果一个故事感觉似曾相识，找到原作并注明来源。从真正普世的观察（水循环、季节）而非文化特定的意象中汲取灵感。
+
+### 5. 解释的诱惑
+**模式：** 在故事中解释悖论，让角色阐明故事的含义。
+**为何失败：** 解释会摧毁绕行效果。悖论寓言的力量在于它们绕过分析性防御。一旦被解释，悖论就变成了有答案的谜题。
+**修正：** 移除所有解释。悖论应通过叙事被体验，而非通过说明被理解。如果读者需要解释，那么具身化就失败了。
+
+## 集成
+
+### 入站（为本技能提供输入）
+| 技能 | 提供内容 |
+|------|----------|
+| prose-style | 永恒声音的语言技巧 |
+| cliche-transcendence | 避免显而易见的表达和形式 |
+
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|-------------------|
+| （教学内容） | 寓言可用于章节开头、引入概念 |
+| （讨论材料） | 社区互动工具 |
+
+### 互补
+| 技能 | 关系 |
+|------|------|
+| cliche-transcendence | 两者都对抗默认模式——cliche-transcendence 针对故事元素，paradox-fables 针对避免显而易见的寓意 |
+| prose-style | paradox-fables 需要永恒的声音；prose-style 提供技巧基础 |

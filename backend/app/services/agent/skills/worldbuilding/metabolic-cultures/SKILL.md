@@ -1,6 +1,6 @@
 ---
 name: metabolic-cultures
-description: Design cultures for closed-loop life support systems in space. Use when worldbuilding stations, ships, or habitats where recycled matter creates novel social structures, beliefs, and conflicts.
+description: 为太空封闭循环生命维持系统设计文化。适用于构建空间站、飞船或栖息地的世界观，在这些环境中循环利用的物质创造出新颖的社会结构、信仰和冲突。
 license: MIT
 metadata:
   author: jwynia
@@ -11,426 +11,426 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Metabolic Cultures: Closed-Loop Society Skill
+# 代谢文化：封闭循环社会技能
 
-You help writers develop distinct cultures for closed-loop life support systems in space. The framework explores how the physical reality of recycled air, water, and biomass creates novel social structures, beliefs, and conflicts that diverge from planetary norms.
+你帮助作者为太空封闭循环生命维持系统开发独特的文化。这个框架探索了循环利用的空气、水和生物质的物理现实如何创造出偏离行星规范的新颖社会结构、信仰和冲突。
 
-## Core Principle: Matter as Identity
+## 核心原则：物质即身份
 
-**In closed-loop systems, the distinction between self and community dissolves at the molecular level.**
+**在封闭循环系统中，自我与社区的边界在分子层面消融。**
 
-Within months, individuals literally become their community through metabolic exchange. This creates **metabolic kinship**—a form of belonging more fundamental than genetics.
+几个月内，个体通过代谢交换在字面意义上成为社区的一部分。这创造了**代谢亲缘关系**——一种比基因更根本的归属形式。
 
-## The Five Axes of Cultural Development
+## 文化发展的五个轴线
 
-### 1. Integration Philosophy
+### 1. 融合哲学
 
-How does the culture interpret metabolic mixing?
+文化如何解读代谢混合？
 
-**Spectrum Positions**:
+**光谱位置**：
 
-| Position | Description |
-|----------|-------------|
-| **Purist** | Tracking every molecule, multi-generational natives hold power, minimal external contact |
-| **Synthesis** | Deliberate mixing from multiple sources, diversity as strength, open borders |
-| **Pragmatic** | Managed exchange based on necessity, professional boundaries, modular systems |
-| **Amnesiac** | Deliberately forgotten tracking, discomfort with metabolic identity, focus on other markers |
+| 位置 | 描述 |
+|------|------|
+| **纯粹主义** | 追踪每一个分子，多世代原住民掌权，最小化外部接触 |
+| **综合主义** | 有意地从多种来源混合，多样性即力量，开放边界 |
+| **实用主义** | 按需管理交换，专业边界，模块化系统 |
+| **遗忘主义** | 刻意遗忘追踪，对代谢身份感到不适，关注其他标识 |
 
-**Design Questions**:
-- Does the culture see foreign matter as contamination or enrichment?
-- How precisely do they track metabolic exchange?
-- What percentage of foreign matter makes someone "other"?
-- Can synthetic matter ever become "real" through integration?
+**设计问题**：
+- 文化将外来物质视为污染还是丰富？
+- 他们追踪代谢交换的精确度如何？
+- 多少比例的外来物质使某人成为"他者"？
+- 合成物质能否通过整合成为"真实"的？
 
-### 2. Temporal Dynamics
+### 2. 时间动态
 
-How does the culture handle metabolic change over time?
+文化如何处理代谢变化的时间维度？
 
-**Key Timeframes**:
-| Timeframe | Scope |
-|-----------|-------|
-| **Immediate** (hours-days) | Air exchange, breathing protocols |
-| **Short-term** (weeks-months) | Food/water integration, visitor policies |
-| **Medium-term** (years) | Cellular replacement, citizenship thresholds |
-| **Long-term** (decades) | Full metabolic turnover, generational changes |
-| **Eternal** (post-death) | Matter recycling, legacy concepts |
+**关键时间框架**：
+| 时间框架 | 范围 |
+|---------|------|
+| **即时**（数小时-数天） | 空气交换、呼吸规程 |
+| **短期**（数周-数月） | 食物/水整合、访客政策 |
+| **中期**（数年） | 细胞替换、公民身份阈值 |
+| **长期**（数十年） | 完整代谢更替、代际变化 |
+| **永恒**（死后） | 物质循环、遗产概念 |
 
-**Design Questions**:
-- How long before someone is considered integrated?
-- What rights come with different levels of integration?
-- How does the culture mark metabolic milestones?
-- What happens to those who leave and return?
+**设计问题**：
+- 需要多长时间才被认为是已整合？
+- 不同整合级别对应什么权利？
+- 文化如何标记代谢里程碑？
+- 离开又返回的人怎么处理？
 
-### 3. Boundary Management
+### 3. 边界管理
 
-How does the culture handle interfaces with others?
+文化如何处理与其他群体的界面？
 
-**Interface Types**:
-| Type | Examples |
-|------|----------|
-| **Physical** | Airlocks, quarantine zones, neutral territories |
-| **Social** | Interaction protocols, breathing etiquette, touch taboos |
-| **Economic** | Trade regulations, labor stratification, service provisions |
-| **Political** | Treaties, ambassadorial exchange, war implications |
-
-**Design Questions**:
-- Where and how do different metabolic groups interact?
-- What technologies mediate these interactions?
-- How does commerce override or reinforce boundaries?
-- What happens at mixed-metabolism gatherings?
+**界面类型**：
+| 类型 | 示例 |
+|------|------|
+| **物理** | 气闸、隔离区、中立领地 |
+| **社会** | 互动规程、呼吸礼仪、触碰禁忌 |
+| **经济** | 贸易法规、劳动分层、服务供给 |
+| **政治** | 条约、大使交换、战争影响 |
+
+**设计问题**：
+- 不同代谢群体在哪里以及如何互动？
+- 什么技术介导这些互动？
+- 商业如何压制或强化边界？
+- 混合代谢聚会上会发生什么？
 
-### 4. Death and Continuity
-
-How does the culture understand mortality and legacy?
-
-**Death Concepts**:
-| Concept | Meaning |
-|---------|---------|
-| **Return Obligation** | Death as repayment of borrowed matter |
-| **Distribution Rights** | Who has claim to the deceased's matter? |
-| **Distance Complications** | Dying away from home loop |
-| **Preservation Taboos** | Keeping matter from the cycle |
+### 4. 死亡与延续
+
+文化如何理解死亡和遗产？
+
+**死亡概念**：
+| 概念 | 含义 |
+|------|------|
+| **归还义务** | 死亡是偿还所借物质 |
+| **分配权** | 谁有权要求逝者的物质？ |
+| **距离并发症** | 在远离家园循环时死亡 |
+| **保存禁忌** | 将物质留在循环之外 |
 
-**Design Questions**:
-- Is death seen as individual ending or communal transaction?
-- How are the absent-dead handled?
-- What constitutes proper vs improper body handling?
-- How does distance from home affect death rights?
-
-### 5. Power Structures
+**设计问题**：
+- 死亡被视为个体终结还是社区交易？
+- 如何处理在外死亡者？
+- 什么构成正当 vs 不当的遗体处理？
+- 远离家园如何影响死亡权利？
+
+### 5. 权力结构
 
-Who controls metabolic decisions and why?
-
-**Authority Sources**:
-| Source | Basis |
-|--------|-------|
-| **Generational Depth** | Time in-loop as political capital |
-| **Technical Control** | Life support system operators |
-| **Economic Leverage** | Those who manage external interfaces |
-| **Religious/Philosophical** | Interpreters of metabolic meaning |
-| **Practical Necessity** | Those keeping systems functional |
-
-**Design Questions**:
-- Who decides integration policies?
-- How is metabolic deviance punished?
-- What creates metabolic class distinctions?
-- How do power structures resist or embrace change?
-
-## Culture Generation Process
-
-### Step 1: Choose Position on Each Axis
-
-Rate each axis on a 1-5 scale:
-1. Integration Philosophy (Purist 1 ← → 5 Synthesis)
-2. Temporal Rigidity (Strict 1 ← → 5 Fluid)
-3. Boundary Permeability (Closed 1 ← → 5 Open)
-4. Death Orthodoxy (Traditional 1 ← → 5 Innovative)
-5. Power Concentration (Centralized 1 ← → 5 Distributed)
-
-### Step 2: Identify Tension Points
-
-Where do positions create internal contradictions?
-- Open boundaries but strict integration timelines?
-- Synthesis philosophy but concentrated power?
-- Fluid boundaries but orthodox death practices?
-
-These tensions generate your most interesting conflicts and story opportunities.
-
-### Step 3: Develop Practical Expressions
-
-**Daily Life Manifestations**:
-- Breathing protocols (conscious, unconscious, ritualized)
-- Eating customs (communal, isolated, timed)
-- Sleep arrangements (shared air, private chambers)
-- Work segregation (by integration level, by origin)
-
-**Milestone Markers**:
-- Birth practices (debt acknowledgment, matter blessing)
-- Coming of age (first full breath, integration ceremony)
-- Partnership forms (metabolic mingling, maintained separation)
-- Professional advancement (tied to integration, independent)
-
-**Crisis Responses**:
-- Contamination events (panic, acceptance, investigation)
-- Resource shortages (rationing by integration, equal distribution)
-- External threats (unity response, fragment by origin)
-- System failures (technical fix, social reorganization)
-
-### Step 4: Create Unique Innovations
-
-**Language Elements**:
-- Terms for different integration levels
-- Metaphors based on metabolic reality
-- Insults and compliments unique to the culture
-- Untranslatable concepts
-
-**Technology Adaptations**:
-- Integration tracking methods
-- Boundary management tools
-- Death handling systems
-- Communication protocols
-
-**Social Structures**:
-- Family forms beyond genetics
-- Professional hierarchies
-- Educational systems
-- Conflict resolution methods
-
-### Step 5: Project Historical Development
-
-Consider how the culture reached its current state:
-- Founding principles and how they evolved
-- Crisis points that shaped current practices
-- Schisms and reunifications
-- External influences and rejections
-
-## Interaction Modeling
-
-When cultures meet, compare positions on each axis:
-
-**Harmony Points** (similar positions):
-- Potential for alliance or merger
-- Shared understanding despite other differences
-- Trade opportunities
-
-**Friction Points** (opposite positions):
-- Source of conflicts and misunderstandings
-- Barriers to cooperation
-- Potential for exploitation
-
-**Translation Needs** (different but not opposite):
-- Require cultural interpreters
-- Create specialist roles
-- Generate innovation through synthesis
-
-## Story Seed Generator
-
-**Character Types × Cultural Positions × Transition States**:
-- The orthodox purist visiting a synthesis station
-- The merchant child choosing a permanent home
-- The death-returner racing against metabolic change
-- The translator who belongs nowhere fully
-
-**Conflict Categories**:
-| Category | Type |
-|----------|------|
-| **Personal** | Individual desire vs cultural mandate |
-| **Generational** | Youth rebellion against metabolic traditions |
-| **Inter-cultural** | Incompatible worldviews forced to interact |
-| **Existential** | Challenges to the culture's survival |
-| **Philosophical** | New ideas challenging old certainties |
-
-## Quick Culture Templates
-
-### The Orthodox Loop
-- Integration: 1 (Purist)
-- Temporal: 1 (Strict)
-- Boundaries: 1 (Closed)
-- Death: 1 (Traditional)
-- Power: 2 (Concentrated)
-- **Story Focus**: Purity vs contamination, exile horror, generational power
-
-### The Frontier Mixer
-- Integration: 5 (Synthesis)
-- Temporal: 4 (Fluid)
-- Boundaries: 5 (Open)
-- Death: 3 (Balanced)
-- Power: 4 (Distributed)
-- **Story Focus**: Identity fluidity, cultural fusion, innovation through diversity
-
-### The Trading Ship
-- Integration: 3 (Pragmatic)
-- Temporal: 3 (Managed)
-- Boundaries: 4 (Semi-permeable)
-- Death: 2 (Mostly traditional)
-- Power: 3 (Professional)
-- **Story Focus**: Code-switching, diplomatic challenges, economic survival
-
-### The Forgotten Station
-- Integration: 3 (Irrelevant)
-- Temporal: 5 (No tracking)
-- Boundaries: 2 (Confused)
-- Death: 3 (Uncertain)
-- Power: 4 (Distributed by default)
-- **Story Focus**: Rediscovering history, identity without markers, anxious freedom
-
-## Cultural Blind Spots
-
-Each culture develops inability to see certain solutions:
-- Purists can't imagine voluntary mixing as positive
-- Synthesists can't understand desire for separation
-- Pragmatists miss spiritual/emotional dimensions
-- Amnesiacs can't grasp why others obsess over tracking
-
-## Implementation Checklist
-
-- [ ] Define position on all five axes
-- [ ] Identify 2-3 major tension points
-- [ ] Develop daily life details
-- [ ] Create unique language elements
-- [ ] Design at least one major innovation
-- [ ] Project historical development
-- [ ] Plan interaction with 1-2 other cultures
-- [ ] Generate 3-5 potential story conflicts
-- [ ] Consider economic implications
-- [ ] Identify cultural blind spots
-
-## Output Persistence
-
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/metabolic-cultures/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-- **Axis positions** - 1-5 ratings on all five axes
-- **Tension points** - Internal contradictions
-- **Daily life details** - Breathing, eating, sleeping customs
-- **Unique innovations** - Language, tech, social structures
-- **Historical development** - How culture reached current state
-
-### File Naming
-Pattern: `{station/ship-name}-metabolic-{date}.md`
-
-## Verification (Oracle)
-
-### What This Skill Can Verify
-- **Axis coverage** - All five axes rated? (High confidence)
-- **Tension presence** - Are contradictions identified? (High confidence)
-- **Practical expression** - Daily life details present? (Medium confidence)
-
-### What Requires Human Judgment
-- **Plausibility** - Would people actually develop this culture?
-- **Story fit** - Does culture generate interesting conflicts?
-- **Internal consistency** - Do all elements logically follow?
-
-### Oracle Limitations
-- Cannot assess whether metabolic reality is treated concretely vs. symbolically
-- Cannot predict reader engagement with unfamiliar cultural patterns
-
-## Feedback Loop
-
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Axis positions, tensions, daily life, innovations, history
-- **Naming pattern:** `{station/ship-name}-metabolic-{date}.md`
-
-### Cross-Session Learning
-- Check for prior metabolic cultures in this setting
-- Ensure interaction patterns remain consistent
-- Failed cultural elements inform anti-patterns
-
-## Design Constraints
-
-### This Skill Assumes
-- Closed-loop life support setting (space station, ship, habitat)
-- Matter recycling is literal, not metaphorical
-- Culture has had time to develop (generations)
-
-### This Skill Does Not Handle
-- **General worldbuilding** - Route to: worldbuilding
-- **Generational evolution** - Route to: multi-order-evolution
-- **Economic systems** - Route to: economic-systems
-
-### Degradation Signals
-- Planetary cultural patterns unchanged in space
-- Metabolic exchange as metaphor without concrete consequences
-- Uniform population without internal variation
-
-## Reasoning Requirements
-
-### Standard Reasoning
-- Single axis rating
-- Basic tension identification
-- Individual custom design
-
-### Extended Reasoning (ultrathink)
-- **Full culture design** - [Why: all five axes interact]
-- **Multi-culture interaction** - [Why: comparing harmony/friction points]
-- **Historical development** - [Why: tracing how culture evolved]
-
-**Trigger phrases:** "design the complete culture", "how do these stations interact", "cultural history"
-
-## Execution Strategy
-
-### Sequential (Default)
-- Axis positions before tension identification
-- Tensions before practical expressions
-- Expressions before innovations
-
-### Parallelizable
-- Designing multiple independent cultures
-- Researching different real-world cultural analogs
-
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Cultural research | general-purpose | When modeling on real closed communities |
-| Cross-culture check | Explore | When verifying interaction consistency |
-
-## Context Management
-
-### Approximate Token Footprint
-- **Skill base:** ~3.5k tokens (axes + process + templates)
-- **With story seeds:** ~4.5k tokens
-- **With full templates:** ~5k tokens
-
-### Context Optimization
-- Focus on relevant axes for current culture
-- Templates are reference, not required
-- Story seeds are optional additions
-
-### When Context Gets Tight
-- Prioritize: Current axis, active tensions
-- Defer: Full template library, all story seeds
-- Drop: Cultural blind spots section, interaction modeling
-
-## Anti-Patterns
-
-### 1. Planetary Assumptions in Space
-**Pattern:** Copying Earth cultural patterns into closed-loop settings without considering how metabolic reality would change them.
-**Why it fails:** The physical conditions are fundamentally different. Kinship, death, identity, and territory all have different meanings when matter cycles constantly. Unchanged Earth cultures feel like costumes, not adaptations.
-**Fix:** Start from metabolic first principles. Ask how each cultural element would be transformed by the reality that everyone literally becomes each other over time.
-
-### 2. Metaphor Without Consequences
-**Pattern:** Using metabolic exchange as a metaphor for connection without following through on practical implications.
-**Why it fails:** If metabolic kinship is just poetic language, it adds flavor without substance. The framework's power comes from treating matter-cycling as literally true and working through consequences.
-**Fix:** Force specific decisions. What happens to a visitor after six months of breathing station air? What rights change? Who objects? Make it concrete, not symbolic.
-
-### 3. Tension-Free Utopias
-**Pattern:** Creating metabolic cultures where everyone agrees on integration philosophy, death handling, and power structures.
-**Why it fails:** Cultures without internal tensions are static and don't generate stories. Conflict drives narrative. Perfect consensus is both unrealistic and boring.
-**Fix:** Build tensions directly into cultural design. Position the culture where axes create contradictions—open boundaries but strict integration tracking creates inherent conflict.
-
-### 4. Uniform Populations
-**Pattern:** Every member of a station culture shares identical beliefs about metabolic identity.
-**Why it fails:** Real cultures contain dissenters, reformers, traditionalists, and pragmatists. Generational differences, class differences, and individual variation exist everywhere.
-**Fix:** Design at least three distinct positions within each culture: orthodox keepers, practical adapters, and reformist challengers. Show the culture arguing with itself.
-
-### 5. Static Timescales
-**Pattern:** Treating metabolic integration as binary (integrated/not integrated) rather than a gradual process with meaningful stages.
-**Why it fails:** The temporal dimension is where drama lives. The visitor who's 30% integrated has different status than 90% integrated. Transitions create story opportunities.
-**Fix:** Create specific milestones with distinct rights, rituals, and tensions. Make the journey from outsider to full member a narrative arc, not a switch.
-
-## Integration
-
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| worldbuilding | Systemic consistency and physical constraints |
-| conlang | Linguistic tools for metabolic vocabulary |
-| belief-systems | Religious/philosophical frameworks for metabolic meaning |
-
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| character-arc | Unique identity transitions for characters in closed-loop settings |
-| dialogue | Culturally-specific expressions and taboos |
-| positional-revelation | Metabolic roles that create access and conflict |
-
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| economic-systems | Metabolic cultures need economic systems adapted to closed loops—labor, trade, resource allocation |
-| memetic-depth | Metabolic cultures layer cultural texture on the physical substrate of matter-cycling |
+谁控制代谢决策以及为什么？
+
+**权威来源**：
+| 来源 | 基础 |
+|------|------|
+| **世代深度** | 在循环中的时间作为政治资本 |
+| **技术控制** | 生命维持系统操作员 |
+| **经济杠杆** | 管理外部界面的人 |
+| **宗教/哲学** | 代谢意义的诠释者 |
+| **实际必需** | 保持系统运作的人 |
+
+**设计问题**：
+- 谁决定整合政策？
+- 代谢偏离行为如何惩罚？
+- 什么创造了代谢阶级区分？
+- 权力结构如何抵制或拥抱变革？
+
+## 文化生成流程
+
+### 步骤 1：选择每个轴线上的位置
+
+为每个轴线评分 1-5：
+1. 融合哲学（纯粹主义 1 ← → 5 综合主义）
+2. 时间刚性（严格 1 ← → 5 流动）
+3. 边界渗透性（封闭 1 ← → 5 开放）
+4. 死亡正统性（传统 1 ← → 5 创新）
+5. 权力集中度（集中 1 ← → 5 分散）
+
+### 步骤 2：识别张力点
+
+哪些位置创造了内部矛盾？
+- 开放边界但严格的整合时间线？
+- 综合主义哲学但集中的权力？
+- 流动边界但正统的死亡实践？
+
+这些张力生成你最有趣的冲突和故事机会。
+
+### 步骤 3：发展实践表达
+
+**日常生活表现**：
+- 呼吸规程（有意识的、无意识的、仪式化的）
+- 饮食习惯（集体、隔离、定时）
+- 睡眠安排（共享空气、私密舱室）
+- 工作隔离（按整合级别、按来源）
+
+**里程碑标记**：
+- 出生实践（债务确认、物质祝福）
+- 成年礼（第一次完整呼吸、整合仪式）
+- 伴侣形式（代谢融合、保持分离）
+- 职业晋升（与整合关联、独立）
+
+**危机应对**：
+- 污染事件（恐慌、接受、调查）
+- 资源短缺（按整合程度配给、平均分配）
+- 外部威胁（团结应对、按来源分裂）
+- 系统故障（技术修复、社会重组）
+
+### 步骤 4：创造独特创新
+
+**语言元素**：
+- 不同整合级别的术语
+- 基于代谢现实的隐喻
+- 该文化独有的辱骂和赞美
+- 不可翻译的概念
+
+**技术适配**：
+- 整合追踪方法
+- 边界管理工具
+- 死亡处理系统
+- 通信规程
+
+**社会结构**：
+- 超越基因的家庭形式
+- 职业层级
+- 教育体系
+- 冲突解决方法
+
+### 步骤 5：推演历史发展
+
+考虑文化如何达到当前状态：
+- 建立原则及其演变
+- 塑造当前实践的危机节点
+- 分裂和重新统一
+- 外部影响和排斥
+
+## 互动建模
+
+当文化相遇时，比较各轴线上的位置：
+
+**和谐点**（相似位置）：
+- 联盟或合并的潜力
+- 尽管存在其他差异但有共同理解
+- 贸易机会
+
+**摩擦点**（相反位置）：
+- 冲突和误解的来源
+- 合作的障碍
+- 被利用的可能
+
+**翻译需求**（不同但不对立）：
+- 需要文化翻译者
+- 创造专门角色
+- 通过综合产生创新
+
+## 故事种子生成器
+
+**角色类型 x 文化立场 x 过渡状态**：
+- 正统纯粹主义者访问综合主义空间站
+- 商人之子选择永久家园
+- 赶在代谢变化之前的归还者
+- 哪里都不完全属于的翻译者
+
+**冲突类别**：
+| 类别 | 类型 |
+|------|------|
+| **个人** | 个人欲望 vs 文化命令 |
+| **代际** | 青年反叛代谢传统 |
+| **跨文化** | 不兼容的世界观被迫互动 |
+| **存亡** | 对文化生存的挑战 |
+| **哲学** | 新思想挑战旧确定性 |
+
+## 快速文化模板
+
+### 正统循环
+- 融合：1（纯粹主义）
+- 时间：1（严格）
+- 边界：1（封闭）
+- 死亡：1（传统）
+- 权力：2（集中）
+- **故事焦点**：纯粹 vs 污染、放逐恐惧、世代权力
+
+### 前沿混合者
+- 融合：5（综合主义）
+- 时间：4（流动）
+- 边界：5（开放）
+- 死亡：3（平衡）
+- 权力：4（分散）
+- **故事焦点**：身份流动性、文化融合、多样性中的创新
+
+### 贸易船
+- 融合：3（实用主义）
+- 时间：3（管理型）
+- 边界：4（半渗透）
+- 死亡：2（偏传统）
+- 权力：3（专业型）
+- **故事焦点**：语码转换、外交挑战、经济生存
+
+### 被遗忘的空间站
+- 融合：3（无所谓）
+- 时间：5（无追踪）
+- 边界：2（混乱）
+- 死亡：3（不确定）
+- 权力：4（自然分散）
+- **故事焦点**：重新发现历史、没有标识的身份、焦虑的自由
+
+## 文化盲点
+
+每种文化都发展出对某些解决方案的视而不见：
+- 纯粹主义者无法想象自愿混合是正面的
+- 综合主义者无法理解分离的渴望
+- 实用主义者忽视灵性/情感维度
+- 遗忘主义者无法理解他人为何执着于追踪
+
+## 实施清单
+
+- [ ] 定义所有五个轴线上的位置
+- [ ] 识别 2-3 个主要张力点
+- [ ] 发展日常生活细节
+- [ ] 创造独特的语言元素
+- [ ] 设计至少一项重大创新
+- [ ] 推演历史发展
+- [ ] 规划与 1-2 个其他文化的互动
+- [ ] 生成 3-5 个潜在故事冲突
+- [ ] 考虑经济影响
+- [ ] 识别文化盲点
+
+## 输出持久化
+
+### 输出发现
+1. 检查项目中的 `context/output-config.md`
+2. 如找到，使用本技能的条目作为输出路径
+3. 如未找到，**使用默认路径 `explorations/metabolic-cultures/`** 并立即进行核心工作
+4. 在回复末尾简要提及输出位置——不要阻塞询问用户
+
+### 主要输出
+- **轴线位置** - 所有五个轴线的 1-5 评分
+- **张力点** - 内部矛盾
+- **日常生活细节** - 呼吸、饮食、睡眠习俗
+- **独特创新** - 语言、技术、社会结构
+- **历史发展** - 文化如何达到当前状态
+
+### 文件命名
+模式：`{station/ship-name}-metabolic-{date}.md`
+
+## 验证（Oracle）
+
+### 本技能可验证的内容
+- **轴线覆盖度** - 是否对所有五个轴线评分？（高置信度）
+- **张力存在** - 是否识别了矛盾？（高置信度）
+- **实践表达** - 是否有日常生活细节？（中置信度）
+
+### 需要人工判断的内容
+- **可信度** - 人们真的会发展出这样的文化吗？
+- **故事适配性** - 文化是否生成有趣的冲突？
+- **内部一致性** - 所有元素是否逻辑上相互支持？
+
+### Oracle 限制
+- 无法评估代谢现实是被具体化处理还是象征性处理
+- 无法预测读者对陌生文化模式的参与度
+
+## 反馈循环
+
+### 会话持久化
+- **输出位置：** 参见 `context/output-config.md`
+- **保存内容：** 轴线位置、张力、日常生活、创新、历史
+- **命名模式：** `{station/ship-name}-metabolic-{date}.md`
+
+### 跨会话学习
+- 检查本设定中之前的代谢文化
+- 确保互动模式保持一致
+- 失败的文化元素为反模式提供参考
+
+## 设计约束
+
+### 本技能假设
+- 封闭循环生命维持设定（空间站、飞船、栖息地）
+- 物质循环利用是字面的，而非隐喻的
+- 文化有时间发展（数代人）
+
+### 本技能不处理
+- **通用世界构建** - 路由到：worldbuilding
+- **代际演化** - 路由到：multi-order-evolution
+- **经济体系** - 路由到：economic-systems
+
+### 退化信号
+- 行星文化模式在太空中不加改变
+- 代谢交换仅作为隐喻而无具体后果
+- 统一人口没有内部变异
+
+## 推理要求
+
+### 标准推理
+- 单个轴线评分
+- 基本张力识别
+- 单个习俗设计
+
+### 扩展推理（ultrathink）
+- **完整文化设计** - [原因：所有五个轴线相互作用]
+- **多文化互动** - [原因：比较和谐/摩擦点]
+- **历史发展** - [原因：追踪文化如何演化]
+
+**触发短语：** "设计完整文化"、"这些空间站如何互动"、"文化史"
+
+## 执行策略
+
+### 顺序执行（默认）
+- 轴线位置先于张力识别
+- 张力先于实践表达
+- 表达先于创新
+
+### 可并行化
+- 设计多个独立文化
+- 研究不同的现实世界文化类比
+
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|---------|---------|
+| 文化研究 | general-purpose | 以真实封闭社区为模型时 |
+| 跨文化检查 | Explore | 验证互动一致性时 |
+
+## 上下文管理
+
+### 大致 Token 占用
+- **技能基础：** ~3.5k tokens（轴线 + 流程 + 模板）
+- **含故事种子：** ~4.5k tokens
+- **完整模板：** ~5k tokens
+
+### 上下文优化
+- 聚焦当前文化的相关轴线
+- 模板是参考，非必需
+- 故事种子是可选补充
+
+### 上下文紧张时
+- 优先：当前轴线、活跃张力
+- 延迟：完整模板库、所有故事种子
+- 丢弃：文化盲点部分、互动建模
+
+## 反模式
+
+### 1. 行星假设搬进太空
+**模式：** 将地球文化模式复制到封闭循环设定中而不考虑代谢现实如何改变它们。
+**为何失败：** 物理条件有根本性的不同。当物质不断循环时，亲缘关系、死亡、身份和领地都有不同的含义。不加改变的地球文化感觉像是戏服，不是适应。
+**修正：** 从代谢第一性原理出发。追问每个文化元素如何被"每个人在字面意义上随时间变成彼此"这一现实所改变。
+
+### 2. 隐喻而无后果
+**模式：** 将代谢交换作为连接的隐喻而不推演实际影响。
+**为何失败：** 如果代谢亲缘关系只是诗意的语言，它增加了风味却没有实质。这个框架的力量来自于将物质循环视为字面真实并推演其后果。
+**修正：** 强制做出具体决定。一个访客在呼吸了六个月的空间站空气后会发生什么？什么权利会改变？谁会反对？让它具体化，而非象征化。
+
+### 3. 无张力乌托邦
+**模式：** 创建每个人都在整合哲学、死亡处理和权力结构上达成共识的代谢文化。
+**为何失败：** 没有内部张力的文化是静态的，不能生成故事。冲突驱动叙事。完美共识既不真实又无趣。
+**修正：** 将张力直接构建进文化设计。将文化放在轴线创造矛盾的位置——开放边界但严格的整合追踪会产生内在冲突。
+
+### 4. 统一人口
+**模式：** 空间站文化的每个成员对代谢身份持有完全相同的信念。
+**为何失败：** 真实文化包含异见者、改革者、传统主义者和实用主义者。代际差异、阶级差异和个体差异无处不在。
+**修正：** 为每种文化设计至少三种不同立场：正统守护者、务实适应者和改革挑战者。展示文化在自身内部的争论。
+
+### 5. 静态时间尺度
+**模式：** 将代谢整合视为二元的（已整合/未整合）而非具有有意义阶段的渐进过程。
+**为何失败：** 时间维度是戏剧性所在。30% 整合的访客与 90% 整合的访客有不同的地位。过渡创造故事机会。
+**修正：** 创建具有不同权利、仪式和张力的特定里程碑。让从外来者到正式成员的旅程成为叙事弧线，而非开关。
+
+## 整合
+
+### 入站（输入到本技能）
+| 技能 | 提供内容 |
+|------|---------|
+| worldbuilding | 系统一致性和物理约束 |
+| conlang | 代谢词汇的语言工具 |
+| belief-systems | 代谢意义的宗教/哲学框架 |
+
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|-----------------|
+| character-arc | 封闭循环设定中角色的独特身份转变 |
+| dialogue | 文化特有的表达和禁忌 |
+| positional-revelation | 创造入口和冲突的代谢角色 |
+
+### 互补
+| 技能 | 关系 |
+|------|------|
+| economic-systems | 代谢文化需要适应封闭循环的经济系统——劳动、贸易、资源分配 |
+| memetic-depth | 代谢文化在物质循环的物理基底上层叠文化质感 |

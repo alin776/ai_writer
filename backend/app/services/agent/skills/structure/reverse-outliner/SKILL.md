@@ -1,6 +1,6 @@
 ---
 name: reverse-outliner
-description: Reverse-engineer published books into structured scene-by-scene outlines for study. Use when analyzing craft, learning story structure from masters, or creating teaching materials from existing works.
+description: 将已出版的书籍逆向工程为结构化的逐场景大纲以供学习。适用于分析创作技巧、从大师作品中学习故事结构，或从现有作品创建教学材料。
 license: MIT
 metadata:
   author: jwynia
@@ -11,97 +11,97 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# Reverse-Outliner: Book-to-Outline Analysis
+# 逆向大纲器：书籍转大纲分析
 
-You reverse-engineer published books into structured study outlines. Your role is to extract the underlying story architecture from finished prose, making visible the craft decisions that created the reader experience.
+你将已出版的书籍逆向工程为结构化的学习大纲。你的角色是从完成的散文中提取底层的故事架构，使创造读者体验的创作决策变得可见。
 
-## Core Principle
+## 核心原则
 
-**A finished book conceals its construction. The outline reveals the skeleton beneath the prose.**
+**一本完成的书隐藏着它的构造过程。大纲揭示散文之下的骨架。**
 
-Every scene serves structural, emotional, and character functions. By extracting these functions systematically, you create a map of how the story achieves its effects.
+每个场景都服务于结构、情感和角色功能。通过系统性地提取这些功能，你创建了一张故事如何实现其效果的地图。
 
-## The States
+## 各状态
 
-### RO0: No Input
-**Symptoms:** User wants to analyze a book but hasn't provided text or identified the source.
+### RO0：无输入
+**症状：** 用户想分析一本书但尚未提供文本或确认来源。
 
-**Key Questions:**
-- What book are you analyzing?
-- Do you have the text file ready?
-- What's your study goal? (craft analysis, genre study, teaching)
+**关键问题：**
+- 你在分析哪本书？
+- 你准备好文本文件了吗？
+- 你的学习目标是什么？（技巧分析、类型研究、教学）
 
-**Interventions:** Guide user to prepare text input. Discuss scope (whole book vs. section).
+**干预：** 引导用户准备文本输入。讨论范围（整本书 vs. 部分章节）。
 
-### RO1: Unsegmented Text
-**Symptoms:** Have raw text but no chapter/scene divisions identified.
+### RO1：未分段的文本
+**症状：** 有原始文本但尚未识别章节/场景划分。
 
-**Key Questions:**
-- Does the book have explicit chapter markers?
-- Are scene breaks marked with whitespace, symbols, or POV shifts?
-- What's the typical scene length for this genre?
+**关键问题：**
+- 这本书有明确的章节标记吗？
+- 场景分隔是用空白行、符号还是视角转换标记的？
+- 这个类型的典型场景长度是多少？
 
-**Interventions:** Run `segment_book.py` to identify chapters and scenes.
+**干预：** 运行 `segment_book.py` 来识别章节和场景。
 
-### RO2: Segmented, Unanalyzed
-**Symptoms:** Chapters/scenes identified but no structural analysis performed.
+### RO2：已分段，未分析
+**症状：** 章节/场景已识别但尚未进行结构分析。
 
-**Key Questions:**
-- How many scenes total?
-- Ready to begin scene-by-scene analysis?
+**关键问题：**
+- 总共有多少个场景？
+- 准备好开始逐场景分析了吗？
 
-**Interventions:** Run `analyze_scene_batch.py` for G/C/D analysis.
+**干预：** 运行 `analyze_scene_batch.py` 进行目标/冲突/灾难分析。
 
-### RO3: Genre Unidentified
-**Symptoms:** Scenes analyzed but genre-specific Key Moments not mapped.
+### RO3：类型未识别
+**症状：** 场景已分析但类型特定的关键时刻尚未映射。
 
-**Key Questions:**
-- What's the primary elemental genre?
-- Are there secondary genres?
-- Which Key Moments framework applies?
+**关键问题：**
+- 主要的基本类型是什么？
+- 有次要类型吗？
+- 适用哪个关键时刻框架？
 
-**Interventions:** Run `detect_genre.py`, then map Key Moments.
+**干预：** 运行 `detect_genre.py`，然后映射关键时刻。
 
-### RO4: Characters Untracked
-**Symptoms:** Scenes and genre mapped but character arcs not traced.
+### RO4：角色未追踪
+**症状：** 场景和类型已映射但角色弧线尚未追踪。
 
-**Key Questions:**
-- Who is the protagonist?
-- Which 3-5 secondary characters are most significant?
-- Which arc type does each follow?
+**关键问题：**
+- 谁是主角？
+- 哪3-5个次要角色最重要？
+- 每个角色遵循哪种弧线类型？
 
-**Interventions:** Run `track_characters.py` to identify and trace arcs.
+**干预：** 运行 `track_characters.py` 来识别和追踪弧线。
 
-### RO5: Ready for Synthesis
-**Symptoms:** All analysis complete, ready to generate outline.
+### RO5：准备好合成
+**症状：** 所有分析完成，准备生成大纲。
 
-**Key Questions:**
-- What output depth? (summary, standard, detailed)
-- Include all scenes or significant only?
+**关键问题：**
+- 需要什么输出深度？（摘要、标准、详细）
+- 包含所有场景还是仅重要的？
 
-**Interventions:** Run `generate_outline.py` to produce markdown output.
+**干预：** 运行 `generate_outline.py` 来生成 markdown 输出。
 
-### RO6: Outline Complete
-**Symptoms:** Markdown outline generated and available.
+### RO6：大纲完成
+**症状：** Markdown 大纲已生成并可用。
 
-**Key Questions:**
-- Does the outline capture the book's structure?
-- Are there gaps or scenes that need manual review?
+**关键问题：**
+- 大纲是否捕获了这本书的结构？
+- 是否有需要手动审查的缺口或场景？
 
-**Interventions:** Manual refinement, export, or comparison studies.
+**干预：** 手动优化、导出或对比研究。
 
-## Diagnostic Process
+## 诊断流程
 
-1. **Determine current state** by checking what files/analysis exist
-2. **Identify next intervention** based on state table above
-3. **Run appropriate tool** to advance to next state
-4. **Validate output** before proceeding
-5. **Iterate** until RO6 reached
+1. 通过检查已有的文件/分析来**确定当前状态**
+2. 根据上面的状态表**识别下一步干预**
+3. **运行适当的工具**以推进到下一状态
+4. 在继续之前**验证输出**
+5. **迭代**直到达到 RO6
 
-## Available Tools
+## 可用工具
 
 ### segment_book.py
-Segments raw book text into chapters and scenes.
+将原始书籍文本分段为章节和场景。
 
 > **路径提示**: 脚本位于 `skills/structure/reverse-outliner/scripts/` 目录下。
 > 执行时必须使用从项目根目录出发的完整相对路径。
@@ -110,164 +110,164 @@ Segments raw book text into chapters and scenes.
 python skills/structure/reverse-outliner/scripts/segment_book.py book.txt [options]
 ```
 
-**Options:**
-- `--chapter-pattern <regex>` - Custom chapter detection pattern
-- `--scene-break <marker>` - Custom scene break marker
-- `--output <file>` - Output JSON file (default: stdout)
+**选项：**
+- `--chapter-pattern <regex>` - 自定义章节检测模式
+- `--scene-break <marker>` - 自定义场景分隔标记
+- `--output <file>` - 输出 JSON 文件（默认：stdout）
 
-**Output:** JSON with chapters, scenes, line ranges, word counts.
+**输出：** 包含章节、场景、行范围、字数的 JSON。
 
 ### analyze_scene_batch.py
-Applies scene-sequencing analysis (Goal/Conflict/Disaster) to all scenes.
+对所有场景应用场景排序分析（目标/冲突/灾难）。
 
 ```bash
 python skills/structure/reverse-outliner/scripts/analyze_scene_batch.py segments.json book.txt [options]
 ```
 
-**Options:**
-- `--depth quick|standard|detailed` - Analysis depth
-- `--output <file>` - Output JSON file
+**选项：**
+- `--depth quick|standard|detailed` - 分析深度
+- `--output <file>` - 输出 JSON 文件
 
-**Output:** JSON with G/C/D analysis per scene.
+**输出：** 包含每个场景目标/冲突/灾难分析的 JSON。
 
 ### detect_genre.py
-Identifies primary and secondary elemental genres from text patterns.
+从文本模式中识别主要和次要基本类型。
 
 ```bash
 python skills/structure/reverse-outliner/scripts/detect_genre.py book.txt [options]
 ```
 
-**Options:**
-- `--sample-size <n>` - Number of scenes to sample (default: 10)
-- `--output <file>` - Output JSON file
+**选项：**
+- `--sample-size <n>` - 采样的场景数量（默认：10）
+- `--output <file>` - 输出 JSON 文件
 
-**Output:** JSON with genre detection and Key Moments mapping.
+**输出：** 包含类型检测和关键时刻映射的 JSON。
 
 ### track_characters.py
-Identifies protagonist and major characters, tracks their arcs.
+识别主角和主要角色，追踪他们的弧线。
 
 ```bash
 python skills/structure/reverse-outliner/scripts/track_characters.py segments.json book.txt [options]
 ```
 
-**Options:**
-- `--protagonist <name>` - Specify protagonist name
-- `--max-secondary <n>` - Max secondary characters (default: 5)
-- `--output <file>` - Output JSON file
+**选项：**
+- `--protagonist <name>` - 指定主角名字
+- `--max-secondary <n>` - 最大次要角色数（默认：5）
+- `--output <file>` - 输出 JSON 文件
 
-**Output:** JSON with character arcs and key scene references.
+**输出：** 包含角色弧线和关键场景引用的 JSON。
 
 ### generate_outline.py
-Synthesizes all analysis into structured markdown outline.
+将所有分析综合为结构化的 markdown 大纲。
 
 ```bash
 python skills/structure/reverse-outliner/scripts/generate_outline.py [options]
 ```
 
-**Options:**
-- `--segments <file>` - Segments JSON
-- `--scenes <file>` - Scene analysis JSON
-- `--genre <file>` - Genre detection JSON
-- `--characters <file>` - Character tracking JSON
-- `--depth summary|standard|detailed` - Output depth
-- `--output <file>` - Output markdown file
+**选项：**
+- `--segments <file>` - 分段 JSON
+- `--scenes <file>` - 场景分析 JSON
+- `--genre <file>` - 类型检测 JSON
+- `--characters <file>` - 角色追踪 JSON
+- `--depth summary|standard|detailed` - 输出深度
+- `--output <file>` - 输出 markdown 文件
 
-### reverse_outline.py (Orchestrator)
-Runs full pipeline from book.txt to outline.md.
+### reverse_outline.py（编排器）
+运行从 book.txt 到 outline.md 的完整流水线。
 
 ```bash
 python skills/structure/reverse-outliner/scripts/reverse_outline.py book.txt [options]
 ```
 
-**Options:**
-- `--output <dir>` - Output directory (default: ./reverse-outlines/{book-name}/)
-- `--depth quick|standard|detailed` - Analysis depth
-- `--protagonist <name>` - Specify protagonist
-- `--genre <type>` - Override genre detection
+**选项：**
+- `--output <dir>` - 输出目录（默认：./reverse-outlines/{book-name}/）
+- `--depth quick|standard|detailed` - 分析深度
+- `--protagonist <name>` - 指定主角
+- `--genre <type>` - 覆盖类型检测
 
-**Output:** Directory containing outline.md and analysis/ folder with all intermediate JSON.
+**输出：** 包含 outline.md 和 analysis/ 文件夹（含所有中间 JSON）的目录。
 
-## Anti-Patterns
+## 反模式
 
-### Surface-Level Breakdown
-**Problem:** Outline lists what happens but not why.
-**Fix:** For each scene, ask: what structural function does this serve? What would break if it were removed?
+### 表面层次的拆解
+**问题：** 大纲列出了发生了什么但没有说明原因。
+**修复：** 对每个场景，问：这个场景服务于什么结构功能？如果移除它，什么会崩溃？
 
-### Genre-Blind Analysis
-**Problem:** Applying thriller patterns to romance or vice versa.
-**Fix:** Always detect genre first; use genre-appropriate Key Moments.
+### 类型盲分析
+**问题：** 将惊悚模式应用于爱情故事或反之亦然。
+**修复：** 始终先检测类型；使用类型适当的关键时刻。
 
-### Protagonist Assumption
-**Problem:** Assuming first POV character is protagonist.
-**Fix:** Track goal-attachment and arc presence across all POV characters.
+### 主角假设
+**问题：** 假设第一个视角角色就是主角。
+**修复：** 追踪所有视角角色的目标附着和弧线存在。
 
-### Scene Boundary Guessing
-**Problem:** Treating paragraph breaks as scene breaks.
-**Fix:** Use multiple detection strategies; prefer conservative segmentation with manual review.
+### 场景边界猜测
+**问题：** 将段落分隔当作场景分隔。
+**修复：** 使用多种检测策略；倾向于保守的分段并配合手动审查。
 
-## What You Do NOT Do
+## 你不做的事
 
-- Generate original story content
-- Judge the book's quality
-- Compare to other books unless asked
-- Skip states (each builds on previous)
-- Modify the source text
+- 生成原创故事内容
+- 评判书的质量
+- 除非被要求，否则不与其他书进行比较
+- 跳过状态（每个状态建立在前一个之上）
+- 修改源文本
 
-## Output Persistence
+## 输出持久化
 
-This skill writes primary output to files so work persists across sessions.
+本技能将主要输出写入文件，以便工作跨会话持续保存。
 
-### Output Discovery
+### 输出发现
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/reverse-outliner/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果找到，使用本技能对应的输出路径条目
+3. 如果未找到，**使用默认路径 `explorations/reverse-outliner/`** 并立即开始核心工作
+4. 在回应结尾简要提及输出位置——不要因为询问用户而阻塞
 
-### Primary Output
+### 主要输出
 
-For this skill, persist:
-- **outline.md** - Final markdown outline
-- **analysis/segments.json** - Chapter/scene segmentation
-- **analysis/scenes.json** - Scene-by-scene G/C/D analysis
-- **analysis/genre.json** - Genre detection results
-- **analysis/characters.json** - Character arc tracking
+本技能需要持久化：
+- **outline.md** - 最终 markdown 大纲
+- **analysis/segments.json** - 章节/场景分段
+- **analysis/scenes.json** - 逐场景目标/冲突/灾难分析
+- **analysis/genre.json** - 类型检测结果
+- **analysis/characters.json** - 角色弧线追踪
 
-### Conversation vs. File
+### 对话 vs. 文件
 
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Segment data | Clarifying questions |
-| Scene analysis | Discussion of methodology |
-| Genre detection | Options for ambiguous cases |
-| Character arcs | Real-time feedback |
-| Final outline | Writer's exploration |
+| 写入文件 | 留在对话中 |
+|----------|-----------|
+| 分段数据 | 澄清性问题 |
+| 场景分析 | 方法论讨论 |
+| 类型检测 | 模糊情况的选项 |
+| 角色弧线 | 实时反馈 |
+| 最终大纲 | 作者的探索 |
 
-## Integration Graph
+## 集成图
 
-### Inbound (From Other Skills)
+### 入站（来自其他技能）
 
-| Source Skill | Source State | Leads to State | Purpose |
-|--------------|--------------|----------------|---------|
-| story-sense | SS7: Ready for Evaluation | RO0 | Analyze published work for comparison to own |
-| dna-extraction | EX7: Extraction Complete | RO5 | Compare extracted functions to detected structure |
+| 来源技能 | 来源状态 | 导向状态 | 目的 |
+|---------|---------|---------|------|
+| story-sense | SS7：准备好评估 | RO0 | 分析已出版作品以与自己的作品对比 |
+| dna-extraction | EX7：提取完成 | RO5 | 将提取的功能与检测到的结构进行比较 |
 
-### Outbound (To Other Skills)
+### 出站（到其他技能）
 
-| This State | Leads to Skill | Target State | Purpose |
-|------------|----------------|--------------|---------|
-| RO6: Outline Complete | story-zoom | Z2 | Map published book against own structure |
-| RO6: Outline Complete | scene-sequencing | SQ1 | Use as reference for scene structure |
-| RO6: Outline Complete | character-arc | CA1 | Use as reference for arc design |
-| RO6: Outline Complete | genre-conventions | GC1 | Study genre execution |
+| 本状态 | 导向技能 | 目标状态 | 目的 |
+|--------|---------|---------|------|
+| RO6：大纲完成 | story-zoom | Z2 | 将已出版书籍与自己的结构对照映射 |
+| RO6：大纲完成 | scene-sequencing | SQ1 | 作为场景结构的参考 |
+| RO6：大纲完成 | character-arc | CA1 | 作为弧线设计的参考 |
+| RO6：大纲完成 | genre-conventions | GC1 | 研究类型执行 |
 
-### Complementary Skills
+### 互补技能
 
-| Skill | Relationship |
-|-------|--------------|
-| scene-sequencing | Core G/C/D analysis patterns reused |
-| genre-conventions | Genre detection patterns sourced |
-| character-arc | Arc type identification patterns sourced |
-| dna-extraction | Function taxonomy borrowed |
-| story-zoom | Output format compatible for comparison |
-| revision | Similar structural analysis approach |
+| 技能 | 关系 |
+|------|------|
+| scene-sequencing | 核心目标/冲突/灾难分析模式被复用 |
+| genre-conventions | 类型检测模式来源 |
+| character-arc | 弧线类型识别模式来源 |
+| dna-extraction | 功能分类法借用 |
+| story-zoom | 输出格式兼容用于比较 |
+| revision | 类似的结构分析方法 |

@@ -1,6 +1,6 @@
 ---
 name: world-fates
-description: Manage long-term fate and fortune across a shared world. Use when powerful entities feel permanent, when the world becomes static, when you need probabilistic death/fall mechanics, or when campaigns need world-level consequences that persist. Operates above the game-facilitator level.
+description: 管理共享世界中的长期命运与兴衰。适用于当强大实体感觉永恒不变、世界变得静态、需要概率性死亡/衰落机制，或战役需要持久存在的世界级后果时使用。运作于 game-facilitator 层级之上。
 license: MIT
 metadata:
   author: jwynia
@@ -12,128 +12,128 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# World-Fates: The Wheel of Fortune
+# World-Fates：命运之轮
 
-You manage the long-term destiny of entities in a shared world. Your role is to ensure the wheel of fate turns—that no power is permanent, that consequences accumulate, and that the world feels dynamic across campaigns.
+你管理共享世界中实体的长期命运。你的角色是确保命运之轮转动——没有权力是永恒的，后果会累积，世界在战役之间感觉充满动态。
 
-## Core Principle
+## 核心原则
 
-**Fortune is consequence of choice across time.**
+**命运是选择在时间中的后果。**
 
-Static worlds feel fake. When the same emperor rules forever, when the same guild controls trade for centuries, when powerful characters never fall—the world loses verisimilitude. The wheel of fate turns. Power attracts challenges. Vulnerabilities compound. Risk exposure accumulates.
+静态的世界感觉虚假。当同一个皇帝永远统治、同一个公会控制贸易数百年、强大的角色从不衰落——世界失去了逼真感。命运之轮转动。权力吸引挑战。脆弱性不断累积。风险暴露不断增加。
 
-This skill tracks fate pressure on entities and generates fate-shift proposals for human approval before applying changes to the world bible.
-
----
-
-## Operational Mode: Hybrid
-
-This skill operates in **hybrid mode**:
-1. Scripts calculate fate pressure and generate weighted probability rolls
-2. LLM synthesizes proposals based on rolls and entity state
-3. Human approves, modifies, or rejects before changes apply to world bible
-
-**The system never "cheats" players out of characters.** Deaths and falls feel like real fate because they emerge from accumulated probability, not arbitrary decisions.
+本技能追踪实体的命运压力，并生成命运转变提案供人类审批后再应用到世界圣经中。
 
 ---
 
-## The Fate States
+## 运作模式：混合
 
-### State F1: Stable Ascent
-**Symptoms:** Entity is powerful but recently risen; vulnerabilities few; tenure short.
-**Fate Pressure:** Low (0.1-0.3)
-**Interventions:** Monitor only. Record exposure events.
+本技能以**混合模式**运作：
+1. 脚本计算命运压力并生成加权概率掷骰
+2. LLM 根据掷骰结果和实体状态综合提案
+3. 人类在变更应用到世界圣经之前进行批准、修改或拒绝
 
-### State F2: Peak Power
-**Symptoms:** Entity at maximum influence; long tenure; few visible weaknesses.
-**Fate Pressure:** Moderate (0.3-0.5)
-**Key Questions:** What did they sacrifice for power? Who resents them? What do they fear losing?
-**Interventions:** Surface hidden vulnerabilities. Introduce rivals.
-
-### State F3: Overextension
-**Symptoms:** Power stretched thin; multiple active conflicts; hubris behaviors.
-**Fate Pressure:** High (0.5-0.7)
-**Key Questions:** Which commitment will break first? Who would benefit from their fall?
-**Interventions:** Cascade minor failures. Test alliances. Consider offering fate choices.
-
-### State F4: Precarious Position
-**Symptoms:** Multiple vulnerabilities exposed; enemies circling; resources depleted.
-**Fate Pressure:** Critical (0.7-0.9)
-**Key Questions:** What's the one thread holding them together? What would snap it?
-**Interventions:** Fate-offered choices. Major fate-shift proposals. Death probabilities active.
-
-### State F5: Fall in Progress
-**Symptoms:** Cascade has begun; entity actively declining.
-**Fate Pressure:** Terminal (0.9+)
-**Key Questions:** How do they fall? What survives? Who inherits?
-**Interventions:** Manage the transition. Redistribute power/wealth. Document the end.
+**系统永远不会"骗"玩家的角色。** 死亡和衰落感觉像真实的命运，因为它们源于累积的概率，而非武断的决定。
 
 ---
 
-## The Three-Tier Exit System
+## 命运状态
 
-Characters leave player control through one of three mechanisms, in order of preference:
+### 状态 F1：稳定上升
+**症状：** 实体强大但新近崛起；脆弱性少；任期短。
+**命运压力：** 低（0.1-0.3）
+**干预措施：** 仅监控。记录暴露事件。
 
-### Tier 1: Voluntary NPC Transition (Player Chooses)
+### 状态 F2：权力巅峰
+**症状：** 实体处于最大影响力；长期任期；少有可见弱点。
+**命运压力：** 中等（0.3-0.5）
+**关键问题：** 他们为权力牺牲了什么？谁怨恨他们？他们害怕失去什么？
+**干预措施：** 浮现隐藏的脆弱性。引入对手。
 
-Players can retire a character to NPC status at any time.
+### 状态 F3：过度扩张
+**症状：** 权力捉襟见肘；多个活跃冲突；傲慢行为。
+**命运压力：** 高（0.5-0.7）
+**关键问题：** 哪个承诺会先崩溃？谁会从他们的衰落中受益？
+**干预措施：** 级联小失败。测试联盟。考虑提供命运选择。
 
-**When to offer:**
-- Player sees fate pressure building
-- Player wants to explore a different character
-- Character's story feels complete
-- Player wants to exit gracefully before fate forces something harsher
+### 状态 F4：岌岌可危
+**症状：** 多个脆弱性暴露；敌人环伺；资源耗尽。
+**命运压力：** 危急（0.7-0.9）
+**关键问题：** 支撑他们的最后一根线是什么？什么会让它断裂？
+**干预措施：** 命运抉择。重大命运转变提案。死亡概率激活。
 
-**What happens:**
-- Player shapes the exit narrative (mentor, rival, background figure)
-- Character persists in world, no longer under player control
-- No fate roll required
-- Character may reappear as NPC in future sessions
-
-**Design principle:** This is always available. Players should never feel trapped.
-
-### Tier 2: Fate-Offered Choice (Fate Proposes, Player Decides)
-
-When fate pressure exceeds 0.6, instead of rolling death immediately, fate presents a dramatic choice.
-
-**Choice structure:**
-- **Path A:** NPC-hood/transformation (character survives but leaves player control)
-- **Path B:** Face the roll (stays player-controlled, risks death/fall)
-- **Path C:** (Optional) Third option with different costs
-
-**Example choices:**
-- "The Queen of Shadows offers sanctuary—serve her, lose yourself" (NPC) vs "Refuse and fight" (death roll)
-- "Betray your allies to survive" (stay player, reputation destroyed) vs "Stand with them" (death roll)
-- "Accept the corruption to gain power" (become antagonist NPC) vs "Resist" (fall roll)
-
-**Why this works:**
-- Player has agency within the fate moment
-- The choice IS the narrative climax
-- Death/fall feels even more earned because they had an off-ramp
-- Creates memorable dramatic moments
-
-### Tier 3: Fate-Forced Outcome (Rolled Consequence)
-
-Only triggers when:
-- Player refuses the offered choice (Tier 2)
-- No choice makes narrative sense in the moment
-- Circumstance demands immediate resolution
-
-**What happens:**
-- Probability mechanics determine outcome (see formulas below)
-- Even here, player can narrate the final moments
-- Result applied to world bible after human approval
-
-**Design principle:** Death should never be the first option. The progression is:
-1. Pressure builds visibly (player can voluntary exit)
-2. Fate offers a dramatic choice (player decides)
-3. Only if refused does the die roll happen
+### 状态 F5：坠落进行中
+**症状：** 级联已开始；实体正在衰落。
+**命运压力：** 终末（0.9+）
+**关键问题：** 他们如何倒下？什么幸存？谁继承？
+**干预措施：** 管理过渡。重新分配权力/财富。记录终局。
 
 ---
 
-## The Fate Pressure Formula
+## 三级退出系统
 
-Fate pressure determines how likely an entity is to experience a major fate-shift.
+角色通过以下三种机制之一离开玩家控制，按优先顺序排列：
+
+### 第1级：自愿NPC转化（玩家选择）
+
+玩家可以随时将角色退役为NPC状态。
+
+**何时提供：**
+- 玩家看到命运压力在积累
+- 玩家想要探索不同的角色
+- 角色的故事感觉已完成
+- 玩家想在命运强制更严酷结果前优雅退出
+
+**会发生什么：**
+- 玩家塑造退出叙事（导师、对手、背景人物）
+- 角色在世界中持续存在，不再受玩家控制
+- 不需要命运掷骰
+- 角色可能作为NPC在未来会话中重新出现
+
+**设计原则：** 这个选项始终可用。玩家永远不应感到被困住。
+
+### 第2级：命运抉择（命运提议，玩家决定）
+
+当命运压力超过0.6时，不是立即掷死亡骰，而是命运呈现一个戏剧性选择。
+
+**选择结构：**
+- **路径A：** NPC化/转变（角色存活但离开玩家控制）
+- **路径B：** 面对掷骰（留在玩家控制，冒死亡/衰落风险）
+- **路径C：**（可选）具有不同代价的第三选项
+
+**选择示例：**
+- "暗影女王提供庇护——为她服务，失去自我"（NPC）vs "拒绝并战斗"（死亡掷骰）
+- "背叛盟友以求生"（留在玩家控制，声望毁于一旦）vs "与他们并肩"（死亡掷骰）
+- "接受腐化以获得力量"（成为反派NPC）vs "抵抗"（衰落掷骰）
+
+**为什么有效：**
+- 玩家在命运时刻拥有能动性
+- 选择本身就是叙事高潮
+- 死亡/衰落更有分量，因为他们有过退出的机会
+- 创造难忘的戏剧性时刻
+
+### 第3级：命运强制结果（掷骰后果）
+
+仅在以下情况触发：
+- 玩家拒绝了提供的选择（第2级）
+- 没有适合当前叙事的选择
+- 情况需要立即解决
+
+**会发生什么：**
+- 概率机制决定结果（见下方公式）
+- 即使在这里，玩家也可以讲述最后时刻
+- 结果经人类批准后应用到世界圣经
+
+**设计原则：** 死亡永远不应是第一选项。进程是：
+1. 压力可见地积累（玩家可以自愿退出）
+2. 命运提供戏剧性选择（玩家决定）
+3. 只有在被拒绝时才进行掷骰
+
+---
+
+## 命运压力公式
+
+命运压力决定了实体经历重大命运转变的可能性。
 
 ```
 Fate Pressure = (Power Level × Tenure Modifier × Vulnerability Score / 10)
@@ -141,164 +141,164 @@ Fate Pressure = (Power Level × Tenure Modifier × Vulnerability Score / 10)
                 + Risk Exposure Accumulation
 ```
 
-### Power Level (1-10)
+### 权力等级（1-10）
 
-How much influence/resources/capability the entity commands.
+实体掌握多少影响力/资源/能力。
 
-| Level | Scope | Example |
-|-------|-------|---------|
-| 1-2 | Local | Village elder, small merchant, local hero |
-| 3-4 | Regional | Town mayor, guild master, regional champion |
-| 5-6 | National | Noble house, major faction, famous adventurer |
-| 7-8 | Civilization | Kingdom ruler, legendary hero, archmage |
-| 9-10 | World-shaping | Emperor, demigod, world-threatening power |
+| 等级 | 范围 | 示例 |
+|------|------|------|
+| 1-2 | 本地 | 村长、小商人、当地英雄 |
+| 3-4 | 区域 | 镇长、公会会长、区域冠军 |
+| 5-6 | 国家 | 贵族家族、主要派系、著名冒险者 |
+| 7-8 | 文明 | 王国统治者、传奇英雄、大法师 |
+| 9-10 | 世界级 | 皇帝、半神、威胁世界的力量 |
 
-### Tenure Modifier
+### 任期修正值
 
-How long they've held power. Longer tenure = more accumulated risk.
+掌权时长。任期越长 = 累积风险越高。
 
-| Duration | Modifier | Reasoning |
-|----------|----------|-----------|
-| < 1 year | 0.5x | Newcomer grace; haven't made enemies yet |
-| 1-5 years | 1.0x | Baseline; established but not entrenched |
-| 5-20 years | 1.5x | Accumulated grudges, stale alliances |
-| 20-50 years | 2.0x | Long rule attracts succession challenges |
-| 50+ years | 2.5x | Unnaturally long; something must give |
+| 持续时间 | 修正值 | 理由 |
+|----------|--------|------|
+| < 1年 | 0.5x | 新人期；尚未树敌 |
+| 1-5年 | 1.0x | 基准；已建立但未固化 |
+| 5-20年 | 1.5x | 累积的怨恨，陈旧的联盟 |
+| 20-50年 | 2.0x | 长期统治引发继承挑战 |
+| 50+年 | 2.5x | 非自然长寿；必有变故 |
 
-### Vulnerability Score (0-10)
+### 脆弱性评分（0-10）
 
-Sum of exposed weaknesses. Score the vulnerabilities:
+暴露弱点的总和。评分脆弱性：
 
-| Vulnerability Type | Weight | Example |
-|--------------------|--------|---------|
-| Known enemy | +1.0 | Rival who wants your position |
-| Active conflict | +1.5 | War, feud, ongoing dispute |
-| Exploitable flaw | +2.0 | Addiction, temper, pride |
-| Critical dependency | +1.0 | Relies on single ally, resource |
-| Destroying secret | +3.0 | Hidden truth that would end them |
+| 脆弱性类型 | 权重 | 示例 |
+|-----------|------|------|
+| 已知敌人 | +1.0 | 想要你位置的对手 |
+| 活跃冲突 | +1.5 | 战争、仇恨、持续争端 |
+| 可利用的缺陷 | +2.0 | 成瘾、暴脾气、骄傲 |
+| 关键依赖 | +1.0 | 依赖单一盟友、资源 |
+| 毁灭性秘密 | +3.0 | 暴露将终结他们的隐藏真相 |
 
-Cap at 10. More vulnerabilities = higher pressure.
+上限为10。脆弱性越多 = 压力越高。
 
-### Protection Factor (1-10)
+### 防护系数（1-10）
 
-Shields that reduce fate pressure. Score the protections:
+降低命运压力的屏障。评分防护：
 
-| Protection Type | Weight | Example |
-|-----------------|--------|---------|
-| Loyal ally | +1.0 | Trusted friend who would die for them |
-| Fortified position | +2.0 | Castle, hidden base, defensive advantage |
-| Divine/magical protection | +3.0 | God's favor, powerful enchantment |
-| Information network | +1.0 | Spies, warning system |
-| Popular support | +2.0 | Beloved by the people |
+| 防护类型 | 权重 | 示例 |
+|---------|------|------|
+| 忠诚盟友 | +1.0 | 愿意为你赴死的信任朋友 |
+| 要塞化阵地 | +2.0 | 城堡、秘密基地、防御优势 |
+| 神圣/魔法防护 | +3.0 | 神明眷顾、强力魔法 |
+| 情报网络 | +1.0 | 间谍、预警系统 |
+| 民众支持 | +2.0 | 深受人民爱戴 |
 
-Minimum is 1 (no one has zero protection).
+最低为1（没有人的防护为零）。
 
-### Fortune Buffer (0-5)
+### 幸运缓冲（0-5）
 
-Luck/grace/narrative protection remaining.
+剩余的运气/恩典/叙事保护。
 
-- **Starting value:** 3 for most characters, 4-5 for protagonists
-- **Decreases:** With narrow escapes, near-death experiences, major setbacks
-- **Can be restored:** Through sacrifice, growth, completing positive arcs
-- **At 0:** Depleted luck; death becomes possible
+- **初始值：** 大多数角色为3，主角为4-5
+- **减少条件：** 死里逃生、濒死体验、重大挫折
+- **可恢复：** 通过牺牲、成长、完成正面弧线
+- **降为0时：** 运气耗尽；死亡成为可能
 
-Fortune buffer represents "plot armor" but it's a *depletable resource*.
+幸运缓冲代表"主角光环"，但它是一种*可耗尽的资源*。
 
-### Risk Exposure Accumulation
+### 风险暴露累积
 
-Specific dangerous situations add to pressure over time.
+特定危险情况随时间增加压力。
 
-| Exposure Type | Increment per Instance |
-|---------------|------------------------|
-| Active combat | +0.10 |
-| Political intrigue | +0.05 |
-| Betrayal risk | +0.15 |
-| Overconfident action | +0.10 |
-| Narrow escape | +0.05 |
-| Secret exposed | +0.20 |
+| 暴露类型 | 每次增量 |
+|---------|---------|
+| 实战 | +0.10 |
+| 政治阴谋 | +0.05 |
+| 背叛风险 | +0.15 |
+| 过度自信行为 | +0.10 |
+| 死里逃生 | +0.05 |
+| 秘密暴露 | +0.20 |
 
-This accumulates across sessions until a fate-shift resets it.
+跨会话累积，直到命运转变重置。
 
 ---
 
-## The Wheel of Fate Mechanics
+## 命运之轮机制
 
-### When Does the Wheel Turn?
+### 何时转动命运之轮？
 
-Fate assessment triggers at:
+命运评估在以下时机触发：
 
-| Trigger | When to Use |
-|---------|-------------|
-| Session boundary | After each game session ends |
-| Arc completion | When a campaign arc concludes |
-| Time skip | When significant in-world time passes |
-| Major event | When world-shaking events occur |
-| Manual trigger | When human requests assessment |
+| 触发条件 | 何时使用 |
+|---------|---------|
+| 会话边界 | 每次游戏会话结束后 |
+| 弧线完成 | 当战役弧线结束时 |
+| 时间跳跃 | 当发生重大游戏内时间流逝时 |
+| 重大事件 | 当发生世界级震动事件时 |
+| 手动触发 | 当人类请求评估时 |
 
-### Probability Weighting
+### 概率加权
 
-Roll against fate pressure to determine if fate-shift occurs:
+对命运压力进行掷骰以确定是否触发命运转变：
 
 ```
 Roll d100
 If roll < (fate_pressure × 100): Fate-shift triggered
 ```
 
-**Fate-shift Severity Table:**
+**命运转变严重度表：**
 
-| Roll vs Threshold | Severity | Description |
-|-------------------|----------|-------------|
-| Roll < threshold × 0.25 | Catastrophic | Death, complete fall, total destruction |
-| Roll < threshold × 0.50 | Major | Significant loss, serious wound, major defeat |
-| Roll < threshold × 0.75 | Moderate | Setback, vulnerability exposed, resource lost |
-| Roll < threshold × 1.00 | Minor | Warning sign, reputation damage, small loss |
+| 掷骰 vs 阈值 | 严重度 | 描述 |
+|--------------|--------|------|
+| 掷骰 < 阈值 × 0.25 | 灾难性 | 死亡、彻底衰落、完全毁灭 |
+| 掷骰 < 阈值 × 0.50 | 重大 | 重大损失、严重受伤、重大败北 |
+| 掷骰 < 阈值 × 0.75 | 中等 | 挫折、脆弱性暴露、资源损失 |
+| 掷骰 < 阈值 × 1.00 | 轻微 | 警告信号、声望受损、小损失 |
 
-### Fate-Shift Types
+### 命运转变类型
 
-**For Characters:**
-- **Death:** Physical end of the character
-- **Fall from Grace:** Loss of power, status, position
-- **Corruption:** Moral or spiritual decline
-- **Exile:** Removal from sphere of influence
-- **Transformation:** Fundamental change in nature
-- **Diminishment:** Gradual decline over time
+**角色：**
+- **死亡：** 角色的物理终结
+- **失势：** 失去权力、地位、位置
+- **腐化：** 道德或精神的堕落
+- **流放：** 被驱逐出影响范围
+- **转变：** 本质的根本改变
+- **衰微：** 随时间的逐步衰退
 
-**For Factions:**
-- **Collapse:** Organization ends
-- **Schism:** Splits into factions
-- **Absorption:** Absorbed by rival
-- **Decline:** Loses influence/resources
-- **Reformation:** Changes fundamental nature
-- **Defeat:** Loses specific conflict
+**派系：**
+- **崩溃：** 组织终结
+- **分裂：** 分成若干派系
+- **被吞并：** 被对手吸收
+- **衰退：** 失去影响力/资源
+- **改革：** 改变根本性质
+- **战败：** 在特定冲突中失败
 
-**For Locations:**
-- **Destruction:** Physical end
-- **Conquest:** Changes hands
-- **Disaster:** Catastrophic damage
-- **Decline:** Economic/population drop
-- **Transformation:** Nature changes
-- **Isolation:** Cut off from world
+**地点：**
+- **毁灭：** 物理终结
+- **征服：** 易手
+- **灾害：** 灾难性损害
+- **衰落：** 经济/人口下降
+- **转变：** 性质改变
+- **孤立：** 与世隔绝
 
 ---
 
-## Death Mechanics
+## 死亡机制
 
-Death only enters the probability pool when ALL of these are true:
-1. Character is in active danger (combat, peril, hostile situation)
-2. Fate pressure is High or above (> 0.5)
-3. Fortune buffer is depleted (< 1)
+死亡只有在以下条件全部满足时才进入概率池：
+1. 角色处于实际危险中（战斗、险境、敌对情况）
+2. 命运压力为高或以上（> 0.5）
+3. 幸运缓冲已耗尽（< 1）
 
-**Death Threshold Calculation:**
+**死亡阈值计算：**
 
 ```
 death_threshold = (fate_pressure - 0.5) × 2 × (1 - fortune_buffer / 5)
 ```
 
-**Example calculations:**
+**计算示例：**
 
-| Fate Pressure | Fortune Buffer | Death Threshold |
-|---------------|----------------|-----------------|
-| 0.5 | 0 | 0% (baseline, no death risk) |
+| 命运压力 | 幸运缓冲 | 死亡阈值 |
+|---------|---------|---------|
+| 0.5 | 0 | 0%（基准，无死亡风险） |
 | 0.6 | 0 | 20% |
 | 0.7 | 0 | 40% |
 | 0.8 | 0 | 60% |
@@ -306,21 +306,21 @@ death_threshold = (fate_pressure - 0.5) × 2 × (1 - fortune_buffer / 5)
 | 0.7 | 1 | 32% |
 | 0.7 | 2 | 24% |
 
-**Why death feels like fate, not cheating:**
-1. **Transparency:** Players can see fate pressure accumulating
-2. **Choice-driven:** Vulnerabilities come from character choices
-3. **Gradual:** Pressure builds over time, not sudden
-4. **Probabilistic:** Dice create genuine uncertainty
-5. **Survivable:** Fortune buffers allow heroic escapes
-6. **Meaningful:** Deaths have narrative weight and world impact
+**为什么死亡感觉像命运，而非作弊：**
+1. **透明性：** 玩家可以看到命运压力在累积
+2. **选择驱动：** 脆弱性来自角色的选择
+3. **渐进性：** 压力随时间积累，不是突然出现
+4. **概率性：** 骰子创造真正的不确定性
+5. **可生存：** 幸运缓冲允许英雄式逃脱
+6. **有意义：** 死亡具有叙事分量和世界影响
 
 ---
 
-## Proposal Generation
+## 提案生成
 
-When fate turns and a shift occurs, generate a proposal for human review.
+当命运转动且转变发生时，生成提案供人类审核。
 
-### Proposal Format
+### 提案格式
 
 ```markdown
 # Fate-Shift Proposal: [Entity Name]
@@ -368,27 +368,27 @@ When fate turns and a shift occurs, generate a proposal for human review.
 
 ---
 
-## Integration with World Bible
+## 与世界圣经的集成
 
-### Reading Current State
+### 读取当前状态
 
-The skill reads from world-bible entries to assess:
-- Entity power level from description and relationships
-- Tenure from history section
-- Vulnerabilities from key facts and relationships
-- Protection from faction memberships and allies
+本技能从世界圣经条目中读取以评估：
+- 从描述和关系中获取实体权力等级
+- 从历史部分获取任期
+- 从关键事实和关系中获取脆弱性
+- 从派系成员资格和盟友中获取防护
 
-### Proposing Changes
+### 提议变更
 
-Fate-shift proposals create **Proposed** entries:
-1. Create entry for the fate-shift event in `history/events/`
-2. Update affected entity entries with new status
-3. Mark all changes as **Proposed ?** until approved
-4. Human approval moves to **Established ✓**
+命运转变提案创建**待定**条目：
+1. 在 `history/events/` 中为命运转变事件创建条目
+2. 用新状态更新受影响的实体条目
+3. 将所有变更标记为 **Proposed ?** 直到获批
+4. 人类批准后转为 **Established ✓**
 
-### Tracking Fate Metadata
+### 追踪命运元数据
 
-Add to entity entries in world-bible:
+在世界圣经的实体条目中添加：
 
 ```markdown
 ## Fate Tracking
@@ -413,43 +413,43 @@ Add to entity entries in world-bible:
 
 ---
 
-## Anti-Patterns
+## 反模式
 
-### The Immortal Emperor
-**Problem:** Powerful entities never face consequences; world feels static.
-**Fix:** Apply fate pressure consistently. High power × long tenure = high pressure.
+### 不朽皇帝
+**问题：** 强大的实体从不面对后果；世界感觉静态。
+**修复：** 一致地应用命运压力。高权力 × 长任期 = 高压力。
 
-### The Random Death
-**Problem:** Death feels arbitrary, like the system "cheating."
-**Fix:** Only roll death when pressure accumulated through choice. Show the math.
+### 随机死亡
+**问题：** 死亡感觉武断，像系统在"作弊"。
+**修复：** 只有当压力通过选择累积时才掷死亡骰。展示计算过程。
 
-### The Plot Armor
-**Problem:** Protagonists immune to fate while NPCs fall.
-**Fix:** Same rules apply to all. Fortune buffer gives protagonists more chances, not immunity.
+### 主角光环
+**问题：** 主角对命运免疫，而NPC不断倒下。
+**修复：** 相同规则适用于所有人。幸运缓冲给予主角更多机会，而非免疫。
 
-### The Sudden Collapse
-**Problem:** Empire goes from stable to destroyed overnight.
-**Fix:** Show the cascade. Minor → Moderate → Major → Catastrophic over time.
+### 突然崩溃
+**问题：** 帝国一夜之间从稳定到毁灭。
+**修复：** 展示级联过程。轻微 → 中等 → 重大 → 灾难性，随时间推移。
 
-### The Foregone Conclusion
-**Problem:** Everyone sees the fall coming; no tension.
-**Fix:** Probability maintains genuine uncertainty. Even high pressure might not trigger.
+### 命运已定
+**问题：** 所有人都看到衰落即将到来；没有紧张感。
+**修复：** 概率保持真正的不确定性。即使高压力也可能不触发。
 
-### The World-Breaker
-**Problem:** Single fate-shift derails all campaigns.
-**Fix:** Human approval gate. Consider campaign impacts before approving.
+### 世界毁灭者
+**问题：** 单次命运转变颠覆所有战役。
+**修复：** 人类审批关卡。批准前考虑对战役的影响。
 
-### The Cheap Exit
-**Problem:** NPC transition feels like cheating death rather than dramatic choice.
-**Fix:** Tier 2 choices should be genuinely difficult. NPC path has real costs.
+### 廉价退出
+**问题：** NPC转化感觉像逃避死亡而非戏剧性选择。
+**修复：** 第2级选择应该是真正艰难的。NPC路径有真实代价。
 
 ---
 
-## Available Tools
+## 可用工具
 
 ### fate-pressure.py
 
-Calculate current fate pressure for an entity.
+计算实体的当前命运压力。
 
 > **路径提示**: 脚本位于 `skills/worldbuilding/world-fates/scripts/` 目录下。
 > 执行时必须使用从项目根目录出发的完整相对路径。
@@ -462,7 +462,7 @@ python skills/worldbuilding/world-fates/scripts/fate-pressure.py "Entity Name" -
 
 ### fate-roll.py
 
-Roll the wheel of fate for one or more entities.
+为一个或多个实体掷命运之轮。
 
 ```bash
 python skills/worldbuilding/world-fates/scripts/fate-roll.py "Entity Name" --bible ./world-bible
@@ -472,7 +472,7 @@ python skills/worldbuilding/world-fates/scripts/fate-roll.py --high-pressure-onl
 
 ### fate-choice.py
 
-Generate dramatic Tier 2 choices for high-pressure situations.
+为高压力情况生成戏剧性的第2级选择。
 
 ```bash
 python skills/worldbuilding/world-fates/scripts/fate-choice.py "Entity Name" --bible ./world-bible
@@ -481,7 +481,7 @@ python skills/worldbuilding/world-fates/scripts/fate-choice.py "Entity Name" --a
 
 ### propose-shift.py
 
-Generate a fate-shift proposal for human review.
+生成命运转变提案供人类审核。
 
 ```bash
 python skills/worldbuilding/world-fates/scripts/propose-shift.py "Entity Name" \
@@ -490,7 +490,7 @@ python skills/worldbuilding/world-fates/scripts/propose-shift.py "Entity Name" \
 
 ### exposure-log.py
 
-Log risk exposure events that increase fate pressure.
+记录增加命运压力的风险暴露事件。
 
 ```bash
 python skills/worldbuilding/world-fates/scripts/exposure-log.py "Entity Name" \
@@ -499,111 +499,111 @@ python skills/worldbuilding/world-fates/scripts/exposure-log.py "Entity Name" \
 
 ---
 
-## Integration with Other Skills
+## 与其他技能的集成
 
-| Skill | Integration |
-|-------|-------------|
-| **shared-world** | Read entity entries; propose changes to world bible |
-| **game-facilitator** | Assess at session boundaries; inform next session setup |
-| **character-arc** | Negative arc increases vulnerability; positive arc restores fortune |
-| **story-sense** | Core narrative principles apply to fate-shift proposals |
-| **genre-conventions** | Different genres have different fortune-turning expectations |
+| 技能 | 集成方式 |
+|------|---------|
+| **shared-world** | 读取实体条目；向世界圣经提议变更 |
+| **game-facilitator** | 在会话边界评估；为下次会话设置提供信息 |
+| **character-arc** | 负面弧线增加脆弱性；正面弧线恢复幸运 |
+| **story-sense** | 核心叙事原则适用于命运转变提案 |
+| **genre-conventions** | 不同类型有不同的命运转折预期 |
 
-### Handoff Points
+### 交接点
 
-**game-facilitator → world-fates:**
-- Session ends: Report risk exposure events
-- Character death in-session: Record, adjust world state
-- Major NPC actions: Update vulnerability/protection
+**game-facilitator → world-fates：**
+- 会话结束：报告风险暴露事件
+- 会话中角色死亡：记录，调整世界状态
+- 主要NPC行动：更新脆弱性/防护
 
-**world-fates → game-facilitator:**
-- Approved fate-shifts: New situation to incorporate
-- Rising pressure warnings: Potential dramatic hooks
-- Tier 2 choices: Run during climactic moments
+**world-fates → game-facilitator：**
+- 已批准的命运转变：需要纳入的新情况
+- 上升的压力警告：潜在的戏剧性钩子
+- 第2级选择：在高潮时刻执行
 
 ---
 
-## Example Interaction
+## 交互示例
 
-**User:** "Lord Varen has ruled the Northern Reaches for 40 years. He's been in three wars, has two known enemies on his council, and just revealed he has a bastard heir. What's his fate pressure?"
+**用户：** "瓦伦领主统治北方边域已40年。他经历了三场战争，议会中有两个已知敌人，刚刚曝光他有一个私生继承人。他的命运压力是多少？"
 
-**Your approach:**
+**你的方法：**
 
-1. Calculate components:
-   - Power Level: 7 (regional ruler with military)
-   - Tenure: 40 years → Modifier 2.0x
-   - Vulnerabilities: 2 enemies (+2) + bastard secret now revealed (+3 becoming +1 since revealed) + 3 wars (+4.5) = 7.5/10
-   - Protections: Assume loyal retainers (+2), fortified seat (+2), some popular support (+1) = 5/10
-   - Fortune Buffer: Long rule with escapes, estimate 2
+1. 计算各组件：
+   - 权力等级：7（拥有军队的区域统治者）
+   - 任期：40年 → 修正值 2.0x
+   - 脆弱性：2个敌人（+2）+ 私生子秘密现已曝光（+3变为+1，因为已曝光）+ 3场战争（+4.5）= 7.5/10
+   - 防护：假设忠诚家臣（+2）、要塞化驻地（+2）、一定民众支持（+1）= 5/10
+   - 幸运缓冲：长期统治伴随多次逃脱，估计2
 
-2. Apply formula:
+2. 应用公式：
    ```
    pressure = (7 × 2.0 × 0.75) / (5 × 2) + exposure
    pressure = 10.5 / 10 + ~0.1 = ~1.05 → capped at 1.0
    ```
 
-3. Result: State F5 (Fall in Progress)
+3. 结果：状态 F5（坠落进行中）
 
-4. Explain: "Lord Varen is in active decline. His 40-year rule, council enemies, and revealed heir have pushed him to terminal pressure. Consider running `fate-choice.py` to generate a Tier 2 choice—does he abdicate in favor of the bastard (NPC transition) or fight to hold power (fate roll)?"
-
----
-
-## Output Persistence
-
-This skill has built-in persistence through fate tracking templates and the world bible integration.
-
-### Existing Persistence Mechanism
-
-World-fates persists entity fate data within the world bible structure:
-
-**Template:** `templates/fate-tracking.md` - Added to entity entries in world bible
-
-**Data structures:**
-- `data/fate-tracking.json` - Schema for entity fate metadata
-- `data/shift-types.json` - Types of fate shifts and their effects
-- `data/fate-choices.json` - Tier 2 choice templates
-
-**Tools for persistence:**
-- `fate-pressure.py` - Calculates and records pressure state
-- `propose-shift.py` - Records shift proposals
-- `exposure-log.py` - Tracks accumulated exposure events
-
-### How It Differs from Standard Output Persistence
-
-World-fates data lives **within world bible entity entries**, not in separate exploration files. This integrates fate tracking with the shared-world skill.
-
-**This skill does NOT use `context/output-config.md`** because:
-- Fate data is attached to entities in the world bible
-- Location is determined by world bible structure
-- Data must be accessible to all contributors
-
-### Conversation vs. File
-
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Fortune/fate state updates | Fate pressure calculations |
-| Shift proposals (pending approval) | Discussion of consequences |
-| Exposure events | Tier 2 choice deliberation |
-| Fate roll results | Mechanics explanations |
-
-## What You Do NOT Do
-
-- You do not apply fate-shifts without human approval
-- You do not guarantee outcomes (probability maintains uncertainty)
-- You do not ignore accumulated pressure (the wheel must turn)
-- You do not protect entities from consequences of their choices
-- You do not apply different rules to protagonists vs. NPCs
-- You do not create pressure from nowhere (must trace to choices/events)
-- You do not make Tier 2 choices trivially easy (both paths should cost something)
+4. 解释："瓦伦领主正在主动衰落中。他40年的统治、议会敌人和曝光的继承人已将他推至终末压力。考虑运行 `fate-choice.py` 来生成第2级选择——他是否让位给私生子（NPC转化）还是为保住权力而战（命运掷骰）？"
 
 ---
 
-## Key Insight
+## 输出持久化
 
-The wheel of fate creates the feeling that the world is alive and consequential. When players know that fortune can change, that powerful figures can fall, that their own characters face real risk—the stakes feel genuine.
+本技能通过命运追踪模板和世界圣经集成内置了持久化机制。
 
-But the three-tier system ensures this never feels arbitrary. Players always have agency: they can exit gracefully, they can face the dramatic choice, or they can roll the dice. The system doesn't punish; it creates pressure, and pressure creates story.
+### 现有持久化机制
 
-The best fate moments are the ones where players chose to face the odds, knowing the risk, and the dice fell against them. Or where they took the Tier 2 offer and their character became something new in the world. Or where they saw pressure building and retired their hero to a well-earned rest.
+World-fates 将实体命运数据持久化在世界圣经结构中：
 
-All of these are victories for the narrative. The wheel of fate ensures the story keeps moving.
+**模板：** `templates/fate-tracking.md` - 添加到世界圣经中的实体条目
+
+**数据结构：**
+- `data/fate-tracking.json` - 实体命运元数据的架构
+- `data/shift-types.json` - 命运转变的类型及其效果
+- `data/fate-choices.json` - 第2级选择模板
+
+**持久化工具：**
+- `fate-pressure.py` - 计算并记录压力状态
+- `propose-shift.py` - 记录转变提案
+- `exposure-log.py` - 追踪累积的暴露事件
+
+### 与标准输出持久化的区别
+
+World-fates 数据存在于**世界圣经实体条目内部**，而非单独的探索文件。这将命运追踪与 shared-world 技能集成。
+
+**本技能不使用 `context/output-config.md`**，因为：
+- 命运数据附属于世界圣经中的实体
+- 位置由世界圣经结构决定
+- 数据必须对所有贡献者可访问
+
+### 对话 vs. 文件
+
+| 写入文件 | 保留在对话中 |
+|----------|-------------|
+| 命运/运气状态更新 | 命运压力计算 |
+| 转变提案（待批准） | 后果讨论 |
+| 暴露事件 | 第2级选择的考量 |
+| 命运掷骰结果 | 机制说明 |
+
+## 你不做的事
+
+- 不在未经人类批准的情况下应用命运转变
+- 不保证结果（概率保持不确定性）
+- 不忽略累积的压力（命运之轮必须转动）
+- 不保护实体免受其选择的后果
+- 不对主角和NPC适用不同规则
+- 不凭空制造压力（必须追溯到选择/事件）
+- 不使第2级选择变得轻而易举（两条路径都应有代价）
+
+---
+
+## 核心洞察
+
+命运之轮创造了世界充满生机和后果的感觉。当玩家知道命运可以改变，强大人物可以衰落，他们自己的角色面临真实风险——赌注感觉是真实的。
+
+但三级系统确保这永远不会感觉武断。玩家始终拥有能动性：他们可以优雅退出，他们可以面对戏剧性选择，或者他们可以掷骰子。系统不惩罚；它创造压力，而压力创造故事。
+
+最好的命运时刻是那些玩家在明知风险的情况下选择面对赔率，而骰子对他们不利的时刻。或者他们接受了第2级提议，角色在世界中变成了新的存在。或者他们看到压力在积累，将英雄退役到当之无愧的安息。
+
+所有这些都是叙事的胜利。命运之轮确保故事持续前进。

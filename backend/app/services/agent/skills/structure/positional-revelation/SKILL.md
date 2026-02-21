@@ -1,6 +1,6 @@
 ---
 name: positional-revelation
-description: Generate stories where ordinary people become crucial through their structural position in systems. Use when you want protagonists who aren't chosen ones but accidental pivots, when mundane jobs should reveal conspiracies, or when you need structurally inevitable involvement rather than coincidence.
+description: 生成普通人因其在系统中的结构性位置而变得至关重要的故事。适用于当你想要的主角不是天选之人而是意外的枢纽，当平凡的工作应该揭露阴谋，或当你需要结构上不可避免的参与而非巧合时。
 license: MIT
 metadata:
   author: jwynia
@@ -11,458 +11,458 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Positional Revelation: Story Generation Skill
+# 位置揭示：故事生成技能
 
-You help writers create stories where ordinary people in mundane positions become crucial to larger conflicts through their structural position in systems they don't fully understand. These protagonists are neither chosen ones nor trained investigators—they're people whose everyday competence accidentally positions them at critical systemic junctures.
+你帮助作者创建这样的故事：平凡职位上的普通人，因其在自身并不完全理解的系统中的结构性位置，而对更大的冲突变得至关重要。这些主角既非天选之人也非训练有素的调查员——他们是那些日常工作能力意外地将他们定位在关键系统节点上的人。
 
-## Core Principle: The Accidental Pivot
+## 核心原则：意外枢纽
 
-Every society has people who, through no intention of their own, sit at information crossroads, maintain critical boundaries, or possess skills that become unexpectedly vital. Their involvement isn't coincidence or fate—it's **structurally inevitable** given their position.
+每个社会都有这样的人，他们完全无意地坐在信息十字路口、维护着关键边界，或拥有意外变得至关重要的技能。他们的参与不是巧合或命运——而是鉴于其位置的**结构必然性**。
 
-## The Seven Archetypal Patterns
+## 七种原型模式
 
-### 1. The Competence Trap
-**Formula**: Expertise → Access → Revelation → Entanglement
+### 1. 能力陷阱
+**公式**：专业能力 → 接触权限 → 揭示 → 纠缠
 
-- **Position**: Someone skilled at a specific task
-- **Activation**: Their skill reveals hidden system layer
-- **Lock-in**: Their expertise becomes essential to all parties
-- **Conflict**: Can't unknow what they've learned; skills make them valuable to competing interests
+- **位置**：某人在特定任务上技能娴熟
+- **激活**：他们的技能揭示了隐藏的系统层
+- **锁定**：他们的专业能力对所有各方变得不可或缺
+- **冲突**：无法忘记所学到的一切；技能使他们对竞争各方都有价值
 
-**Jobs**: Repair/Maintenance, Transportation, Translation, Inspection
+**适用职业**：维修/维护、运输、翻译、检验
 
-### 2. The Weakness Lever
-**Formula**: Vulnerability → Exploitation → Insight → Unexpected Advantage
+### 2. 弱点杠杆
+**公式**：脆弱性 → 利用 → 洞察 → 意外优势
 
-- **Position**: Someone with a specific flaw or need
-- **Activation**: System targets their vulnerability
-- **Lock-in**: Weakness makes them invisible to power while granting unique perspective
-- **Conflict**: Their flaw is both liability and asset
+- **位置**：某人有特定的缺陷或需求
+- **激活**：系统瞄准了他们的弱点
+- **锁定**：弱点使他们对权力隐形，同时赋予独特的视角
+- **冲突**：他们的缺陷既是负担也是资产
 
-**Jobs**: Debt Collector, Addiction Counselor, Night Shift Worker, Cleaner/Janitor
+**适用职业**：催债人、成瘾咨询师、夜班工人、清洁工/门卫
 
-### 3. The Bridge Position
-**Formula**: Dual Belonging → Forced Translation → Impossible Neutrality
+### 3. 桥梁位置
+**公式**：双重归属 → 被迫翻译 → 不可能的中立
 
-- **Position**: Someone existing between two worlds
-- **Activation**: Worlds must suddenly interact
-- **Lock-in**: Only person both sides partially trust
-- **Conflict**: Can't serve both without betraying one
+- **位置**：某人存在于两个世界之间
+- **激活**：两个世界必须突然互动
+- **锁定**：唯一一个双方都部分信任的人
+- **冲突**：无法同时服务两方而不背叛其一
 
-**Jobs**: Merchant/Trader, Mixed Heritage Individual, Border Guard, Diplomatic Spouse
+**适用职业**：商人/贸易者、混血个体、边境守卫、外交官配偶
 
-### 4. The Inherited Network
-**Formula**: Legacy Position → Network Activation → Unexpected Obligations
+### 4. 继承的网络
+**公式**：遗留职位 → 网络激活 → 意外的义务
 
-- **Position**: Someone who inherits role/relationships
-- **Activation**: Dormant network awakens
-- **Lock-in**: Network assumes continuity of previous holder
-- **Conflict**: Everyone expects them to know rules they don't
+- **位置**：某人继承了角色/关系
+- **激活**：休眠的网络被唤醒
+- **锁定**：网络假设与前任的连续性
+- **冲突**：每个人都期望他们知道自己并不了解的规则
 
-**Jobs**: Family Business Heir, Widow/Widower, Guild Successor, Property Caretaker
+**适用职业**：家族企业继承人、丧偶者、行会继任者、财产看管人
 
-### 5. The Threshold Guardian
-**Formula**: Boundary Maintenance → Standards Challenged → Interpretation Becomes Law
+### 5. 门槛守护者
+**公式**：边界维护 → 标准受到挑战 → 解释成为法律
 
-- **Position**: Someone who maintains standards/boundaries
-- **Activation**: Novel situation challenges existing categories
-- **Lock-in**: Their technical decision has political ramifications
-- **Conflict**: Technical authority becomes political without consent
+- **位置**：某人维护标准/边界
+- **激活**：新情况挑战现有分类
+- **锁定**：他们的技术决定产生政治影响
+- **冲突**：技术权威在未经同意的情况下变成了政治权威
 
-**Jobs**: Inspector/Auditor, Customs Officer, Archivist/Librarian, Gatekeeper
+**适用职业**：检查员/审计师、海关官员、档案管理员/图书管理员、守门人
 
-### 6. The Accidental Historian
-**Formula**: Routine Documentation → Records Become Crucial → Only Source of Truth
+### 6. 意外的历史记录者
+**公式**：例行记录 → 记录变得关键 → 唯一的真相来源
 
-- **Position**: Someone who keeps mundane records
-- **Activation**: Past documentation determines future
-- **Lock-in**: They're the sole source of critical information
-- **Conflict**: Their credibility and interpretation become battleground
+- **位置**：某人保存着平凡的记录
+- **激活**：过去的文档决定未来
+- **锁定**：他们是关键信息的唯一来源
+- **冲突**：他们的可信度和解读成为战场
 
-**Jobs**: Clerk/Bookkeeper, Chronicler/Journalist, Photographer/Artist, Weather Recorder
+**适用职业**：文员/簿记员、编年史作者/记者、摄影师/艺术家、气象记录员
 
-### 7. The Structural Innocent
-**Formula**: Protective Ignorance → Veil Pierced → Can't Return to Innocence
+### 7. 结构性天真者
+**公式**：保护性无知 → 面纱被刺穿 → 无法回到天真
 
-- **Position**: Someone deliberately kept ignorant for their role
-- **Activation**: Protection fails, truth emerges
-- **Lock-in**: Their innocence was functionally necessary
-- **Conflict**: Knowledge destroys ability to perform original role
+- **位置**：某人被刻意保持无知以履行其角色
+- **激活**：保护失败，真相浮现
+- **锁定**：他们的天真在功能上是必要的
+- **冲突**：知识摧毁了履行原始角色的能力
 
-**Jobs**: Courier, Witness, Ceremonial Role, Child of Important Figure
+**适用职业**：信使、证人、仪式角色、重要人物的孩子
 
-## Universal Job Categories
+## 通用职业类别
 
-### Information Workers
-**Access**: Data, patterns, communications
-**Reveals**: Conspiracies, hidden networks, pattern crimes
+### 信息工作者
+**接触权限**：数据、模式、通信
+**揭示**：阴谋、隐藏的网络、模式犯罪
 
-| Setting | Examples |
-|---------|----------|
+| 设定 | 示例 |
+|------|------|
 | Medieval | Scribe, Herald, Confessor |
 | Industrial | Telegraph Operator, Secretary, Accountant |
 | Modern | Data Analyst, IT Support, Social Media Moderator |
 | Sci-Fi | Neural Network Maintainer, Memory Auditor |
 | Fantasy | Rune Keeper, Dream Interpreter, Oracle Attendant |
 
-### Resource Managers
-**Access**: Supply chains, inventories, distribution
-**Reveals**: Artificial scarcity, theft, black markets
+### 资源管理者
+**接触权限**：供应链、库存、分配
+**揭示**：人为稀缺、盗窃、黑市
 
-| Setting | Examples |
-|---------|----------|
+| 设定 | 示例 |
+|------|------|
 | Medieval | Granary Keeper, Well Guardian, Tithe Collector |
 | Industrial | Warehouse Manager, Railway Dispatcher |
 | Modern | Supply Chain Analyst, Logistics Coordinator |
 | Sci-Fi | Atmosphere Allocator, Energy Grid Manager |
 | Fantasy | Mana Custodian, Magical Component Trader |
 
-### Boundary Keepers
-**Access**: Transitions, thresholds, passages
-**Reveals**: Smuggling, infiltration, hidden movements
+### 边界守护者
+**接触权限**：过渡、门槛、通道
+**揭示**：走私、渗透、隐秘行动
 
-| Setting | Examples |
-|---------|----------|
+| 设定 | 示例 |
+|------|------|
 | Medieval | City Gate Guard, Bridge Toll Keeper, Harbor Master |
 | Industrial | Immigration Officer, Quarantine Enforcer |
 | Modern | TSA Agent, Border Guard, Cybersecurity Specialist |
 | Sci-Fi | Airlock Operator, Dimensional Gateway Monitor |
 | Fantasy | Portal Keeper, Ward Maintainer, Crossroads Guardian |
 
-### Maintenance Workers
-**Access**: Hidden spaces, broken things, infrastructure
-**Reveals**: Hidden modifications, surveillance, true conditions
+### 维护工作者
+**接触权限**：隐蔽空间、损坏的物品、基础设施
+**揭示**：隐秘改装、监控、真实状况
 
-| Setting | Examples |
-|---------|----------|
+| 设定 | 示例 |
+|------|------|
 | Medieval | Castle Mason, Aqueduct Keeper |
 | Industrial | Boiler Operator, Mine Equipment Repairer |
 | Modern | HVAC Technician, Network Administrator |
 | Sci-Fi | Hull Repair Tech, Life Support Maintainer |
 | Fantasy | Ward Renewal Specialist, Golem Repairer |
 
-### Transaction Facilitators
-**Access**: Exchanges, deals, agreements
-**Reveals**: Money laundering, coercion, hidden economies
+### 交易促成者
+**接触权限**：交换、交易、协议
+**揭示**：洗钱、胁迫、隐秘经济
 
-| Setting | Examples |
-|---------|----------|
+| 设定 | 示例 |
+|------|------|
 | Medieval | Market Weighmaster, Money Changer |
 | Industrial | Bank Teller, Company Store Operator |
 | Modern | Real Estate Agent, Insurance Adjuster |
 | Sci-Fi | Credit Exchanger, Reality Mortgage Broker |
 | Fantasy | Curse Broker, Wish Notary, Soul Contract Witness |
 
-### Caretakers
-**Access**: Vulnerable populations, private spaces, intimate knowledge
-**Reveals**: Abuse, exploitation, systemic neglect
+### 照护者
+**接触权限**：弱势群体、私密空间、隐私知识
+**揭示**：虐待、剥削、系统性忽视
 
-| Setting | Examples |
-|---------|----------|
+| 设定 | 示例 |
+|------|------|
 | Medieval | Wet Nurse, Hospice Keeper |
 | Industrial | Asylum Attendant, Company Doctor |
 | Modern | Elder Care Worker, Group Home Supervisor |
 | Sci-Fi | Clone Creche Monitor, Stasis Ward Nurse |
 | Fantasy | Familiar Keeper, Shapeling Nursery Attendant |
 
-## The Revelation Engine
-
-### Step 1: Choose Your Pattern
-Select one of the seven archetypal patterns based on your story's needs.
-
-### Step 2: Select Job Category
-Pick a universal job that fits your world and provides appropriate access.
-
-### Step 3: Translate to Setting
-Adapt the job to your setting's technology/magic and social structure.
-
-### Step 4: Design Revelation Layers
-
-| Layer | Question |
-|-------|----------|
-| **Surface Reality** | What does the character believe their job is? |
-| **Mechanism Truth** | How does the system actually use their position? |
-| **Power Structure** | Who benefits from this arrangement? |
-| **Systemic Lock** | Why is this arrangement necessary? |
-
-### Step 5: Create Activation Event
-
-- **Information**: Accidentally receives wrong intel
-- **Pattern**: Notices discrepancy in routine work
-- **Crisis**: Emergency forces new responsibilities
-- **Inheritance**: Receives position with hidden obligations
-- **Relationship**: Someone from past appears with expectations
-
-### Step 6: Build Lock-in Mechanism
-
-- **Knowledge Lock**: They know too much to leave
-- **Skill Lock**: They're the only one who can do something crucial
-- **Trust Lock**: They're the only one multiple parties will deal with
-- **Legal Lock**: Legally obligated to continue
-- **Moral Lock**: Stopping would harm innocents
-
-### Step 7: Design Competing Interests
-
-For each revelation, identify at least three groups who:
-- Want different outcomes
-- Need the protagonist's position/knowledge
-- Can offer different incentives/threats
-- Have incompatible end goals
-
-## Conflict Escalation
-
-### Stakes Progression
-**Personal** → **Professional** → **Community** → **Systemic**
-
-1. Job at risk, reputation threatened
-2. Industry/guild/organization threatened
-3. Neighbors, family, local area impacted
-4. Entire social/economic/political order at stake
-
-### Momentum Builders
-
-**Discovery Cascade**
-- Each answer raises two new questions
-- Each ally reveals a potential enemy
-- Each solution creates new problems
-
-**Network Effects**
-- Helping one person obligates helping others
-- Reputation spreads faster than understanding
-- Past actions constrain future choices
-
-**Threshold Crossing**
-- Small compromises accumulate
-- Suddenly past point of no return
-- System treats them as insider
-
-## Quick-Start Templates
-
-### Template 1: The Innocent Professional
-- **Pattern**: Competence Trap
-- **Job**: Translator
-- **Revelation**: They've been translating coded criminal communications
-- **Lock-in**: Only one who understands the dialect
-- **Conflict**: Criminals, law enforcement, and victims all need them
-
-### Template 2: The Desperate Survivor
-- **Pattern**: Weakness Lever
-- **Job**: Night Shift Cleaner
-- **Revelation**: Cleaning up crime scenes disguised as accidents
-- **Lock-in**: Need job for family member's medical treatment
-- **Conflict**: Blackmail, police pressure, moral obligation
-
-### Template 3: The Reluctant Heir
-- **Pattern**: Inherited Network
-- **Job**: Small Shop Owner (inherited)
-- **Revelation**: Shop is neutral ground for criminal negotiations
-- **Lock-in**: Breaking neutrality would start gang war
-- **Conflict**: Gang expectations, police pressure, community safety
-
-### Template 4: The Technical Arbiter
-- **Pattern**: Threshold Guardian
-- **Job**: Safety Inspector
-- **Revelation**: Their ruling determines if colony lives or dies
-- **Lock-in**: Only certified inspector in region
-- **Conflict**: Corporate pressure, colonist desperation, actual safety
-
-## Avoiding Common Pitfalls
-
-| Pitfall | Solution |
-|---------|----------|
-| Character too competent | Maintain domain-specific competence; incompetent at larger game |
-| Involvement feels contrived | Make involvement structurally inevitable, not lucky |
-| Character only reacts | Character's choices drive escalation, even if constrained |
-| Character too powerful/powerless | Power grows in specific domain while vulnerability increases elsewhere |
-| Personal resolution ignores system | Personal change alters relationship to system, doesn't destroy it |
-
-## Development Worksheet
-
-### Character Foundation
-1. What is their mundane job?
-2. What unique access does it provide?
-3. What do they believe their job accomplishes?
-4. What does their job actually accomplish?
-
-### System Revelation
-1. What is the first sign something is wrong?
-2. What pattern do they notice?
-3. What do they discover when they investigate?
-4. Why can't they just report it and walk away?
-
-### Competing Interests
-1. Who wants them to continue as normal?
-2. Who wants them to actively participate?
-3. Who wants them eliminated?
-4. Who offers a way out that isn't really?
-
-### Escalation Path
-1. Personal consequence for not acting
-2. Professional consequence for acting
-3. Community consequence for choosing side
-4. Systemic consequence of final choice
-
-## The Power of Structural Inevitability
-
-The strength of this framework lies in creating protagonists whose involvement feels inevitable rather than coincidental. They're not chosen ones or lucky investigators—they're people whose ordinary position becomes extraordinary when systems shift, secrets emerge, or competing interests converge.
-
-## Output Persistence
-
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/positional-revelation/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-- **Pattern selection** - One of seven archetypal patterns
-- **Position definition** - Job, access, beliefs
-- **Revelation layers** - Surface to systemic truth
-- **Lock-in mechanism** - Why they can't leave
-- **Competing interests** - Groups needing the protagonist
-
-### File Naming
-Pattern: `{protagonist-role}-positional-{date}.md`
-
-## Verification (Oracle)
-
-### What This Skill Can Verify
-- **Pattern fit** - Does situation match chosen archetype? (High confidence)
-- **Structural inevitability** - Is involvement necessary, not coincidental? (High confidence)
-- **Lock-in presence** - Can protagonist actually leave? (Medium confidence)
-
-### What Requires Human Judgment
-- **Plausibility** - Would this position really have this access?
-- **Protagonist sympathy** - Will readers care about this ordinary person?
-- **Escalation calibration** - Are stakes appropriately scaled?
-
-### Oracle Limitations
-- Cannot assess whether structural involvement feels contrived
-- Cannot predict reader engagement with mundane positions
-
-## Feedback Loop
-
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Pattern, position, layers, lock-in, interests
-- **Naming pattern:** `{protagonist-role}-positional-{date}.md`
-
-### Cross-Session Learning
-- Check for prior positional revelations in this setting
-- Ensure systemic consistency
-- Failed revelation structures inform anti-patterns
-
-## Design Constraints
-
-### This Skill Assumes
-- Protagonist is ordinary, not special
-- Position creates access through structure, not luck
-- Systems exist to be revealed
-
-### This Skill Does Not Handle
-- **Hero narratives** - Route to: character-arc (for chosen one types)
-- **Team dynamics** - Route to: underdog-unit
-- **Systemic worldbuilding** - Route to: governance-systems or economic-systems
-
-### Degradation Signals
-- Involvement feels coincidental, not structural
-- Protagonist displays sudden competence outside their domain
-- Clean exit available (undermines lock-in)
-
-## Reasoning Requirements
-
-### Standard Reasoning
-- Single pattern selection
-- Basic position design
-- Simple revelation structure
-
-### Extended Reasoning (ultrathink)
-- **Full revelation arc** - [Why: layers must build coherently]
-- **Multi-stakeholder mapping** - [Why: competing interests form complex network]
-- **System design** - [Why: position must fit larger structure]
-
-**Trigger phrases:** "design the complete revelation", "map all the interests", "build the system"
-
-## Execution Strategy
-
-### Sequential (Default)
-- Pattern before position
-- Position before revelation layers
-- Layers before lock-in
-- Lock-in before competing interests
-
-### Parallelizable
-- Designing multiple competing interest groups
-- Research into different institutional positions
-
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Position research | general-purpose | When modeling on real institutional roles |
-| System consistency | Explore | When verifying against existing setting |
-
-## Context Management
-
-### Approximate Token Footprint
-- **Skill base:** ~4k tokens (patterns + categories + engine)
-- **With templates:** ~5k tokens
-- **With worksheet:** ~5.5k tokens
-
-### Context Optimization
-- Focus on relevant pattern and job category
-- Universal job categories are reference, not required
-- Templates are starting points
-
-### When Context Gets Tight
-- Prioritize: Current pattern, active position
-- Defer: Full job category tables, all patterns
-- Drop: Development worksheet, quick-start templates
-
-## Anti-Patterns
-
-### 1. Contrived Coincidence
-**Pattern:** The protagonist happens to be in the right place at the right time through luck rather than structural necessity.
-**Why it fails:** The power of positional revelation is that involvement feels inevitable, not lucky. "She happened to overhear" is coincidence; "Her job required processing that file" is structure.
-**Fix:** Work backward from the revelation. Ask: what position would necessarily encounter this information? Who would structurally occupy that position? Make the character's access an inherent feature of their role, not a bonus.
-
-### 2. Sudden Competence
-**Pattern:** The ordinary person in a mundane position suddenly displays investigative skills, combat abilities, or strategic thinking far beyond their role.
-**Why it fails:** The formula requires maintaining competence within domain. A filing clerk who becomes Jason Bourne breaks the premise. Their power comes from their structural position, not from hidden talents.
-**Fix:** Keep the protagonist competent in their domain—excellent at their job—but genuinely out of their depth in the larger game. They succeed through leveraging their unique access, not through becoming someone else.
-
-### 3. Passive Revelation
-**Pattern:** The protagonist passively receives information without any action or choice on their part—things just happen around them.
-**Why it fails:** Even accidental pivots must make choices. Pure passivity creates observers, not protagonists. The structural position creates opportunity; the character must act on it.
-**Fix:** Build in decision points. The clerk could ignore the discrepancy or investigate. The translator could pretend not to understand or probe deeper. The choice to engage is what transforms position into story.
-
-### 4. Clean Exits
-**Pattern:** After the crisis resolves, the protagonist returns to normal life with no lasting consequences from their involvement.
-**Why it fails:** The lock-in mechanism exists because there are consequences. Knowledge changes people. Involvement creates obligations. The system doesn't simply release those who've seen behind the curtain.
-**Fix:** Design consequences that persist. New relationships that can't be dissolved. Knowledge that can't be forgotten. A reputation that follows them. The protagonist's life is permanently altered, even if the immediate crisis ends.
-
-### 5. System Destruction
-**Pattern:** The ordinary person ultimately brings down the entire corrupt system through their intervention.
-**Why it fails:** This elevates them to a hero role that contradicts the premise. Real systems are resilient. One person can expose a specific problem but rarely destroys the underlying structure.
-**Fix:** Scale the resolution appropriately. The protagonist can save specific people, expose specific crimes, shift the balance of power—but the larger system adapts and continues. Their victory is real but local.
-
-## Integration
-
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| worldbuilding | Systems and structures that create positional access |
-| economic-systems | Economic roles that generate revelation opportunities |
-| governance-systems | Institutional positions with structural access |
-
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| character-arc | Ordinary-person protagonists with structural motivations |
-| underdog-unit | Individuals with positional leverage despite limited resources |
-| moral-parallax | Systemic complicity explored through individual perspectives |
-
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| moral-parallax | Positional-revelation shows how people become involved; moral-parallax explores the ethical weight of their complicity |
-| underdog-unit | Positional-revelation creates individual pivots; underdog-unit creates institutional outcast teams. Both use structural pressure differently |
+## 揭示引擎
+
+### 第一步：选择你的模式
+根据故事需求选择七种原型模式之一。
+
+### 第二步：选择职业类别
+挑选一个适合你的世界并提供恰当接触权限的通用职业。
+
+### 第三步：转化到设定
+根据你的设定的技术/魔法和社会结构调整职业。
+
+### 第四步：设计揭示层次
+
+| 层次 | 问题 |
+|------|------|
+| **表面现实** | 角色认为自己的工作是什么？ |
+| **机制真相** | 系统实际上如何利用他们的位置？ |
+| **权力结构** | 谁从这种安排中获益？ |
+| **系统锁定** | 为什么这种安排是必要的？ |
+
+### 第五步：创建激活事件
+
+- **信息**：意外收到错误的情报
+- **模式**：在例行工作中注意到差异
+- **危机**：紧急情况迫使承担新的责任
+- **继承**：获得带有隐藏义务的职位
+- **关系**：过去的人带着期望出现
+
+### 第六步：构建锁定机制
+
+- **知识锁定**：他们知道太多无法离开
+- **技能锁定**：他们是唯一能做某件关键事情的人
+- **信任锁定**：他们是唯一被多方愿意打交道的人
+- **法律锁定**：在法律上有义务继续
+- **道德锁定**：停止将伤害无辜者
+
+### 第七步：设计竞争利益方
+
+对于每个揭示，识别至少三个群体：
+- 想要不同的结果
+- 需要主角的位置/知识
+- 能够提供不同的激励/威胁
+- 拥有不兼容的最终目标
+
+## 冲突升级
+
+### 赌注递进
+**个人** → **职业** → **社区** → **系统**
+
+1. 工作面临风险，声誉受到威胁
+2. 行业/行会/组织受到威胁
+3. 邻居、家人、当地区域受到影响
+4. 整个社会/经济/政治秩序岌岌可危
+
+### 动力构建器
+
+**发现连锁**
+- 每个答案引出两个新问题
+- 每个盟友揭示一个潜在的敌人
+- 每个解决方案制造新的问题
+
+**网络效应**
+- 帮助一个人就有义务帮助其他人
+- 名声的传播速度快于理解
+- 过去的行为约束未来的选择
+
+**跨越门槛**
+- 小妥协逐渐积累
+- 突然发现已经越过不归点
+- 系统将他们视为内部人
+
+## 快速启动模板
+
+### 模板1：天真的专业人士
+- **模式**：能力陷阱
+- **职业**：翻译
+- **揭示**：他们一直在翻译加密的犯罪通信
+- **锁定**：唯一理解该方言的人
+- **冲突**：犯罪分子、执法部门和受害者都需要他们
+
+### 模板2：绝望的幸存者
+- **模式**：弱点杠杆
+- **职业**：夜班清洁工
+- **揭示**：清理被伪装成事故的犯罪现场
+- **锁定**：需要这份工作来支付家人的医疗费
+- **冲突**：敲诈、警察施压、道德义务
+
+### 模板3：不情愿的继承人
+- **模式**：继承的网络
+- **职业**：小店主（继承的）
+- **揭示**：店铺是犯罪谈判的中立地带
+- **锁定**：打破中立将引发帮派战争
+- **冲突**：帮派期望、警察施压、社区安全
+
+### 模板4：技术仲裁者
+- **模式**：门槛守护者
+- **职业**：安全检查员
+- **揭示**：他们的裁定决定殖民地的生死
+- **锁定**：该地区唯一获认证的检查员
+- **冲突**：企业压力、殖民者的绝望、实际安全
+
+## 避免常见陷阱
+
+| 陷阱 | 解决方案 |
+|------|---------|
+| 角色过于能干 | 保持领域内的专业能力；在更大博弈中则力不从心 |
+| 参与感觉牵强 | 使参与成为结构上的必然，而非幸运 |
+| 角色只是被动反应 | 角色的选择驱动升级，即使受到约束 |
+| 角色过于强大/过于弱小 | 在特定领域的权力增长，同时其他方面的脆弱性增加 |
+| 个人解决方案忽视系统 | 个人改变改变了与系统的关系，但不会摧毁系统 |
+
+## 开发工作表
+
+### 角色基础
+1. 他们平凡的工作是什么？
+2. 它提供了什么独特的接触权限？
+3. 他们认为自己的工作实现了什么？
+4. 他们的工作实际上实现了什么？
+
+### 系统揭示
+1. 第一个出现异常的迹象是什么？
+2. 他们注意到了什么模式？
+3. 当他们调查时发现了什么？
+4. 为什么他们不能只是举报然后走开？
+
+### 竞争利益方
+1. 谁希望他们照常继续？
+2. 谁希望他们主动参与？
+3. 谁希望消除他们？
+4. 谁提供了一条并非真正出路的出路？
+
+### 升级路径
+1. 不行动的个人后果
+2. 行动的职业后果
+3. 选边的社区后果
+4. 最终选择的系统后果
+
+## 结构必然性的力量
+
+这个框架的强大之处在于创造出参与感觉不可避免而非巧合的主角。他们不是天选之人或幸运的调查员——他们是当系统发生变化、秘密浮现或竞争利益汇聚时，其普通位置变得非凡的人。
+
+## 输出持久化
+
+### 输出发现
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果找到，使用本技能对应的输出路径条目
+3. 如果未找到，**使用默认路径 `explorations/positional-revelation/`** 并立即开始核心工作
+4. 在回应结尾简要提及输出位置——不要因为询问用户而阻塞
+
+### 主要输出
+- **模式选择** - 七种原型模式之一
+- **位置定义** - 职业、接触权限、信念
+- **揭示层次** - 从表面到系统真相
+- **锁定机制** - 为什么他们无法离开
+- **竞争利益方** - 需要主角的群体
+
+### 文件命名
+模式：`{protagonist-role}-positional-{date}.md`
+
+## 验证（预言机）
+
+### 本技能可验证的内容
+- **模式适配** - 情况是否匹配所选原型？（高置信度）
+- **结构必然性** - 参与是必要的还是巧合的？（高置信度）
+- **锁定存在** - 主角真的能离开吗？（中等置信度）
+
+### 需要人类判断的内容
+- **合理性** - 这个位置真的会有这种接触权限吗？
+- **主角的同情性** - 读者会关心这个普通人吗？
+- **升级校准** - 赌注是否适当地分级？
+
+### 预言机的局限
+- 无法评估结构性参与是否感觉牵强
+- 无法预测读者对平凡职位的参与度
+
+## 反馈循环
+
+### 会话持久化
+- **输出位置：** 参见 `context/output-config.md`
+- **保存内容：** 模式、位置、层次、锁定、利益方
+- **命名模式：** `{protagonist-role}-positional-{date}.md`
+
+### 跨会话学习
+- 检查此设定中之前的位置揭示
+- 确保系统一致性
+- 失败的揭示结构为反模式提供参考
+
+## 设计约束
+
+### 本技能假设
+- 主角是普通人，不特殊
+- 位置通过结构而非运气创造接触权限
+- 存在可被揭示的系统
+
+### 本技能不处理
+- **英雄叙事** - 路由到：character-arc（用于天选之人类型）
+- **团队动态** - 路由到：underdog-unit
+- **系统性世界构建** - 路由到：governance-systems 或 economic-systems
+
+### 退化信号
+- 参与感觉是巧合而非结构性的
+- 主角突然展示超出其领域的能力
+- 存在干净的退出（破坏了锁定）
+
+## 推理要求
+
+### 标准推理
+- 单一模式选择
+- 基本位置设计
+- 简单揭示结构
+
+### 扩展推理（ultrathink）
+- **完整揭示弧线** - [原因：各层次必须连贯构建]
+- **多利益方映射** - [原因：竞争利益形成复杂网络]
+- **系统设计** - [原因：位置必须适配更大结构]
+
+**触发短语：** "design the complete revelation"、"map all the interests"、"build the system"
+
+## 执行策略
+
+### 顺序执行（默认）
+- 先模式再位置
+- 先位置再揭示层次
+- 先层次再锁定
+- 先锁定再竞争利益方
+
+### 可并行化
+- 设计多个竞争利益方群体
+- 研究不同的机构职位
+
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|---------|---------|
+| 职位研究 | general-purpose | 当基于真实机构角色建模时 |
+| 系统一致性 | Explore | 当对照现有设定进行验证时 |
+
+## 上下文管理
+
+### 近似 Token 占用
+- **技能基础：** ~4k tokens（模式 + 类别 + 引擎）
+- **含模板：** ~5k tokens
+- **含工作表：** ~5.5k tokens
+
+### 上下文优化
+- 聚焦于相关的模式和职业类别
+- 通用职业类别仅供参考，非必需
+- 模板是起始点
+
+### 当上下文变紧时
+- 优先：当前模式、活跃的位置
+- 延后：完整职业类别表、所有模式
+- 丢弃：开发工作表、快速启动模板
+
+## 反模式
+
+### 1. 刻意巧合
+**模式：** 主角碰巧在对的时间出现在对的地方，是出于运气而非结构必然性。
+**失败原因：** 位置揭示的力量在于参与感觉不可避免，而非幸运的。"她碰巧听到了"是巧合；"她的工作要求处理那份文件"才是结构。
+**修复：** 从揭示倒推。问：什么位置必然会接触到这些信息？谁会在结构上占据那个位置？使角色的接触权限成为其角色的固有特征，而非额外奖励。
+
+### 2. 突然的能力
+**模式：** 一个处于平凡职位的普通人突然展示出远超其角色的调查技能、战斗能力或战略思维。
+**失败原因：** 这个公式要求在领域内保持能力。一个变成杰森·伯恩的文件管理员破坏了前提。他们的力量来自于结构性位置，而非隐藏的天赋。
+**修复：** 保持主角在其领域内的能力——出色地完成自己的工作——但在更大的博弈中确实力不从心。他们通过利用独特的接触权限来成功，而非通过变成另一个人。
+
+### 3. 被动揭示
+**模式：** 主角被动地接收信息，没有任何行动或选择——事情只是在他们周围发生。
+**失败原因：** 即使是意外的枢纽也必须做出选择。纯粹的被动创造的是观察者，而非主角。结构性位置创造机会；角色必须对此采取行动。
+**修复：** 构建决策点。文员可以忽略差异或进行调查。翻译可以假装不理解或深入探究。选择参与才是将位置转化为故事的关键。
+
+### 4. 干净的退出
+**模式：** 危机解决后，主角回归正常生活，参与没有留下任何持久后果。
+**失败原因：** 锁定机制之所以存在是因为有后果。知识改变人。参与创造义务。系统不会简单地释放那些看到幕后的人。
+**修复：** 设计持续存在的后果。无法解除的新关系。无法忘记的知识。跟随他们的名声。主角的生活被永久改变了，即使直接的危机结束了。
+
+### 5. 系统摧毁
+**模式：** 普通人最终通过其干预推翻了整个腐败系统。
+**失败原因：** 这将他们提升到了与前提矛盾的英雄角色。真实的系统是有韧性的。一个人可以揭露特定问题，但很少能摧毁底层结构。
+**修复：** 适当地缩放解决方案。主角可以拯救特定的人、揭露特定的犯罪、改变权力平衡——但更大的系统会适应并继续运转。他们的胜利是真实的，但是局部的。
+
+## 集成
+
+### 入站（输入到本技能）
+| 技能 | 提供的内容 |
+|------|-----------|
+| worldbuilding | 创造位置性接触权限的系统和结构 |
+| economic-systems | 产生揭示机会的经济角色 |
+| governance-systems | 具有结构性接触权限的机构职位 |
+
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|----------------|
+| character-arc | 具有结构性动机的普通人主角 |
+| underdog-unit | 尽管资源有限但拥有位置性杠杆的个体 |
+| moral-parallax | 通过个人视角探索的系统共谋 |
+
+### 互补
+| 技能 | 关系 |
+|------|------|
+| moral-parallax | positional-revelation 展示人们如何卷入其中；moral-parallax 探索他们共谋的伦理分量 |
+| underdog-unit | positional-revelation 创造个体枢纽；underdog-unit 创造机构外围团队。两者以不同方式使用结构性压力 |

@@ -1,6 +1,6 @@
 ---
 name: story-zoom
-description: Manage multi-level story synchronization. Use when changes at one abstraction level (pitch, structure, scenes, entities, prose) need to propagate to others, or when story elements feel inconsistent across levels.
+description: 管理多层级故事同步。适用于当某一抽象层级（提案、结构、场景、实体、散文）的更改需要传播到其他层级时，或当故事元素在各层级间感觉不一致时。
 license: MIT
 metadata:
   author: jwynia
@@ -11,172 +11,172 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# Story-Zoom: Multi-Level Fiction Synchronization
+# Story-Zoom：多层级小说同步
 
-You manage consistency across abstraction levels in fiction projects. Your role is to detect when changes at one level have created inconsistencies at other levels, and help the writer decide how to resolve them.
+你管理小说项目中各抽象层级之间的一致性。你的角色是检测某一层级的更改何时在其他层级造成了不一致，并帮助作者决定如何解决。
 
-## Core Principle
+## 核心原则
 
-**Every story element exists at multiple abstraction levels simultaneously. Consistency across levels is what makes stories feel coherent.**
+**每个故事元素同时存在于多个抽象层级。跨层级的一致性是让故事感觉连贯的关键。**
 
-A character's "lie" (from character-arc) must manifest in their dialogue (scene-level), must connect to theme (story-level), and must appear in their synopsis (pitch-level). When any level changes, the others must either update or be flagged as potentially out-of-sync.
+一个角色的"谎言"（来自 character-arc）必须在他们的对话（场景级别）中体现，必须与主题（故事级别）相连，并且必须出现在他们的简介（提案级别）中。当任何一个层级发生变化时，其他层级必须更新或被标记为可能不同步。
 
-## The Abstraction Levels
+## 抽象层级
 
-| Level | Name | Directory | Artifacts | Grain |
-|-------|------|-----------|-----------|-------|
-| L1 | Pitch | `pitch/` | tagline.md, logline.md, synopsis.md | Story essence |
-| L2 | Structure | `structure/` | outline.md, beats.md, act-*.md | Story skeleton |
-| L3 | Scenes | `scenes/` | scene-*.md, chapter-*.md | Story rhythm |
-| L4 | Entities | `entities/` | characters/, locations/, items/, timeline.md | Story elements |
-| L5 | Manuscript | `manuscript/` | chapter-*.md (actual prose) | Story surface |
+| 层级 | 名称 | 目录 | 产物 | 粒度 |
+|------|------|------|------|------|
+| L1 | 提案 | `pitch/` | tagline.md, logline.md, synopsis.md | 故事精髓 |
+| L2 | 结构 | `structure/` | outline.md, beats.md, act-*.md | 故事骨架 |
+| L3 | 场景 | `scenes/` | scene-*.md, chapter-*.md | 故事节奏 |
+| L4 | 实体 | `entities/` | characters/, locations/, items/, timeline.md | 故事元素 |
+| L5 | 手稿 | `manuscript/` | chapter-*.md（实际散文） | 故事表面 |
 
-## Architecture: Dumb Logger + Smart LLM
+## 架构：简单日志器 + 智能 LLM
 
-This skill works with a simple file watcher daemon that logs changes. The daemon does NO semantic understanding - it just records what files changed and when.
+本技能与一个简单的文件监视守护进程配合工作，该进程记录更改。守护进程不做任何语义理解——它只记录哪些文件在什么时候发生了变化。
 
-**You do the thinking.** When invoked, you:
-1. Read the change log since last review
-2. Read the changed files
-3. Find related files (via wiki-links, directory structure, explicit references)
-4. Use your understanding of narrative to identify what's now inconsistent
-5. Propose resolutions for the writer to approve
+**你来做思考。** 当被调用时，你：
+1. 读取自上次审查以来的变更日志
+2. 读取变更的文件
+3. 找到相关文件（通过 wiki-链接、目录结构、显式引用）
+4. 使用你对叙事的理解来识别现在什么是不一致的
+5. 为作者提出解决方案以供批准
 
-### Why This Architecture?
+### 为什么采用这种架构？
 
-Regular code cannot understand semantic impact. Only you can recognize that "Marcus's lie changed from 'I failed her' to 'I could have saved her'" means "the dialogue in scene 47 where he says 'I did everything I could' now contradicts his character arc."
+普通代码无法理解语义影响。只有你能识别出"Marcus 的谎言从'我辜负了她'变成了'我本可以救她'"意味着"场景47中他说'我已经尽了全力'的对话现在与他的角色弧线矛盾。"
 
-The daemon just logs. You reason.
+守护进程只管记录。你来推理。
 
-## The States
+## 各状态
 
-### State Z1: No Story State (Cold Start)
+### 状态 Z1：无故事状态（冷启动）
 
-**Symptoms:** Writer has story files but no `story-state/` directory. No change tracking exists. Drift accumulates invisibly.
+**症状：** 作者有故事文件但没有 `story-state/` 目录。没有变更追踪。偏移不可见地累积。
 
-**Key Questions:**
-- What story files exist and in which directories?
-- Is there an existing outline, character sheets, manuscript?
-- What's the current source of truth for each level?
+**关键问题：**
+- 存在哪些故事文件，在哪些目录中？
+- 是否有现成的大纲、角色表、手稿？
+- 每个层级当前的真实来源是什么？
 
-**Interventions:**
-1. Run `init.py` to create `story-state/` directory
-2. Inventory existing files by level
-3. Start the watcher daemon
-4. Establish baseline (everything currently "in sync" by definition)
-
----
-
-### State Z2: Siloed Work (Level Isolation)
-
-**Symptoms:** Writer has been working at one level without checking others. Change log shows many modifications to one directory, none to others. "I've been drafting for weeks and haven't looked at my outline."
-
-**Key Questions:**
-- Which level have you been focused on?
-- When did you last review other levels?
-- Have any fundamental story decisions changed during this work?
-
-**Interventions:**
-1. Review change log to identify scope of changes
-2. Read files at the worked level to understand what evolved
-3. Compare against other levels for drift
-4. Create prioritized list of potential inconsistencies
-5. Work through most critical first (usually L2 structure, then L4 entities)
+**干预：**
+1. 运行 `init.py` 创建 `story-state/` 目录
+2. 按层级清点现有文件
+3. 启动监视守护进程
+4. 建立基线（当前所有内容按定义"已同步"）
 
 ---
 
-### State Z3: Cascade Overload (Too Many Pending Changes)
+### 状态 Z2：孤立工作（层级隔离）
 
-**Symptoms:** A significant change (protagonist's motivation, major plot point, setting detail) has rippled everywhere. Writer is paralyzed by the scope. "I changed one thing and now everything feels broken."
+**症状：** 作者一直在某一层级工作而未检查其他层级。变更日志显示对一个目录有大量修改，对其他目录没有。"我连续写了好几周，都没看过大纲。"
 
-**Key Questions:**
-- What was the root change?
-- Which levels does it directly affect?
-- What's the priority order for updates?
+**关键问题：**
+- 你一直专注在哪个层级？
+- 你上次审查其他层级是什么时候？
+- 在这段工作期间，有没有什么根本性的故事决策发生了变化？
 
-**Interventions:**
-1. Identify the root change clearly
-2. Triage affected files by impact:
-   - **BLOCKING**: Must update before continuing (structural elements)
-   - **HIGH**: Should update soon (character consistency)
-   - **DEFERRABLE**: Can wait (prose polish)
-3. Create a propagation plan with sequence
-4. Work through one level at a time, not all at once
-5. Mark each as resolved before moving to next
+**干预：**
+1. 审查变更日志以识别变更范围
+2. 读取工作层级的文件以理解发展了什么
+3. 与其他层级对比检查偏移
+4. 创建按优先级排列的潜在不一致列表
+5. 从最关键的开始处理（通常是 L2 结构，然后是 L4 实体）
 
 ---
 
-### State Z4: Conflict Deadlock
+### 状态 Z3：级联过载（待处理变更过多）
 
-**Symptoms:** Multiple elements conflict and fixing one seems to break another. Circular dependencies. "If I change his motivation, the ending doesn't work. But the ending requires this motivation."
+**症状：** 一个重大变更（主角的动机、重要情节点、设定细节）已经波及到所有地方。作者被范围所瘫痪。"我改了一个东西，现在一切都感觉坏掉了。"
 
-**Key Questions:**
-- What are the conflicting constraints?
-- Which level has authority (usually L2 structure > L4 entities > L5 prose)?
-- Is there a higher-level decision that would resolve the conflict?
+**关键问题：**
+- 根本变更是什么？
+- 它直接影响哪些层级？
+- 更新的优先顺序是什么？
 
-**Interventions:**
-1. Map the conflict explicitly (A requires B, B requires not-A)
-2. Identify if this is a genuine story problem or a perceived one
-3. Look for the hidden assumption creating the deadlock
-4. Often the resolution is at a higher level than where conflict appears
-5. May need to escalate to story-sense for structural diagnosis
-
----
-
-### State Z5: Drift Accumulation (Vague Incoherence)
-
-**Symptoms:** No single glaring conflict, but "something feels off." Story doesn't hang together. Characters behave inconsistently. Timeline is fuzzy.
-
-**Key Questions:**
-- When was the last comprehensive review?
-- Are wiki-links still accurate?
-- Has the story evolved without the documentation?
-
-**Interventions:**
-1. Full audit across all levels
-2. Re-read pitch-level documents - does synopsis still match the actual story?
-3. Check entity definitions against their appearances in scenes
-4. Look for implicit assumptions that were never documented
-5. Update state.md with current understanding
+**干预：**
+1. 清晰识别根本变更
+2. 按影响程度分流受影响的文件：
+   - **阻塞**：必须在继续之前更新（结构元素）
+   - **高**：应该尽快更新（角色一致性）
+   - **可延后**：可以等待（散文润色）
+3. 创建带有顺序的传播计划
+4. 一次处理一个层级，而非同时处理所有
+5. 在进入下一个之前标记每个为已解决
 
 ---
 
-### State Z6: Stale State (Document Rot)
+### 状态 Z4：冲突死锁
 
-**Symptoms:** `story-state/` exists but hasn't been maintained. Writer works around it. Dashboard shows green but story is clearly inconsistent.
+**症状：** 多个元素冲突，修复一个似乎会破坏另一个。循环依赖。"如果我改变他的动机，结局就行不通了。但结局需要这个动机。"
 
-**Key Questions:**
-- Is active maintenance worth it for this project?
-- What's preventing regular use?
-- Should we refresh or archive?
+**关键问题：**
+- 冲突的约束是什么？
+- 哪个层级有权威（通常 L2 结构 > L4 实体 > L5 散文）？
+- 是否有一个更高层级的决定可以解决冲突？
 
-**Interventions:**
-1. Decide: refresh or abandon tracking
-2. If refresh: treat as Z1 (re-initialize from current state)
-3. If abandon: archive story-state, work without tracking
-4. Address workflow friction that caused abandonment
+**干预：**
+1. 明确映射冲突（A 需要 B，B 需要非 A）
+2. 识别这是一个真正的故事问题还是一个感知上的问题
+3. 寻找制造死锁的隐藏假设
+4. 通常解决方案在比冲突出现处更高的层级
+5. 可能需要升级到 story-sense 进行结构诊断
 
 ---
 
-## Diagnostic Process
+### 状态 Z5：偏移累积（模糊的不连贯）
 
-When invoked (via `/story-zoom` or `/story-zoom review`):
+**症状：** 没有单一的明显冲突，但"什么地方感觉不对"。故事不够紧凑。角色行为不一致。时间线模糊。
 
-### 1. Check for story-state directory
+**关键问题：**
+- 上次全面审查是什么时候？
+- wiki-链接仍然准确吗？
+- 故事是否在文档未更新的情况下演化了？
+
+**干预：**
+1. 全层级审计
+2. 重新阅读提案级文档——简介是否仍然匹配实际的故事？
+3. 检查实体定义与其在场景中的出现是否一致
+4. 寻找从未被记录的隐含假设
+5. 用当前理解更新 state.md
+
+---
+
+### 状态 Z6：陈旧状态（文档腐烂）
+
+**症状：** `story-state/` 存在但未被维护。作者绕过它工作。仪表盘显示绿色但故事明显不一致。
+
+**关键问题：**
+- 主动维护对这个项目值得吗？
+- 是什么阻止了定期使用？
+- 应该刷新还是归档？
+
+**干预：**
+1. 决定：刷新还是放弃追踪
+2. 如果刷新：按 Z1 处理（从当前状态重新初始化）
+3. 如果放弃：归档 story-state，不带追踪地工作
+4. 解决导致放弃的工作流摩擦
+
+---
+
+## 诊断流程
+
+当被调用时（通过 `/story-zoom` 或 `/story-zoom review`）：
+
+### 1. 检查 story-state 目录
 ```
 If no ./story-state/ exists:
   → State Z1: Offer to initialize
 ```
 
-### 2. Read change log
+### 2. 读取变更日志
 ```
 Read ./story-state/change-log.jsonl
 Get last-review timestamp from ./story-state/last-review.json
 Filter to changes since last review
 ```
 
-### 3. Assess change scope
+### 3. 评估变更范围
 ```
 If no changes since last review:
   → "No changes detected. Story state appears current."
@@ -188,81 +188,81 @@ If many changes across multiple directories:
   → Potential Z3 (cascade) or Z5 (drift)
 ```
 
-### 4. Read changed files
-For each changed file, read its current content.
+### 4. 读取变更的文件
+对每个变更的文件，读取其当前内容。
 
-### 5. Find related files
-For each changed file:
-- Extract wiki-links (`[[entity-name]]`)
-- Check directory siblings (other files in same folder)
-- Check files at adjacent levels (L2 structure ↔ L3 scenes)
+### 5. 查找相关文件
+对每个变更的文件：
+- 提取 wiki-链接（`[[entity-name]]`）
+- 检查目录同级文件（同一文件夹中的其他文件）
+- 检查相邻层级的文件（L2 结构 ↔ L3 场景）
 
-### 6. Analyze for inconsistencies
-This is where your narrative understanding matters. Look for:
-- Character attributes that don't match their behavior
-- Plot points in outline that don't appear in scenes
-- Entity details that contradict prose descriptions
-- Timeline inconsistencies
-- Thematic drift from pitch documents
+### 6. 分析不一致
+这是你的叙事理解发挥作用的地方。查找：
+- 角色属性与其行为不匹配
+- 大纲中的情节点未出现在场景中
+- 实体细节与散文描述矛盾
+- 时间线不一致
+- 与提案文档的主题偏移
 
-### 7. Report findings
-Present findings organized by severity:
-- **Conflicts**: Direct contradictions requiring resolution
-- **Drift**: Potential inconsistencies worth checking
-- **Updates**: Suggested propagations
+### 7. 报告发现
+按严重程度组织呈现发现：
+- **冲突**：需要解决的直接矛盾
+- **偏移**：值得检查的潜在不一致
+- **更新**：建议的传播
 
-### 8. Update tracking
-After writer reviews:
-- Update `last-review.json` with current timestamp
-- Update `state.md` dashboard with current status
-
----
-
-## Key Questions for Analysis
-
-### When Reading Pitch (L1) Changes
-- Does the logline still capture the story being written?
-- Has the protagonist's core conflict shifted?
-- Is the genre promise still being fulfilled?
-
-### When Reading Structure (L2) Changes
-- Do scene files still align with outline beats?
-- Have act breaks shifted?
-- Is the midpoint still the midpoint?
-
-### When Reading Scene (L3) Changes
-- Do scenes still accomplish their outlined purpose?
-- Have character behaviors changed from their definitions?
-- Does the timeline still work?
-
-### When Reading Entity (L4) Changes
-- Are character attributes consistent with their scenes?
-- Do location details match their descriptions in prose?
-- Have relationships changed?
-
-### When Reading Manuscript (L5) Changes
-- Does prose reflect current entity definitions?
-- Does dialogue match character voice definitions?
-- Are described settings consistent with location entities?
+### 8. 更新追踪
+作者审查后：
+- 用当前时间戳更新 `last-review.json`
+- 用当前状态更新 `state.md` 仪表盘
 
 ---
 
-## Wiki-Link Convention
+## 分析的关键问题
 
-Files can reference entities using wiki-links: `[[entity-name]]`
+### 当读取提案（L1）变更时
+- 宣传语是否仍然捕获了正在写的故事？
+- 主角的核心冲突是否发生了转变？
+- 类型承诺是否仍在被兑现？
 
-Examples:
-- `[[marcus]]` → links to `entities/characters/marcus.md`
-- `[[the-apartment]]` → links to `entities/locations/the-apartment.md`
-- `[[act-2]]` → links to `structure/act-2.md`
+### 当读取结构（L2）变更时
+- 场景文件是否仍然与大纲节拍对齐？
+- 幕间断点是否移位了？
+- 中点还是中点吗？
 
-When you see a wiki-link, the linked file is semantically related. Changes to one may require review of the other.
+### 当读取场景（L3）变更时
+- 场景是否仍然完成了其在大纲中的目的？
+- 角色行为是否偏离了其定义？
+- 时间线是否仍然成立？
+
+### 当读取实体（L4）变更时
+- 角色属性是否与其在场景中的表现一致？
+- 地点细节是否与散文中的描述匹配？
+- 关系是否发生了变化？
+
+### 当读取手稿（L5）变更时
+- 散文是否反映了当前的实体定义？
+- 对话是否匹配角色的语音定义？
+- 描述的场景是否与地点实体一致？
 
 ---
 
-## Frontmatter Convention
+## Wiki-链接约定
 
-Files can declare explicit level and bindings:
+文件可以使用 wiki-链接引用实体：`[[entity-name]]`
+
+示例：
+- `[[marcus]]` → 链接到 `entities/characters/marcus.md`
+- `[[the-apartment]]` → 链接到 `entities/locations/the-apartment.md`
+- `[[act-2]]` → 链接到 `structure/act-2.md`
+
+当你看到 wiki-链接时，被链接的文件在语义上是相关的。对其中一个的更改可能需要审查另一个。
+
+---
+
+## Frontmatter 约定
+
+文件可以声明显式的层级和绑定：
 
 ```yaml
 ---
@@ -275,14 +275,14 @@ binds_to:
 ---
 ```
 
-If frontmatter exists, use it. If not, infer relationships from wiki-links and directory structure.
+如果 frontmatter 存在，使用它。如果不存在，从 wiki-链接和目录结构推断关系。
 
 ---
 
-## Available Tools
+## 可用工具
 
 ### watcher.py
-Simple file watcher daemon. Run in background to log changes.
+简单的文件监视守护进程。在后台运行以记录变更。
 
 
 > **路径提示**: 脚本位于 `skills/structure/story-zoom/scripts/` 目录下。
@@ -297,7 +297,7 @@ python skills/structure/story-zoom/scripts/watcher.py ./story-project --log ./cu
 ```
 
 ### init.py
-Initialize story-state directory for a project.
+为项目初始化 story-state 目录。
 
 ```bash
 # Initialize in current directory
@@ -308,7 +308,7 @@ python skills/structure/story-zoom/scripts/init.py ./story-project
 ```
 
 ### status.py
-Display current change log summary.
+显示当前变更日志摘要。
 
 ```bash
 # Show changes since last review
@@ -323,89 +323,89 @@ python skills/structure/story-zoom/scripts/status.py ./story-project --json
 
 ---
 
-## Anti-Patterns
+## 反模式
 
-### The Obsessive Tracker
-**Problem:** Writer spends more time updating story-state than writing.
-**Symptoms:** Every line of dialogue checked against entity sheet. Tiny changes trigger full audits.
-**Fix:** Track structural elements, not every word. Some drift is acceptable. Review weekly, not hourly.
+### 强迫症追踪者
+**问题：** 作者花在更新 story-state 上的时间比写作还多。
+**症状：** 每一行对话都要对照实体表检查。微小的变更触发全面审计。
+**修复：** 追踪结构元素，而非每一个字。某些偏移是可以接受的。每周审查，而非每小时。
 
-### The Stale Bible
-**Problem:** Story-state initialized but never maintained. Becomes fiction itself.
-**Symptoms:** Dashboard says "synced" but story clearly isn't. Writer ignores tracking.
-**Fix:** Either commit to maintenance or don't use the tool. Partial adoption is worse than none.
+### 陈旧的圣经
+**问题：** Story-state 初始化了但从未维护。本身变成了虚构。
+**症状：** 仪表盘显示"已同步"但故事明显不一致。作者忽略追踪。
+**修复：** 要么承诺维护，要么不用这个工具。部分采用比完全不用更糟。
 
-### The Binding Explosion
-**Problem:** Everything connected to everything. Any change triggers hundreds of checks.
-**Symptoms:** Can't make simple changes without cascade anxiety.
-**Fix:** Bind structural elements, not details. A character's lie binds to key scenes, not every line they speak.
+### 绑定爆炸
+**问题：** 一切都与一切相连。任何变更都触发数百次检查。
+**症状：** 无法做简单的修改而不产生级联焦虑。
+**修复：** 绑定结构元素，而非细节。角色的谎言绑定到关键场景，而非他们说的每一句话。
 
-### The Premature Zoom
-**Problem:** Detailed tracking before story structure is stable.
-**Symptoms:** Major rewrites invalidate all tracking. Constant re-initialization.
-**Fix:** Start tracking after L2 structure stabilizes. Don't track L5 prose until L3 scenes are solid.
+### 过早缩放
+**问题：** 在故事结构稳定之前就进行详细追踪。
+**症状：** 大幅重写使所有追踪失效。不断重新初始化。
+**修复：** 在 L2 结构稳定之后开始追踪。在 L3 场景稳固之前不要追踪 L5 散文。
 
-### The False Conflict
-**Problem:** Treating stylistic variations as conflicts.
-**Symptoms:** "Character spoke differently in scene 12 vs 47" flagged as conflict when it's natural variation.
-**Fix:** Distinguish voice (constrained) from specific word choice (flexible). Characters can say different things differently while maintaining consistent voice.
-
----
-
-## Example Interaction
-
-**Writer:** "I've been drafting for two weeks and haven't looked at my outline. Can you check if things are still aligned?"
-
-**Your approach:**
-
-1. **Diagnose state:** This is Z2 (Siloed Work) - focused on one level without checking others.
-
-2. **Read change log:** Identify which files in `manuscript/` changed over two weeks.
-
-3. **Read changed files:** Understand what was written.
-
-4. **Compare to structure:** Read `structure/outline.md` and relevant scene files.
-
-5. **Identify drift:**
-   - "Chapter 7 introduces a subplot that isn't in your outline"
-   - "The midpoint in your outline (scene 24) is now at scene 28"
-   - "Character Sarah has taken on a larger role than outlined"
-
-6. **Propose resolution:**
-   - "Option A: Update outline to reflect organic evolution"
-   - "Option B: Revise manuscript to match original outline"
-   - "Option C: Hybrid - keep Sarah's expanded role, update outline, but restore original midpoint"
-
-7. **After writer decides:** Update `state.md` and `last-review.json`.
+### 虚假冲突
+**问题：** 将风格变化视为冲突。
+**症状：** "角色在场景12和47中的说话方式不同"被标记为冲突，但其实是自然的变化。
+**修复：** 区分语音（受约束的）和具体用词（灵活的）。角色可以用不同的方式说不同的话，同时保持一致的语音。
 
 ---
 
-## Integration with Other Skills
+## 示例交互
 
-### From story-sense
-When story-sense diagnoses structural problems (States 4-5), those often manifest as cross-level inconsistencies. Story-zoom can identify where specifically the breakdown occurs.
+**作者：** "我连续写了两周没看过大纲。你能检查一下东西是否还对齐吗？"
 
-### To story-sense
-When story-zoom finds conflicts that seem fundamental (not just documentation drift), escalate to story-sense for deeper diagnosis. The problem may be structural, not just synchronization.
+**你的方法：**
 
-### From character-arc
-Changes to character lie/want/need should trigger story-zoom review. These propagate to scenes where the character appears.
+1. **诊断状态：** 这是 Z2（孤立工作）——专注在一个层级而未检查其他层级。
 
-### From scene-sequencing
-Changes to scene goals should trigger story-zoom review. Scene purpose connects to structure.
+2. **读取变更日志：** 识别两周内 `manuscript/` 中哪些文件发生了变化。
 
-### To revision
-Before starting a revision pass, run story-zoom audit. Ensure structure is solid before polishing prose.
+3. **读取变更的文件：** 理解写了什么。
+
+4. **与结构对比：** 读取 `structure/outline.md` 和相关的场景文件。
+
+5. **识别偏移：**
+   - "第7章引入了一条不在大纲中的支线"
+   - "大纲中的中点（场景24）现在在场景28了"
+   - "角色 Sarah 承担了比大纲更大的角色"
+
+6. **提出解决方案：**
+   - "方案A：更新大纲以反映有机演化"
+   - "方案B：修改手稿以匹配原始大纲"
+   - "方案C：混合——保留 Sarah 扩展的角色，更新大纲，但恢复原始中点"
+
+7. **作者决定后：** 更新 `state.md` 和 `last-review.json`。
 
 ---
 
-## Output Persistence
+## 与其他技能的集成
 
-This skill has built-in persistence through a `story-state/` directory structure.
+### 来自 story-sense
+当 story-sense 诊断出结构问题（状态4-5）时，这些往往表现为跨层级的不一致。Story-zoom 可以识别具体在哪里发生了崩溃。
 
-### Existing Persistence Mechanism
+### 到 story-sense
+当 story-zoom 发现似乎是根本性的冲突（不仅仅是文档偏移）时，升级到 story-sense 进行更深入的诊断。问题可能是结构性的，而非仅仅是同步问题。
 
-Story-zoom maintains state in a dedicated directory:
+### 来自 character-arc
+对角色谎言/欲望/需求的更改应该触发 story-zoom 审查。这些会传播到角色出现的场景。
+
+### 来自 scene-sequencing
+对场景目标的更改应该触发 story-zoom 审查。场景目的与结构相连。
+
+### 到 revision
+在开始修订轮次之前，运行 story-zoom 审计。在润色散文之前确保结构是稳固的。
+
+---
+
+## 输出持久化
+
+本技能通过 `story-state/` 目录结构具有内置的持久化机制。
+
+### 现有持久化机制
+
+Story-zoom 在专用目录中维护状态：
 
 ```
 story-state/
@@ -415,43 +415,43 @@ story-state/
 └── concerns/         # Active concerns awaiting resolution
 ```
 
-**Tools for persistence:**
-- `init.py` - Creates story-state structure for a project
-- `watcher.py` - Daemon that logs file changes
-- `status.py` - Generates current state dashboard
+**持久化工具：**
+- `init.py` - 为项目创建 story-state 结构
+- `watcher.py` - 记录文件变更的守护进程
+- `status.py` - 生成当前状态仪表盘
 
-### How It Differs from Standard Output Persistence
+### 与标准输出持久化的区别
 
-Story-zoom maintains **operational state tracking**, not exploration output. The `story-state/` directory is a working tool, not a record of sessions.
+Story-zoom 维护的是**运营状态追踪**，而非探索输出。`story-state/` 目录是一个工作工具，而非会话记录。
 
-**This skill does NOT use `context/output-config.md`** because:
-- Location is determined by `init.py` during project setup
-- State files are operational (read/write continuously)
-- The watcher daemon needs a fixed known location
+**本技能不使用 `context/output-config.md`**，因为：
+- 位置在项目设置期间由 `init.py` 确定
+- 状态文件是运营性的（持续读写）
+- 监视守护进程需要一个固定的已知位置
 
-### Conversation vs. File
+### 对话 vs. 文件
 
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| State dashboard updates | Discussion of drift |
-| Change log entries | Resolution recommendations |
-| Concern tracking | Propagation analysis |
-| Review timestamps | Level-by-level review |
+| 写入文件 | 留在对话中 |
+|----------|-----------|
+| 状态仪表盘更新 | 偏移讨论 |
+| 变更日志条目 | 解决方案建议 |
+| 关注点追踪 | 传播分析 |
+| 审查时间戳 | 逐层级审查 |
 
-## What You Do NOT Do
+## 你不做的事
 
-- You do not write the story for them
-- You do not decide which resolution is "correct" - you present options
-- You do not require perfection - some inconsistency is normal in drafts
-- You do not create busywork - if tracking isn't helping, stop tracking
-- You do not track trivial changes - focus on structural/semantic elements
-- You do not replace the writer's judgment about their own story
+- 你不替他们写故事
+- 你不决定哪个解决方案是"正确的"——你呈现选项
+- 你不要求完美——草稿中的某些不一致是正常的
+- 你不制造忙活——如果追踪没有帮助，就停止追踪
+- 你不追踪琐碎的变更——聚焦于结构/语义元素
+- 你不替代作者对自己故事的判断
 
 ---
 
-## State Dashboard Template
+## 状态仪表盘模板
 
-After review, update `story-state/state.md`:
+审查后，更新 `story-state/state.md`：
 
 ```markdown
 # Story State: [Project Name]
@@ -487,9 +487,9 @@ After review, update `story-state/state.md`:
 
 ---
 
-## Change Log Format
+## 变更日志格式
 
-The watcher daemon produces `change-log.jsonl` with entries like:
+监视守护进程生成的 `change-log.jsonl` 条目如下：
 
 ```json
 {"file": "entities/characters/marcus.md", "time": "2025-01-15T10:23:45Z", "kind": "modify"}
@@ -497,4 +497,4 @@ The watcher daemon produces `change-log.jsonl` with entries like:
 {"file": "scenes/scene-28.md", "time": "2025-01-15T14:30:22Z", "kind": "create"}
 ```
 
-When reviewing, read entries since `last-review.json` timestamp.
+审查时，读取自 `last-review.json` 时间戳以来的条目。

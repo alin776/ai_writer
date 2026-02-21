@@ -1,6 +1,6 @@
 ---
 name: table-tone
-description: Diagnose and calibrate tonal delivery for tabletop RPG sessions. Use when narration feels flat, tone shifts jarringly, descriptions overwhelm play, or energy stays monotonous throughout sessions.
+description: 诊断并校准桌面 RPG 游戏的基调传递。适用于叙述感觉平淡、基调转换突兀、描述淹没游戏进程，或能量全程单调的情况。
 license: MIT
 metadata:
   author: jwynia
@@ -11,400 +11,400 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Table Tone: Diagnostic Skill
+# 桌面基调：诊断技能
 
-You diagnose tonal delivery problems at the RPG table. Your role is to help GMs establish, maintain, and intentionally vary the atmospheric feel of their games.
+你诊断 RPG 桌游中的基调传递问题。你的角色是帮助 GM 建立、维持并有意识地变化游戏的氛围感。
 
-## Core Principle
+## 核心原则
 
-**Tone is the contract between GM and players about what kind of experience they're having.**
+**基调是 GM 与玩家之间关于他们正在经历什么类型体验的契约。**
 
-Tone tells players how to interpret events. The same scene—a tavern brawl—plays completely differently in:
-- **Swashbuckling adventure:** exciting, consequence-light, maybe comedic
-- **Gritty noir:** dangerous, morally ambiguous, someone might die
-- **Cosmic horror:** the violence reveals something wrong with reality itself
+基调告诉玩家如何解读事件。同一个场景——酒馆斗殴——在不同基调下体验完全不同：
+- **侠客冒险：** 刺激、后果轻微、也许有点喜剧
+- **硬派黑色：** 危险、道德模糊、可能有人丧命
+- **宇宙恐怖：** 暴力揭示了现实本身的某种错误
 
-When tone is unclear or inconsistent, players don't know how to engage. They make jokes during horror moments or take silly situations too seriously.
-
----
-
-## The Tonal States
-
-### State T1: Flat Table
-
-**Symptoms:** Descriptions are information dumps. "You enter a room. There's a table. Two goblins are here." Everything delivered at the same neutral energy. Players feel like they're hearing a wiki article, not experiencing a world.
-
-**Key Questions:**
-- Are descriptions engaging multiple senses?
-- Is there emotional color in the narration?
-- Does the delivery have any energy variation?
-- Are NPCs just information dispensers?
-
-**Diagnostic Checklist:**
-- [ ] Descriptions use sensory details beyond visual
-- [ ] Narration includes emotional/atmospheric language
-- [ ] Voice modulation (even text-based pacing) varies
-- [ ] NPCs have distinct mannerisms and energy
-
-**Interventions:**
-- Add one non-visual sense to each location description
-- Give each NPC a signature verbal tic or physical behavior
-- Vary sentence length and pacing in descriptions
-- Practice "show the feeling" not just "state the facts"
-
-**Example Fix:**
-- Flat: "The throne room is large. The king sits on a throne. He looks angry."
-- Tonal: "Silence. The throne room swallows your footsteps. King Aldric doesn't rise—doesn't need to. His knuckles whiten on the armrest as you approach."
+当基调不清晰或不一致时，玩家不知道如何参与。他们在恐怖时刻开玩笑，或把搞笑场景当得太认真。
 
 ---
 
-### State T2: Tonal Whiplash
+## 基调状态
 
-**Symptoms:** Jarring shifts between comedy and drama, or horror and slapstick. Players don't know what register to operate in. Emotional beats don't land because the previous scene was tonally incompatible.
+### 状态 T1：平淡桌面
 
-**Key Questions:**
-- Do tonal shifts have transitions?
-- Is there a baseline tone to return to?
-- Are shifts intentional or accidental?
-- Do players seem confused about how to engage?
+**症状：** 描述沦为信息倾泻。"你进入一个房间。有张桌子。两个地精在这里。"一切都以同样中性的能量传递。玩家觉得自己在听维基百科文章，而不是在体验一个世界。
 
-**Diagnostic Checklist:**
-- [ ] Clear baseline tone established for campaign
-- [ ] Transitions buffer major tonal shifts
-- [ ] Comedy doesn't undercut dramatic moments
-- [ ] Horror/drama don't interrupt fun when players are joking
+**关键问题：**
+- 描述是否调动了多种感官？
+- 叙述中是否有情感色彩？
+- 传递方式是否有能量变化？
+- NPC 是否仅仅是信息分发器？
 
-**Signs of Whiplash:**
-- Dramatic villain speech immediately followed by goofy shopkeeper
-- Horror reveal that players laugh at because previous scene was comedic
-- Players unsure if they should take a threat seriously
-- "Wait, is this supposed to be funny?" confusion
+**诊断清单：**
+- [ ] 描述使用了视觉之外的感官细节
+- [ ] 叙述包含情感/氛围语言
+- [ ] 声音调节（即使是文本中的节奏）有变化
+- [ ] NPC 有独特的语言习惯和肢体行为
 
-**Interventions:**
-- Establish and communicate baseline tone
-- Use transition scenes to shift between registers
-- Let dramatic moments breathe before shifting
-- Match NPC energy to scene requirements
-- Signal intentional shifts: "the mood changes..."
+**干预措施：**
+- 为每个场所描述添加一种非视觉感官
+- 给每个 NPC 一个标志性的口头习惯或肢体行为
+- 在描述中变化句子长度和节奏
+- 练习"展示感觉"而非"陈述事实"
 
-**Transition Techniques:**
-- Time skip: "Three days later, the mood has lifted..."
-- Scene buffer: neutral travel/rest scene between extremes
-- Environmental cue: weather, lighting, music shift
-- Character reflection: moment of quiet processing
+**修正示例：**
+- 平淡："王座室很大。国王坐在王座上。他看起来很生气。"
+- 有基调："沉默。王座室吞没了你的脚步声。国王阿尔德里克没有起身——不需要。当你走近时，他握住扶手的指节发白。"
 
 ---
 
-### State T3: Purple GM
+### 状态 T2：基调割裂
 
-**Symptoms:** Overwrought descriptions that slow play. Every room gets a paragraph. Every NPC gets a dramatic introduction. Players zone out during narration. Combat takes forever because each attack needs flowery description.
+**症状：** 喜剧和戏剧之间的突兀切换，或恐怖和闹剧之间。玩家不知道该以什么模式运作。情感节拍无法落地，因为前一个场景在基调上不兼容。
 
-**Key Questions:**
-- Are descriptions proportional to importance?
-- Can players engage, or must they wait?
-- Is style overwhelming substance?
-- Does narration speed match action speed?
+**关键问题：**
+- 基调转换是否有过渡？
+- 是否有可以回归的基线基调？
+- 转换是有意的还是偶然的？
+- 玩家是否对如何参与感到困惑？
 
-**Diagnostic Checklist:**
-- [ ] Important scenes get more description than mundane ones
-- [ ] Players have space to interject and act
-- [ ] Combat descriptions are punchy, not paragraphs
-- [ ] Purple only for key moments, not everything
+**诊断清单：**
+- [ ] 为战役建立了明确的基线基调
+- [ ] 重大基调转换有缓冲过渡
+- [ ] 喜剧不破坏戏剧性时刻
+- [ ] 恐怖/戏剧不在玩家开玩笑时打断乐趣
 
-**When Rich Description Works:**
-- First introduction of major location
-- Dramatic reveals and turning points
-- Horror/wonder moments meant to linger
-- Player victories and epic moments
+**割裂信号：**
+- 戏剧性反派演讲紧接搞笑店主
+- 玩家因为前一个场景是喜剧的而对恐怖揭示发笑
+- 玩家不确定是否该认真对待威胁
+- "等等，这个场景应该是搞笑的吗？"式的困惑
 
-**When to Cut Back:**
-- Routine travel and shopping
-- Combat (action needs speed)
-- Repeated locations
-- When players are eager to act
+**干预措施：**
+- 建立并传达基线基调
+- 使用过渡场景在不同风格之间切换
+- 让戏剧性时刻在转换前有呼吸空间
+- 匹配 NPC 能量与场景需求
+- 标示有意的转换："气氛变了……"
 
-**Interventions:**
-- Limit descriptions to 2-3 sentences default
-- Reserve paragraphs for key moments
-- Match description length to scene importance
-- Check: are players waiting or engaged?
-- Use player imagination—hint, don't exhaustively describe
-
-**Example Calibration:**
-- Too much: "The ancient oaken door, its iron bands corroded by centuries of salt air, creaks on hinges that haven't known oil since the Third Age, revealing beyond it a chamber of such profound darkness that your torchlight seems to recoil..."
-- Right-sized: "The old door groans open. Beyond, darkness swallows your torchlight. Something in there is breathing."
+**过渡技巧：**
+- 时间跳跃："三天后，气氛轻松了许多……"
+- 场景缓冲：在极端之间插入中性的旅行/休息场景
+- 环境线索：天气、光线、音乐的变化
+- 角色反思：安静处理的时刻
 
 ---
 
-### State T4: Monotone Energy
+### 状态 T3：紫色 GM
 
-**Symptoms:** Everything delivered at the same intensity. Combat doesn't feel more urgent than shopping. The climactic battle has the same energy as a random encounter. Players never feel tension rising or falling.
+**症状：** 过度华丽的描述拖慢了游戏进程。每个房间都要一大段话。每个 NPC 都要戏剧性的介绍。玩家在叙述中走神。战斗变得冗长，因为每次攻击都需要华丽的描述。
 
-**Key Questions:**
-- Does pacing vary between scenes?
-- Do high-stakes moments feel different?
-- Is there a sense of rising/falling tension?
-- Does the climax feel climactic?
+**关键问题：**
+- 描述是否与重要性成比例？
+- 玩家能否参与，还是必须等待？
+- 风格是否压过了实质？
+- 叙述速度是否匹配行动速度？
 
-**Diagnostic Checklist:**
-- [ ] High-stakes scenes have urgency
-- [ ] Quiet moments actually feel quiet
-- [ ] Pacing accelerates toward climaxes
-- [ ] Resolution scenes decompress
+**诊断清单：**
+- [ ] 重要场景比日常场景获得更多描述
+- [ ] 玩家有空间插话和行动
+- [ ] 战斗描述简洁有力，而非长篇大论
+- [ ] 华丽风格仅用于关键时刻，而非所有时候
 
-**Energy Calibration by Scene Type:**
+**丰富描述有效的场合：**
+- 主要地点的首次介绍
+- 戏剧性揭示和转折点
+- 意在令人回味的恐怖/惊叹时刻
+- 玩家的胜利和史诗时刻
 
-| Scene Type | Energy Level | Pacing |
-|------------|--------------|--------|
-| Exploration | Medium | Measured, atmospheric |
-| Social/RP | Variable | Responsive to players |
-| Combat | High | Fast, punchy |
-| Investigation | Low-Medium | Deliberate, building |
-| Climax | Maximum | Intense, accelerating |
-| Denouement | Low | Slow, reflective |
+**应该精简的场合：**
+- 日常旅行和购物
+- 战斗（行动需要速度）
+- 重复访问的地点
+- 玩家急于行动时
 
-**Interventions:**
-- Consciously shift energy between scene types
-- Use pacing as a tool: slow for tension, fast for action
-- Build to climaxes through escalating energy
-- Allow decompression after intense moments
-- Practice "reading the room" for when to push or pull back
+**干预措施：**
+- 默认将描述限制在 2-3 句
+- 为关键时刻保留长段
+- 描述长度匹配场景重要性
+- 检查：玩家是在等待还是在参与？
+- 利用玩家的想象力——暗示，而非详尽描述
 
----
-
-### State T5: Genre Mismatch
-
-**Symptoms:** Tone doesn't match the game's genre expectations. Running a horror game like an action movie. Playing D&D like Call of Cthulhu. The mechanics and tone are fighting each other.
-
-**Key Questions:**
-- What genre is this game supposed to be?
-- Does the tone match genre conventions?
-- Are mechanics and tone aligned?
-- Do players expect this genre's tropes?
-
-**Genre-Tone Mapping:**
-
-| Genre | Tonal Baseline | Key Elements |
-|-------|----------------|--------------|
-| Heroic Fantasy | Hopeful, adventurous | Good vs. evil, triumph, wonder |
-| Grimdark | Cynical, harsh | Moral ambiguity, costly victories |
-| Cosmic Horror | Dread, insignificance | Unknown, madness, no true victory |
-| Pulp Adventure | Exciting, light | Two-fisted action, daring escapes |
-| Noir | Cynical, atmospheric | Moral compromise, femme fatales |
-| Swashbuckling | Dashing, romantic | Wit, style over substance |
-| Survival Horror | Tense, resource-scarce | Vulnerability, hard choices |
-
-**Interventions:**
-- Identify target genre explicitly
-- Study genre conventions (films, books, other games)
-- Align NPC behavior with genre expectations
-- Match consequence weight to genre (pulp: light, grimdark: heavy)
-- Use genre-appropriate language and imagery
+**校准示例：**
+- 过多："古老的橡木门，其铁条被几个世纪的盐雾侵蚀，在自第三纪元以来就未曾上过油的铰链上吱嘎作响，门后的房间黑暗得如此深沉，你的火把光芒似乎在畏缩……"
+- 恰当："老门吱嘎打开。门后的黑暗吞噬了你的火把光。里面有什么东西在呼吸。"
 
 ---
 
-## Establishing Baseline Tone
+### 状态 T4：单调能量
 
-Before play begins, establish:
+**症状：** 一切都以同样的强度传递。战斗不比购物更有紧迫感。高潮之战与随机遭遇的能量相同。玩家从不感到张力的升降。
 
-### 1. The Tonal Anchor
+**关键问题：**
+- 场景之间的节奏是否有变化？
+- 高风险时刻的感觉是否不同？
+- 是否有张力上升/下降的感觉？
+- 高潮是否感觉像高潮？
 
-One sentence describing how this campaign should FEEL:
-- "Desperate heroes against impossible odds"
-- "Competent professionals doing morally gray work"
-- "Wide-eyed adventurers discovering wonder"
-- "Survivors barely holding on in a broken world"
+**诊断清单：**
+- [ ] 高风险场景有紧迫感
+- [ ] 安静时刻真的感觉安静
+- [ ] 节奏向高潮加速
+- [ ] 解决场景有减压效果
 
-### 2. The Humor Policy
+**按场景类型的能量校准：**
 
-Where does comedy fit?
-- **Integrated:** Comedy woven throughout naturally
-- **Bracketed:** Comedy in downtime, serious in action
-- **Rare:** Comedy as relief valve only
-- **None:** Straight-faced throughout
+| 场景类型 | 能量级别 | 节奏 |
+|----------|----------|------|
+| 探索 | 中等 | 从容、有氛围 |
+| 社交/RP | 可变 | 响应玩家 |
+| 战斗 | 高 | 快速、简洁 |
+| 调查 | 中低 | 从容、递进 |
+| 高潮 | 最高 | 紧张、加速 |
+| 落幕 | 低 | 缓慢、反思 |
 
-### 3. The Consequence Dial
-
-How heavy are outcomes?
-- **Light:** Death rare, setbacks temporary
-- **Medium:** Real stakes, recoverable failure
-- **Heavy:** Consequences stick, death possible
-- **Brutal:** The world is not fair
-
-### 4. The Wonder/Horror Ratio
-
-What emotional notes dominate?
-- More wonder → sense of discovery, magic is amazing
-- More horror → sense of dread, the unknown is threatening
-- Balanced → both present, shifting by context
-
----
-
-## Reading the Room
-
-Tone isn't just GM output—it's a conversation with players.
-
-### Signs Players Want Different Tone:
-
-| Player Behavior | May Indicate |
-|-----------------|--------------|
-| Joking during serious scenes | Need lighter tone or transition |
-| Quiet/withdrawn | Scene too intense or wrong register |
-| Checking phones | Energy too low, pacing too slow |
-| Interrupting descriptions | Ready to act, cut the narration |
-| Leaning in, engaged | Tone is working, maintain |
-
-### Adjusting in Real Time:
-
-- If jokes derail drama → either lean into comedy or clearly signal "let's refocus"
-- If players seem lost → clarify what register you're in
-- If energy flags → accelerate pacing or shift scene
-- If tension overwhelms → provide relief valve moment
+**干预措施：**
+- 有意识地在场景类型之间切换能量
+- 将节奏作为工具：慢用于制造张力，快用于行动
+- 通过升级能量来建构高潮
+- 在高强度时刻之后允许减压
+- 练习"察言观色"以决定何时推进或退后
 
 ---
 
-## Anti-Patterns
+### 状态 T5：类型错配
 
-### The Shakespeare GM
-**Pattern:** Every NPC speaks in elevated language regardless of station.
-**Problem:** Kills verisimilitude, exhausts players, blurs NPC distinction.
-**Fix:** Match NPC language to character and context. The peasant doesn't talk like the wizard.
+**症状：** 基调不匹配游戏的类型期望。以动作片方式运营恐怖游戏。用《龙与地下城》的方式玩《克苏鲁的呼唤》。机制和基调在互相打架。
 
-### The Edgelord
-**Pattern:** Grimdark everything. Constant horror. No hope.
-**Problem:** Numbness. Horror needs contrast to work.
-**Fix:** Light makes shadow. Include moments of warmth, humor, hope to make the dark matter.
+**关键问题：**
+- 这个游戏应该是什么类型？
+- 基调是否匹配类型惯例？
+- 机制和基调是否一致？
+- 玩家是否期望这个类型的套路？
 
-### The Theme Park GM
-**Pattern:** Every zone has different tone. Forest = whimsy, dungeon = horror, city = comedy.
-**Problem:** World feels like a theme park, not a place.
-**Fix:** Establish world-level baseline. Individual locations can shade it, not contradict it.
+**类型-基调映射：**
 
-### The Emotional Ambush
-**Pattern:** Heavy emotional content without warning or consent.
-**Problem:** Players feel blindsided, not immersed.
-**Fix:** Establish content agreements. Approach heavy content with player buy-in.
+| 类型 | 基调基线 | 关键元素 |
+|------|----------|----------|
+| 英雄奇幻 | 充满希望、冒险精神 | 善恶对立、胜利、惊奇 |
+| 黑暗奇幻 | 愤世嫉俗、严酷 | 道德模糊、代价高昂的胜利 |
+| 宇宙恐怖 | 恐惧、渺小感 | 未知、疯狂、没有真正的胜利 |
+| 纸浆冒险 | 刺激、轻松 | 拳脚相加、大胆逃脱 |
+| 黑色 | 愤世嫉俗、有氛围 | 道德妥协、蛇蝎美人 |
+| 侠客风格 | 潇洒、浪漫 | 机智、风度胜于实质 |
+| 生存恐怖 | 紧张、资源匮乏 | 脆弱性、艰难抉择 |
 
-### The One-Note Band
-**Pattern:** Same tone, always. Action movie pace for everything.
-**Problem:** No contrast, no breathing room, eventual exhaustion.
-**Fix:** Vary deliberately. Quiet after loud. Slow after fast.
-
----
-
-## Diagnostic Process
-
-When a GM reports tone problems:
-
-### 1. Identify the Problem Type
-
-- Does narration feel boring? → T1 (Flat Table)
-- Are tonal shifts jarring? → T2 (Tonal Whiplash)
-- Are descriptions overwhelming? → T3 (Purple GM)
-- Does everything feel the same? → T4 (Monotone Energy)
-- Does tone not fit the game? → T5 (Genre Mismatch)
-
-### 2. Check Baseline
-
-- Is there an established baseline tone?
-- Is it communicated to players?
-- Is it appropriate for the game/genre?
-
-### 3. Look for Pattern
-
-- Is the problem consistent or situational?
-- When does it break down? (combat, drama, NPCs?)
-- What's the GM's natural tendency? (too sparse, too rich?)
-
-### 4. Recommend Interventions
-
-Based on identified state, provide specific fixes.
+**干预措施：**
+- 明确确定目标类型
+- 研究类型惯例（电影、书籍、其他游戏）
+- 使 NPC 行为与类型期望一致
+- 匹配后果权重与类型（纸浆：轻；黑暗：重）
+- 使用与类型匹配的语言和意象
 
 ---
 
-## Integration with Other Skills
+## 建立基线基调
 
-| Related Skill | When to Hand Off |
-|---------------|------------------|
-| scene-sequencing | When pacing issues are structural, not tonal |
-| dialogue | When NPC voice specifically needs work |
-| genre-conventions | When genre knowledge gap is the issue |
-| game-facilitator | When the issue is player management, not delivery |
+在游戏开始之前，建立：
 
-### Prerequisites
+### 1. 基调锚点
 
-**Do NOT use table-tone when:**
-- Players aren't engaged because the STORY is broken (use story-sense)
-- The issue is mechanical, not tonal
-- Player conflict is the real problem
+一句话描述这个战役应该有的感觉：
+- "绝望的英雄对抗不可能的赔率"
+- "胜任的专业人士从事道德灰色的工作"
+- "好奇的冒险者发现奇迹"
+- "勉强维持的幸存者在破碎的世界中"
 
----
+### 2. 幽默政策
 
-## Quick Reference: Tone Calibration
+喜剧在哪里适合？
+- **融入式：** 喜剧自然地贯穿始终
+- **括号式：** 休息时间有喜剧，行动时认真
+- **稀少式：** 喜剧仅作为减压阀
+- **无喜剧：** 全程严肃
 
-**Before Session:**
-- What's the baseline tone for today?
-- Any major tonal shifts planned?
-- What energy level are we starting at?
+### 3. 后果刻度盘
 
-**During Session:**
-- Am I matching scene importance with description weight?
-- Are my transitions smooth or jarring?
-- What's the room energy? Match or shift it?
+结果有多沉重？
+- **轻度：** 死亡罕见，挫折是暂时的
+- **中度：** 真实的利害关系，可恢复的失败
+- **重度：** 后果持久，死亡可能
+- **残酷：** 世界是不公平的
 
-**After Session:**
-- Did the tone land?
-- Were there jarring moments?
-- What worked? What didn't?
+### 4. 惊奇/恐怖比例
 
----
-
-## Output Persistence
-
-This skill writes primary output to files so work persists across sessions.
-
-### Output Discovery
-
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/table-tone/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-
-For this skill, persist:
-- **Tone diagnosis** - current state and issues identified
-- **Intended tone definition** - what the GM is aiming for
-- **Toolkit selections** - techniques and elements that reinforce tone
-- **Session notes** - what worked and what didn't
-
-### Conversation vs. File
-
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Tone definition | Discussion of preferences |
-| Toolkit checklist | Clarifying questions |
-| Session retrospectives | Real-time feedback |
-| Technique recommendations | Player dynamic discussion |
-
-### File Naming
-
-Pattern: `{campaign}-tone-{date}.md`
-Example: `dnd-campaign-tone-2025-01-15.md`
-
-## What You Do NOT Do
-
-- You do not dictate what tone a campaign "should" be
-- You do not diagnose when the problem is player conflict
-- You do not impose your preferences over the table's
-- You do not assume one tone is better than another
-
-Your role is diagnostic: identify tonal problems, explain why they're problems, and guide toward solutions. The GM establishes their own tone.
+什么情感基调占主导？
+- 偏惊奇 → 发现感，魔法是奇妙的
+- 偏恐怖 → 恐惧感，未知是威胁性的
+- 平衡 → 两者都存在，随语境切换
 
 ---
 
-## Key Insight
+## 察言观色
 
-Tone is a promise. When you establish a tone, players calibrate their engagement, emotional investment, and expectations to match. Break that promise carelessly and you break immersion. Honor it and players will follow you anywhere—into comedy, tragedy, horror, or wonder.
+基调不仅仅是 GM 的输出——它是与玩家的对话。
 
-The goal isn't "correct" tone. The goal is intentional tone—knowing what feeling you're creating and creating it on purpose.
+### 玩家想要不同基调的信号：
+
+| 玩家行为 | 可能表明 |
+|----------|----------|
+| 在严肃场景中开玩笑 | 需要更轻的基调或过渡 |
+| 安静/退缩 | 场景太激烈或风格不对 |
+| 看手机 | 能量太低，节奏太慢 |
+| 打断描述 | 准备好行动了，减少叙述 |
+| 身体前倾、投入 | 基调有效，保持 |
+
+### 实时调整：
+
+- 如果笑话破坏了戏剧 → 要么顺着喜剧走，要么明确表示"让我们重新聚焦"
+- 如果玩家显得迷失 → 澄清你们处于什么风格中
+- 如果能量下降 → 加速节奏或切换场景
+- 如果张力让人喘不过气 → 提供减压阀时刻
+
+---
+
+## 反模式
+
+### 莎士比亚 GM
+**模式：** 每个 NPC 不分身份地位都说华丽的语言。
+**问题：** 破坏真实感，让玩家疲惫，模糊 NPC 的区分度。
+**修正：** 让 NPC 的语言匹配角色和语境。农民不会像巫师一样说话。
+
+### 边缘狂人
+**模式：** 一切都是黑暗的。持续的恐怖。毫无希望。
+**问题：** 麻木。恐怖需要对比才能有效。
+**修正：** 光明造就阴影。加入温暖、幽默、希望的时刻，让黑暗有意义。
+
+### 主题公园 GM
+**模式：** 每个区域有不同的基调。森林 = 奇幻，地下城 = 恐怖，城市 = 喜剧。
+**问题：** 世界感觉像主题公园，而非一个地方。
+**修正：** 建立世界级的基线。个别地点可以为其增色，但不能与之矛盾。
+
+### 情感伏击
+**模式：** 在没有预警或同意的情况下投入沉重的情感内容。
+**问题：** 玩家感到措手不及，而非沉浸。
+**修正：** 建立内容协议。带着玩家的认可来处理沉重内容。
+
+### 单音乐队
+**模式：** 同样的基调，一直如此。一切都是动作片节奏。
+**问题：** 没有对比，没有喘息空间，最终疲惫。
+**修正：** 有意识地变化。大声之后要安静。快速之后要缓慢。
+
+---
+
+## 诊断流程
+
+当 GM 报告基调问题时：
+
+### 1. 识别问题类型
+
+- 叙述感觉无聊？→ T1（平淡桌面）
+- 基调转换突兀？→ T2（基调割裂）
+- 描述令人目不暇接？→ T3（紫色 GM）
+- 一切感觉都一样？→ T4（单调能量）
+- 基调不适合游戏？→ T5（类型错配）
+
+### 2. 检查基线
+
+- 是否有建立的基线基调？
+- 是否传达给了玩家？
+- 对于游戏/类型来说是否合适？
+
+### 3. 寻找模式
+
+- 问题是持续的还是偶发的？
+- 什么时候崩溃？（战斗、戏剧、NPC？）
+- GM 的自然倾向是什么？（太简略、太华丽？）
+
+### 4. 推荐干预措施
+
+基于识别的状态提供具体修正。
+
+---
+
+## 与其他技能的集成
+
+| 相关技能 | 何时移交 |
+|----------|----------|
+| scene-sequencing | 当节奏问题是结构性的而非基调性的 |
+| dialogue | 当 NPC 声音特别需要改进时 |
+| genre-conventions | 当类型知识缺口是问题所在时 |
+| game-facilitator | 当问题是玩家管理而非传递方式时 |
+
+### 前提条件
+
+**不要使用 table-tone 当：**
+- 玩家不投入是因为故事本身有问题（使用 story-sense）
+- 问题是机制性的，而非基调性的
+- 玩家冲突才是真正的问题
+
+---
+
+## 快速参考：基调校准
+
+**游戏前：**
+- 今天的基线基调是什么？
+- 有计划中的重大基调转换吗？
+- 我们以什么能量级别开始？
+
+**游戏中：**
+- 我是否将场景重要性与描述权重匹配？
+- 我的过渡是流畅的还是突兀的？
+- 桌面的能量如何？匹配它还是转移它？
+
+**游戏后：**
+- 基调落地了吗？
+- 有突兀的时刻吗？
+- 什么有效？什么没有？
+
+---
+
+## 输出持久化
+
+本技能将主要输出写入文件，使工作跨会话持久保存。
+
+### 输出发现
+
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果存在，使用本技能的条目获取输出路径
+3. 如果不存在，**使用默认路径 `explorations/table-tone/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因为询问用户而阻塞
+
+### 主要输出
+
+本技能需要持久化的内容：
+- **基调诊断** - 当前状态和识别的问题
+- **目标基调定义** - GM 的目标是什么
+- **工具包选择** - 强化基调的技术和元素
+- **会话笔记** - 什么有效什么没有
+
+### 对话 vs. 文件
+
+| 写入文件 | 留在对话中 |
+|----------|------------|
+| 基调定义 | 偏好讨论 |
+| 工具包清单 | 澄清性问题 |
+| 会话回顾 | 实时反馈 |
+| 技术建议 | 玩家动态讨论 |
+
+### 文件命名
+
+模式：`{campaign}-tone-{date}.md`
+示例：`dnd-campaign-tone-2025-01-15.md`
+
+## 你不做的事
+
+- 你不规定战役"应该"是什么基调
+- 你不在问题是玩家冲突时进行诊断
+- 你不将自己的偏好强加于桌面之上
+- 你不假设某种基调比另一种更好
+
+你的角色是诊断性的：识别基调问题、解释为何是问题，并引导走向解决方案。GM 建立自己的基调。
+
+---
+
+## 关键洞见
+
+基调是一个承诺。当你建立一种基调时，玩家会将他们的参与度、情感投入和期望校准到匹配。随意地打破这个承诺，你就打破了沉浸感。信守它，玩家就会跟随你去任何地方——喜剧、悲剧、恐怖或惊奇。
+
+目标不是"正确"的基调。目标是有意识的基调——知道你在创造什么感觉，并有目的地去创造它。

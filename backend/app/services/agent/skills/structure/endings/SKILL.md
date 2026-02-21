@@ -1,6 +1,6 @@
 ---
 name: endings
-description: Diagnose weak endings, rushed resolutions, and arbitrary conclusions. Use when stories build well but end disappointingly, when climax feels unearned, or when resolution doesn't complete character arcs.
+description: 诊断薄弱的结局、仓促的解决方案和随意的收束。适用于故事铺垫良好但结局令人失望、高潮感觉不够充分、或结局未能完成角色弧线的情况。
 license: MIT
 metadata:
   author: jwynia
@@ -11,375 +11,375 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# Endings: Diagnostic Skill
+# 结局：诊断技能
 
-You diagnose ending-level problems in fiction. Your role is to identify why resolutions fail and guide writers toward endings that feel both inevitable AND surprising.
+你负责诊断小说中结局层面的问题。你的角色是找出结局失败的原因，并引导作者写出既感觉不可避免又令人惊喜的结局。
 
-## Core Principle
+## 核心原则
 
-**The best endings feel both inevitable ("of course it had to end this way") AND surprising ("I didn't see that coming").**
+**最好的结局既让人感觉不可避免（"当然只能这样结束"），又让人感到惊喜（"我没想到会这样"）。**
 
-This seeming contradiction is resolved by planting seeds throughout the story, having the ending emerge from character and theme, and subverting surface expectations while fulfilling deeper ones.
+这个看似矛盾的要求通过以下方式实现：在故事中埋下种子，让结局从人物和主题中自然生长，在满足更深层期待的同时颠覆表层预期。
 
-An ending that's only inevitable feels predictable. An ending that's only surprising feels arbitrary. Both together create satisfaction.
-
----
-
-## The Anatomy of an Ending
-
-### Climax
-The point of highest tension where the dramatic question is answered.
-
-**Climax must:**
-- Answer the central dramatic question
-- Force the protagonist's final choice
-- Result from story logic, not external intervention
-- Require the character to use what they've learned/become
-
-### Falling Action
-The decompression after climax. Events settle, consequences manifest, characters process.
-
-**Falling action should:**
-- Show immediate aftermath
-- Begin revealing implications
-- Let reader breathe
-- Transition toward resolution
-
-### Denouement/Resolution
-The final state—where things end up.
-
-**Resolution should:**
-- Provide closure on main plot
-- Address major subplots (not necessarily resolve all)
-- Show the new normal
-- End on a resonant image or moment
+只有不可避免性的结局感觉平淡可预测。只有惊喜感的结局感觉随意武断。两者兼具才能带来满足感。
 
 ---
 
-## The Ending States
+## 结局的结构解剖
 
-### State E1: Arbitrary Ending
+### 高潮
+戏剧张力达到最高点、核心戏剧问题得到回答的时刻。
 
-**Symptoms:** Resolution doesn't follow from what preceded it. Ending feels random or disconnected. "Where did that come from?" reaction. Seeds weren't planted.
+**高潮必须：**
+- 回答核心戏剧问题
+- 迫使主角做出最终选择
+- 源自故事逻辑，而非外部干预
+- 要求角色运用所学到的东西/所成为的自己
 
-**Key Questions:**
-- Does resolution follow from established character and plot?
-- Were the seeds for this ending planted earlier?
-- Is this the ending *this specific story* needed?
-- Could readers reread and see it coming?
+### 下降动作
+高潮之后的减压阶段。事件趋于平息，后果显现，角色进行内心消化。
 
-**Diagnostic Checklist:**
-- [ ] Ending uses only elements already established
-- [ ] Character's choice at climax emerges from arc
-- [ ] Resolution matches the story's internal logic
-- [ ] On reread, foreshadowing would be visible
+**下降动作应该：**
+- 展示即时后果
+- 开始揭示深层影响
+- 让读者喘息
+- 向最终解决过渡
 
-**Interventions:**
-- Identify what ending the story actually built toward
-- Plant seeds earlier for the intended ending
-- Ensure climax emerges from character growth, not plot convenience
-- Use setup-payoff tool to track what was promised
+### 收束/解决
+最终状态——一切的落脚点。
 
----
-
-### State E2: Predictable Ending
-
-**Symptoms:** Reader sees ending coming from far away. No surprise at all. Genre conventions followed too literally. Surface expectations met exactly.
-
-**Key Questions:**
-- Is there any element of surprise?
-- Did you follow genre expectations too closely?
-- Does surface prediction match deeper surprise?
-- Is the "how" surprising even if "what" is expected?
-
-**Diagnostic Checklist:**
-- [ ] At least one element subverts expectation
-- [ ] The path to ending contains surprise
-- [ ] Genre promise fulfilled unexpectedly
-- [ ] Emotional destination reached via unexpected route
-
-**Interventions:**
-- Subvert the *how* while fulfilling the *what*
-- Meet emotional expectations through unexpected means
-- Add complication that doesn't change destination but changes journey
-- Consider which genre element can be inverted
+**解决阶段应该：**
+- 为主线情节提供闭合感
+- 处理主要支线（不必全部解决）
+- 展示新的常态
+- 以一个余韵悠长的画面或时刻结束
 
 ---
 
-### State E3: Unearned Ending
+## 结局状态
 
-**Symptoms:** Deus ex machina. External force solves protagonist's problem. Resolution doesn't require protagonist's growth. Coincidence or luck saves the day.
+### 状态 E1：随意的结局
 
-**Key Questions:**
-- Did protagonist cause the resolution?
-- Were tools/growth needed for climax established earlier?
-- Did external forces solve internal problems?
-- Did the character's transformation matter to the outcome?
+**症状：** 解决方式与前文没有逻辑关联。结局感觉随机或断裂。读者的反应是"这从哪冒出来的？"缺乏前期铺垫。
 
-**Diagnostic Checklist:**
-- [ ] Protagonist's choice drives resolution
-- [ ] Skills/growth used at climax were shown developing
-- [ ] No new powers or allies appear to save the day
-- [ ] Character's arc completion is necessary for victory
+**关键问题：**
+- 结局是否源自已建立的人物和情节？
+- 这个结局的种子是否在更早的时候就已经埋下？
+- 这是否是*这个特定故事*需要的结局？
+- 读者重读时能否看到伏笔？
 
-**Interventions:**
-- Remove external solutions; force protagonist to solve it
-- Establish earlier whatever the character needs at climax
-- Make the character's transformation the key to resolution
-- If help arrives, ensure protagonist enabled it
+**诊断清单：**
+- [ ] 结局只使用已确立的元素
+- [ ] 角色在高潮处的选择源自其弧线
+- [ ] 结局符合故事的内在逻辑
+- [ ] 重读时伏笔应当清晰可见
 
----
-
-### State E4: Expanding Ending
-
-**Symptoms:** Ending raises more questions than it answers. New mysteries introduced at resolution. Scope widens when it should narrow. Reader left confused rather than satisfied.
-
-**Key Questions:**
-- Is the main dramatic question clearly answered?
-- Are new mysteries introduced too late?
-- Has scope expanded at resolution point?
-- Does ending contract toward clarity or explode into new complexity?
-
-**Diagnostic Checklist:**
-- [ ] Central dramatic question definitively answered
-- [ ] No major new questions raised in final act
-- [ ] Scope narrows toward resolution
-- [ ] Loose ends are intentional, not accidental
-
-**Interventions:**
-- Endings contract; they don't expand
-- Focus on resolving what was promised
-- Move new questions to earlier (or cut them)
-- Distinguish "open ending" (intentional ambiguity) from "unfinished" (accidental)
+**干预措施：**
+- 找出故事实际构建指向的结局
+- 为预期的结局更早地埋下种子
+- 确保高潮源自角色成长，而非情节便利
+- 使用 setup-payoff 工具追踪已做出的承诺
 
 ---
 
-### State E5: Overexplained Ending
+### 状态 E2：可预测的结局
 
-**Symptoms:** Characters summarize theme. Lengthy epilogue explains everyone's fate. All threads tied too neatly. Nothing left for reader to feel or interpret.
+**症状：** 读者从很远处就能看到结局。毫无惊喜可言。过于忠实地遵循类型惯例。表面预期被完全满足。
 
-**Key Questions:**
-- Are characters stating what the story meant?
-- Is there an unnecessary epilogue?
-- Are all threads tied with excessive neatness?
-- Is anything left implicit?
+**关键问题：**
+- 是否有任何惊喜元素？
+- 是否过于紧密地遵循了类型预期？
+- 表面预测是否对应更深层的惊喜？
+- 即使"结果"在预期之中，"过程"是否令人惊喜？
 
-**Diagnostic Checklist:**
-- [ ] No character speeches explaining theme
-- [ ] Epilogue (if present) is brief and resonant
-- [ ] Some threads remain open or implicit
-- [ ] Final scene is action/image, not explanation
+**诊断清单：**
+- [ ] 至少有一个元素颠覆了预期
+- [ ] 通往结局的道路包含惊喜
+- [ ] 类型承诺以意想不到的方式实现
+- [ ] 情感目的地通过意想不到的路线抵达
 
-**Interventions:**
-- Trust readers to interpret
-- Cut theme speeches; demonstrate through action
-- End on image, not summary
-- Let some questions remain for reader contemplation
+**干预措施：**
+- 在满足"结果"的同时颠覆"过程"
+- 通过出人意料的方式满足情感期待
+- 增加不改变目的地但改变旅程的复杂性
+- 考虑哪个类型元素可以被反转
 
 ---
 
-### State E6: Pacing Mismatch
+### 状态 E3：未赢得的结局
 
-**Symptoms:** Climax works but aftermath fails. Ending feels rushed (too fast) or endless (too slow). Emotional impact lost through timing. Reader impatience or confusion in final pages.
+**症状：** 天降神兵。外部力量解决了主角的问题。结局不需要主角的成长。巧合或运气拯救了一切。
 
-**Key Questions:**
-- Is falling action too long or too short?
-- Does resolution show character's new state through action?
-- Does final image resonate?
-- Is denouement proportional to story length?
+**关键问题：**
+- 是主角促成了问题的解决吗？
+- 高潮所需的工具/成长是否在早前已确立？
+- 是否由外部力量解决了内部问题？
+- 角色的转变对结果是否重要？
 
-**Pacing Indicators:**
+**诊断清单：**
+- [ ] 主角的选择驱动了解决方案
+- [ ] 高潮中使用的技能/成长已展示其发展过程
+- [ ] 没有新的力量或盟友凭空出现来拯救一切
+- [ ] 角色弧线的完成是胜利的必要条件
 
-| Problem | Symptom | Fix |
+**干预措施：**
+- 移除外部解决方案；迫使主角自己解决
+- 提前确立角色在高潮中所需的一切
+- 让角色的转变成为解决问题的关键
+- 如果有援助到来，确保是主角促成的
+
+---
+
+### 状态 E4：扩散的结局
+
+**症状：** 结局提出的问题比回答的更多。在解决阶段引入新谜团。本该收束时范围却在扩大。读者感到困惑而非满足。
+
+**关键问题：**
+- 主要戏剧问题是否被清晰回答？
+- 是否在太晚的时候引入了新谜团？
+- 范围是否在解决阶段扩大了？
+- 结局是向清晰收束，还是爆发出新的复杂性？
+
+**诊断清单：**
+- [ ] 核心戏剧问题已明确回答
+- [ ] 最后一幕没有提出重大新问题
+- [ ] 范围向解决方向收窄
+- [ ] 悬而未决的线索是有意为之，而非无意遗漏
+
+**干预措施：**
+- 结局要收束，不要扩散
+- 专注于解决已做出的承诺
+- 将新问题移至更早的位置（或删除）
+- 区分"开放式结局"（有意的模糊）和"未完成"（无意的遗漏）
+
+---
+
+### 状态 E5：过度解释的结局
+
+**症状：** 角色总结主题。冗长的尾声解释每个人的命运。所有线索都收得过于整齐。没有留给读者去感受或解读的空间。
+
+**关键问题：**
+- 角色是否在陈述故事的意义？
+- 是否有不必要的尾声？
+- 所有线索是否收得过于齐整？
+- 是否有留白？
+
+**诊断清单：**
+- [ ] 没有角色发表解释主题的演讲
+- [ ] 尾声（如果有）简短且有余韵
+- [ ] 部分线索保持开放或隐含
+- [ ] 最后的场景是行动/画面，而非解释
+
+**干预措施：**
+- 信任读者的解读能力
+- 删掉主题演讲；通过行动来展示
+- 以画面结束，而非总结
+- 让一些问题留给读者去思考
+
+---
+
+### 状态 E6：节奏失调
+
+**症状：** 高潮有效但余波失败。结局感觉仓促（太快）或无穷无尽（太慢）。情感冲击因时机把控不当而流失。读者在最后几页感到不耐烦或困惑。
+
+**关键问题：**
+- 下降动作是过长还是过短？
+- 解决阶段是否通过行动展示了角色的新状态？
+- 最终画面是否有共鸣？
+- 收束是否与故事长度成比例？
+
+**节奏指标：**
+
+| 问题 | 症状 | 修复方法 |
 |---------|---------|-----|
-| **Rushed** | Climax → immediate end | Add falling action; let implications register |
-| **Endless** | Pages after tension released | Cut to essential; end on resonance |
-| **Anticlimactic** | Resolution smaller than buildup | Ensure climax matches stakes established |
+| **仓促** | 高潮 → 立即结束 | 增加下降动作；让影响得以显现 |
+| **冗长** | 张力释放后仍有大量篇幅 | 削减至核心要素；以余韵结束 |
+| **虎头蛇尾** | 解决不及铺垫的力度 | 确保高潮匹配已确立的利害关系 |
 
-**Interventions:**
-- Rushed: Allow falling action; let reader process
-- Endless: End as quickly as possible after essential resolution
-- Sweet spot: Denouement shorter than buildup, proportional to story length
+**干预措施：**
+- 仓促：允许下降动作；让读者消化
+- 冗长：在核心解决之后尽快结束
+- 最佳平衡点：收束比铺垫更短，与故事长度成比例
 
 ---
 
-## Ending Types Reference
+## 结局类型参考
 
-| Type | Definition | Best For | Risks |
+| 类型 | 定义 | 最适合 | 风险 |
 |------|-----------|----------|-------|
-| **Closed** | All major questions answered | Standalone novels, genre fiction | Over-explanation, too neat |
-| **Open** | Some questions left unanswered | Literary fiction, series | Frustrating, feels unfinished |
-| **Ambiguous** | Deliberately unclear interpretation | Unreliable narrators, philosophy | Unsatisfying if arbitrary |
-| **Twist** | Final revelation recontextualizes | Mystery, perception stories | Cheap if unearned |
-| **Circular** | Returns to beginning, with change | Character arc emphasis, theme | Contrived if forced |
+| **封闭式** | 所有主要问题都得到回答 | 独立小说、类型小说 | 过度解释、过于齐整 |
+| **开放式** | 部分问题未得到回答 | 文学小说、系列作品 | 令人沮丧、感觉未完成 |
+| **模糊式** | 刻意留下模糊的解读空间 | 不可靠叙述者、哲理小说 | 如果随意则令人不满 |
+| **反转式** | 最终揭示重新定义整个故事 | 悬疑、关于认知的故事 | 如果未铺垫则显得廉价 |
+| **环形** | 回到起点，但带有变化 | 强调角色弧线和主题 | 如果强行则显得刻意 |
 
 ---
 
-## Character Arc Completion
+## 角色弧线的完成
 
-The ending must complete the character's transformation:
+结局必须完成角色的转变：
 
-| Arc Type | Ending Requirement | Test |
+| 弧线类型 | 结局要求 | 检验方法 |
 |----------|-------------------|------|
-| **Positive** | Character demonstrates new truth through action | Does protagonist prove change through behavior? |
-| **Negative** | Character's fall completes, consequences manifest | Does tragedy feel inevitable from character's choices? |
-| **Flat** | Character's truth vindicated, world changed | Did steadfastness matter to the outcome? |
+| **正向** | 角色通过行动展示新的真理 | 主角是否通过行为证明了改变？ |
+| **负向** | 角色的堕落完成，后果显现 | 悲剧是否从角色的选择中不可避免地产生？ |
+| **平坦** | 角色的信念得到验证，世界发生改变 | 坚守是否对结果产生了影响？ |
 
-**Key Test:** Does the protagonist at the end prove—through action, not statement—that they've changed?
+**关键检验：** 结局处的主角是否通过行动——而非言语——证明了他们已经改变？
 
 ---
 
-## Subplot Resolution Guide
+## 支线情节解决指南
 
-Not every thread needs equal closure:
+并非每条线索都需要同等程度的闭合：
 
-| Subplot Type | Resolution Needed |
+| 支线类型 | 所需的解决程度 |
 |--------------|------------------|
-| **Main plot-connected** | Must resolve, connected to climax |
-| **Character-developing** | Should resolve or show new state |
-| **Thematic mirror** | Can be left open if theme clear |
-| **World-texture** | Can continue unresolved |
+| **与主线相关** | 必须解决，与高潮相连 |
+| **人物塑造类** | 应当解决或展示新状态 |
+| **主题映射类** | 如果主题清晰可以保持开放 |
+| **世界质感类** | 可以不予解决 |
 
-**Principle:** The more space a subplot received, the more resolution it needs.
-
----
-
-## Anti-Patterns
-
-### The Deus Ex Machina
-**Pattern:** External force solves the problem protagonist couldn't.
-**Problem:** Resolution not earned; character's journey didn't matter.
-**Fix:** Resolution must emerge from established story elements and protagonist's choices.
-
-### The Sequel Bait
-**Pattern:** Ending exists primarily to set up next installment.
-**Problem:** This story doesn't get its own complete arc.
-**Fix:** Each story deserves satisfaction. Hook for next can exist alongside resolution.
-
-### The Epilogue Dump
-**Pattern:** Lengthy explanation of what happened to everyone afterward.
-**Problem:** Kills pacing; removes reader's imaginative participation.
-**Fix:** End on resonant moment, not biography. Trust readers.
-
-### The Theme Speech
-**Pattern:** Character articulates exactly what the story meant.
-**Problem:** Preachiness; treating reader as unable to interpret.
-**Fix:** Demonstrate theme through action and image, not statement.
-
-### The Perfect Resolution
-**Pattern:** Everything works out, all threads tied, no cost or ambiguity.
-**Problem:** Feels artificial; removes the weight of the journey.
-**Fix:** Victory should cost something. Some threads can remain open.
-
-### The Nihilistic Swerve
-**Pattern:** Dark ending that contradicts the story's emotional journey.
-**Problem:** Feels like shock value, not earned tragedy.
-**Fix:** Ending must emerge from story logic, not authorial surprise.
+**原则：** 支线占据的篇幅越多，它需要的解决程度就越高。
 
 ---
 
-## Genre-Specific Patterns
+## 反模式
 
-| Genre | Typical Expectation | Subversion Opportunity |
+### 天降神兵
+**模式：** 外部力量解决了主角无法解决的问题。
+**问题：** 结局非角色所赢得；角色的旅程毫无意义。
+**修复：** 结局必须从已确立的故事元素和主角的选择中产生。
+
+### 续集诱饵
+**模式：** 结局主要为了铺设下一部的基础而存在。
+**问题：** 这个故事没有获得自身完整的弧线。
+**修复：** 每个故事都值得拥有满足感。对下一部的钩子可以与本部的解决并存。
+
+### 尾声信息倾泻
+**模式：** 冗长地解释之后每个人的命运。
+**问题：** 破坏节奏；剥夺读者的想象参与。
+**修复：** 以有余韵的时刻结束，而非传记式叙述。信任读者。
+
+### 主题演讲
+**模式：** 角色明确说出故事的意义。
+**问题：** 说教感；把读者当作无法自行解读的人。
+**修复：** 通过行动和画面展示主题，而非通过陈述。
+
+### 完美解决
+**模式：** 一切顺利，所有线索收束，没有代价或模糊性。
+**问题：** 感觉虚假；消解了旅程的分量。
+**修复：** 胜利应有代价。部分线索可以保持开放。
+
+### 虚无主义急转
+**模式：** 与故事的情感旅程相矛盾的黑暗结局。
+**问题：** 感觉像是为了震惊而震惊，而非赢得的悲剧。
+**修复：** 结局必须从故事逻辑中产生，而非作者的突然袭击。
+
+---
+
+## 类型特定模式
+
+| 类型 | 典型期待 | 颠覆机会 |
 |-------|--------------------|-----------------------|
-| **Romance** | Couple together (HEA/HFN) | How they get there; what's sacrificed |
-| **Mystery** | Culprit revealed | Implications of revelation; detective changed |
-| **Thriller** | Threat neutralized | Cost of victory; what's lost |
-| **Literary** | Thematic resolution | Ambiguity; open questions |
-| **Horror** | Monster defeated or prevails | Pyrrhic victory; corruption persists |
-| **Fantasy** | Quest complete | Changed hero returns to changed world |
+| **言情** | 有情人终成眷属（HEA/HFN） | 他们如何走到一起；牺牲了什么 |
+| **推理** | 真凶揭晓 | 揭晓的影响；侦探自身的改变 |
+| **惊悚** | 威胁被消除 | 胜利的代价；失去了什么 |
+| **文学** | 主题性解决 | 模糊性；开放的问题 |
+| **恐怖** | 怪物被击败或得逞 | 惨胜；腐化持续存在 |
+| **奇幻** | 任务完成 | 改变了的英雄回到改变了的世界 |
 
-**Principle:** Meet genre expectations at macro level; surprise at micro level.
-
----
-
-## The Final Image
-
-What the reader is left with matters disproportionately.
-
-**Strong final images:**
-- Resonate with opening (showing change)
-- Embody theme visually
-- Leave emotional aftertaste
-- Compress meaning into moment
-
-**Weak final images:**
-- Summary or explanation
-- Logistics of next steps
-- Excessive epilogue
-- Happy group scenes (unless earned)
+**原则：** 在宏观层面满足类型期待；在微观层面制造惊喜。
 
 ---
 
-## Special Considerations
+## 最终画面
 
-### Series Endings
+读者被留下的最后印象具有不成比例的重要性。
 
-**Book-in-Series:**
-- Resolve this installment's conflict
-- Maintain larger series questions
-- Provide satisfaction AND anticipation
-- Avoid pure cliffhanger (some resolution)
+**有力的最终画面：**
+- 与开头呼应（展示变化）
+- 以视觉方式体现主题
+- 留下情感余味
+- 将意义压缩进一个瞬间
 
-**Series Finale:**
-- Resolve all major threads
-- Longer denouement acceptable
-- Pay off long-term setups
-- End character arcs definitively
-
-### The Eucatastrophe
-
-Tolkien's term for the sudden, unexpected turn to good—disaster seems certain, then salvation arrives.
-
-**Requirements:**
-- Must be set up (Chekhov's gun applies)
-- Must be earned (character's growth matters)
-- Must feel like grace, not luck
-- Must cost something
+**薄弱的最终画面：**
+- 总结或解释
+- 后续步骤的安排
+- 过长的尾声
+- 皆大欢喜的群体场面（除非充分铺垫）
 
 ---
 
-## Diagnostic Process
+## 特殊情况
 
-When a writer presents ending problems:
+### 系列结局
 
-### 1. Identify the Problem Type
+**系列中的单本：**
+- 解决本册的冲突
+- 维持更大的系列悬念
+- 同时提供满足感和期待感
+- 避免纯粹的悬念断点（应有一定程度的解决）
 
-- Does it feel random? → E1 (Arbitrary)
-- Does it feel obvious? → E2 (Predictable)
-- Does it feel lucky? → E3 (Unearned)
-- Does it feel confusing? → E4 (Expanding)
-- Does it feel preachy? → E5 (Overexplained)
-- Does it feel rushed/draggy? → E6 (Pacing)
+**系列终结：**
+- 解决所有主要线索
+- 较长的收束可以接受
+- 兑现长期铺垫
+- 明确完成角色弧线
 
-### 2. Apply the Inevitable/Surprising Test
+### 福灾突转
 
-- Is it inevitable? (Can you trace back the seeds?)
-- Is it surprising? (Did something subvert expectation?)
-- Both needed for satisfaction
+托尔金用来描述突然的、意想不到的转向好结果的术语——灾难看似必然，然后救赎降临。
 
-### 3. Check Character Arc Completion
-
-Does the protagonist demonstrate transformation through action at the climax?
-
-### 4. Check Setup/Payoff Balance
-
-Use setup-payoff tool to verify:
-- Everything used at climax was established
-- Major setups received payoffs
-- No deus ex machina
-
-### 5. Recommend Interventions
-
-Based on identified state, provide specific fixes.
+**要求：**
+- 必须有铺垫（契诃夫之枪原则适用）
+- 必须是赢得的（角色的成长很重要）
+- 必须感觉像恩典，而非运气
+- 必须付出代价
 
 ---
 
-## Available Tools
+## 诊断流程
+
+当作者提出结局问题时：
+
+### 1. 识别问题类型
+
+- 感觉随机？→ E1（随意的结局）
+- 感觉明显？→ E2（可预测的结局）
+- 感觉侥幸？→ E3（未赢得的结局）
+- 感觉困惑？→ E4（扩散的结局）
+- 感觉说教？→ E5（过度解释的结局）
+- 感觉急促/拖沓？→ E6（节奏失调）
+
+### 2. 应用不可避免性/惊喜性检验
+
+- 是否不可避免？（能否回溯找到种子？）
+- 是否令人惊喜？（是否有元素颠覆了预期？）
+- 两者兼备才能带来满足感
+
+### 3. 检查角色弧线完成度
+
+主角是否在高潮处通过行动展示了转变？
+
+### 4. 检查铺垫 / 回收平衡
+
+使用 setup-payoff 工具验证：
+- 高潮中使用的一切都已事先确立
+- 主要铺垫都已回收
+- 没有天降神兵
+
+### 5. 推荐干预措施
+
+根据识别出的状态提供具体修复方案。
+
+---
+
+## 可用工具
 
 ### ending_check.py
 
-Analyzes ending structure and type.
+分析结局结构和类型。
 
 > **路径提示**: 脚本位于 `skills/structure/endings/scripts/` 目录下。
 > 执行时必须使用从项目根目录出发的完整相对路径。
@@ -389,127 +389,127 @@ python skills/structure/endings/scripts/ending_check.py final-chapter.txt
 python skills/structure/endings/scripts/ending_check.py --text "The resolution..."
 ```
 
-**Checks:**
-- Ending type detection (closed, open, twist, etc.)
-- Pacing indicators
-- Resolution vs. expansion patterns
-- Theme-stating language
+**检查内容：**
+- 结局类型检测（封闭式、开放式、反转式等）
+- 节奏指标
+- 解决 vs. 扩散模式
+- 主题陈述性语言
 
 ### setup_payoff.py
 
-Tracks setups and payoffs across a story.
+跟踪故事中的铺垫和回收。
 
 ```bash
 python skills/structure/endings/scripts/setup_payoff.py --setup "The rusty key" --file story.txt
 python skills/structure/endings/scripts/setup_payoff.py --analyze story.txt
 ```
 
-**Reports:**
-- Unresolved setups (Chekhov's guns unfired)
-- Payoffs without setup (deus ex machina risk)
-- Setup-to-payoff distance
+**报告内容：**
+- 未回收的铺垫（未发射的契诃夫之枪）
+- 缺乏铺垫的回收（天降神兵风险）
+- 铺垫到回收的距离
 
 ---
 
-## Integration with story-sense
+## 与 story-sense 的集成
 
-| story-sense State | Maps to Endings State |
+| story-sense 状态 | 对应的结局状态 |
 |-------------------|----------------------|
-| State 5.75: Ending Doesn't Land | E1-E6 (diagnose which specifically) |
+| 状态 5.75：结局缺乏力度 | E1-E6（具体诊断是哪一种） |
 
-### When to Hand Off
+### 何时交接
 
-- **To character-arc:** When ending problems stem from incomplete transformation
-- **To scene-sequencing:** When pacing issues extend beyond ending
-- **To genre-conventions:** When genre expectations are unclear
-
----
-
-## Example Interactions
-
-### Example 1: Arbitrary Ending
-
-**Writer:** "Beta readers say my ending came out of nowhere."
-
-**Your approach:**
-1. Identify state: E1 (Arbitrary Ending)
-2. Ask: "What does the protagonist do at the climax? What enabled them to do it?"
-3. Check: Was that ability/knowledge established earlier?
-4. If not: identify what needs to be planted
-5. Run setup-payoff tool to find gaps
-
-### Example 2: Unearned Victory
-
-**Writer:** "The cavalry arrives just in time but it feels cheap."
-
-**Your approach:**
-1. Identify state: E3 (Unearned Ending)
-2. Ask: "Did the protagonist's choices enable the cavalry to arrive?"
-3. If no: protagonist must earn the help or solve it themselves
-4. Consider: what did the character learn that could be the key instead?
-5. Recommend: remove external solution or tie it to protagonist's earlier action
-
-### Example 3: Endless Denouement
-
-**Writer:** "I can't figure out how to end after the climax. I keep adding scenes."
-
-**Your approach:**
-1. Identify state: E6 (Pacing Mismatch - endless)
-2. Ask: "What does the reader need to see to feel satisfied?"
-3. List essentials: character's new state, central question answered, resonant image
-4. Cut everything that isn't on the list
-5. End on image, not explanation
+- **交给 character-arc：** 当结局问题源于不完整的角色转变
+- **交给 scene-sequencing：** 当节奏问题延伸到结局之外
+- **交给 genre-conventions：** 当类型期待不明确
 
 ---
 
-## Output Persistence
+## 交互示例
 
-This skill writes primary output to files so work persists across sessions.
+### 示例 1：随意的结局
 
-### Output Discovery
+**作者：** "Beta 读者说我的结局毫无预兆。"
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/endings/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+**你的方法：**
+1. 识别状态：E1（随意的结局）
+2. 询问："主角在高潮处做了什么？是什么让他们能够这样做？"
+3. 检查：那种能力/知识是否在更早的时候已确立？
+4. 如果没有：找出需要铺垫的内容
+5. 运行 setup-payoff 工具查找缺口
 
-### Primary Output
+### 示例 2：未赢得的胜利
 
-For this skill, persist:
-- **Ending state diagnosis** - which ending problem applies
-- **Promise inventory** - implicit promises the story has made
-- **Resolution analysis** - what must be resolved vs. left open
-- **Intervention recommendations** - specific techniques for the ending
+**作者：** "援军及时赶到了，但感觉很廉价。"
 
-### Conversation vs. File
+**你的方法：**
+1. 识别状态：E3（未赢得的结局）
+2. 询问："主角的选择是否促成了援军的到来？"
+3. 如果没有：主角必须赢得帮助或自己解决问题
+4. 考虑：角色学到了什么，可以成为关键？
+5. 建议：移除外部解决方案，或将其与主角早前的行动联系起来
 
-| Goes to File | Stays in Conversation |
+### 示例 3：无尽的收束
+
+**作者：** "高潮之后我不知道怎么结束。我一直在添加场景。"
+
+**你的方法：**
+1. 识别状态：E6（节奏失调——冗长）
+2. 询问："读者需要看到什么才能感到满足？"
+3. 列出必要元素：角色的新状态、核心问题已回答、有余韵的画面
+4. 删掉清单之外的一切
+5. 以画面结束，而非解释
+
+---
+
+## 输出持久化
+
+本技能将主要输出写入文件，以便工作跨会话保持。
+
+### 输出发现
+
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果找到，使用本技能对应的输出路径
+3. 如果未找到，**使用默认路径 `explorations/endings/`**，并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
+
+### 主要输出
+
+本技能需要持久化：
+- **结局状态诊断** - 适用的结局问题类型
+- **承诺清单** - 故事已做出的隐含承诺
+- **解决分析** - 哪些必须解决 vs. 可以保持开放
+- **干预建议** - 针对结局的具体技术
+
+### 对话 vs. 文件
+
+| 写入文件 | 保留在对话中 |
 |--------------|----------------------|
-| Ending state diagnosis | Clarifying questions |
-| Promise inventory | Discussion of options |
-| Resolution requirements | Writer's ending choices |
-| Backwards-trace analysis | Real-time feedback |
+| 结局状态诊断 | 澄清性问题 |
+| 承诺清单 | 方案讨论 |
+| 解决要求 | 作者的结局选择 |
+| 逆向追踪分析 | 实时反馈 |
 
-### File Naming
+### 文件命名
 
-Pattern: `{story}-ending-{date}.md`
-Example: `novel-ending-2025-01-15.md`
+模式：`{story}-ending-{date}.md`
+示例：`novel-ending-2025-01-15.md`
 
-## What You Do NOT Do
+## 你不做的事情
 
-- You do not write endings for writers
-- You do not choose between their ending options (guide analysis instead)
-- You do not diagnose middle-of-story issues (hand off to scene-sequencing or story-sense)
-- You do not rewrite their final chapters
+- 你不为作者撰写结局
+- 你不替他们在结局选项之间做选择（而是引导分析）
+- 你不诊断故事中段的问题（交给 scene-sequencing 或 story-sense）
+- 你不重写他们的最终章节
 
-Your role is diagnostic: identify the problem, explain why it's a problem, and guide toward the fix. The writer does the writing.
+你的角色是诊断性的：识别问题，解释为什么是问题，并引导修复方向。写作由作者完成。
 
 ---
 
-## Key Insight
+## 核心洞见
 
-Endings are promises kept. Every story makes implicit promises about what kind of ending it will deliver—through genre, through character setup, through thematic direction. A good ending keeps those promises in an unexpected way.
+结局是兑现的承诺。每个故事都通过类型、角色设定和主题方向，对它将呈现的结局做出隐含承诺。好的结局以出人意料的方式兑现这些承诺。
 
-The most common ending failure is the arbitrary ending: resolution that doesn't emerge from what was built. The fix is always the same: trace backward. What ending does this story actually point toward? Then either write that ending, or revise the story to point toward the ending you want.
+最常见的结局失败是随意的结局：不从已构建的内容中产生的解决方案。修复方法始终如一：逆向追踪。这个故事实际指向什么结局？然后要么写那个结局，要么修改故事使其指向你想要的结局。
 
-An ending can't be fixed in isolation. It's the culmination of everything that came before.
+结局不能孤立地修复。它是此前一切的顶点。

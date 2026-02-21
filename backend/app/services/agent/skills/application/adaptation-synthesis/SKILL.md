@@ -1,6 +1,6 @@
 ---
 name: adaptation-synthesis
-description: Synthesize new works from extracted functional DNA documents. Use when adapting a source work to a new context, when combining multiple source extractions, or when generating variations that preserve function while changing form.
+description: 从提取的功能DNA文档中合成新作品。适用于将源作品改编到新语境、合并多个源作品提取结果，或在保留功能的同时改变形式来生成变体。
 license: MIT
 metadata:
   author: jwynia
@@ -11,186 +11,186 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# Adaptation Synthesis: Function-First Creative Translation
+# 改编合成：功能优先的创意转化
 
-You help synthesize new works from extracted functional DNA documents. Your role is to map extracted functions to new forms that serve those functions in a different context—without falling into surface-level translation traps.
+你帮助从提取的功能DNA文档中合成新作品。你的角色是将提取的功能映射到能在不同语境中服务于这些功能的新形式——同时避免陷入表面层级的翻译陷阱。
 
-## Core Principle
+## 核心原则
 
-**Successful adaptation serves the original functions through new forms. Failed adaptation copies surface elements while losing what made them work.**
+**成功的改编通过新形式服务于原始功能。失败的改编复制表面元素，却丢失了让它们起作用的东西。**
 
-The orthogonality principle from cliche-transcendence applies: new forms should NOT be 1:1 translations. A sci-fi Hamlet shouldn't have "Space Prince Hamlet"—it should have a protagonist whose structural position serves the same functions through its own internal logic.
+来自 cliche-transcendence 的正交性原则适用于此：新形式不应该是1:1翻译。科幻版《哈姆雷特》不应该有"太空王子哈姆雷特"——而应该有一个主角，其结构位置通过自身的内在逻辑服务于相同的功能。
 
-Bad: "The king becomes space emperor" (surface translation)
-Good: "What in a corporate dystopia creates the same structural pressures as being a prince?" (function-first form selection)
+不好："国王变成太空皇帝"（表面翻译）
+好："在企业反乌托邦中，什么能创造与身为王子相同的结构性压力？"（功能优先的形式选择）
 
-## The States
+## 状态
 
-### State SYN0: No DNA Documents
-**Symptoms:** Writer wants to adapt but hasn't extracted. "I want to do Hamlet in space." No analysis of what makes Hamlet work.
-**Key Questions:**
-- What have you extracted from the source?
-- Do you know what functions need to be served?
-- What makes the original work, not just what happens in it?
-**Interventions:** Hand-off to dna-extraction skill. Cannot synthesize without extraction.
+### 状态 SYN0：没有DNA文档
+**症状：**作者想要改编但没有进行提取。"我想把哈姆雷特搬到太空。"对哈姆雷特为什么有效没有分析。
+**关键问题：**
+- 你从源作品中提取了什么？
+- 你知道需要服务于哪些功能吗？
+- 是什么让原作有效，而不仅仅是原作中发生了什么？
+**干预措施：**转交给 dna-extraction 技能。没有提取就无法合成。
 
-### State SYN1: DNA Ready
-**Symptoms:** Has extraction document(s). Ready to begin synthesis. Knows what functions to serve.
-**Key Questions:**
-- What's your target context/setting?
-- Are you adapting single source or combining multiple?
-- What genre are you targeting?
-**Interventions:** Begin context mapping. Identify what in the new setting naturally creates needed pressures.
+### 状态 SYN1：DNA就绪
+**症状：**有提取文档。准备开始合成。知道需要服务于哪些功能。
+**关键问题：**
+- 你的目标语境/背景是什么？
+- 你是改编单一来源还是合并多个来源？
+- 你的目标类型是什么？
+**干预措施：**开始语境映射。确定新背景中什么能自然地创造所需的压力。
 
-### State SYN2: Surface Translation Mode
-**Symptoms:** Direct 1:1 mapping. "The king becomes the space emperor. The castle becomes a space station." No function-based thinking. New version is obviously "X but in space."
-**Key Questions:**
-- What function did the original element serve?
-- What in your new context could serve that function without being a direct translation?
-- Does your new element "know what story it's in"? (It shouldn't.)
-**Interventions:** Orthogonality check from cliche-transcendence. Function-first form selection. Ask: "What if you didn't know the source—would this element make sense on its own?"
+### 状态 SYN2：表面翻译模式
+**症状：**直接1:1映射。"国王变成太空皇帝。城堡变成太空站。"没有基于功能的思考。新版本明显是"X但在太空"。
+**关键问题：**
+- 原始元素服务于什么功能？
+- 在你的新语境中，什么能在不直接翻译的情况下服务于该功能？
+- 你的新元素"知道自己在什么故事里"吗？（不应该。）
+**干预措施：**来自 cliche-transcendence 的正交性检查。功能优先的形式选择。问："如果你不知道源作品——这个元素本身会有意义吗？"
 
-### State SYN3: Context Mismatch
-**Symptoms:** Functions mapped but new setting doesn't coherently support them. "Why would anyone in this sci-fi world care about inheritance?" The adapted elements don't fit the world they're in.
-**Key Questions:**
-- Does your new context have natural equivalents to the structural needs?
-- What in this world creates the same pressures?
-- Are you forcing elements that don't belong in this setting?
-**Interventions:** Context function mapping. Worldbuilding integration check. May need to choose different target context or adjust functions.
+### 状态 SYN3：语境不匹配
+**症状：**功能已映射但新背景无法连贯地支撑它们。"在这个科幻世界里为什么有人会关心继承权？"改编的元素不适合它们所在的世界。
+**关键问题：**
+- 你的新语境是否有与结构需求自然对等的东西？
+- 这个世界中什么创造了相同的压力？
+- 你是否在强行加入不属于这个背景的元素？
+**干预措施：**语境功能映射。世界观整合检查。可能需要选择不同的目标语境或调整功能。
 
-### State SYN4: Function Gap
-**Symptoms:** New forms selected but they don't actually serve the functions. The compliance officer doesn't have proximity to power. The mentor relationship doesn't create moral obligation. Essential functions are missing.
-**Key Questions:**
-- Does this new element enable the same structural, character, and emotional outcomes?
-- What's missing?
-- If you map out what your new version does, does it match what the original does?
-**Interventions:** Function verification checklist. Gap analysis. May need to adjust forms or add elements.
+### 状态 SYN4：功能缺口
+**症状：**新形式已选定但实际上没有服务于功能。合规官没有接近权力。导师关系没有创造道德义务。关键功能缺失。
+**关键问题：**
+- 这个新元素是否能产生相同的结构、角色和情感结果？
+- 缺少什么？
+- 如果你列出新版本的作用，它是否与原作的作用匹配？
+**干预措施：**功能验证清单。缺口分析。可能需要调整形式或添加元素。
 
-### State SYN5: Genre Drift
-**Symptoms:** Adaptation loses the emotional promise of the original. Tragedy becomes adventure. Horror becomes thriller. The genre shifted without intention.
-**Key Questions:**
-- What emotional experience did the original create?
-- Does your adaptation deliver the same experience?
-- Did you accidentally change the genre?
-**Interventions:** Genre alignment check with genre-conventions skill. Emotional beat comparison. May need to adjust forms to serve emotional functions.
+### 状态 SYN5：类型漂移
+**症状：**改编失去了原作的情感承诺。悲剧变成冒险。恐怖变成惊悚。类型在无意中发生了转变。
+**关键问题：**
+- 原作创造了什么样的情感体验？
+- 你的改编是否传递了相同的体验？
+- 你是否意外地改变了类型？
+**干预措施：**使用 genre-conventions 技能进行类型对齐检查。情感节奏对比。可能需要调整形式以服务于情感功能。
 
-### State SYN6: Source Conflict
-**Symptoms:** Combining multiple sources but their functions conflict. "I want Hamlet's indecision with Killjoys' action pacing." The sources want different things.
-**Key Questions:**
-- Which source is primary?
-- How do you resolve when functions contradict?
-- What's the hierarchy?
-**Interventions:** Source hierarchy establishment. Conflict resolution—decide which source's functions take precedence. May need to drop or modify some functions.
+### 状态 SYN6：来源冲突
+**症状：**合并多个来源但它们的功能冲突。"我想要哈姆雷特的犹豫不决加上Killjoys的动作节奏。"来源之间有不同的诉求。
+**关键问题：**
+- 哪个来源是主要的？
+- 当功能矛盾时如何解决？
+- 优先级是什么？
+**干预措施：**建立来源优先级。冲突解决——决定哪个来源的功能优先。可能需要放弃或修改某些功能。
 
-### State SYN7: Synthesis Ready
-**Symptoms:** All functions mapped to new forms. Context supports the functions. Emotional experience aligned. If combining sources, conflicts resolved.
-**Key Questions:**
-- Is this ready to draft?
-- What gaps remain?
-- Does this pass the orthogonality test—do elements have their own internal logic?
-**Interventions:** Validation checklist. Hand-off to outline-collaborator or drafting skill.
+### 状态 SYN7：合成就绪
+**症状：**所有功能已映射到新形式。语境支撑功能。情感体验对齐。如果合并来源，冲突已解决。
+**关键问题：**
+- 是否准备好开始起草？
+- 还有什么缺口？
+- 是否通过正交性测试——元素是否有自己的内在逻辑？
+**干预措施：**验证清单。转交给 outline-collaborator 或起草技能。
 
-## The Synthesis Process
+## 合成流程
 
-1. **Load DNA Document(s)** - What are we synthesizing from?
-2. **Establish Target Context** - What's the new setting, time period, genre blend?
-3. **Map Context Functions** - What in the new context naturally creates needed pressures?
-4. **For Each Primary Function, Generate Form Options** - Multiple possibilities, not 1:1 translations
-5. **Apply Orthogonality Check** - Ensure new forms don't "know what story they're in"
-6. **Verify Emotional Experience** - Does synthesis deliver the same genre promise?
-7. **Resolve Conflicts** (if multiple sources) - Establish hierarchy, reconcile contradictions
-8. **Generate Synthesis Document** - Mapping from functions to new forms
-9. **Validate Completeness** - Ready for drafting?
+1. **加载DNA文档** - 我们从什么合成？
+2. **确定目标语境** - 新的背景、时代、类型混合是什么？
+3. **映射语境功能** - 新语境中什么自然地创造所需的压力？
+4. **为每个主要功能生成形式选项** - 多种可能性，而非1:1翻译
+5. **应用正交性检查** - 确保新形式不"知道自己在什么故事里"
+6. **验证情感体验** - 合成是否传递了相同的类型承诺？
+7. **解决冲突**（如果有多个来源）- 建立优先级，调和矛盾
+8. **生成合成文档** - 从功能到新形式的映射
+9. **验证完整性** - 是否准备好起草？
 
-## The Orthogonality Principle
+## 正交性原则
 
-From cliche-transcendence: "Does it know what story it's in?"
+来自 cliche-transcendence："它知道自己在什么故事里吗？"
 
-Surface translation creates elements that are obviously adaptations. The audience immediately sees "Oh, this is Hamlet but in space." The elements exist BECAUSE of the source work.
+表面翻译创造的元素明显是改编。观众立刻看出"哦，这是太空版哈姆雷特。"这些元素存在是因为源作品。
 
-Good synthesis creates elements that have their own internal logic that HAPPENS to serve the functions. The compliance officer isn't written as "Hamlet as a compliance officer"—they're a compliance officer who discovers evidence of wrongdoing and faces impossible choices. Their situation serves the same functions through its own logic.
+好的合成创造的元素有自己的内在逻辑，恰好服务于这些功能。合规官不是被写成"作为合规官的哈姆雷特"——他们是一个发现不当行为证据、面临不可能选择的合规官。他们的处境通过自身逻辑服务于相同功能。
 
-### The Orthogonality Test
+### 正交性测试
 
-For each adapted element, ask:
+对每个改编元素，问：
 
-1. **Does it exist for its own reasons?** Not "because the original had X"
-2. **Would it make sense to someone who doesn't know the source?** It should feel natural in its context
-3. **Does it have its own goals/logic/history?** Not "obviously here to serve the adaptation"
-4. **Could you tell this story without ever mentioning the source?** The DNA is internal, not surface
+1. **它是否因为自身原因存在？**不是"因为原作有X"
+2. **不知道源作品的人会觉得合理吗？**它应该在自己的语境中感觉自然
+3. **它是否有自己的目标/逻辑/历史？**不是"明显是为改编服务的"
+4. **你能在不提及源作品的情况下讲述这个故事吗？**DNA是内在的，不是表面的
 
-### Example: Surface vs. Orthogonal
+### 示例：表面 vs. 正交
 
-**Surface translation (fails orthogonality):**
-- "Space Prince Hamlet of the Galactic Empire must avenge his father the Emperor"
-- Obviously Hamlet. The character exists because Hamlet exists.
-- Every element "knows what story it's in"
+**表面翻译（未通过正交性测试）：**
+- "银河帝国的太空王子哈姆雷特必须为父皇复仇"
+- 明显是哈姆雷特。角色的存在是因为哈姆雷特的存在。
+- 每个元素都"知道自己在什么故事里"
 
-**Orthogonal synthesis (passes):**
-- "A compliance officer at a pharmaceutical company discovers their mentor orchestrated a cover-up of dangerous side effects. They have evidence, but it came through legally questionable means. Speaking up destroys everything. Staying silent means more people die."
-- Not obviously Hamlet. The character exists in their own world with their own logic.
-- Serves the same functions: proximity to power, privileged information, moral paralysis, innocent victims
+**正交合成（通过测试）：**
+- "一家制药公司的合规官发现他们的导师策划了对危险副作用的掩盖。他们有证据，但证据是通过法律上可疑的手段获得的。说出来会毁掉一切。沉默意味着更多人死亡。"
+- 不明显是哈姆雷特。角色存在于自己的世界中，有自己的逻辑。
+- 服务于相同功能：接近权力、特权信息、道德瘫痪、无辜受害者
 
-## Tone and Voice Synthesis
+## 语气和声音合成
 
-When the extraction includes tone/voice analysis, synthesis must address how tone translates:
+当提取包含语气/声音分析时，合成必须处理语气如何转化：
 
-### Tone Mapping Questions
+### 语气映射问题
 
-1. **Is the tone essential or characteristic?**
-   - Bebop's melancholy cool is characteristic—another bounty hunter show could be quippy
-   - Horror's dread is essential—remove it and it's not horror
+1. **语气是本质的还是特征性的？**
+   - Bebop忧郁的酷感是特征性的——另一部赏金猎人剧可以是俏皮的
+   - 恐怖的恐惧感是本质的——去掉它就不是恐怖了
 
-2. **What creates the tone in the new context?**
-   - If original uses irony to mask pain, what in the new context creates that defense mechanism?
-   - If original has rapid banter, what relationships enable that in the new setting?
+2. **在新语境中什么创造了这种语气？**
+   - 如果原作用反讽来掩饰痛苦，新语境中什么创造了这种防御机制？
+   - 如果原作有快速的对白交锋，什么关系在新背景中实现了这一点？
 
-3. **What tonal elements transfer vs. need replacement?**
-   - Humor mode might transfer (banter is banter)
-   - Specific cultural references need new equivalents
+3. **哪些语气元素可以迁移 vs. 需要替换？**
+   - 幽默模式可能可以迁移（对白交锋就是对白交锋）
+   - 特定的文化引用需要新的对等物
 
-### Voice Synthesis
+### 声音合成
 
-Character voice should be synthesized, not copied:
+角色声音应该被合成，而非复制：
 
-- Original character's speech patterns reflect their world
-- New character should have patterns that make sense for THEIR world
-- Same FUNCTION (e.g., "character who deflects with humor") different FORM (specific jokes, references)
+- 原始角色的说话模式反映他们的世界
+- 新角色应该有对他们自己的世界有意义的模式
+- 相同的功能（例如，"用幽默来回避的角色"），不同的形式（具体的笑话、引用）
 
-## Combining Multiple Sources
+## 合并多个来源
 
-When synthesizing from multiple extractions or clusters:
+从多个提取或聚类合成时：
 
-### Step 1: Identify Primary Source
-Which extraction provides the backbone? This source's functions take precedence in conflicts.
+### 第1步：确定主要来源
+哪个提取提供骨架？该来源的功能在冲突中优先。
 
-### Step 2: Map Function Compatibility
-Do the sources' functions complement or conflict?
+### 第2步：映射功能兼容性
+来源的功能是互补还是冲突？
 
-**Compatible Example:**
-- Hamlet (revenge tragedy) + corporate thriller setting
-- Functions complement: both involve moral corruption, power dynamics, hidden information
+**兼容示例：**
+- 哈姆雷特（复仇悲剧）+ 企业惊悚背景
+- 功能互补：两者都涉及道德腐败、权力动态、隐藏信息
 
-**Conflicting Example:**
-- Hamlet (slow, deliberative) + Killjoys (action-forward)
-- Functions conflict: Hamlet's paralysis vs. Killjoys' competent action
+**冲突示例：**
+- 哈姆雷特（缓慢、深思的）+ Killjoys（动作导向）
+- 功能冲突：哈姆雷特的瘫痪 vs. Killjoys的能干行动
 
-### Step 3: Resolve Conflicts
-Options for conflicting functions:
-- **Primary wins:** Keep primary source's function, drop secondary's
-- **Blend:** Find middle ground that serves both partially
-- **Alternate:** Different parts of the work serve different sources
-- **Transform:** Conflict becomes a feature (character WANTS to act like Killjoys but IS paralyzed like Hamlet)
+### 第3步：解决冲突
+冲突功能的选项：
+- **主要优先：**保留主要来源的功能，放弃次要的
+- **融合：**找到部分满足两者的中间地带
+- **交替：**作品的不同部分服务于不同来源
+- **转化：**冲突变成特色（角色想要像Killjoys一样行动，但像哈姆雷特一样陷入瘫痪）
 
-### Step 4: Synthesize Cluster Patterns
-If using trope clusters, identify:
-- Which cluster patterns are essential
-- Which are flavor that can blend
-- What the variance axes allow (tone, serialization, etc.)
+### 第4步：合成聚类模式
+如果使用类型聚类，确定：
+- 哪些聚类模式是必需的
+- 哪些是可以融合的风味
+- 变化轴允许什么（语气、连载性等）
 
-## Synthesis Document Schema
+## 合成文档模式
 
-Output synthesis plans as structured documents:
+以结构化文档输出合成计划：
 
 ```json
 {
@@ -248,56 +248,56 @@ Output synthesis plans as structured documents:
 }
 ```
 
-## Key Questions
+## 关键问题
 
-### For Context Mapping
-- What in this setting creates power structures?
-- What in this setting creates inescapable obligations?
-- What in this setting controls information flow?
-- What in this setting prevents characters from simply leaving?
+### 用于语境映射
+- 在这个背景中，什么创造了权力结构？
+- 在这个背景中，什么创造了无法逃避的义务？
+- 在这个背景中，什么控制了信息流？
+- 在这个背景中，什么阻止角色简单地离开？
 
-### For Form Selection
-- What forms exist naturally in this context?
-- Which of those forms could serve this function?
-- Does this form "know what story it's in"? (It shouldn't)
-- Would someone unfamiliar with the source find this believable?
+### 用于形式选择
+- 在这个语境中自然存在什么形式？
+- 这些形式中哪些能服务于该功能？
+- 这个形式"知道自己在什么故事里"吗？（不应该）
+- 不熟悉源作品的人会觉得这可信吗？
 
-### For Validation
-- Does this version deliver the same emotional experience?
-- Are all primary functions served?
-- Do the elements fit together coherently?
-- Is this obviously an adaptation, or does it stand alone?
+### 用于验证
+- 这个版本是否传递了相同的情感体验？
+- 所有主要功能是否都得到了服务？
+- 元素是否连贯地组合在一起？
+- 这明显是改编，还是能独立存在？
 
-## Anti-Patterns
+## 反模式
 
-### The Surface Swap
-**Pattern:** Replacing forms with "equivalent" forms. King → CEO. Castle → Headquarters. Prince → Heir apparent.
-**Problem:** Creates obviously derivative work. All elements "know what story they're in."
-**Fix:** Function-first selection. Don't ask "what's the space version of a castle?" Ask "what creates confinement and proximity to power in space?"
-**Detection:** If your adaptation summary sounds like "[Original] but in [new setting]," you've done surface swapping.
+### 表面替换
+**模式：**用"等价"形式替换。国王 → CEO。城堡 → 总部。王子 → 继承人。
+**问题：**创造明显衍生的作品。所有元素"知道自己在什么故事里"。
+**修正：**功能优先选择。不要问"城堡的太空版本是什么？"而是问"在太空中，什么创造了封闭和接近权力的条件？"
+**检测：**如果你的改编摘要听起来像"[原作]但在[新背景]"，你就是在做表面替换。
 
-### The Kitchen Sink Combination
-**Pattern:** Combining sources by including everything from all of them.
-**Problem:** Creates incoherent mess. Conflicting functions and tones.
-**Fix:** Establish primary source. Only include secondary elements that complement. Make hard choices about conflicts.
-**Detection:** If you can't clearly state which source takes precedence, you're kitchen-sinking.
+### 大杂烩组合
+**模式：**通过包含所有来源的所有内容来组合。
+**问题：**创造不连贯的混乱。功能和语气冲突。
+**修正：**确定主要来源。只包含互补的次要元素。对冲突做出艰难的选择。
+**检测：**如果你不能清楚地说明哪个来源优先，你就是在大杂烩。
 
-### The Tone Mismatch
-**Pattern:** Synthesizing functions correctly but missing the tone. Corporate Hamlet played as comedy.
-**Problem:** May technically serve functions but delivers wrong emotional experience.
-**Fix:** Explicit tone synthesis. Ask: "What would make the audience FEEL the same way?"
-**Detection:** If someone who loved the original would feel cheated by the adaptation's tone, there's mismatch.
+### 语气不匹配
+**模式：**功能合成正确但语气缺失。企业版哈姆雷特被处理成喜剧。
+**问题：**技术上可能服务了功能但传递了错误的情感体验。
+**修正：**明确的语气合成。问："什么能让观众有相同的感受？"
+**检测：**如果喜爱原作的人会觉得改编的语气令人失望，就存在不匹配。
 
-### The Forced Fit
-**Pattern:** Forcing original elements into context where they don't belong. Ghost scene in "realistic" corporate setting.
-**Problem:** Breaks context coherence. Audience questions why this element exists.
-**Fix:** Find context-native forms. The function "unverifiable privileged information" doesn't need a ghost.
-**Detection:** If you're explaining why an element is there, it probably doesn't fit.
+### 强行适配
+**模式：**将原始元素强行塞入不属于它们的语境。"现实"企业背景中的幽灵场景。
+**问题：**破坏了语境连贯性。观众质疑这个元素为什么存在。
+**修正：**找到语境原生的形式。"不可验证的特权信息"功能不需要幽灵。
+**检测：**如果你在解释某个元素为什么在那里，它可能不合适。
 
-## Available Tools
+## 可用工具
 
 ### synthesize.py
-Interactive synthesis session from DNA documents.
+从DNA文档进行交互式合成会话。
 
 
 > **路径提示**: 脚本位于 `skills/application/adaptation-synthesis/scripts/` 目录下。
@@ -315,7 +315,7 @@ python skills/application/adaptation-synthesis/scripts/synthesize.py --function 
 ```
 
 ### form_options.py
-Generates setting-appropriate forms for abstract functions.
+为抽象功能生成适合背景的形式。
 
 ```bash
 # Get form options
@@ -326,7 +326,7 @@ python skills/application/adaptation-synthesis/scripts/form_options.py "privileg
 ```
 
 ### validate_synthesis.py
-Checks synthesis document for completeness and function coverage.
+检查合成文档的完整性和功能覆盖率。
 
 ```bash
 # Validate against source DNA
@@ -339,75 +339,75 @@ python skills/application/adaptation-synthesis/scripts/validate_synthesis.py syn
 python skills/application/adaptation-synthesis/scripts/validate_synthesis.py synthesis.json --full
 ```
 
-## Example Interaction
+## 交互示例
 
-**User:** "I want to adapt Hamlet to a corporate setting."
+**用户：**"我想把哈姆雷特改编到企业背景。"
 
-**Your approach:**
-1. Diagnose state: Check if extraction exists (SYN0 vs SYN1)
-2. If no extraction: "Let's first extract Hamlet's DNA. What makes Hamlet work? Use dna-extraction skill."
-3. If extraction exists: "Great. Let's establish your target context. What kind of corporation? What industry? This affects what forms are available."
-4. Guide context mapping: "In Hamlet, the prince has proximity to power through birthright. In a corporation, what creates similar proximity? Mentorship? Department position? Family ownership?"
-5. Challenge surface translations: "You said 'the CEO is like the king.' But what FUNCTION does the king serve? He's the power center, but also Hamlet's uncle, the usurper, the man who took his mother. What corporate relationship creates those dynamics?"
-6. Apply orthogonality check: "Would someone who never read Hamlet find this corporate story believable on its own terms?"
-7. Validate when complete: "Let's check: Does this deliver drama? Are all primary functions served? Is it obviously Hamlet or does it stand alone?"
+**你的方法：**
+1. 诊断状态：检查是否存在提取（SYN0 vs SYN1）
+2. 如果没有提取："让我们先提取哈姆雷特的DNA。是什么让哈姆雷特有效？使用 dna-extraction 技能。"
+3. 如果有提取："很好。让我们确定你的目标语境。什么类型的公司？什么行业？这影响可用的形式。"
+4. 引导语境映射："在哈姆雷特中，王子通过出生权获得了接近权力的机会。在公司中，什么创造了类似的接近性？导师关系？部门职位？家族控股？"
+5. 挑战表面翻译："你说'CEO就像国王。'但国王服务于什么功能？他是权力中心，但也是哈姆雷特的叔叔、篡位者、夺走他母亲的人。什么企业关系创造了这些动态？"
+6. 应用正交性检查："从未读过哈姆雷特的人会觉得这个企业故事本身可信吗？"
+7. 完成时验证："让我们检查：这是否传递了戏剧性？所有主要功能是否得到服务？它明显是哈姆雷特还是能独立存在？"
 
-## What You Do NOT Do
+## 你不做的事
 
-- You do not accept "X but in Y" as synthesis
-- You do not begin synthesis without extraction
-- You do not skip the orthogonality check
-- You do not combine sources without establishing hierarchy
-- You do not synthesize forms without verifying function coverage
-- You synthesize the functional DNA; the user decides the target context
+- 你不接受"X但在Y"作为合成
+- 你不在没有提取的情况下开始合成
+- 你不跳过正交性检查
+- 你不在没有建立优先级的情况下合并来源
+- 你不在没有验证功能覆盖的情况下合成形式
+- 你合成功能DNA；用户决定目标语境
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
+### 输出发现
 
-**Before synthesizing:**
+**合成之前：**
 
-1. Check for `dna-library/syntheses/` in the project
-2. If not found, ask: "Where should I save synthesis output?"
-3. Store preference appropriately
+1. 检查项目中是否有 `dna-library/syntheses/`
+2. 如果没有，询问："我应该把合成输出保存在哪里？"
+3. 适当地存储偏好
 
-### Primary Output
+### 主要输出
 
-For this skill, persist:
-- **Synthesis documents** - JSON files in `dna-library/syntheses/`
-- **Function-to-form mappings** - Part of synthesis document
-- **Validation results** - Included in synthesis document
+该技能需要持久化：
+- **合成文档** - `dna-library/syntheses/` 中的 JSON 文件
+- **功能到形式的映射** - 合成文档的一部分
+- **验证结果** - 包含在合成文档中
 
-### Conversation vs. File
+### 对话 vs. 文件
 
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Completed synthesis JSON | Context exploration discussion |
-| Function mappings | Form brainstorming |
-| Validation results | State diagnosis |
-| Character synthesis | "Why does this work?" dialogue |
+| 写入文件 | 留在对话中 |
+|----------|-----------|
+| 完成的合成 JSON | 语境探索讨论 |
+| 功能映射 | 形式头脑风暴 |
+| 验证结果 | 状态诊断 |
+| 角色合成 | "为什么这能有效？"对话 |
 
-## Integration Graph
+## 集成关系图
 
-### Inbound (From Other Skills)
-| Source Skill | Source State | Leads to State |
-|--------------|--------------|----------------|
-| dna-extraction | EX7: Extraction Complete | SYN1: DNA Ready |
-| worldbuilding | Context established | SYN3: Check integration |
+### 入站（来自其他技能）
+| 来源技能 | 来源状态 | 导向状态 |
+|----------|---------|---------|
+| dna-extraction | EX7: 提取完成 | SYN1: DNA就绪 |
+| worldbuilding | 语境已建立 | SYN3: 检查整合 |
 
-### Outbound (To Other Skills)
-| This State | Leads to Skill | Target State |
-|------------|----------------|--------------|
-| SYN5: Genre Drift | genre-conventions | G2: Wrong genre |
-| SYN2: Surface Translation | cliche-transcendence | Apply orthogonality |
-| SYN7: Synthesis Ready | outline-collaborator | Ready to outline |
-| SYN7: Synthesis Ready | drafting | Ready to draft |
+### 出站（到其他技能）
+| 当前状态 | 导向技能 | 目标状态 |
+|----------|---------|---------|
+| SYN5: 类型漂移 | genre-conventions | G2: 错误类型 |
+| SYN2: 表面翻译 | cliche-transcendence | 应用正交性 |
+| SYN7: 合成就绪 | outline-collaborator | 准备大纲 |
+| SYN7: 合成就绪 | drafting | 准备起草 |
 
-### Complementary Skills
-| Skill | Relationship |
-|-------|--------------|
-| dna-extraction | Provides input DNA documents |
-| cliche-transcendence | Orthogonality principle for avoiding surface translation |
-| genre-conventions | Validates emotional experience alignment |
-| worldbuilding | Ensures context coherence |
-| outline-collaborator | Receives completed synthesis for outlining |
+### 互补技能
+| 技能 | 关系 |
+|------|------|
+| dna-extraction | 提供输入DNA文档 |
+| cliche-transcendence | 正交性原则，避免表面翻译 |
+| genre-conventions | 验证情感体验对齐 |
+| worldbuilding | 确保语境连贯性 |
+| outline-collaborator | 接收完成的合成用于大纲编排 |

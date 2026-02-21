@@ -1,6 +1,6 @@
 ---
 name: character-arc
-description: Design and troubleshoot character transformation arcs. Use when characters feel static, when transformation feels unearned or abrupt, when you can't articulate what false belief needs to die, or when characters serve plot without having internal journeys. Covers positive, negative, and flat arcs.
+description: 设计和诊断角色转变弧线。适用于角色感觉缺乏变化、转变不够令人信服或过于突兀、无法清晰表达需要打破的错误信念，或角色仅服务于情节而缺乏内在旅程的情况。涵盖正向、负向和平坦弧线。
 license: MIT
 metadata:
   author: jwynia
@@ -11,211 +11,211 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Character Arc: Transformation Skill
+# 角色弧线：转变技能
 
-You help writers design internal character journeys and diagnose why transformations aren't working.
+你帮助写作者设计角色的内在旅程，并诊断转变不起作用的原因。
 
-## Core Principle
+## 核心原则
 
-**A character arc is the inner journey—the transformation from one sort of person to a different sort under pressure.** The external plot creates pressure; the arc is how the character changes.
+**角色弧线是内在旅程——在压力下从一种人变成另一种人的转变过程。** 外部情节制造压力；弧线则是角色如何改变。
 
-The arc is not the plot. The plot is what happens. The arc is who the character becomes.
+弧线不是情节。情节是发生了什么。弧线是角色成为了什么样的人。
 
-## Arc Types
+## 弧线类型
 
-### Positive Change Arc
-Character believes something false. Story forces confrontation. They embrace truth and transform.
+### 正向变化弧线
+角色相信某种错误的东西。故事迫使他们面对。他们接受真相并完成转变。
 
-**Components:**
-1. **Lie** — False belief about self or world (formed by backstory wound)
-2. **Want** — What they think they need (driven by the lie)
-3. **Need** — What would actually fulfill them (invisible at start)
-4. **Catalyst** — Story forces confrontation with the lie
-5. **Struggle** — Character resists change (change is hard)
-6. **Truth** — Character accepts reality, abandons the lie
-7. **New Self** — Character operates from transformed perspective
+**组成部分：**
+1. **谎言** — 关于自我或世界的错误信念（由背景故事的创伤形成）
+2. **想要** — 他们认为自己需要的东西（由谎言驱动）
+3. **需要** — 真正能满足他们的东西（开始时不可见）
+4. **催化剂** — 故事迫使他们面对谎言
+5. **挣扎** — 角色抗拒改变（改变是艰难的）
+6. **真相** — 角色接受现实，抛弃谎言
+7. **新自我** — 角色从转变后的视角出发行动
 
-### Negative Change Arc (Tragedy)
-Character has potential but becomes worse through choices or circumstances.
+### 负向变化弧线（悲剧）
+角色有成长的潜力，但通过选择或境遇变得更糟。
 
-**Components:**
-1. **Potential** — Opportunity for growth
-2. **Flaw** — Weakness that could be overcome
-3. **Temptation** — Easy path that feeds the flaw
-4. **Descent** — Choices that compound the flaw
-5. **Point of No Return** — Redemption opportunity rejected
-6. **Consequence** — Flaw destroys what character valued
+**组成部分：**
+1. **潜力** — 成长的机会
+2. **缺陷** — 可以克服的弱点
+3. **诱惑** — 助长缺陷的捷径
+4. **堕落** — 加剧缺陷的选择
+5. **无法回头的节点** — 拒绝了救赎的机会
+6. **后果** — 缺陷摧毁了角色珍视的东西
 
-### Flat Arc
-Character already knows the truth. They test and prove it, changing the world rather than being changed.
+### 平坦弧线
+角色已经知道真相。他们通过考验来证明真相，改变世界而非被世界改变。
 
-**Components:**
-1. **Truth** — Character holds correct belief
-2. **World in Conflict** — Environment challenges that truth
-3. **Testing** — Character's truth pressured but holds
-4. **Influence** — Steadfastness changes others
-5. **Vindication** — Truth proven correct
+**组成部分：**
+1. **真相** — 角色持有正确的信念
+2. **世界冲突** — 环境挑战这一真相
+3. **考验** — 角色的真相受到压力但坚持住了
+4. **影响** — 坚定不移改变了他人
+5. **验证** — 真相被证明是正确的
 
-## The Diagnostic
+## 诊断
 
-When transformation isn't working, ask:
+当转变不起作用时，请追问：
 
-### No Transformation
-"Is the character different at the end?"
-- If essentially the same person, there's no arc
-- Fix: Identify what false belief needs to die
+### 没有转变
+"角色在结尾有什么不同吗？"
+- 如果本质上是同一个人，就没有弧线
+- 修复：确定什么错误信念需要被打破
 
-### Unearned Transformation
-"Did the story force this change?"
-- Character changes but events didn't demand it
-- Fix: Story events must directly challenge the lie
+### 不够令人信服的转变
+"故事是否迫使了这种改变？"
+- 角色发生了变化，但事件并没有要求这样做
+- 修复：故事事件必须直接挑战谎言
 
-### Abrupt Change
-"Is the transformation gradual?"
-- Character flips suddenly without struggle
-- Fix: Add resistance beats—characters fight change
+### 突兀的改变
+"转变是渐进的吗？"
+- 角色没有经历挣扎就突然改变
+- 修复：添加抗拒节拍——角色要抵抗改变
 
-### Unclear Lie
-"What does the character believe that's false?"
-- If you can't articulate the lie, arc lacks foundation
-- Fix: Define lie explicitly, trace to backstory
+### 不清晰的谎言
+"角色相信什么是错误的？"
+- 如果你无法说清谎言，弧线就缺少根基
+- 修复：明确定义谎言，追溯到背景故事
 
-### Want/Need Alignment
-"Are want and need different?"
-- If character wants exactly what they need, no tension
-- Fix: Create gap between external goal and internal need
+### 想要与需要一致
+"想要和需要是否不同？"
+- 如果角色想要的恰好就是他们需要的，就没有张力
+- 修复：在外部目标和内在需求之间制造差距
 
-### Missing Struggle
-"Does the character resist the truth?"
-- Real change involves fighting against transformation
-- Fix: Add scenes where character doubles down on lie
+### 缺少挣扎
+"角色是否抗拒真相？"
+- 真正的改变涉及对抗转变
+- 修复：添加角色加倍坚持谎言的场景
 
-## Arc Maps to Structure
+## 弧线与结构的对应
 
-| Story Beat | Arc Beat |
+| 故事节拍 | 弧线节拍 |
 |------------|----------|
-| Setup | Lie established, Want activated |
-| First Plot Point | Character commits, still believing lie |
-| Rising Action | Want pursued, lie reinforced |
-| Midpoint | Mirror moment, glimpse of truth |
-| Complications | Lie vs. truth in conflict |
-| Dark Night | Lie fully fails, crisis |
-| Climax | Truth embraced (or rejected in tragedy) |
-| Resolution | New self demonstrated |
+| 铺陈 | 谎言确立，想要激活 |
+| 第一情节转折点 | 角色投入，仍然相信谎言 |
+| 上升动作 | 追求想要的，谎言被强化 |
+| 中点 | 镜像时刻，瞥见真相 |
+| 复杂化 | 谎言与真相冲突 |
+| 至暗时刻 | 谎言彻底失败，危机 |
+| 高潮 | 接受真相（或在悲剧中拒绝真相） |
+| 结局 | 展示新自我 |
 
-## Common Lies
+## 常见谎言
 
-- "I'm not worthy of love"
-- "Power is the only protection"
-- "Trust leads to betrayal"
-- "My value comes from achievement"
-- "The world is fundamentally hostile"
-- "I'm not capable/worthy"
-- "My wound defines me"
-- "I don't need anyone"
+- "我不值得被爱"
+- "权力是唯一的保护"
+- "信任会导致背叛"
+- "我的价值来自成就"
+- "这个世界根本就是敌意的"
+- "我没有能力/不够格"
+- "我的伤疤定义了我"
+- "我不需要任何人"
 
-## What You Do
+## 你要做的事
 
-1. **Ask about the lie** — What false belief does the character hold?
-2. **Find the ghost** — What backstory wound created this lie?
-3. **Separate want from need** — What do they pursue vs. actually require?
-4. **Map transformation** — Where are the key beats?
-5. **Check for resistance** — Where does the character fight change?
-6. **Verify the ending** — Is the new self demonstrated through action?
+1. **追问谎言** — 角色持有什么错误信念？
+2. **找到幽灵** — 什么背景故事的创伤造成了这个谎言？
+3. **区分想要和需要** — 他们追求什么与实际需要什么？
+4. **映射转变** — 关键节拍在哪里？
+5. **检查抗拒** — 角色在哪里抵抗改变？
+6. **验证结局** — 新自我是否通过行动展示出来？
 
-## What You Don't Do
+## 你不做的事
 
-- Choose the lie for them
-- Prescribe a specific arc type
-- Add transformation where it doesn't serve the story
-- Insist every character needs a full arc
+- 替他们选择谎言
+- 指定特定的弧线类型
+- 在不服务于故事的地方添加转变
+- 坚持每个角色都需要完整的弧线
 
-## Example Interaction
+## 示例互动
 
-**Writer:** "My protagonist defeats the villain but something feels hollow."
+**写作者：** "我的主角打败了反派，但总感觉很空洞。"
 
-**Your approach:**
-1. Ask: "What's different about them at the end vs. the beginning?"
-2. If nothing: "They won the plot but didn't have an arc"
-3. Probe: "What did they believe at the start that wasn't true?"
-4. Dig: "What would have happened if they'd learned nothing?"
-5. Guide: "The victory needs to require them becoming someone new—otherwise it's just problem-solving"
-6. Connect: "What would they have to give up believing in order to win authentically?"
+**你的方法：**
+1. 问："他们在结尾和开头有什么不同？"
+2. 如果没有："他们赢了情节，但没有弧线"
+3. 探问："他们在开始时相信什么是不正确的？"
+4. 深挖："如果他们什么都没学到，会怎样？"
+5. 引导："胜利需要他们成为一个新的人——否则只是解决问题而已"
+6. 连接："他们必须放弃相信什么才能真正赢得胜利？"
 
-## Anti-Patterns to Watch
+## 需要警惕的反模式
 
-### The Informed Arc
-Author tells us character changed but scenes don't show it.
-Fix: Show internal battle through external choices.
+### 被告知的弧线
+作者告诉我们角色变了，但场景没有展示出来。
+修复：通过外部选择展示内在的战斗。
 
-### The Magic Mentor
-Change happens because mentor told them truth, not discovery.
-Fix: Mentor points direction; character walks path.
+### 万能导师
+改变的发生是因为导师告诉了他们真相，而不是自己发现的。
+修复：导师指明方向；角色自己走路。
 
-### The Trauma = Transformation Fallacy
-Terrible things happened, therefore they're different.
-Fix: Trauma creates conditions; arc is what they do with it.
+### 创伤 = 转变的谬误
+可怕的事情发生了，所以他们就不同了。
+修复：创伤创造条件；弧线是他们如何应对的。
 
-### The Perfect Protagonist
-No meaningful flaw. No lie = no arc.
-Fix: Even admirable characters need blind spots.
+### 完美主角
+没有有意义的缺陷。没有谎言 = 没有弧线。
+修复：即使令人钦佩的角色也需要盲点。
 
-### The Instant Epiphany
-Character "gets it" without buildup.
-Fix: Plant seeds earlier; truth should feel inevitable in retrospect.
+### 瞬间顿悟
+角色没有铺垫就"领悟"了。
+修复：提前埋下种子；真相回顾起来应该感觉是必然的。
 
-## Output Persistence
+## 输出持久化
 
-This skill writes primary output to files so work persists across sessions.
+本技能将主要输出写入文件，以便工作在会话之间持久保存。
 
-### Output Discovery
+### 输出路径发现
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/character-arc/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+1. 检查项目中是否有 `context/output-config.md`
+2. 如果找到，使用本技能的条目作为输出路径
+3. 如果未找到，**使用默认路径 `explorations/character-arc/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
 
-### Primary Output
+### 主要输出
 
-For this skill, persist:
-- **Arc type identified** - positive, negative, or flat
-- **Arc components** - lie, want, need, ghost, truth (as applicable)
-- **Catalyst and turning points** - key story beats for transformation
-- **Anti-pattern warnings** - issues identified and fixes recommended
+对于本技能，需要持久化：
+- **弧线类型识别** - 正向、负向或平坦
+- **弧线组成部分** - 谎言、想要、需要、幽灵、真相（按适用情况）
+- **催化剂和转折点** - 转变的关键故事节拍
+- **反模式警告** - 识别的问题和建议的修复
 
-### Conversation vs. File
+### 对话与文件
 
-| Goes to File | Stays in Conversation |
+| 写入文件 | 留在对话中 |
 |--------------|----------------------|
-| Arc structure and components | Clarifying questions |
-| Lie/truth articulation | Discussion of options |
-| Key transformation beats | Writer's exploration |
-| Anti-pattern diagnosis | Real-time feedback |
+| 弧线结构和组成部分 | 澄清性问题 |
+| 谎言/真相的表达 | 选项讨论 |
+| 关键转变节拍 | 写作者的探索 |
+| 反模式诊断 | 实时反馈 |
 
-### File Naming
+### 文件命名
 
-Pattern: `{character-name}-arc-{date}.md`
-Example: `protagonist-arc-2025-01-15.md`
+模式：`{character-name}-arc-{date}.md`
+示例：`protagonist-arc-2025-01-15.md`
 
-## Integration
+## 集成
 
-### Inbound (feeds into character-arc)
-| Skill | What it provides |
+### 入站（为 character-arc 提供输入）
+| 技能 | 提供的内容 |
 |-------|------------------|
-| story-sense | State 4 diagnosis: "Characters Without Dimension" |
-| story-idea-generator | Initial character concept from genre-first process |
+| story-sense | 状态 4 诊断："缺乏维度的角色" |
+| story-idea-generator | 来自类型优先流程的初始角色概念 |
 
-### Outbound (character-arc enables)
-| Skill | What character-arc provides |
+### 出站（character-arc 为其提供输出）
+| 技能 | character-arc 提供的内容 |
 |-------|-------------|
-| dialogue | Character voice distinctiveness from arc position |
-| scene-sequencing | Character goals for scene-level conflict |
-| endings | Arc completion for satisfying resolution |
+| dialogue | 来自弧线位置的角色声音辨识度 |
+| scene-sequencing | 用于场景级冲突的角色目标 |
+| endings | 用于令人满意的结局的弧线完成 |
 
-### Complementary
-| Skill | Relationship |
+### 互补
+| 技能 | 关系 |
 |-------|--------------|
-| cliche-transcendence | Avoids default character types and transformations |
-| worldbuilding | Character backgrounds fit world logic |
-| underdog-unit | Ensemble dynamics across multiple arcs |
-| sensitivity-check | Arc representations avoid harmful stereotypes |
+| cliche-transcendence | 避免默认的角色类型和转变 |
+| worldbuilding | 角色背景符合世界逻辑 |
+| underdog-unit | 多条弧线之间的群像动态 |
+| sensitivity-check | 弧线表现避免有害的刻板印象 |

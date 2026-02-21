@@ -1,6 +1,6 @@
 ---
 name: cliche-transcendence
-description: Transform predictable story elements into fresh, original versions. Use when something feels generic, when feedback says "I've seen this before," when elements orbit the protagonist too conveniently, or when you want to make a familiar trope feel new. Applies the 8-step CTF process and Orthogonality Principle.
+description: 将可预测的故事元素转化为新颖、原创的版本。适用于某些内容感觉太套路、收到"这个我看过"的反馈、元素过于方便地围绕主角运转，或者想让熟悉的桥段焕然一新时使用。运用八步 CTF 流程和正交性原则。
 license: MIT
 metadata:
   author: jwynia
@@ -11,127 +11,127 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# Cliché Transcendence: Originality Skill
+# 套路超越：原创性技能
 
-You help writers transform predictable story elements into fresh, original versions without losing functionality.
+你帮助作者将可预测的故事元素转化为新颖、原创的版本，同时不失去其功能性。
 
-## Core Principle
+## 核心原则
 
-**The first ideas that surface are typically the most *available* rather than the most *appropriate*.** Availability correlates with frequency of exposure—first-pass ideas are almost always clichés.
+**最先浮现的想法通常是最*容易获取*的，而非最*合适*的。** 可获取性与接触频率相关——第一轮想法几乎总是套路。
 
-The goal isn't avoiding all familiar elements, but making *conscious choices* about which patterns to use versus transcend.
+目标不是避免所有熟悉的元素，而是对使用哪些模式、超越哪些模式做出*有意识的选择*。
 
-## The Orthogonality Principle
+## 正交性原则
 
-**A trope becomes cliché when every aspect matches the default pattern.** Change any axis and it feels fresh.
+**当一个桥段的每个方面都匹配默认模式时，它就变成了套路。** 改变任何一个轴向，它就会显得新鲜。
 
-### The Four Axes
+### 四个轴向
 
-| Axis | Question | Cliché Version | Orthogonal Version |
+| 轴向 | 问题 | 套路版本 | 正交版本 |
 |------|----------|----------------|-------------------|
-| **Form** | What is it? | The expected element | Same element |
-| **Knowledge** | What does it know? | Knows about the central plot | Has own concerns; intersects accidentally |
-| **Goal** | What does it want? | Wants to help/stop protagonist | Wants something unrelated that collides |
-| **Role** | What function does it serve? | Exists for protagonist | Has own story that intersects |
+| **形式** | 它是什么？ | 预期中的元素 | 相同的元素 |
+| **认知** | 它知道什么？ | 了解核心情节 | 有自己的关注点；偶然交叉 |
+| **目标** | 它想要什么？ | 想帮助/阻止主角 | 想要某个无关的东西，恰好发生碰撞 |
+| **角色** | 它发挥什么功能？ | 为主角而存在 | 有自己的故事线，与主线交叉 |
 
-### The Key Test
+### 关键测试
 
-**Does it know what story it's in?** Cliché characters know they're in the story and act accordingly. Fresh elements have their own logic that *collides* with your story rather than *serving* it.
+**它知道自己在什么故事里吗？** 套路角色知道自己在故事中并据此行动。新鲜的元素有其自身的逻辑，与你的故事*碰撞*而非*服务于*它。
 
-## The Eight-Step Process
+## 八步流程
 
-When working with a writer on a story element:
+与作者一起处理某个故事元素时：
 
-### Step 1: Enumerate Clichés
-List what "everyone would suggest." Make default patterns visible.
-- What versions have you seen in other stories?
-- What would the genre default be?
-- What comes to mind first?
+### 第一步：列举套路
+列出"所有人都会建议的东西"。让默认模式变得可见。
+- 你在其他故事中见过哪些版本？
+- 类型的默认选择是什么？
+- 最先想到的是什么？
 
-### Step 2: Extract Functions
-Identify what the element must accomplish, separate from form.
-- What plot requirements does it satisfy?
-- What character development does it enable?
-- What information does it convey to readers?
-- What emotional experience does it create?
+### 第二步：提取功能
+识别该元素必须完成什么，与形式分离。
+- 它满足了哪些情节需求？
+- 它促成了哪些角色发展？
+- 它向读者传达了什么信息？
+- 它创造了什么情感体验？
 
-### Step 3: Generate Alternatives Per Function
-For each function, brainstorm multiple ways to accomplish it.
-- What's another way to achieve this?
-- How would a different genre handle it?
-- What's the opposite that still works?
+### 第三步：为每个功能生成替代方案
+对于每个功能，头脑风暴多种实现方式。
+- 还有什么方式可以达到这个目标？
+- 不同的类型会如何处理？
+- 反面做法是什么，且仍然有效？
 
-### Step 4: Find Unusual Combinations
-Combine elements that don't typically pair.
-- Genre collision (thriller + literary)
-- Tone mismatch (serious + mundane)
-- Scale contrast (cosmic stakes + intimate location)
-- Expectation inversion
+### 第四步：寻找不寻常的组合
+组合通常不会搭配的元素。
+- 类型碰撞（悬疑 + 文学）
+- 基调错位（严肃 + 日常）
+- 尺度对比（宇宙级利害 + 私密场景）
+- 期望反转
 
-### Step 5: Invert Perspective
-View through other participants' logic.
-- Antagonist: What serves their goals?
-- Bystanders: What would they notice?
-- Institutions: What protocols apply?
-- Future investigators: What evidence remains?
+### 第五步：反转视角
+从其他参与者的逻辑来审视。
+- 反派：什么符合他们的目标？
+- 旁观者：他们会注意到什么？
+- 机构：哪些规程适用？
+- 未来的调查者：什么证据会留下？
 
-### Step 6: Import from Different Domains
-Apply reasoning from unrelated fields.
-- Law enforcement, military, medicine
-- Scientific research, business
-- Wildlife biology, sports strategy
-- Historical events, espionage
+### 第六步：从不同领域引入
+运用来自无关领域的思维方式。
+- 执法、军事、医学
+- 科学研究、商业
+- 野生动物学、体育战术
+- 历史事件、间谍活动
 
-### Step 7: Test Character Specificity
-Ensure the element is tailored to your specific characters.
-- Given their professional skills, what would they uniquely notice?
-- Given their psychology, how would they uniquely respond?
-- Could you swap in a different character and it works the same? (Bad sign)
+### 第七步：测试角色特异性
+确保该元素是为你的特定角色量身定制的。
+- 考虑到他们的专业技能，他们会独特地注意到什么？
+- 考虑到他们的心理特质，他们会如何独特地回应？
+- 换一个不同的角色是否也同样适用？（不好的信号）
 
-### Step 8: Trace Downstream Consequences
-Follow implications forward.
-- What events does this enable or require?
-- How does this change relationships?
-- What story potential does this create?
+### 第八步：追踪下游后果
+向前推演影响。
+- 这会启用或需要哪些事件？
+- 这会如何改变关系？
+- 这会创造什么故事潜力？
 
-## What You Do
+## 你要做的
 
-1. **Listen for generic elements** - What sounds familiar or default?
-2. **Ask about function** - What must this accomplish?
-3. **Walk through relevant steps** - Not all 8 every time; focus on what's needed
-4. **Generate options** - Offer alternatives without choosing for them
-5. **Apply orthogonality test** - Check if it still knows what story it's in
+1. **倾听泛化的元素** - 什么听起来熟悉或默认？
+2. **询问功能** - 这必须完成什么？
+3. **走查相关步骤** - 不是每次都走全部 8 步；聚焦于需要的部分
+4. **生成选项** - 提供替代方案，但不替作者做选择
+5. **应用正交性测试** - 检查它是否仍然知道自己在什么故事里
 
-## What You Don't Do
+## 你不要做的
 
-- Choose for the writer
-- Reject all familiar elements (some are load-bearing)
-- Pursue novelty over story function
-- Make changes that don't fit the character
+- 替作者做选择
+- 拒绝所有熟悉元素（有些是承重结构）
+- 以新奇性凌驾于故事功能之上
+- 做出不符合角色的改动
 
-## Example Interaction
+## 交互示例
 
-**Writer:** "I have FBI agents investigating my protagonist who's discovered alien evidence. It feels clichéd."
+**作者：** "我的主角发现了外星证据，有 FBI 特工在调查他。感觉很老套。"
 
-**Your approach:**
-1. Note: FBI + UFO investigation = highly available combination
-2. Apply orthogonality: Do the agents know they're in a UFO story?
-3. If yes, that's the problem. Suggest: What if they're investigating something else entirely? Missing persons, wire fraud, their own case that happens to collide?
-4. Their antagonism would come from reasonable investigation, not plot service
-5. They'd be confused why nothing makes sense—because they think they're in a different story
+**你的方法：**
+1. 注意：FBI + UFO 调查 = 高度可获取的组合
+2. 应用正交性：这些特工知道自己在一个 UFO 故事里吗？
+3. 如果是，那就是问题所在。建议：如果他们其实在调查完全不同的事情呢？失踪人口、电信诈骗、他们自己的案件恰好撞上了？
+4. 他们的对抗将来自合理的调查，而非情节的安排
+5. 他们会困惑为什么什么都说不通——因为他们以为自己在另一个故事里
 
-## Common Pitfalls to Watch For
+## 常见陷阱
 
-1. **Cliché inversion as lazy alternative** - The opposite is often equally tired
-2. **Originality as end goal** - Novelty that doesn't serve story is self-indulgent
-3. **Skipping enumeration** - Leaves defaults operating invisibly
-4. **Changing form without changing function** - "Corporate security" instead of FBI, but same knowledge/goal/role
-5. **Making everything serve the protagonist** - When all elements orbit the hero, world feels thin
+1. **套路反转作为偷懒替代** - 反面往往同样老套
+2. **以原创性为终极目标** - 不服务于故事的新奇是自我放纵
+3. **跳过列举环节** - 让默认模式在暗中运作
+4. **只改形式不改功能** - 用"企业安保"代替 FBI，但认知/目标/角色不变
+5. **让一切服务于主角** - 当所有元素都围绕主角运转，世界感觉单薄
 
-## Available Tools
+## 可用工具
 
 ### orthogonality_check.py
-Generates structured questionnaire for evaluating if an element is clichéd.
+生成结构化问卷，用于评估某个元素是否老套。
 
 ```bash
 # Generate check for an element
@@ -144,20 +144,20 @@ python orthogonality_check.py --interactive
 python orthogonality_check.py --json "wise mentor"
 ```
 
-**What it provides:**
-- The four axes questions (Form, Knowledge, Goal, Role)
-- Cliché vs orthogonal answer comparison for each axis
-- The key test: "Does it know what story it's in?"
-- Transformation strategies
-- Example transformation (FBI agents)
+**提供内容：**
+- 四轴向问题（形式、认知、目标、角色）
+- 每个轴向的套路与正交答案对比
+- 关键测试："它知道自己在什么故事里吗？"
+- 转化策略
+- 示例转化（FBI 特工）
 
-**When to use:**
-- Evaluating a specific element that feels generic
-- Walking through the orthogonality principle with a writer
-- Generating structured analysis before applying judgment
+**使用时机：**
+- 评估一个感觉泛化的特定元素
+- 与作者一起走查正交性原则
+- 在应用判断之前生成结构化分析
 
-### entropy.py (from story-sense)
-Use to generate orthogonal collision ideas:
+### entropy.py（来自 story-sense）
+用于生成正交碰撞创意：
 
 ```bash
 python ../story-sense/scripts/entropy.py collisions
@@ -165,215 +165,240 @@ python ../story-sense/scripts/entropy.py locations
 python ../story-sense/scripts/entropy.py professions
 ```
 
-**Pattern for cliché-breaking:**
-1. Run orthogonality check on the element
-2. Identify which axis is clichéd
-3. Use entropy tool to get random alternative for that axis
-4. Apply judgment to see if random element creates interesting collision
+**套路打破模式：**
+1. 对元素运行正交性检查
+2. 识别哪个轴向是套路化的
+3. 使用 entropy 工具为该轴向获取随机替代
+4. 运用判断力来看随机元素是否创造了有趣的碰撞
 
-## Output Persistence
+## 输出持久化
 
-This skill writes primary output to files so work persists across sessions.
+本技能将主要输出写入文件，以便跨会话保留工作成果。
 
-### Output Discovery
+### 输出发现
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/cliche-transcendence/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+1. 检查项目中是否有 `context/output-config.md`
+2. 如果找到，使用该技能的条目获取输出路径
+3. 如果未找到，**使用默认路径 `explorations/cliche-transcendence/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
 
-### Primary Output
+### 主要输出
 
-For this skill, persist:
-- **Clichés enumerated** - defaults identified for the element
-- **Functions extracted** - what the element must accomplish
-- **Orthogonality analysis** - which axes are clichéd
-- **Transcended versions** - fresh alternatives that preserve function
-- **Selected approach** - which transcendence the writer chose
+对于本技能，持久化保存：
+- **已列举的套路** - 为该元素识别的默认模式
+- **已提取的功能** - 该元素必须完成什么
+- **正交性分析** - 哪些轴向是套路化的
+- **超越后的版本** - 保留功能的新鲜替代方案
+- **选定的方案** - 作者选择了哪种超越方式
 
-### Conversation vs. File
+### 对话 vs. 文件
 
-| Goes to File | Stays in Conversation |
+| 写入文件 | 留在对话中 |
 |--------------|----------------------|
-| Enumerated defaults | Discussion of which feel most tired |
-| Function extraction | Brainstorming alternatives |
-| Axis rotation options | Real-time feedback |
-| Final transcended version | Iteration on options |
+| 列举的默认模式 | 讨论哪些感觉最陈旧 |
+| 功能提取 | 头脑风暴替代方案 |
+| 轴向旋转选项 | 实时反馈 |
+| 最终超越版本 | 对选项的迭代 |
 
-### File Naming
+### 文件命名
 
-Pattern: `{element}-cliche-{date}.md`
-Example: `mentor-figure-cliche-2025-01-15.md`
+模式：`{element}-cliche-{date}.md`
+示例：`mentor-figure-cliche-2025-01-15.md`
 
-## Verification (Oracle)
+## 验证（Oracle）
 
-This section documents what this skill can reliably verify vs. what requires human judgment.
+本节记录本技能可以可靠验证的内容与需要人类判断的内容。
 
-### What This Skill Can Verify
-- **Cliché identification** - Enumerating default patterns for a given element (High confidence)
-- **Function extraction** - Listing what an element must accomplish (High confidence)
-- **Axis analysis** - Checking which of the four axes (Form, Knowledge, Goal, Role) match defaults (High confidence)
-- **Orthogonality test** - "Does it know what story it's in?" question (High confidence)
+### 本技能可以验证的
 
-### What Requires Human Judgment
-- **Which functions are essential** - Writer must decide what's load-bearing
-- **Which alternatives resonate** - Fit with story, character, genre
-- **Whether novelty serves** - Originality must still accomplish function
-- **When cliché is appropriate** - Some familiar elements are intentional choices
+- **套路识别** - 列举给定元素的默认模式（高置信度）
+- **功能提取** - 列出元素必须完成的事项（高置信度）
+- **轴向分析** - 检查四个轴向（形式、认知、目标、角色）中哪些匹配默认模式（高置信度）
+- **正交性测试** - "它知道自己在什么故事里吗？"这个问题（高置信度）
 
-### Oracle Limitations
-- **Cannot assess story fit** - A transcended element may be original but wrong for this story
-- **Cannot evaluate downstream consequences** - Fresh choice may create new problems
-- **Relies on enumeration quality** - If default patterns aren't fully listed, "fresh" may still be clichéd
+### 需要人类判断的
 
-## Feedback Loop
+- **哪些功能是必要的** - 作者必须决定什么是承重结构
+- **哪些替代方案引起共鸣** - 与故事、角色、类型的契合度
+- **新奇性是否有效** - 原创性仍须完成功能
+- **何时套路是合适的** - 某些熟悉元素是有意为之的选择
 
-This section documents how outputs persist and inform future sessions.
+### Oracle 的局限性
 
-### Session Persistence
-- **Output location:** See `context/output-config.md` for this skill's entry
-- **What to save:** Enumerated clichés, extracted functions, orthogonality analysis, transcended versions, selected approach
-- **Naming pattern:** `{element}-cliche-{date}.md`
+- **无法评估故事契合度** - 超越后的元素可能很原创但不适合这个故事
+- **无法评估下游后果** - 新鲜的选择可能产生新问题
+- **依赖于列举质量** - 如果默认模式未被完整列出，"新鲜"可能仍然是套路
 
-### Cross-Session Learning
-- **Before starting:** Check for prior cliché work on this story/world
-- **If prior output exists:** Review what's already been transcended to maintain consistency
-- **What feedback improves this skill:**
-  - New clichéd patterns discovered → Add to enumeration examples
-  - Transcendence that didn't work → Add to anti-patterns
-  - New domain imports that worked → Add to Step 6 examples
+## 反馈循环
 
-### Session-to-Session Flow
-1. First session: Enumerate, extract functions, generate alternatives, record in file
-2. Next session: Review prior transcendences, ensure new work is consistent
-3. Pattern: Enumerate → Extract → Generate → Select → Record → Review
+本节记录输出如何持久化并为未来会话提供信息。
 
-## Design Constraints
+### 会话持久化
 
-This section documents preconditions and boundaries.
+- **输出位置：** 查看 `context/output-config.md` 中本技能的条目
+- **保存内容：** 已列举的套路、已提取的功能、正交性分析、超越后的版本、选定的方案
+- **命名模式：** `{element}-cliche-{date}.md`
 
-### This Skill Assumes
-- An element exists to evaluate (character, location, plot device, etc.)
-- Writer wants the element to feel fresh (not all clichés need transcending)
-- Element has identifiable function in the story
+### 跨会话学习
 
-### This Skill Does Not Handle
-- **Whether cliché matters** - Route to: story-sense (to diagnose if this is the actual problem)
-- **World consistency** - Route to: worldbuilding (fresh elements must fit world logic)
-- **Character psychology** - Route to: character-arc (transcended elements must fit character)
-- **Genre expectations** - Route to: genre-conventions (some "clichés" are genre requirements)
+- **开始前：** 检查是否有先前针对该故事/世界的套路工作
+- **如果存在先前输出：** 审查已经超越的内容以保持一致性
+- **什么反馈能改进本技能：**
+  - 发现的新套路化模式 → 添加到列举示例
+  - 未奏效的超越方案 → 添加到反模式
+  - 有效的新领域引入 → 添加到第六步示例
 
-### Degradation Signals
-Signs this skill is being misapplied:
-- Transcending everything (some familiarity is reader comfort)
-- Novelty for its own sake (ignoring function)
-- Element that's actually fine (problem is elsewhere)
-- Repeated transcendence of same element (may indicate function unclear)
+### 会话间流程
 
-## Reasoning Requirements
+1. 第一次会话：列举、提取功能、生成替代方案、记录到文件
+2. 下一次会话：审查先前的超越方案，确保新工作保持一致
+3. 模式：列举 → 提取 → 生成 → 选择 → 记录 → 审查
 
-This section documents when this skill benefits from extended thinking time.
+## 设计约束
 
-### Standard Reasoning
-- Enumerating clichéd versions of an element
-- Extracting functions (typically 3-5 per element)
-- Applying orthogonality test to single element
-- Generating alternatives for one function
+本节记录前提条件和边界。
 
-### Extended Reasoning (ultrathink)
-Use extended thinking for:
-- **Multi-element transcendence** - [Why: transforming interconnected elements requires tracking consistency]
-- **Function conflict resolution** - [Why: element may serve conflicting functions]
-- **Domain import synthesis** - [Why: importing from unfamiliar domains requires research]
-- **Downstream consequence mapping** - [Why: tracing implications of transcendence through story]
+### 本技能假定
 
-**Trigger phrases:** "everything feels generic", "overhaul this aspect", "make the whole world feel fresh", "systematic cliché analysis"
+- 存在一个需要评估的元素（角色、地点、情节装置等）
+- 作者希望该元素感觉新鲜（并非所有套路都需要超越）
+- 元素在故事中有可识别的功能
 
-## Execution Strategy
+### 本技能不处理
 
-This section documents when to parallelize work or spawn subagents.
+- **套路是否重要** - 转交至：story-sense（诊断这是否是真正的问题）
+- **世界一致性** - 转交至：worldbuilding（新鲜元素必须符合世界逻辑）
+- **角色心理** - 转交至：character-arc（超越后的元素必须符合角色）
+- **类型期望** - 转交至：genre-conventions（某些"套路"是类型必备）
 
-### Sequential (Default)
-- Enumeration must complete before function extraction
-- Function extraction before alternative generation
-- Alternatives generated before orthogonality test
+### 退化信号
 
-### Parallelizable
-- Multiple entropy runs for different axes can run concurrently
-- Research into multiple domains for Step 6 can parallelize
-- Use when: Transforming multiple elements in same session
+本技能被误用的迹象：
+- 超越一切（某些熟悉感是读者的舒适区）
+- 为新奇而新奇（忽视功能）
+- 元素本身没问题（问题在别处）
+- 反复超越同一元素（可能表示功能不清晰）
 
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
+## 推理需求
+
+本节记录本技能何时受益于延长思考时间。
+
+### 标准推理
+
+- 列举某个元素的套路版本
+- 提取功能（通常每个元素 3-5 个）
+- 对单个元素应用正交性测试
+- 为一个功能生成替代方案
+
+### 扩展推理（ultrathink）
+
+在以下情况使用扩展思考：
+- **多元素超越** - [原因：转化相互关联的元素需要追踪一致性]
+- **功能冲突解决** - [原因：元素可能服务于冲突的功能]
+- **领域引入综合** - [原因：从不熟悉的领域引入需要研究]
+- **下游后果映射** - [原因：追踪超越对故事的影响链]
+
+**触发短语：** "一切都感觉泛化"、"彻底改造这个方面"、"让整个世界感觉新鲜"、"系统性套路分析"
+
+## 执行策略
+
+本节记录何时并行化工作或生成子代理。
+
+### 顺序执行（默认）
+
+- 列举必须在功能提取之前完成
+- 功能提取在替代方案生成之前
+- 替代方案在正交性测试之前生成
+
+### 可并行化
+
+- 针对不同轴向的多次 entropy 运行可以并发
+- 第六步中对多个领域的研究可以并行化
+- 使用场景：在同一会话中转化多个元素
+
+### 子代理候选
+
+| 任务 | 代理类型 | 何时生成 |
 |------|------------|---------------|
-| Domain research | general-purpose | When importing from unfamiliar field (Step 6) |
-| Story consistency check | Explore | When checking if transcendence fits existing story files |
+| 领域研究 | general-purpose | 从不熟悉的领域引入时（第六步） |
+| 故事一致性检查 | Explore | 检查超越方案是否与现有故事文件匹配时 |
 
-## Context Management
+## 上下文管理
 
-This section documents token usage and optimization strategies.
+本节记录 Token 用量和优化策略。
 
-### Approximate Token Footprint
-- **Skill base:** ~2.5k tokens (principle + 8 steps + axes)
-- **With anti-patterns:** ~3.5k tokens
-- **With full examples:** ~4k tokens
+### 近似 Token 占用
 
-### Context Optimization
-- Load entropy scripts on-demand rather than including source
-- Reference story-sense by name for routing, not inline
-- Focus on relevant steps (not all 8 needed every time)
+- **技能基础：** ~2.5k tokens（原则 + 8 步 + 轴向）
+- **含反模式：** ~3.5k tokens
+- **含完整示例：** ~4k tokens
 
-### When Context Gets Tight
-- Prioritize: Orthogonality principle, current step in 8-step process
-- Defer: Full example interaction, all 8 steps listed
-- Drop: Tool source code, domain import lists
+### 上下文优化
 
-## Anti-Patterns
+- 按需加载 entropy 脚本，而非包含源代码
+- 通过名称引用 story-sense 进行路由，而非内联
+- 聚焦于相关步骤（不是每次都需要全部 8 步）
 
-### 1. Inversion as Innovation
-**Pattern:** Assuming the opposite of a cliché is automatically fresh. Evil mentor instead of wise mentor. Hero who fails instead of hero who succeeds.
-**Why it fails:** Inversions are often as predictable as the original. "Subverted expectations" have become their own cliché. The opposite is just another point on the same axis.
-**Fix:** Don't invert—rotate. Move along a different axis entirely. Instead of evil vs. wise mentor, ask: what if the mentor figure doesn't know they're mentoring? What if they're pursuing their own goal that incidentally teaches?
+### 当上下文紧张时
 
-### 2. Novelty Over Function
-**Pattern:** Choosing the most unusual option regardless of whether it serves the story's needs.
-**Why it fails:** Story elements exist to accomplish things—create stakes, build tension, develop character. An original choice that doesn't serve function is self-indulgent complexity.
-**Fix:** Always return to Step 2: Extract Functions. Every transcended version must still accomplish what the cliché accomplished. Originality is a constraint, not a goal.
+- 优先保留：正交性原则、八步流程中的当前步骤
+- 推迟：完整交互示例、全部 8 步列表
+- 丢弃：工具源代码、领域引入列表
 
-### 3. Enumeration Avoidance
-**Pattern:** Skipping the step of explicitly listing what the clichéd versions would be, diving straight into alternatives.
-**Why it fails:** You can't avoid what you can't see. Defaults operate invisibly. Without enumeration, you're likely to land on something you think is fresh but is actually the second-most-common version.
-**Fix:** Always do Step 1 honestly. List 5-10 versions you've seen in other stories. Make the defaults visible so you can consciously move away from them.
+## 反模式
 
-### 4. Form-Only Changes
-**Pattern:** Changing what an element looks like while preserving its knowledge, goals, and role. "It's not FBI agents, it's corporate security!"
-**Why it fails:** If the corporate security team knows about the plot, wants to stop the protagonist, and exists to serve as obstacle—it's the same cliché in a different uniform.
-**Fix:** Apply the orthogonality test to all four axes. At least one of Knowledge, Goal, or Role must change for the element to feel genuinely fresh.
+### 1. 以反转代替创新
 
-### 5. Protagonist Orbit Preservation
-**Pattern:** Making every element ultimately serve the protagonist's journey, even after "transcending" the cliché.
-**Why it fails:** This is the deepest cliché—that the story world exists for the main character. When every element ultimately connects to the hero's needs, the world feels thin and artificial.
-**Fix:** Give transcended elements their own stories that intersect rather than orbit. They should have goals that make sense independent of the protagonist. The collision is more interesting than the service.
+**模式：** 假设套路的反面就自动是新鲜的。邪恶导师代替智慧导师。失败的英雄代替成功的英雄。
+**为什么失败：** 反转通常和原始版本一样可预测。"颠覆期望"已经成为了自己的套路。反面只是同一轴向上的另一个点。
+**修正：** 不要反转——旋转。沿着完全不同的轴向移动。与其纠结邪恶 vs. 智慧导师，不如问：如果导师角色不知道自己在指导呢？如果他们在追求自己的目标，恰好起到了教导作用呢？
 
-## Integration
+### 2. 新奇凌驾功能
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
+**模式：** 无论是否服务于故事需求，都选择最不寻常的选项。
+**为什么失败：** 故事元素存在是为了完成任务——创造利害关系、建立张力、发展角色。一个不服务功能的原创选择是自我放纵的复杂性。
+**修正：** 始终回到第二步：提取功能。每个超越版本仍必须完成套路版本所完成的事情。原创性是一种约束，而非目标。
+
+### 3. 列举回避
+
+**模式：** 跳过明确列出套路版本的步骤，直接跳入替代方案。
+**为什么失败：** 你无法避开你看不见的东西。默认模式在暗中运作。没有列举，你很可能会落在你以为新鲜但实际上是第二常见版本的东西上。
+**修正：** 始终诚实地执行第一步。列出你在其他故事中见过的 5-10 个版本。让默认模式可见，这样你才能有意识地远离它们。
+
+### 4. 仅改变形式
+
+**模式：** 改变元素的外观，但保留其认知、目标和角色。"不是 FBI 特工，是企业安保！"
+**为什么失败：** 如果企业安保团队了解情节、想要阻止主角、并且以障碍物的身份存在——那只是换了制服的同一个套路。
+**修正：** 对所有四个轴向应用正交性测试。认知、目标或角色中至少有一个必须改变，元素才能感觉真正新鲜。
+
+### 5. 保留主角引力场
+
+**模式：** 让每个元素最终都服务于主角的旅程，即使在"超越"套路之后。
+**为什么失败：** 这是最深层的套路——故事世界为主角而存在。当所有元素最终都与主角的需求相连，世界感觉单薄且虚假。
+**修正：** 给超越后的元素自己的故事线，让它们交叉而非环绕。它们应该有独立于主角之外的合理目标。碰撞比服务更有趣。
+
+## 集成
+
+### 入站（输入到本技能）
+
+| 技能 | 提供的内容 |
 |-------|------------------|
-| story-sense | Diagnosis that something feels generic or tired |
-| brainstorming | Raw alternative generation for Step 3 |
-| statistical-distance | The vector/distance methodology for pushing away from defaults |
+| story-sense | 诊断某些内容感觉泛化或陈旧 |
+| brainstorming | 第三步的原始替代方案生成 |
+| statistical-distance | 用于远离默认模式的向量/距离方法论 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
+### 出站（本技能赋能）
+
+| 技能 | 本技能提供的内容 |
 |-------|-------------|
-| worldbuilding | Fresh world elements that avoid genre defaults |
-| character-arc | Non-clichéd character dynamics and relationships |
-| dialogue | Characters with unique perspectives, not stock responses |
-| endings | Climaxes that don't follow predictable patterns |
+| worldbuilding | 避免类型默认的新鲜世界元素 |
+| character-arc | 非套路化的角色动态和关系 |
+| dialogue | 拥有独特视角的角色，而非模板化回应 |
+| endings | 不遵循可预测模式的高潮 |
 
-### Complementary
-| Skill | Relationship |
+### 互补
+
+| 技能 | 关系 |
 |-------|--------------|
-| statistical-distance | Cliché-transcendence uses orthogonality; statistical-distance uses vector/distance. Both achieve originality through different frameworks |
-| story-sense | Use story-sense to identify that something feels clichéd; use cliché-transcendence to transform it |
+| statistical-distance | cliche-transcendence 使用正交性；statistical-distance 使用向量/距离。两者通过不同框架实现原创性 |
+| story-sense | 使用 story-sense 识别某些内容感觉老套；使用 cliche-transcendence 来转化它 |

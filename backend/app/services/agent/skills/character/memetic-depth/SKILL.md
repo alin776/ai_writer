@@ -1,6 +1,6 @@
 ---
 name: memetic-depth
-description: Create the perception of cultural depth through strategic juxtaposition of familiar and unfamiliar elements. Use when settings feel shallow, when you need centuries of implied history without exposition, or when worldbuilding lacks the texture of real cultural evolution.
+description: 通过策略性地并置熟悉和陌生元素来创造文化深度感。适用于设定感觉浅薄、需要在不依赖大量说明的情况下暗示数百年历史，或世界构建缺乏真实文化演变质感的场景。
 license: MIT
 metadata:
   author: jwynia
@@ -11,342 +11,342 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Memetic Depth: Worldbuilding Texture Skill
+# 文化记忆深度：世界构建质感技能
 
-You help writers create the perception that fictional worlds have centuries of cultural processing, synthesis, and degradation that occurred before the reader encounters them. Your role is to design strategic juxtapositions of cultural elements at different familiarity levels.
+你帮助写作者创造一种感知，让虚构的世界拥有数百年的文化加工、融合和降解过程，这些过程在读者接触故事之前就已经发生了。你的职责是设计不同熟悉度层次的文化元素的策略性并置。
 
-## Core Principle: Cognitive Triangulation
+## 核心原则：认知三角定位
 
-**Memetic Depth** is the perception that a world exists beyond what's explained, with cultural processes that operated independently of narrative needs.
+**文化记忆深度**是一种感知——世界存在于被解释的内容之外，文化过程独立于叙事需求运作。
 
-By combining **Recognizable + Inferrable + Inscrutable** elements, readers:
-1. **Feel anchored** (recognizable elements provide security)
-2. **Feel intelligent** (inferrable elements reward attention)
-3. **Feel intrigued** (inscrutable elements promise more depth)
+通过组合**可识别 + 可推断 + 不可解读**的元素，读者会：
+1. **感到安定**（可识别元素提供安全感）
+2. **感到聪明**（可推断元素奖励注意力）
+3. **感到好奇**（不可解读元素暗示更多深度）
 
-## The Three Element Types
+## 三种元素类型
 
-### Recognizable Elements (40% of mix)
-Elements the reader knows from real-world experience without explanation.
+### 可识别元素（占比 40%）
+读者根据现实世界经验无需解释就能认识的元素。
 
-**Purpose**: Anchor reader, prove author isn't random, establish baseline for transformation.
+**目的**：锚定读者，证明作者不是随意拼凑，建立转化的基线。
 
-**Examples**: "rosaries, prayer wheels, saints" / "Day of the Dead, Christmas" / "Statue of Liberty keychains"
+**举例**："念珠、转经轮、圣人" / "亡灵节、圣诞节" / "自由女神像钥匙扣"
 
-**Selection Criteria**:
-- Universal enough most readers know it
-- Stable enough to still exist in your timeframe
-- Distinct enough to transform interestingly
-- Not so sacred it blocks creative play
+**选择标准**：
+- 足够普遍，大多数读者都知道
+- 足够稳定，在你的时间框架中仍然存在
+- 足够独特，可以产生有趣的转化
+- 不太神圣以至于阻碍创意发挥
 
-**Mistake**: Only recognizable elements → world feels shallow, like present with cosmetic changes.
+**错误**：全是可识别元素 → 世界感觉浅薄，像是加了装饰性改变的现在。
 
-### Inferrable Elements (40% of mix)
-Elements the reader can deduce from context or logical extension.
+### 可推断元素（占比 40%）
+读者可以从上下文或逻辑延伸中推断出的元素。
 
-**Purpose**: Reward attention, create engagement, show cultural synthesis, demonstrate time depth.
+**目的**：奖励注意力，创造参与感，展示文化融合，体现时间深度。
 
-**Examples**: "Klingon Day of the Dead sugar skulls" / "rosaries in five species' configurations" / "pocket saints (human and otherwise)"
+**举例**："克林贡亡灵节糖骷髅" / "五个物种配置的念珠" / "袖珍圣人像（人类和非人类的）"
 
-**Reader Inference Patterns**:
+**读者推断模式**：
 
-| Pattern | Example | Reader Deduces |
+| 模式 | 举例 | 读者推断 |
 |---------|---------|----------------|
-| Species Application | "Bajoran prayer beads" | Bajorans have similar prayer tradition |
-| Cultural Fusion | "Klingon Day of the Dead" | Two cultures met and synthesized |
-| Temporal Distance | "Pre-Collapse Earth" | Something bad happened, society reset |
-| Market Degradation | "Probably weren't authentic" | Authenticity is questionable |
+| 物种应用 | "贝久人祈祷珠" | 贝久人有类似的祈祷传统 |
+| 文化融合 | "克林贡亡灵节" | 两种文化相遇并融合了 |
+| 时间距离 | "崩溃前的地球" | 发生了什么糟糕的事，社会重启了 |
+| 市场降解 | "大概不是正品" | 真实性存疑 |
 
-**Selection Criteria**:
-- Context provides enough clues for reasonable inference
-- Multiple interpretations possible but one most likely
-- Wrong interpretation doesn't break comprehension
+**选择标准**：
+- 上下文提供足够线索进行合理推断
+- 可能有多种解读但有一种最可能
+- 错误的解读不会破坏理解
 
-**Mistake**: Everything inferrable exhausts readers—they need anchors and mysteries too.
+**错误**：全是可推断元素会让读者精疲力竭——他们也需要锚点和谜团。
 
-### Inscrutable Elements (20% of mix)
-Elements the reader cannot deduce, creating productive mystery.
+### 不可解读元素（占比 20%）
+读者无法推断的元素，创造有益的神秘感。
 
-**Purpose**: Signal world is deeper than shown, create hooks, acknowledge not everything can be explained.
+**目的**：暗示世界比展示的更深，创造钩子，承认并非一切都能解释。
 
-**Examples**: "Pre-Collapse Earth" / "Blessed Translator" / "grace-compass" / "Meditation Reform period"
+**举例**："崩溃前的地球" / "受祝福的翻译者" / "恩典罗盘" / "冥想改革时期"
 
-**Types of Productive Mystery**:
+**有益的神秘感类型**：
 
-| Type | Description | Example |
+| 类型 | 描述 | 举例 |
 |------|-------------|---------|
-| Historical Gap | Something happened but isn't explained | "Pre-Collapse Earth" |
-| Cultural Untranslatability | Concept doesn't map to reader's framework | "Tholian prayer-geometries" |
-| Degraded Knowledge | Characters don't fully understand either | "Blessed Translator" |
-| Deliberate Withholding | POV would know but reader doesn't | "Meditation Reform period" |
+| 历史空白 | 发生了什么但没有解释 | "崩溃前的地球" |
+| 文化不可翻译 | 概念无法映射到读者的框架 | "索利安祈祷几何" |
+| 降解的知识 | 角色自己也不完全理解 | "受祝福的翻译者" |
+| 刻意保留 | 视角人物知道但读者不知道 | "冥想改革时期" |
 
-**Selection Criteria**:
-- Mystery is intriguing not frustrating
-- Reader trusts there's a reason
-- Doesn't block scene comprehension
+**选择标准**：
+- 神秘感是引人入胜的而非令人沮丧的
+- 读者相信这是有原因的
+- 不阻碍场景理解
 
-**Mistake**: Too much inscrutability feels like arbitrary withholding.
+**错误**：过多的不可解读性让人感觉是随意的隐瞒。
 
-## The 40/40/20 Ratio
+## 40/40/20 比例
 
-### Base Formula
-- 40% Recognizable (immediate knowledge)
-- 40% Inferrable (deducible)
-- 20% Inscrutable (accepted mystery)
+### 基础公式
+- 40% 可识别（即时认知）
+- 40% 可推断（可推导）
+- 20% 不可解读（接受的神秘）
 
-### Adjusting by Genre
+### 按类型调整
 
-| Genre | Ratio | Reason |
+| 类型 | 比例 | 原因 |
 |-------|-------|--------|
-| Hard SF | 50/40/10 | Readers expect logical extrapolation |
-| Fantasy/Soft SF | 30/40/30 | More alienness acceptable |
-| Near-Future | 60/30/10 | Very recognizable baseline |
-| Far-Future/Space Opera | 30/50/20 | Heavy inference load |
-| First Contact | 40/30/30 | Alien mystery is the point |
+| 硬科幻 | 50/40/10 | 读者期望逻辑推演 |
+| 奇幻/软科幻 | 30/40/30 | 更多异质性是可接受的 |
+| 近未来 | 60/30/10 | 高度可识别的基线 |
+| 远未来/太空歌剧 | 30/50/20 | 大量推断负载 |
+| 第一次接触 | 40/30/30 | 外星神秘感就是重点 |
 
-### Within a Scene
-- **Opening**: Higher recognizable (50/30/20) — reader needs grounding
-- **Mid-scene**: Standard (40/40/20) — reader has footing
-- **Climax**: Can skew inscrutable (30/30/40) — emotion carries mystery
+### 场景内部
+- **开场**：更高可识别比（50/30/20）——读者需要立足点
+- **场景中段**：标准比例（40/40/20）——读者已站稳
+- **高潮**：可以偏向不可解读（30/30/40）——情感承载神秘
 
-## List Construction Method
+## 列表构建方法
 
-### Step 1: Identify Cultural Categories
-What categories of artifacts would logically exist in this location?
+### 第一步：确定文化类别
+在这个地点，哪些类别的物品会合理存在？
 
-**Space Station Trinket Shop**:
-1. Religious items (humans brought religion)
-2. Folk practice items (religion degraded)
-3. Heritage nostalgia (longing for homeworlds)
-4. Practical luck objects (spacers are superstitious)
-5. Species synthesis items (cultures mixed)
-6. Misunderstood historical objects (memory failed)
-7. Deliberate novelty kitsch (market creates traditions)
+**太空站小饰品店**：
+1. 宗教物品（人类带来了宗教）
+2. 民间习俗物品（宗教的降解）
+3. 故土怀旧（对母星的思念）
+4. 实用幸运物（太空人是迷信的）
+5. 物种融合物品（文化混合了）
+6. 被误解的历史物品（记忆失败了）
+7. 刻意的新奇廉价品（市场创造传统）
 
-### Step 2: Populate with Mixed Elements
-For each category: 2 Recognizable, 2 Inferrable, 1 Inscrutable
+### 第二步：用混合元素填充
+对每个类别：2 个可识别、2 个可推断、1 个不可解读
 
-**Religious Items Example**:
-- Recognizable: "rosaries" / "prayer wheels"
-- Inferrable: "rosaries in five species' configurations" / "pocket saints (human and otherwise)"
-- Inscrutable: "something labeled 'Blessed Translator' that might have been a universal translator or a repurposed medical device"
+**宗教物品举例**：
+- 可识别："念珠" / "转经轮"
+- 可推断："五个物种配置的念珠" / "袖珍圣人像（人类和非人类的）"
+- 不可解读："标签写着'受祝福的翻译者'的东西，可能曾经是万能翻译器或改装过的医疗设备"
 
-### Step 3: Create Systemic Connections
-Items should reveal cultural processes, not be random.
+### 第三步：创建系统性连接
+物品应该揭示文化过程，而非随机分布。
 
-**Degradation Chain**:
-1. Original: "Traditional Catholic rosary"
-2. Folk adaptation: "Spacer's rosary (extra beads for dangerous work)"
-3. Secular: "Lucky bead string (no religious significance)"
-4. Commercial: "Ferengi profit-counting beads (rosary form, capitalist function)"
+**降解链**：
+1. 原始："传统天主教念珠"
+2. 民间改编："太空人念珠（为危险工作增加额外珠子）"
+3. 世俗化："幸运珠串（无宗教意义）"
+4. 商业化："弗瑞吉人利润计数珠（念珠形式，资本主义功能）"
 
-**Synthesis Process**:
-1. Source A: Mexican Day of the Dead
-2. Source B: Klingon honor-the-dead practices
-3. Contact: Klingon colony on Mexican-settled world
-4. Synthesis: "Klingon Day of the Dead sugar skulls"
-5. Commercialization: "Sold as 'traditional Klingon craft'"
+**融合过程**：
+1. 来源 A：墨西哥亡灵节
+2. 来源 B：克林贡纪念逝者仪式
+3. 接触：墨西哥裔定居世界上的克林贡殖民地
+4. 融合："克林贡亡灵节糖骷髅"
+5. 商业化："以'传统克林贡工艺'出售"
 
-**Power Dynamics**:
-- Human religious items: Common, cheap, treated casually
-- Vulcan philosophical items: Rare, expensive, "authentic"
-- Bajoran items: Controversial (recent occupation)
-- Extinct species items: Uncontroversial (no one to object)
+**权力动态**：
+- 人类宗教物品：常见、廉价、被随意对待
+- 瓦肯哲学物品：稀有、昂贵、"正宗"
+- 贝久物品：有争议的（近期被占领）
+- 灭绝物种物品：没有争议（没有人可以反对）
 
-**Generation Gap**:
-- Elder: "That's a serious religious object from my grandmother"
-- Middle: "That's traditional craft my parents valued"
-- Youth: "That's a cool vintage aesthetic"
-- Tourist: "That's an exotic souvenir"
+**代际差距**：
+- 长辈："那是我祖母留下的严肃宗教物品"
+- 中年："那是我父母珍视的传统工艺"
+- 青年："那是很酷的复古美学"
+- 游客："那是异国情调的纪念品"
 
-### Step 4: Apply Character Filter
-Same list appears different by POV:
+### 第四步：应用角色滤镜
+同一个列表因视角不同而呈现不同：
 
-**Cultural Insider**: Sees misunderstanding, commodification, degradation
-**Cultural Outsider**: Sees exotic, incomprehensible, interchangeable
-**Market Participant**: Sees inventory, price points, supply chain
+**文化内部人**：看到误解、商品化、降解
+**文化外部人**：看到异域风情、不可理解、千篇一律
+**市场参与者**：看到库存、价位、供应链
 
-## Quick Reference: Cultural Process Signals
+## 快速参考：文化过程信号
 
-| Signal | What It Implies |
+| 信号 | 暗示的含义 |
 |--------|----------------|
-| "Traditional" in quotes | Tradition is marketing |
-| "Probably weren't" | Authenticity questionable |
-| "Pre-[Event]" | Major historical rupture |
-| "Revival period" | Tradition died and was revived |
-| Species + Human tradition | Cultural synthesis occurred |
-| "Ancient [Place]" | That place is now mythologized |
-| Multiple species variants | Wide adoption, local adaptation |
+| 引号中的"传统" | 传统是营销手段 |
+| "大概不是" | 真实性存疑 |
+| "……之前" | 重大历史断裂 |
+| "复兴时期" | 传统消亡后又被复兴 |
+| 物种 + 人类传统 | 发生了文化融合 |
+| "古代[地名]" | 那个地方现在被神话化了 |
+| 多物种变体 | 广泛采用，本地适应 |
 
-## Diagnostic Questions
+## 诊断问题
 
-When your worldbuilding feels shallow:
+当你的世界构建感觉浅薄时：
 
-1. What's recognizable enough to anchor readers?
-2. What can readers deduce if they're paying attention?
-3. What mysteries signal depth without explanation?
-4. What cultural processes created these items?
-5. Who made them, for whom, and why?
-6. How has time degraded original meaning?
-7. What power dynamics determine authenticity?
+1. 什么足够熟悉可以锚定读者？
+2. 注意的读者可以推断出什么？
+3. 什么谜团在不解释的情况下暗示深度？
+4. 什么文化过程创造了这些物品？
+5. 谁制造了它们，为谁制造，为什么？
+6. 时间如何降解了原始含义？
+7. 什么权力动态决定了真实性？
 
-## Output Persistence
+## 输出持久化
 
-This skill writes primary output to files so work persists across sessions.
+本技能将主要输出写入文件，以便工作在会话之间持久保存。
 
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/memetic-depth/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+### 输出路径发现
+1. 检查项目中是否有 `context/output-config.md`
+2. 如果找到，使用本技能的条目作为输出路径
+3. 如果未找到，**使用默认路径 `explorations/memetic-depth/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
 
-### Primary Output
-- **Element lists** - Categorized items with familiarity levels
-- **Cultural process chains** - Degradation, synthesis, commercialization
-- **Power dynamics** - Who commodifies whom
-- **Ratio audit** - 40/40/20 balance check
+### 主要输出
+- **元素列表** - 按熟悉度分级的分类物品
+- **文化过程链** - 降解、融合、商业化
+- **权力动态** - 谁在商品化谁
+- **比例审计** - 40/40/20 平衡检查
 
-### File Naming
-Pattern: `{location/culture}-memetic-{date}.md`
+### 文件命名
+模式：`{location/culture}-memetic-{date}.md`
 
-## Verification (Oracle)
+## 验证（预言机）
 
-### What This Skill Can Verify
-- **Ratio balance** - Is mix near 40/40/20? (High confidence)
-- **Process chains present** - Do elements connect through cultural processes? (High confidence)
-- **Anchor presence** - Are there recognizable elements for reader grounding? (High confidence)
+### 本技能可以验证的内容
+- **比例平衡** - 混合是否接近 40/40/20？（高置信度）
+- **过程链存在** - 元素是否通过文化过程相连？（高置信度）
+- **锚点存在** - 是否有可识别元素用于读者定位？（高置信度）
 
-### What Requires Human Judgment
-- **Reader accessibility** - Will target readers recognize the "recognizable" elements?
-- **Mystery calibration** - Are inscrutable elements intriguing vs. frustrating?
-- **Cultural sensitivity** - Are real-world cultural elements handled respectfully?
+### 需要人工判断的内容
+- **读者可达性** - 目标读者是否能识别那些"可识别"元素？
+- **神秘感校准** - 不可解读元素是引人入胜还是令人沮丧？
+- **文化敏感性** - 现实世界的文化元素是否被尊重地处理？
 
-### Oracle Limitations
-- Cannot assess whether inference load is appropriate for target audience
-- Cannot predict reader reaction to mystery elements
+### 预言机局限
+- 无法评估推断负载对目标受众是否适当
+- 无法预测读者对神秘元素的反应
 
-## Feedback Loop
+## 反馈循环
 
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Element lists, process chains, ratio audits
-- **Naming pattern:** `{location/culture}-memetic-{date}.md`
+### 会话持久化
+- **输出位置：** 见 `context/output-config.md`
+- **保存内容：** 元素列表、过程链、比例审计
+- **命名模式：** `{location/culture}-memetic-{date}.md`
 
-### Cross-Session Learning
-- Check for prior cultural texture work on this setting
-- Maintain consistent familiarity levels across locations
-- Reader feedback on mystery elements informs ratio adjustment
+### 跨会话学习
+- 检查此设定之前的文化质感工作
+- 在不同地点之间保持一致的熟悉度水平
+- 读者对神秘元素的反馈为比例调整提供信息
 
-## Design Constraints
+## 设计约束
 
-### This Skill Assumes
-- Setting has cultural artifacts/practices to texture
-- Writer wants implied depth, not exposition
-- Some real-world reference points exist (even far-future settings)
+### 本技能假设
+- 设定有文化物品/习俗可以增加质感
+- 写作者想要暗示的深度，而非大量说明
+- 存在一些现实世界参考点（即使是远未来设定）
 
-### This Skill Does Not Handle
-- **Systemic worldbuilding** - Route to: worldbuilding
-- **Economic foundations** - Route to: economic-systems
-- **Language creation** - Route to: conlang
+### 本技能不处理的内容
+- **系统性世界构建** - 转交给：worldbuilding
+- **经济基础** - 转交给：economic-systems
+- **语言创造** - 转交给：conlang
 
-### Degradation Signals
-- All elements at same familiarity level (no triangulation)
-- Random exotica without systemic connection
-- Explaining every mystery (destroys depth perception)
+### 降解信号
+- 所有元素在同一熟悉度水平（无三角定位）
+- 没有系统性连接的随机异域风情
+- 解释每一个谜团（摧毁深度感知）
 
-## Reasoning Requirements
+## 推理要求
 
-### Standard Reasoning
-- Single category population
-- Ratio checking
-- Basic degradation chain design
+### 标准推理
+- 单一类别填充
+- 比例检查
+- 基本降解链设计
 
-### Extended Reasoning (ultrathink)
-- **Full location texture design** - [Why: multiple categories with cross-connections]
-- **Multi-culture synthesis tracking** - [Why: tracing how cultures merged]
-- **Power dynamic mapping** - [Why: determining who commodifies whom]
+### 扩展推理（ultrathink）
+- **完整地点质感设计** - [原因：多个类别需要交叉连接]
+- **多文化融合追踪** - [原因：追踪文化如何融合]
+- **权力动态映射** - [原因：确定谁在商品化谁]
 
-**Trigger phrases:** "make this place feel lived-in", "cultural texture for entire setting", "how did these cultures mix"
+**触发短语：** "让这个地方有烟火气"、"整个设定的文化质感"、"这些文化是怎么融合的"
 
-## Execution Strategy
+## 执行策略
 
-### Sequential (Default)
-- Identify categories before populating
-- Populate recognizable before inferrable
-- Create process chains after initial population
+### 顺序执行（默认）
+- 先确定类别再填充
+- 先填充可识别再填充可推断
+- 初始填充后再创建过程链
 
-### Parallelizable
-- Populating multiple independent categories
-- Designing different location textures
+### 可并行
+- 填充多个独立类别
+- 设计不同地点的质感
 
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
 |------|------------|---------------|
-| Cultural research | general-purpose | When basing on real cultural practices |
-| Cross-setting consistency | Explore | When checking against existing world files |
+| 文化研究 | general-purpose | 当基于现实文化习俗时 |
+| 跨设定一致性 | Explore | 当与现有世界文件进行检查时 |
 
-## Context Management
+## 上下文管理
 
-### Approximate Token Footprint
-- **Skill base:** ~2.5k tokens (principle + element types + ratio)
-- **With construction method:** ~3.5k tokens
-- **With full diagnostic:** ~4k tokens
+### 大致 Token 足迹
+- **技能基础：** ~2.5k tokens（原则 + 元素类型 + 比例）
+- **含构建方法：** ~3.5k tokens
+- **含完整诊断：** ~4k tokens
 
-### Context Optimization
-- The 40/40/20 ratio is the core takeaway
-- Construction method is reference, not required in context
-- Quick reference signals are highly compressed
+### 上下文优化
+- 40/40/20 比例是核心要点
+- 构建方法是参考，不需要始终在上下文中
+- 快速参考信号是高度压缩的
 
-### When Context Gets Tight
-- Prioritize: Three element types, ratio, current category
-- Defer: Full construction method, all signal types
-- Drop: Generation gap examples, all worked examples
+### 上下文紧张时
+- 优先：三种元素类型、比例、当前类别
+- 延迟：完整构建方法、所有信号类型
+- 丢弃：代际差距示例、所有完整示例
 
-## Anti-Patterns
+## 反模式
 
-### 1. Uniform Unfamiliarity
-**Pattern:** Making everything equally strange—no recognizable anchors, all inferrable or inscrutable elements.
-**Why it fails:** Without familiar elements, readers have no baseline for understanding transformation. Everything feels alien, which paradoxically flattens into homogeneous strangeness.
-**Fix:** Start with recognizable anchors. "Rosaries" is familiar; "rosaries in five species' configurations" shows cultural evolution. The familiar element makes the transformation visible.
+### 1. 统一的陌生感
+**模式：** 一切都同样奇怪——没有可识别的锚点，全是可推断或不可解读元素。
+**为什么失败：** 没有熟悉的元素，读者没有理解转化的基线。一切感觉都是外星的，矛盾的是这反而被压平成了同质化的奇怪感。
+**修复：** 从可识别的锚点开始。"念珠"是熟悉的；"五个物种配置的念珠"展示了文化演变。熟悉的元素使转化可见。
 
-### 2. Explanation Compulsion
-**Pattern:** Explaining every cultural detail, resolving every mystery, providing footnotes for inferrable elements.
-**Why it fails:** Explanation destroys the perception of depth. If everything is explained, the world feels completely mapped. Real cultures have unexplained elements—everyone accepts things they don't fully understand.
-**Fix:** Let inscrutable elements remain inscrutable. Trust readers to accept mysteries the same way they accept mysteries in real life. "The Meditation Reform period" doesn't need explanation.
+### 2. 解释强迫症
+**模式：** 解释每一个文化细节，解开每一个谜团，为可推断元素提供注脚。
+**为什么失败：** 解释摧毁了深度感知。如果一切都被解释了，世界感觉被完全测绘了。真实的文化有无法解释的元素——每个人都接受自己不完全理解的事物。
+**修复：** 让不可解读元素保持不可解读。相信读者会像接受现实生活中的谜团一样接受它们。"冥想改革时期"不需要解释。
 
-### 3. Random Exotica
-**Pattern:** Generating strange cultural elements without systemic connection—a grab bag of weird stuff.
-**Why it fails:** Real cultures have internal logic. Items exist because of historical processes—synthesis, degradation, commercialization. Random elements feel designed rather than evolved.
-**Fix:** Create systemic connections. Show how items relate to each other through cultural processes. The degradation chain from rosary → spacer beads → lucky string → profit counter tells a story.
+### 3. 随机的异域风情
+**模式：** 生成没有系统性连接的奇怪文化元素——一堆怪东西的大杂烩。
+**为什么失败：** 真实的文化有内在逻辑。物品因历史过程而存在——融合、降解、商业化。随机的元素感觉是被设计的而非自然演化的。
+**修复：** 创建系统性连接。展示物品如何通过文化过程相互关联。从念珠 → 太空人珠子 → 幸运串珠 → 利润计数器的降解链讲述了一个故事。
 
-### 4. Missing Power Dynamics
-**Pattern:** Treating all cultural elements as equally available, equally valued, without considering who commodifies whom.
-**Why it fails:** Real cultural exchange involves power. Some cultures' items become "exotic souvenirs" while others become "serious traditions." Who decides what's "authentic" reveals power structures.
-**Fix:** Consider which cultural items are treated seriously and which are treated as novelty. Who profits from whose traditions? These dynamics add uncomfortable realism.
+### 4. 缺失的权力动态
+**模式：** 将所有文化元素视为同等可获取、同等有价值，不考虑谁在商品化谁。
+**为什么失败：** 真实的文化交流涉及权力。某些文化的物品变成"异国情调纪念品"，而其他的变成"严肃的传统"。谁决定什么是"正宗的"揭示了权力结构。
+**修复：** 考虑哪些文化物品被严肃对待，哪些被当作新奇物。谁从谁的传统中获利？这些动态增加了令人不安的真实感。
 
-### 5. Ratio Neglect
-**Pattern:** Ignoring the 40/40/20 balance, skewing heavily toward any single element type.
-**Why it fails:** Too much recognizable feels shallow. Too much inferrable exhausts readers. Too much inscrutable feels arbitrary. The balance creates the triangulation that produces depth perception.
-**Fix:** Audit your cultural details explicitly. Count recognizable, inferrable, and inscrutable elements. Adjust toward the ratio appropriate for your genre and scene position.
+### 5. 比例忽视
+**模式：** 忽视 40/40/20 平衡，严重偏向任何单一元素类型。
+**为什么失败：** 可识别太多感觉浅薄。可推断太多让读者精疲力竭。不可解读太多感觉随意。平衡创造了产生深度感知的三角定位。
+**修复：** 明确审计你的文化细节。计算可识别、可推断和不可解读元素。调整到适合你的类型和场景位置的比例。
 
-## Integration
+## 集成
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
+### 入站（为本技能提供输入）
+| 技能 | 提供的内容 |
 |-------|------------------|
-| worldbuilding | Systemic foundation for cultural processes |
-| conlang | Language evolution that parallels cultural evolution |
-| multi-order-evolution | Generational stages that create cultural layers |
+| worldbuilding | 文化过程的系统性基础 |
+| conlang | 与文化演变平行的语言演变 |
+| multi-order-evolution | 创造文化层次的代际阶段 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
+### 出站（本技能为其提供输出）
+| 技能 | 本技能提供的内容 |
 |-------|-------------|
-| dialogue | Culturally-textured speech patterns and references |
-| settlement-design | Cultural layers in urban environments |
-| scene-sequencing | Cultural details for scene texture |
+| dialogue | 具有文化质感的语言模式和引用 |
+| settlement-design | 城市环境中的文化层次 |
+| scene-sequencing | 场景质感的文化细节 |
 
-### Complementary
-| Skill | Relationship |
+### 互补
+| 技能 | 关系 |
 |-------|--------------|
-| worldbuilding | Worldbuilding creates systems; memetic-depth adds perceived cultural texture. Use together for settings that feel lived-in |
-| cliche-transcendence | Memetic-depth avoids cultural clichés through the same process—pushing recognizable elements toward inferrable transformations |
+| worldbuilding | worldbuilding 创建系统；memetic-depth 增加感知的文化质感。搭配使用让设定有烟火气 |
+| cliche-transcendence | memetic-depth 通过相同过程避免文化老套——将可识别元素推向可推断的转化 |

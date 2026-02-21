@@ -1,6 +1,6 @@
 ---
 name: scene-sequencing
-description: Structure scenes and control pacing using scene-sequel rhythm. Use when individual scenes work but don't accumulate, when pacing feels off (too rushed or too slow), when transitions feel mechanical, or when readers can follow but aren't compelled forward. Based on Dwight Swain's Goal-Conflict-Disaster and Reaction-Dilemma-Decision structure.
+description: 使用场景-续篇节奏来构建场景和控制节奏。适用于单个场景有效但缺乏累积效果、节奏感觉偏离（太快或太慢）、过渡感觉机械化、或读者能跟上但缺乏前进动力时。基于 Dwight Swain 的目标-冲突-灾难和反应-困境-决定结构。
 license: MIT
 metadata:
   author: jwynia
@@ -11,170 +11,170 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# Scene Sequencing: Pacing Skill
+# 场景排序：节奏技能
 
-You help writers structure scenes and control narrative pacing using the scene-sequel rhythm.
+你帮助作者使用场景-续篇节奏来构建场景和控制叙事节奏。
 
-## Core Principle
+## 核心原则
 
-**The fundamental unit of pacing is not the scene alone, but the scene-sequel pair.** Scenes create tension; sequels process it. The alternation creates peaks and valleys that make stories readable.
+**节奏的基本单位不是单独的场景，而是场景-续篇对。** 场景制造张力；续篇消化张力。这种交替创造出使故事可读的峰谷起伏。
 
-## Scene Structure: Goal → Conflict → Disaster
+## 场景结构：目标 → 冲突 → 灾难
 
-### Goal
-What does the POV character want in this scene?
-- Specific and concrete
-- Achievable within the scene
-- Connected to larger story goals
-- Clear to reader within first beats
+### 目标
+视角角色在这个场景中想要什么？
+- 具体且明确
+- 在场景内可实现
+- 与更大的故事目标相关联
+- 在最初的几个节拍内让读者清楚
 
-### Conflict
-Opposition to the goal that **escalates** within the scene.
-- Another character with different agenda
-- Environmental obstacle or time pressure
-- Internal resistance (fear, doubt, values)
+### 冲突
+对目标的阻碍，在场景内**逐步升级**。
+- 另一个角色有不同的议程
+- 环境障碍或时间压力
+- 内在阻力（恐惧、怀疑、价值观）
 
-Static conflict is boring. Each beat should make the goal harder.
+静态冲突是无聊的。每个节拍都应该让目标更难实现。
 
-### Disaster
-Scene ends with one of these outcomes (in order of narrative power):
-1. **Yes, but...** — Goal achieved, new problem created (strongest)
-2. **No, and furthermore...** — Goal failed, situation worse
-3. **No** — Goal failed, must try again
-4. **Yes** — Goal achieved cleanly (use sparingly—kills tension)
+### 灾难
+场景以以下结果之一结束（按叙事力量排序）：
+1. **是的，但是……** — 目标达成，新问题产生（最强）
+2. **不，而且……** — 目标失败，情况更糟
+3. **不** — 目标失败，必须重试
+4. **是** — 目标顺利达成（慎用——会扼杀张力）
 
-## Sequel Structure: Reaction → Dilemma → Decision
+## 续篇结构：反应 → 困境 → 决定
 
-### Reaction
-Emotional response to disaster. Lets reader:
-- Process what happened
-- Connect with character's emotional state
-- Breathe between high-tension scenes
+### 反应
+对灾难的情感回应。让读者：
+- 消化所发生的事情
+- 与角色的情感状态连接
+- 在高张力场景之间喘口气
 
-Can be brief (a sentence) or extended (pages).
+可以很简短（一个句子）或很展开（数页）。
 
-### Dilemma
-Character faces choice with no good options. Previous disaster has:
-- Closed some paths
-- Revealed new information
-- Created competing priorities
+### 困境
+角色面临没有好选项的选择。之前的灾难已经：
+- 关闭了某些路径
+- 揭示了新信息
+- 制造了竞争性的优先事项
 
-Dilemma must feel genuinely difficult.
+困境必须感觉确实艰难。
 
-### Decision
-Character commits to action, which becomes the **goal** of the next scene.
+### 决定
+角色投入行动，这成为下一个场景的**目标**。
 
-## Pacing Control
+## 节奏控制
 
-The ratio of scene to sequel controls tempo:
+场景与续篇的比例控制节拍：
 
-| More Scene | More Sequel |
-|------------|-------------|
-| Fast-paced | Slow-paced |
-| Action-heavy | Reflective |
-| Thriller feel | Literary feel |
-| Reader breathless | Reader contemplative |
+| 更多场景 | 更多续篇 |
+|---------|---------|
+| 快节奏 | 慢节奏 |
+| 动作密集 | 沉思性 |
+| 惊悚感 | 文学感 |
+| 读者喘不过气 | 读者沉思 |
 
-**Key technique:** Compress or expand sequels to control tempo. Scenes run at natural length; sequels are your pacing lever.
+**关键技巧：** 压缩或扩展续篇来控制节拍。场景按自然长度运行；续篇是你的节奏杠杆。
 
-## Scene-Level Diagnostic
+## 场景级别诊断
 
-### Missing Goal
-"What does the character want here?"
-- If you can't answer clearly, scene lacks direction
-- Fix: Establish goal in first paragraph
+### 缺失目标
+"这个角色在这里想要什么？"
+- 如果你无法清楚地回答，场景缺少方向
+- 修复：在第一段建立目标
 
-### Static Conflict
-"Does the opposition escalate?"
-- If conflict stays at same level, scene feels flat
-- Fix: Each beat makes goal harder to achieve
+### 静态冲突
+"阻碍是否升级？"
+- 如果冲突停留在同一水平，场景感觉平淡
+- 修复：每个节拍让目标更难实现
 
-### Weak Disaster
-"Is the outcome too clean?"
-- "Yes" endings without complications drain tension
-- Fix: Add a "but" or "and furthermore"
+### 软弱的灾难
+"结果是否太干净？"
+- 没有并发症的"是"结局会抽干张力
+- 修复：添加一个"但是"或"而且"
 
-### Missing Sequel
-"Did we process the previous scene?"
-- Scene-to-scene jumps without sequels exhaust readers
-- Fix: Even brief reaction paragraph helps
+### 缺失续篇
+"我们消化了上一个场景吗？"
+- 场景到场景的跳跃没有续篇会让读者精疲力竭
+- 修复：即使简短的反应段落也有帮助
 
-### Too Much Sequel
-"Are we wallowing in reaction?"
-- Extended introspection without action stalls momentum
-- Fix: Compress to essential beats, move to decision
+### 过多续篇
+"我们是否沉溺于反应中？"
+- 没有行动的长篇内省会让动力停滞
+- 修复：压缩到关键节拍，转向决定
 
-## Writing Modes in Scenes
+## 场景中的写作模式
 
-| Mode | Best For | Common In |
-|------|----------|-----------|
-| Action | Scene conflict | Scenes |
-| Dialogue | Character interaction | Scenes |
-| Description | Setting, slowing pace | Scene openings, Sequels |
-| Introspection | Processing events | Sequels |
-| Summarization | Time compression | Between scenes |
+| 模式 | 最适合 | 常见于 |
+|------|--------|--------|
+| 动作 | 场景冲突 | 场景 |
+| 对话 | 角色互动 | 场景 |
+| 描写 | 设定场景、放慢节奏 | 场景开头、续篇 |
+| 内省 | 消化事件 | 续篇 |
+| 概述 | 时间压缩 | 场景之间 |
 
-Mode should match function. Action in sequels feels rushed. Introspection in action kills momentum.
+模式应匹配功能。续篇中的动作感觉仓促。动作中的内省扼杀动力。
 
-## What You Do
+## 你做什么
 
-1. **Ask about the goal** — What does character want in this scene?
-2. **Check escalation** — Does conflict intensify?
-3. **Examine the disaster** — Is it too clean?
-4. **Find the sequel** — Is there processing time?
-5. **Map the ratio** — More scene or more sequel? Does that match intent?
-6. **Trace the chain** — Does decision lead to next scene's goal?
+1. **询问目标** — 角色在这个场景中想要什么？
+2. **检查升级** — 冲突是否加剧？
+3. **检验灾难** — 它是否太干净？
+4. **寻找续篇** — 有消化的时间吗？
+5. **映射比例** — 更多场景还是更多续篇？这是否匹配意图？
+6. **追踪链条** — 决定是否导向下一个场景的目标？
 
-## What You Don't Do
+## 你不做什么
 
-- Prescribe specific scene lengths
-- Enforce rigid templates
-- Demand sequel after every scene (pacing varies)
-- Choose what should happen in scenes
+- 规定具体的场景长度
+- 强制执行僵化的模板
+- 要求每个场景后都有续篇（节奏会变化）
+- 选择场景中应该发生什么
 
-## Example Interaction
+## 示例交互
 
-**Writer:** "The middle of my story feels exhausting but also slow somehow."
+**作者：** "我故事的中段感觉既令人疲惫又莫名地缓慢。"
 
-**Your approach:**
-1. Ask: "Walk me through a typical chapter—what happens?"
-2. Check for relentless scenes: "Is there processing time between action sequences?"
-3. Check for scene goals: "In the last scene you wrote, what did the character want?"
-4. Probe disaster quality: "How did that scene end? Did they get what they wanted?"
-5. If clean victories: "That might be draining tension. What 'but' could you add?"
-6. If missing sequels: "Adding even a paragraph of reaction before the next scene helps readers catch up"
+**你的方法：**
+1. 询问："带我过一遍一个典型的章节——发生了什么？"
+2. 检查是否有不间断的场景："动作序列之间有消化的时间吗？"
+3. 检查场景目标："在你写的最后一个场景中，角色想要什么？"
+4. 探查灾难质量："那个场景怎么结束的？他们得到想要的了吗？"
+5. 如果是干净的胜利："那可能在抽干张力。你能加上什么'但是'？"
+6. 如果缺失续篇："即使在下一个场景之前加一段反应也能帮助读者跟上"
 
-## Anti-Patterns
+## 反模式
 
-### 1. The Relentless Scene
-**Pattern:** Pure action with no processing time—scene after scene of conflict without sequel beats.
-**Why it fails:** Reader becomes numb. Without processing time, emotional stakes flatten. Each new disaster hits with diminishing impact. The reader can't catch up.
-**Fix:** Insert sequel beats even in fast-paced stories. Even a paragraph of reaction helps. Compression is fine; elimination exhausts.
+### 1. 不间断的场景
+**模式：** 纯动作没有消化时间——场景接场景的冲突没有续篇节拍。
+**失败原因：** 读者变得麻木。没有消化时间，情感赌注就会变平。每个新灾难的冲击力递减。读者跟不上。
+**修复：** 即使在快节奏的故事中也要插入续篇节拍。即使一段反应也有帮助。压缩是可以的；消除会让人精疲力竭。
 
-### 2. The Wallowing Sequel
-**Pattern:** Pages of introspection without decision—extended internal monologue going in circles.
-**Why it fails:** Reader loses patience. Sequels exist to process and decide, not to wallow. Without forward motion toward decision, introspection becomes self-indulgence.
-**Fix:** Dilemma must lead to decision; decision to action. Time-box sequels. If the character isn't moving toward a choice, compress or cut.
+### 2. 沉溺式续篇
+**模式：** 数页的内省而没有决定——长篇的内心独白在原地转圈。
+**失败原因：** 读者失去耐心。续篇存在是为了消化和决定，而非沉溺。没有朝决定前进的运动，内省就变成了自我放纵。
+**修复：** 困境必须导向决定；决定导向行动。给续篇设定时限。如果角色没有朝选择移动，压缩或删减。
 
-### 3. The Arbitrary Disaster
-**Pattern:** Scene outcome disconnected from scene events—disaster that appears from nowhere to create drama.
-**Why it fails:** Readers sense manipulation. Disaster should be logical consequence of the conflict, not authorial intervention. Unmotivated disaster breaks trust.
-**Fix:** Trace the chain backward. How did scene conflict logically produce this disaster? If you can't answer, the disaster is arbitrary. Rework the conflict to set up the disaster.
+### 3. 随意的灾难
+**模式：** 场景结果与场景事件脱节——灾难凭空出现以制造戏剧性。
+**失败原因：** 读者感觉到操纵。灾难应该是冲突的逻辑后果，而非作者的干预。没有动机的灾难打破信任。
+**修复：** 反向追踪链条。场景冲突如何逻辑地产生了这个灾难？如果你无法回答，灾难就是随意的。重新设计冲突以铺垫灾难。
 
-### 4. The Clean Victory
-**Pattern:** Character achieves goal without complications—scenes ending with simple "yes."
-**Why it fails:** Clean victories drain tension. Each unqualified success makes the next challenge feel less dangerous. Readers stop worrying.
-**Fix:** Add a "but" or "and furthermore." Goal achieved but new problem created. Victory came but cost more than expected. Simple success is rare; complications are normal.
+### 4. 干净的胜利
+**模式：** 角色毫无并发症地达成目标——场景以简单的"是"结束。
+**失败原因：** 干净的胜利抽干张力。每一次无条件的成功都让下一个挑战感觉不那么危险。读者不再担心。
+**修复：** 添加一个"但是"或"而且"。目标达成但新问题产生。胜利到手但代价超出预期。简单的成功是罕见的；并发症才是常态。
 
-### 5. Missing Goal
-**Pattern:** Scene begins without clear character goal—things happen but there's no drive.
-**Why it fails:** Without goal, there's no conflict (nothing to oppose). Without conflict, there's no disaster (nothing to fail). The scene becomes description, not story.
-**Fix:** Establish goal in first paragraph. What does the POV character want in this scene specifically? If you can't answer clearly, the scene lacks direction.
+### 5. 缺失目标
+**模式：** 场景开始时没有清晰的角色目标——事情发生了但没有驱动力。
+**失败原因：** 没有目标，就没有冲突（没有什么可以对抗的）。没有冲突，就没有灾难（没有什么可以失败的）。场景变成了描写，而非故事。
+**修复：** 在第一段建立目标。视角角色在这个场景中具体想要什么？如果你无法清楚地回答，场景就缺少方向。
 
-## Available Tools
+## 可用工具
 
 ### analyze_scene.py
-Analyzes scene text for structure elements. Use when you need quick diagnostic on a specific scene.
+分析场景文本的结构元素。当你需要对特定场景进行快速诊断时使用。
 
 
 > **路径提示**: 脚本位于 `skills/structure/scene-sequencing/scripts/` 目录下。
@@ -191,77 +191,77 @@ python skills/structure/scene-sequencing/scripts/analyze_scene.py --text "She ne
 python skills/structure/scene-sequencing/scripts/analyze_scene.py scene.txt --json
 ```
 
-**What it detects:**
-- Goal indicators (want, need, trying to)
-- Conflict indicators (but, blocked, obstacle)
-- Disaster indicators (failed, worse, trapped)
-- Reaction indicators (felt, emotion, shock)
-- Dilemma indicators (choice, either, what if)
-- Decision indicators (decided, will, plan)
+**检测内容：**
+- 目标指标（want, need, trying to）
+- 冲突指标（but, blocked, obstacle）
+- 灾难指标（failed, worse, trapped）
+- 反应指标（felt, emotion, shock）
+- 困境指标（choice, either, what if）
+- 决定指标（decided, will, plan）
 
-**Output includes:**
-- Scene/sequel ratio assessment
-- Pacing classification (action-heavy, balanced, reflective)
-- Missing element warnings
-- Specific recommendations
+**输出包含：**
+- 场景/续篇比例评估
+- 节奏分类（动作密集、平衡、沉思性）
+- 缺失元素警告
+- 具体建议
 
-**When to use:**
-- Quick diagnostic on a draft scene
-- Identifying why a scene feels off
-- Checking pacing across multiple scenes
-- Getting specific recommendations before deeper analysis
+**何时使用：**
+- 对草稿场景进行快速诊断
+- 识别为什么一个场景感觉不对
+- 检查多个场景的节奏
+- 在更深入分析之前获得具体建议
 
-## Output Persistence
+## 输出持久化
 
-This skill writes primary output to files so work persists across sessions.
+本技能将主要输出写入文件，以便工作跨会话持续保存。
 
-### Output Discovery
+### 输出发现
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/scene-sequencing/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果找到，使用本技能对应的输出路径条目
+3. 如果未找到，**使用默认路径 `explorations/scene-sequencing/`** 并立即开始核心工作
+4. 在回应结尾简要提及输出位置——不要因为询问用户而阻塞
 
-### Primary Output
+### 主要输出
 
-For this skill, persist:
-- **Pacing diagnosis** - scene/sequel balance, rhythm issues
-- **Scene analysis** - goal, conflict, disaster for each scene
-- **Sequel analysis** - reaction, dilemma, decision elements
-- **Recommendations** - specific interventions for pacing issues
+本技能需要持久化：
+- **节奏诊断** - 场景/续篇平衡、节奏问题
+- **场景分析** - 每个场景的目标、冲突、灾难
+- **续篇分析** - 反应、困境、决定元素
+- **建议** - 针对节奏问题的具体干预
 
-### Conversation vs. File
+### 对话 vs. 文件
 
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Scene-by-scene breakdown | Discussion of specific scenes |
-| Pacing diagnosis | Clarifying questions |
-| Recommended interventions | Writer's structural decisions |
-| Scene/sequel ratio assessment | Real-time feedback |
+| 写入文件 | 留在对话中 |
+|----------|-----------|
+| 逐场景拆解 | 特定场景的讨论 |
+| 节奏诊断 | 澄清性问题 |
+| 建议的干预 | 作者的结构决定 |
+| 场景/续篇比例评估 | 实时反馈 |
 
-### File Naming
+### 文件命名
 
-Pattern: `{story}-pacing-{date}.md`
-Example: `novel-chapter5-pacing-2025-01-15.md`
+模式：`{story}-pacing-{date}.md`
+示例：`novel-chapter5-pacing-2025-01-15.md`
 
-## Integration
+## 集成
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| story-sense | Diagnosis that pacing is the problem area |
-| key-moments | Emotional beats that need scene structure |
-| outline-collaborator | Scene-level structure to analyze for pacing |
+### 入站（输入到本技能）
+| 技能 | 提供的内容 |
+|------|-----------|
+| story-sense | 诊断节奏是问题所在 |
+| key-moments | 需要场景结构的情感节拍 |
+| outline-collaborator | 用于分析节奏的场景级结构 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| drafting | Properly paced scenes ready for prose generation |
-| story-collaborator | Scene structures to generate prose within |
-| revision | Pacing diagnosis for revision passes |
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|----------------|
+| drafting | 节奏恰当的场景准备好进行散文生成 |
+| story-collaborator | 用于在其中生成散文的场景结构 |
+| revision | 用于修订轮次的节奏诊断 |
 
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| key-moments | Key-moments identifies what emotional beats matter; scene-sequencing structures how to deliver them |
-| dialogue | Scene-sequencing handles scene-level structure; dialogue operates within scenes at the exchange level |
+### 互补
+| 技能 | 关系 |
+|------|------|
+| key-moments | key-moments 识别哪些情感节拍重要；scene-sequencing 构建如何传递它们 |
+| dialogue | scene-sequencing 处理场景级结构；dialogue 在场景内的交流级别运作 |

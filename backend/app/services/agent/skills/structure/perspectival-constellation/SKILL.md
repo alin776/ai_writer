@@ -1,6 +1,6 @@
 ---
 name: perspectival-constellation
-description: Structure multi-POV stories through catalyst environments. Use when building interconnected narratives, when perspectives need meaningful intersection, or when a shared setting needs to generate distinct storylines.
+description: 通过催化环境构建多视角故事。适用于构建相互关联的叙事、当各视角需要有意义的交叉时，或当一个共享场景需要生成不同的故事线时。
 license: MIT
 metadata:
   author: jwynia
@@ -11,374 +11,374 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Perspectival Constellation: Multi-POV Narrative Skill
+# 视角星图：多视角叙事技能
 
-You help writers create multi-perspective stories where a shared catalyst environment generates genuinely distinct but interconnected narratives. The key insight is that the setting itself must function as a transformation pressure that forces characters into heightened states.
+你帮助作者创建多视角故事，在这些故事中，一个共享的催化环境生成真正不同但相互关联的叙事。关键洞察在于：场景本身必须作为一种转变压力发挥作用，迫使角色进入高度紧张的状态。
 
-## Core Principle
+## 核心原则
 
-**The shared thread (place, event, institution, moment) must function as a catalyst environment that creates conditions where people are forced into states of change, vulnerability, or heightened stakes.**
+**共享线索（地点、事件、机构、时刻）必须作为催化环境发挥作用，创造出迫使人们进入变化、脆弱或高赌注状态的条件。**
 
-This generates enough narrative potential density to sustain multiple distinct storylines that remain authentically connected.
+这会产生足够的叙事潜力密度，以维持多条真正不同却保持真实关联的故事线。
 
-## Catalyst Environment Requirements
+## 催化环境要求
 
-### Transformation Pressure Generators
+### 转变压力生成器
 
-Effective catalysts create:
-- **Forced intimacy** between strangers or unlikely combinations
-- **Consequential stakes** where choices have real impact
-- **Temporal intensity** that compresses normal social rhythms
-- **Mask-dropping conditions** where pretense becomes impossible
+有效的催化剂创造：
+- **被迫的亲密** 陌生人或不太可能的组合之间的亲密
+- **有后果的赌注** 选择会产生真实影响
+- **时间上的强度** 压缩正常的社交节奏
+- **卸下面具的条件** 伪装变得不可能
 
-### Structural Requirements
+### 结构要求
 
-- **High throughput**: Enough people cycling through to generate multiple perspectives
-- **Diverse entry points**: Different types of people arrive via different paths
-- **Variable exposure time**: Some stay briefly, others have extended engagement
-- **Asymmetric power dynamics**: Different characters have different levels of agency/knowledge
+- **高吞吐量**：足够多的人循环通过以产生多个视角
+- **多样的入口**：不同类型的人通过不同路径到达
+- **可变的暴露时间**：有些人短暂停留，有些人长期参与
+- **不对称的权力动态**：不同角色拥有不同程度的主动权/信息
 
-## Catalyst Environment Categories
+## 催化环境类别
 
-### Liminal Spaces
+### 阈限空间
 
-**Geographic Liminality**:
-- Border crossings, transit hubs, highway stops
-- International airports, train stations, bus terminals
-- Hotels in transitional neighborhoods
-- 24-hour establishments (diners, laundromats, gas stations)
+**地理阈限性**：
+- 边境口岸、交通枢纽、公路站点
+- 国际机场、火车站、长途汽车站
+- 过渡街区的酒店
+- 24小时营业场所（餐厅、自助洗衣店、加油站）
 
-**Temporal Liminality**:
-- Night shifts, weekend emergencies, holiday coverage
-- Seasonal work environments (harvest crews, tax season, holiday retail)
-- Countdown situations (New Year's Eve, launch sequences, closing days)
+**时间阈限性**：
+- 夜班、周末紧急情况、假日值班
+- 季节性工作环境（收割队伍、报税季、假日零售）
+- 倒计时场景（跨年夜、发射倒计时、最后营业日）
 
-**Social Liminality**:
-- Waiting rooms for life-changing appointments
-- Jury duty assembly rooms
-- Immigration/citizenship processing centers
-- Witness protection safe houses
+**社会阈限性**：
+- 等待改变人生之预约的候诊室
+- 陪审团义务集合室
+- 移民/公民身份处理中心
+- 证人保护安全屋
 
-### High-Stakes Institutions
+### 高赌注机构
 
-**Life/Death Proximity**:
-- Emergency rooms, trauma centers, intensive care units
-- Military deployment staging areas
-- Disaster response command centers
-- Crisis intervention hotlines
+**生死临近**：
+- 急诊室、创伤中心、重症监护病房
+- 军事部署集结区
+- 灾害应急指挥中心
+- 危机干预热线
 
-**Identity Transformation Points**:
-- Gender clinics, name change offices
-- Adoption agencies, custody hearings
-- Religious conversion centers
-- Witness protection intake
+**身份转变节点**：
+- 性别诊所、改名办公室
+- 收养机构、监护权听证会
+- 宗教皈依中心
+- 证人保护接收处
 
-**Economic Survival Pressure**:
-- Unemployment offices, job fairs
-- Eviction courts, bankruptcy hearings
-- Auction houses, foreclosure sales
-- Last-chance interview locations
+**经济生存压力**：
+- 失业办公室、招聘会
+- 驱逐法庭、破产听证会
+- 拍卖行、止赎拍卖
+- 最后机会的面试场所
 
-### Pressure Cooker Environments
+### 压力锅环境
 
-**Forced Proximity Systems**:
-- Jury sequestration, disaster shelters
-- Long-haul flights, multi-day train journeys
-- Quarantine facilities, treatment centers
-- Competition elimination rounds
+**强制近距离系统**：
+- 陪审团隔离、灾害避难所
+- 长途飞行、多日火车旅行
+- 隔离设施、治疗中心
+- 淘汰赛轮次
 
-**Professional Mask-Slip Zones**:
-- Teacher lounges during crisis periods
-- Clergy emergency response situations
-- Corporate layoff announcement meetings
-- Medical resident call rooms
+**职业面具滑落区**：
+- 危机时期的教师休息室
+- 神职人员紧急应对场景
+- 企业裁员通知会议
+- 住院医师值班室
 
-## Structural Templates
+## 结构模板
 
-### The Iceberg Model
+### 冰山模型
 
-- Visible story represents small fraction of total narrative network
-- Each perspective reveals more of hidden structure
-- Deep interconnections exist below surface awareness
-- Multiple layers of causation and consequence
+- 可见的故事只代表整个叙事网络的一小部分
+- 每个视角揭示更多隐藏的结构
+- 深层的相互关联存在于表面意识之下
+- 多层次的因果关系
 
-### The Prism Structure
+### 棱镜结构
 
-- Central incident/location acts as refractive element
-- Each perspective creates different genre, tone, emotional texture
-- Same "facts" become completely different stories
-- Reader/audience must synthesize fragmented truths
+- 中心事件/地点充当折射元素
+- 每个视角创造不同的类型、语调、情感质地
+- 相同的"事实"变成完全不同的故事
+- 读者/观众必须综合碎片化的真相
 
-### The Archaeological Framework
+### 考古学框架
 
-- Each new perspective functions as new stratum of understanding
-- Earlier perspectives get recontextualized, not just supplemented
-- Fundamental assumptions shift with each revelation
-- Truth emerges through accumulation and contradiction
+- 每个新视角如同新的理解地层
+- 早先的视角被重新语境化，而非仅被补充
+- 基本假设随着每次揭示而发生转变
+- 真相通过积累和矛盾浮现
 
-## Narrative Mechanics
-
-### Temporal Relationship Patterns
+## 叙事机制
+
+### 时间关系模式
 
-**Simultaneous Perspectives**:
-- Same moment, different vantage points
-- Overlapping timeframes with different focal characters
-- Parallel experiences of shared events
-
-**Sequential Handoffs**:
-- Chronological baton-passing between characters
-- Cause-and-effect chains across perspectives
-- Ripple effect progressions
-
-**Recursive Revelations**:
-- Each new perspective recontextualizes previous ones
-- Archaeological layering of understanding
-- Prism effects where the same incident refracts into completely different genres
-
-### Information Distribution
-
-**Awareness Gradients**:
-- Complete obliviousness between storylines
-- Peripheral awareness of ripple effects
-- Active seeking to understand larger patterns
-- Meta-awareness of being part of something bigger
-
-**Knowledge Asymmetries**:
-- Professional vs. personal information gaps
-- Historical context available to some but not others
-- Institutional knowledge vs. outsider perspectives
-- Cultural/linguistic barriers to understanding
-
-## Evaluation Criteria
-
-### Catalyst Environment Assessment
-
-**Transformation Pressure Check**:
-- Does this space/situation force people out of normal patterns?
-- Are the stakes high enough to justify intense character revelation?
-- Does it create conditions where masks naturally drop?
-
-**Narrative Sustainability Test**:
-- Can this environment generate 3+ genuinely distinct storylines?
-- Do the intersections feel organic rather than forced?
-- Is there enough complexity to avoid repetitive character types?
-
-**Diversity Potential Analysis**:
-- What range of people would realistically encounter this environment?
-- How many different entry paths and motivations exist?
-- Are there sufficient asymmetries in power, knowledge, and stakes?
-
-### Perspective Quality Standards
-
-**Individual Story Integrity**:
-- Does each perspective work as a standalone narrative?
-- Are the character motivations and conflicts authentic to their situation?
-- Does their story have genuine beginning, middle, end structure?
-
-**Interconnection Authenticity**:
-- Do the connections feel natural rather than contrived?
-- Are the intersection points meaningful to each character's journey?
-- Does each perspective genuinely alter understanding of others?
-
-## Generation Process
-
-### Step 1: Catalyst Selection
-
-Use the Pressure Point Mapping method:
-1. Identify moments/places where normal social rules break down
-2. Find spaces where people are between their usual identities
-3. Locate where systems create human pressure points
-4. Identify time-compressed decision/revelation moments
-
-### Step 2: Character Constellation Development
-
-1. **Access Path Diversification**: Map different routes people take to encounter the catalyst
-2. **Stakes Variation Matrix**: Ensure different types and levels of consequences across perspectives
-3. **Knowledge Distribution Mapping**: Create asymmetries in what each character knows/understands
-4. **Emotional Spectrum Coverage**: Ensure wide range of emotional experiences and processing styles
-
-### Step 3: Structural Planning
-
-1. **Intersection Point Identification**: Map where/how storylines naturally cross
-2. **Revelation Sequence Design**: Plan how each new perspective recontextualizes previous ones
-3. **Thematic Thread Weaving**: Ensure themes develop differently but coherently across perspectives
-4. **Resolution Balance Planning**: Design how individual and collective story arcs complete
+**同时视角**：
+- 同一时刻，不同的观察点
+- 重叠的时间框架，不同的焦点角色
+- 共享事件的平行体验
+
+**顺序交接**：
+- 角色之间的按时间序列接力
+- 跨视角的因果链
+- 涟漪效应的递进
+
+**递归揭示**：
+- 每个新视角重新语境化之前的视角
+- 考古式的理解叠层
+- 棱镜效应——同一事件折射成完全不同的类型
+
+### 信息分配
+
+**意识梯度**：
+- 故事线之间完全不知情
+- 对涟漪效应的边缘感知
+- 主动寻求理解更大的格局
+- 意识到自己是更大事物的一部分
+
+**知识不对称**：
+- 职业信息 vs. 个人信息的差距
+- 历史背景对某些人可用，对其他人不可用
+- 机构内部知识 vs. 局外人视角
+- 文化/语言障碍导致的理解困难
+
+## 评估标准
+
+### 催化环境评估
+
+**转变压力检查**：
+- 这个空间/场景是否迫使人们偏离正常模式？
+- 赌注是否足够高以支撑强烈的角色揭示？
+- 它是否创造了面具自然脱落的条件？
+
+**叙事可持续性测试**：
+- 这个环境能否生成3条以上真正不同的故事线？
+- 交叉点是否感觉自然而非强制？
+- 是否有足够的复杂度以避免重复的角色类型？
+
+**多样性潜力分析**：
+- 什么范围的人会真实地遭遇这个环境？
+- 存在多少不同的进入路径和动机？
+- 在权力、知识和赌注方面是否有足够的不对称？
+
+### 视角质量标准
+
+**个体故事完整性**：
+- 每个视角是否能作为独立叙事运作？
+- 角色动机和冲突是否真实于其处境？
+- 他们的故事是否有真正的开头、中段、结尾结构？
+
+**互联真实性**：
+- 连接是否感觉自然而非刻意？
+- 交叉点对每个角色的旅程是否有意义？
+- 每个视角是否真正改变了对其他视角的理解？
+
+## 生成流程
+
+### 第一步：催化剂选择
+
+使用压力点映射方法：
+1. 识别正常社会规则崩溃的时刻/地点
+2. 找到人们处于通常身份之间的空间
+3. 定位系统在何处制造人性压力点
+4. 识别时间压缩的决定/揭示时刻
+
+### 第二步：角色星图开发
+
+1. **入口路径多样化**：映射人们遭遇催化剂的不同路线
+2. **赌注变异矩阵**：确保各视角之间有不同类型和程度的后果
+3. **知识分配映射**：在每个角色知道/理解的内容中创造不对称
+4. **情感光谱覆盖**：确保涵盖广泛的情感体验和处理方式
+
+### 第三步：结构规划
+
+1. **交叉点识别**：映射故事线在何处/如何自然交叉
+2. **揭示序列设计**：规划每个新视角如何重新语境化之前的视角
+3. **主题线索编织**：确保主题在各视角中以不同但连贯的方式发展
+4. **结局平衡规划**：设计个人和集体故事弧线如何完成
 
-## Application Examples
-
-### Route 66 Late-Night Diner
-- **Catalyst Elements**: Geographic transition point, temporal liminality (night), social anonymity with forced proximity
-- **Character Types**: Long-haul truckers, runaway teenagers, night-shift workers, traveling salespeople, locals with insomnia
-- **Transformation Pressures**: Travel fatigue breaking down social barriers, darkness enabling confession, transient encounters reducing consequences
-- **Interconnection Points**: Shared meals, overheard conversations, brief partnerships, witnessed moments
+## 应用示例
+
+### 66号公路深夜餐厅
+- **催化元素**：地理过渡点、时间阈限性（夜晚）、社交匿名与被迫近距离
+- **角色类型**：长途卡车司机、离家出走的青少年、夜班工人、旅行推销员、失眠的当地人
+- **转变压力**：旅途疲劳打破社交屏障、黑暗促成倾诉、短暂相遇降低后果感
+- **互联点**：共同用餐、无意中听到的对话、短暂的搭伙、被见证的瞬间
 
-### Hospital Emergency Department During Crisis
-- **Catalyst Elements**: Life/death stakes, institutional pressure, professional/personal boundary collapse
-- **Character Types**: Trauma patients, family members, medical staff, support personnel, administrators
-- **Transformation Pressures**: Medical emergency urgency, institutional strain revealing character, professional competence under extreme pressure
-- **Interconnection Points**: Shared resources, cascading medical decisions, emotional contagion, professional hierarchy tensions
-
-### Immigration Processing Center
-- **Catalyst Elements**: Identity transformation point, bureaucratic pressure, cultural/linguistic barriers
-- **Character Types**: Applicants from various countries, processing officers, translators, legal advocates, family members
-- **Transformation Pressures**: Life-changing document decisions, cultural code-switching, power asymmetries, language barriers creating vulnerability
-- **Interconnection Points**: Shared waiting experiences, translation needs, bureaucratic bottlenecks, parallel anxiety
-
-## Output Persistence
-
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/perspectival-constellation/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-- **Catalyst environment** - Setting with transformation pressure
-- **Character constellation** - POVs with access paths and stakes
-- **Structural template** - Iceberg, prism, or archaeological
-- **Intersection map** - Where/how storylines cross
-
-### File Naming
-Pattern: `{story-name}-constellation-{date}.md`
-
-## Verification (Oracle)
-
-### What This Skill Can Verify
-- **Transformation pressure** - Does catalyst force heightened states? (High confidence)
-- **Perspective diversity** - Are access paths and stakes varied? (High confidence)
-- **Intersection organic** - Do connections follow from structure? (Medium confidence)
-
-### What Requires Human Judgment
-- **Narrative weight** - Which perspectives deserve most space?
-- **Revelation sequence** - Optimal order for reader discovery?
-- **Catalyst authenticity** - Does setting feel real?
-
-### Oracle Limitations
-- Cannot assess whether perspectives will feel compelling
-- Cannot predict reader synthesis of fragmented truths
-
-## Feedback Loop
-
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Catalyst, constellation, template, intersections
-- **Naming pattern:** `{story-name}-constellation-{date}.md`
-
-### Cross-Session Learning
-- Check for prior constellation designs
-- Ensure catalyst environments don't repeat
-- Failed perspective integrations inform anti-patterns
-
-## Design Constraints
-
-### This Skill Assumes
-- Story benefits from multiple perspectives
-- A shared element connects the perspectives
-- Perspectives genuinely differ (not just relocated camera)
-
-### This Skill Does Not Handle
-- **Single-POV stories** - Route to: scene-sequencing
-- **Physical setting design** - Route to: settlement-design
-- **Individual character arcs** - Route to: character-arc
-
-### Degradation Signals
-- Forced intersections (contrived meetings)
-- Low-pressure catalyst (no transformation)
-- Equal weight assumption (all POVs same length)
-
-## Reasoning Requirements
-
-### Standard Reasoning
-- Single perspective design
-- Basic catalyst selection
-- Simple intersection mapping
-
-### Extended Reasoning (ultrathink)
-- **Full constellation design** - [Why: all perspectives must interconnect]
-- **Revelation sequence optimization** - [Why: order affects reader experience]
-- **Information asymmetry mapping** - [Why: who knows what creates tension]
-
-**Trigger phrases:** "design the complete constellation", "optimize revelation order", "map all intersections"
-
-## Execution Strategy
-
-### Sequential (Default)
-- Catalyst selection before constellation
-- Constellation before structural template
-- Template before intersection mapping
-
-### Parallelizable
-- Designing multiple perspectives
-- Research into different catalyst environments
-
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Setting research | general-purpose | When modeling catalyst on real environments |
-| Character development | general-purpose | When deepening individual perspectives |
-
-## Context Management
-
-### Approximate Token Footprint
-- **Skill base:** ~3.5k tokens (catalysts + templates + mechanics)
-- **With examples:** ~4.5k tokens
-- **With evaluation criteria:** ~5k tokens
-
-### Context Optimization
-- Focus on relevant catalyst category and template
-- Examples are reference, not required
-- Evaluation criteria optional
-
-### When Context Gets Tight
-- Prioritize: Current catalyst, active perspectives
-- Defer: Full catalyst catalog, all templates
-- Drop: Application examples, evaluation criteria
-
-## Anti-Patterns
-
-### 1. Forced Intersection
-**Pattern:** Characters meet or affect each other in ways that don't follow logically from the catalyst environment's structure.
-**Why it fails:** The power of perspectival constellation is that connections feel structurally inevitable. When intersections are contrived, readers sense authorial manipulation rather than organic collision.
-**Fix:** Map how the catalyst environment naturally creates interaction opportunities. Who would share waiting rooms? Who processes whose paperwork? Let structural logic, not plot convenience, drive connection.
-
-### 2. Equal Weight Assumption
-**Pattern:** Treating all perspectives as equally important, giving each the same space and emphasis.
-**Why it fails:** Not all positions in a catalyst environment have equal narrative potential. Forcing equality creates filler perspectives or stretches thin material. Some characters are full novels; others are short stories.
-**Fix:** Let perspectives earn their weight through the transformation pressure they experience. A nurse during a crisis might carry more narrative potential than a visitor. Match space to story density.
-
-### 3. Omniscient Fog
-**Pattern:** Characters knowing more or less than their position would allow—either mysteriously informed or artificially ignorant.
-**Why it fails:** Information asymmetry is where multi-POV drama lives. When characters have convenient knowledge or ignorance, the perspective structure feels arbitrary rather than illuminating.
-**Fix:** Map what each position would actually know. The receptionist hears fragments; the doctor sees records; the patient knows their own pain. Authentic asymmetry creates discovery through perspective shift.
-
-### 4. Plot-Only Connections
-**Pattern:** Perspectives intersect only to advance plot mechanics—passing information, providing assistance, creating obstacles.
-**Why it fails:** The best perspective connections should matter to both characters independently. When one character exists only to serve another's plot, that perspective feels hollow.
-**Fix:** Ensure intersections are meaningful to all perspectives involved. The brief encounter that's a turning point for one character might be just background for another, but both should have their own stake in the moment.
-
-### 5. Low-Pressure Catalysts
-**Pattern:** Choosing settings that gather people together but don't force them into heightened states—pleasant cafes, ordinary workplaces, casual gatherings.
-**Why it fails:** Without transformation pressure, perspectives become slice-of-life snapshots rather than revelatory windows. The catalyst must force masks to drop and stakes to matter.
-**Fix:** Apply the transformation pressure test. Does this environment force people out of their normal patterns? If everyone could walk away unchanged, the catalyst is too weak.
-
-## Integration
-
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| statistical-distance | Characters at statistical edge rather than center |
-| positional-revelation | How positions create structural access and involvement |
-| settlement-design | Physical environments where perspectives can intersect |
-
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| scene-sequencing | Structure for multi-thread narrative pacing |
-| dialogue | Distinct voices for each perspective |
-| endings | Resolution patterns for interconnected story threads |
-
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| positional-revelation | Perspectival-constellation uses shared environments; positional-revelation creates individual structural access. Use together for multi-POV stories with structurally-inevitable involvement |
-| statistical-distance | Both push against default character types—apply statistical-distance to each perspective to avoid stock types gathering in your catalyst environment |
+### 危机期间的医院急诊科
+- **催化元素**：生死赌注、机构压力、职业/个人边界崩塌
+- **角色类型**：创伤患者、家属、医务人员、后勤人员、管理者
+- **转变压力**：医疗紧急状况的急迫性、机构压力下暴露的人性、极端压力下的专业能力
+- **互联点**：共享资源、连锁医疗决策、情绪传染、专业等级紧张
+
+### 移民处理中心
+- **催化元素**：身份转变节点、官僚压力、文化/语言障碍
+- **角色类型**：来自不同国家的申请人、审批官员、翻译、法律援助者、家属
+- **转变压力**：改变人生的文件决定、文化编码切换、权力不对称、语言障碍导致的脆弱性
+- **互联点**：共享的等待体验、翻译需求、官僚瓶颈、平行的焦虑
+
+## 输出持久化
+
+### 输出发现
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果找到，使用本技能对应的输出路径条目
+3. 如果未找到，**使用默认路径 `explorations/perspectival-constellation/`** 并立即开始核心工作
+4. 在回应结尾简要提及输出位置——不要因为询问用户而阻塞
+
+### 主要输出
+- **催化环境** - 具有转变压力的场景
+- **角色星图** - 各视角的入口路径和赌注
+- **结构模板** - 冰山、棱镜或考古学
+- **交叉图** - 故事线在何处/如何交叉
+
+### 文件命名
+模式：`{story-name}-constellation-{date}.md`
+
+## 验证（预言机）
+
+### 本技能可验证的内容
+- **转变压力** - 催化剂是否迫使进入高度紧张状态？（高置信度）
+- **视角多样性** - 入口路径和赌注是否多样化？（高置信度）
+- **交叉有机性** - 连接是否源于结构？（中等置信度）
+
+### 需要人类判断的内容
+- **叙事权重** - 哪些视角值得最多的篇幅？
+- **揭示序列** - 读者发现的最佳顺序？
+- **催化剂真实性** - 场景是否感觉真实？
+
+### 预言机的局限
+- 无法评估各视角是否会令人感到引人入胜
+- 无法预测读者对碎片化真相的综合
+
+## 反馈循环
+
+### 会话持久化
+- **输出位置：** 参见 `context/output-config.md`
+- **保存内容：** 催化剂、星图、模板、交叉点
+- **命名模式：** `{story-name}-constellation-{date}.md`
+
+### 跨会话学习
+- 检查之前的星图设计
+- 确保催化环境不重复
+- 失败的视角整合为反模式提供参考
+
+## 设计约束
+
+### 本技能假设
+- 故事受益于多视角
+- 一个共享元素连接各视角
+- 各视角确实不同（不仅仅是移动了摄影机位置）
+
+### 本技能不处理
+- **单视角故事** - 路由到：scene-sequencing
+- **物理场景设计** - 路由到：settlement-design
+- **个别角色弧线** - 路由到：character-arc
+
+### 退化信号
+- 强制交叉（刻意安排的相遇）
+- 低压催化剂（没有转变）
+- 等权重假设（所有视角相同篇幅）
+
+## 推理要求
+
+### 标准推理
+- 单一视角设计
+- 基本催化剂选择
+- 简单交叉映射
+
+### 扩展推理（ultrathink）
+- **完整星图设计** - [原因：所有视角必须互相关联]
+- **揭示序列优化** - [原因：顺序影响读者体验]
+- **信息不对称映射** - [原因：谁知道什么创造张力]
+
+**触发短语：** "design the complete constellation"、"optimize revelation order"、"map all intersections"
+
+## 执行策略
+
+### 顺序执行（默认）
+- 先选择催化剂，再设计星图
+- 先设计星图，再选择结构模板
+- 先选择模板，再映射交叉点
+
+### 可并行化
+- 设计多个视角
+- 研究不同的催化环境
+
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|---------|---------|
+| 场景研究 | general-purpose | 当基于真实环境建模催化剂时 |
+| 角色开发 | general-purpose | 当深化个别视角时 |
+
+## 上下文管理
+
+### 近似 Token 占用
+- **技能基础：** ~3.5k tokens（催化剂 + 模板 + 机制）
+- **含示例：** ~4.5k tokens
+- **含评估标准：** ~5k tokens
+
+### 上下文优化
+- 聚焦于相关的催化剂类别和模板
+- 示例仅供参考，非必需
+- 评估标准为可选
+
+### 当上下文变紧时
+- 优先：当前催化剂、活跃的视角
+- 延后：完整催化剂目录、所有模板
+- 丢弃：应用示例、评估标准
+
+## 反模式
+
+### 1. 强制交叉
+**模式：** 角色以不符合催化环境结构逻辑的方式相遇或相互影响。
+**失败原因：** 视角星图的力量在于连接感觉是结构上不可避免的。当交叉是刻意安排的，读者会感觉到作者的操纵，而非有机的碰撞。
+**修复：** 映射催化环境如何自然地创造互动机会。谁会共享候诊室？谁处理谁的文书工作？让结构逻辑，而非情节便利，驱动连接。
+
+### 2. 等权重假设
+**模式：** 将所有视角视为同等重要，给予每个相同的篇幅和强调。
+**失败原因：** 并非催化环境中的所有位置都具有相等的叙事潜力。强制平等会产生填充性视角或拉伸薄弱的材料。有些角色是一整部小说；有些是一个短篇。
+**修复：** 让视角通过其经历的转变压力来赢得自己的权重。危机中的护士可能比访客承载更多的叙事潜力。让篇幅匹配故事密度。
+
+### 3. 全知迷雾
+**模式：** 角色知道的比其位置允许的更多或更少——要么神秘地消息灵通，要么人为地无知。
+**失败原因：** 信息不对称是多视角戏剧的命脉所在。当角色拥有方便的知识或无知时，视角结构感觉是随意的而非启发性的。
+**修复：** 映射每个位置实际上会知道什么。接待员听到片段；医生看到记录；患者知道自己的痛苦。真实的不对称通过视角转换创造发现。
+
+### 4. 仅限情节的连接
+**模式：** 各视角的交叉仅仅是为了推进情节机制——传递信息、提供帮助、制造障碍。
+**失败原因：** 最好的视角连接应该对双方角色都独立重要。当一个角色的存在仅仅是为了服务另一个角色的情节时，那个视角就感觉空洞。
+**修复：** 确保交叉对所有涉及的视角都有意义。对一个角色来说是转折点的短暂相遇，对另一个来说可能只是背景，但双方都应该在那一刻有自己的利害关系。
+
+### 5. 低压催化剂
+**模式：** 选择将人们聚集在一起但不会迫使他们进入高度紧张状态的场景——舒适的咖啡馆、普通的工作场所、随意的聚会。
+**失败原因：** 没有转变压力，视角就变成了生活片段的快照，而非揭示性的窗口。催化剂必须迫使面具脱落、赌注变得重要。
+**修复：** 应用转变压力测试。这个环境是否迫使人们偏离正常模式？如果每个人都可以毫无改变地离开，那催化剂就太弱了。
+
+## 集成
+
+### 入站（输入到本技能）
+| 技能 | 提供的内容 |
+|------|-----------|
+| statistical-distance | 处于统计边缘而非中心的角色 |
+| positional-revelation | 位置如何创造结构性的接触和参与 |
+| settlement-design | 视角可以交叉的物理环境 |
+
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|----------------|
+| scene-sequencing | 多线叙事节奏的结构 |
+| dialogue | 每个视角的独特声音 |
+| endings | 互联故事线的结局模式 |
+
+### 互补
+| 技能 | 关系 |
+|------|------|
+| positional-revelation | perspectival-constellation 使用共享环境；positional-revelation 创造个体的结构性接触。在多视角故事中配合使用以实现结构上不可避免的参与 |
+| statistical-distance | 两者都对抗默认角色类型——对每个视角应用 statistical-distance 以避免在催化环境中聚集刻板类型 |

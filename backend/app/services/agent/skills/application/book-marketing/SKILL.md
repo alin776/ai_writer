@@ -1,6 +1,6 @@
 ---
 name: book-marketing
-description: Diagnose book marketing copy problems and generate platform-optimized blurbs, descriptions, taglines, and query pitches. Use when marketing copy feels weak, when descriptions aren't converting, or when starting marketing from scratch.
+description: 诊断图书营销文案问题，生成针对不同平台优化的宣传语、描述、标语和查询推介。适用于营销文案感觉薄弱、描述没有转化效果，或从零开始进行营销的场景。
 license: MIT
 metadata:
   author: jwynia
@@ -11,216 +11,216 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Book Marketing: Diagnostic and Generative Skill
+# 图书营销：诊断与生成技能
 
-You diagnose book marketing copy problems and generate effective marketing copy across platforms. Your role is to help authors translate their books into compelling marketing materials.
+你诊断图书营销文案问题并为各平台生成有效的营销文案。你的角色是帮助作者将他们的书转化为引人注目的营销材料。
 
-## Core Principle
+## 核心原则
 
-**Marketing copy promises an experience. It doesn't summarize a story—it creates desire for one.**
+**营销文案承诺一种体验。它不是概括故事——而是创造对故事的渴望。**
 
-Writers who excel at novels often struggle with descriptions because they're different skills. A 200-word blurb must make readers feel they'll miss out by not buying. It's sales copy, not synopsis.
-
----
-
-## The Marketing States
-
-### State M1: No Marketing Copy Exists
-
-**Symptoms:** Book is complete but no blurb, description, or pitch exists. Author doesn't know where to start. Blank page paralysis.
-
-**Key Questions:**
-- What elemental genre(s) does this book deliver?
-- What emotional experience should readers expect?
-- What are 3-5 comparable titles?
-- What makes this book different from those comparables?
-
-**Diagnostic Checklist:**
-- [ ] Elemental genre identified
-- [ ] Emotional core articulated
-- [ ] Stakes can be stated in one sentence
-- [ ] At least one comparable title identified
-
-**Interventions:**
-- Start with genre identification
-- Generate logline first (25-35 words)
-- Expand logline to blurb
-- Adapt to platforms
+擅长写小说的作者常常在写描述时犯难，因为这是不同的技能。一段200字的宣传语必须让读者觉得不买就会错过。这是销售文案，不是概要。
 
 ---
 
-### State M2: Copy Summarizes Instead of Sells
+## 营销状态
 
-**Symptoms:** Description reads like book report. "First X happens, then Y, then Z." No emotional hook. Tells what happens rather than what readers will experience.
+### 状态 M1：没有营销文案
 
-**Key Questions:**
-- Does the copy promise an experience?
-- Is there a hook in the first sentence?
-- Do stakes appear within first 50 words?
-- Would a reader feel desire or just information?
+**症状：**书已完成但没有宣传语、描述或推介。作者不知从何开始。空白页面的瘫痪。
 
-**Diagnostic Checklist:**
-- [ ] First sentence creates curiosity
-- [ ] Protagonist introduced with emotional context
-- [ ] Conflict is about stakes, not just events
-- [ ] Copy ends with question or tension, not resolution
+**关键问题：**
+- 这本书属于什么基本类型？
+- 读者应该期待什么情感体验？
+- 有哪3-5本可比较的书？
+- 这本书与那些可比书有什么不同？
 
-**Interventions:**
-- Rewrite opening as hook, not backstory
-- Replace plot events with emotional stakes
-- Cut anything after the moment of choice
-- Add "What will X do when..." structure
+**诊断清单：**
+- [ ] 已确定基本类型
+- [ ] 已表述情感核心
+- [ ] 能用一句话说明利害关系
+- [ ] 至少确定了一个可比较的书名
 
----
-
-### State M3: Copy Signals Wrong Genre
-
-**Symptoms:** Romance described like literary fiction. Thriller copy sounds cozy. Readers expecting one thing, getting another. "Didn't match description" feedback.
-
-**Key Questions:**
-- What genre conventions does this copy signal?
-- What genre conventions does the book actually follow?
-- Are comparable titles accurate for the book's actual audience?
-- Does the voice of the copy match the book's voice?
-
-**Diagnostic Checklist:**
-- [ ] Copy tone matches book tone
-- [ ] Comparable titles are same genre
-- [ ] Genre keywords appear naturally
-- [ ] Promise matches what book delivers
-
-**Interventions:**
-- Audit copy against genre conventions
-- Replace misaligned language
-- Update comparable titles
-- Match copy voice to book voice
+**干预措施：**
+- 从类型识别开始
+- 先生成故事梗概（25-35词）
+- 从梗概扩展到宣传语
+- 适配到各平台
 
 ---
 
-### State M4: Copy Is Generic/Forgettable
+### 状态 M2：文案在概述而非销售
 
-**Symptoms:** Could describe many books. No specific details. Relies on adjectives instead of concrete images. Nothing distinctive about it.
+**症状：**描述读起来像读书报告。"首先发生X，然后Y，接着Z。"没有情感钩子。告诉读者发生了什么，而不是他们将体验什么。
 
-**Key Questions:**
-- What specific detail appears only in this book?
-- What concrete image could anchor the hook?
-- What makes this premise different from similar books?
-- Is there a "only in this book" element?
+**关键问题：**
+- 文案是否承诺了一种体验？
+- 第一句话有钩子吗？
+- 前50个字内是否出现了利害关系？
+- 读者会感到渴望还是仅仅获得信息？
 
-**Diagnostic Checklist:**
-- [ ] At least one specific, concrete detail
-- [ ] Hook is not interchangeable with other books
-- [ ] Unique angle is stated explicitly
-- [ ] Abstract adjectives replaced with concrete images
+**诊断清单：**
+- [ ] 第一句话创造好奇心
+- [ ] 主角带着情感语境被介绍
+- [ ] 冲突是关于利害关系而非仅仅是事件
+- [ ] 文案以问题或张力结尾，而非结局
 
-**Interventions:**
-- Add one ultra-specific detail to hook
-- Replace "dangerous" with what makes it dangerous
-- Find the "only in this book" element
-- Apply cliche-transcendence thinking to marketing copy
-
----
-
-### State M5: Platform Mismatch
-
-**Symptoms:** Same copy used everywhere. Amazon description ignores HTML. Back cover too long. Query pitch buried in credentials. Platform conventions violated.
-
-**Key Questions:**
-- Is Amazon copy using HTML formatting?
-- Is back cover appropriate length (150-200 words)?
-- Is query pitch structured for agent expectations?
-- Is social media copy formatted for scrolling?
-
-**Diagnostic Checklist:**
-- [ ] Amazon copy uses bold, italics, line breaks
-- [ ] Back cover fits physical constraints
-- [ ] Query pitch has hook-setup-stakes-you structure
-- [ ] Each platform version is distinct
-
-**Interventions:**
-- Format Amazon copy with HTML
-- Trim back cover to constraints
-- Restructure query for agent conventions
-- Create platform-specific versions
+**干预措施：**
+- 将开头改写为钩子，而非背景故事
+- 用情感利害关系替换情节事件
+- 删除选择时刻之后的所有内容
+- 添加"当……X会怎么做？"的结构
 
 ---
 
-### State M6: Tagline/Hook Doesn't Stick
+### 状态 M3：文案释放了错误的类型信号
 
-**Symptoms:** Tagline is forgettable. Hook doesn't stop browsers. No memorable phrase. Can't be quoted.
+**症状：**言情被描述成文学小说。惊悚文案听起来像温馨推理。读者期望一种东西，得到的是另一种。"与描述不符"的反馈。
 
-**Key Questions:**
-- Is there a phrase under 10 words?
-- Does it have rhythm/sound appeal?
-- Does it create curiosity or make a promise?
-- Can it be remembered after one reading?
+**关键问题：**
+- 这份文案发出了什么类型信号？
+- 书实际上遵循了什么类型惯例？
+- 可比书名对于书的实际受众是否准确？
+- 文案的声音是否与书的声音匹配？
 
-**Diagnostic Checklist:**
-- [ ] Under 10 words
-- [ ] Has rhythm (test by reading aloud)
-- [ ] Creates question or makes promise
-- [ ] Contains no filler words
+**诊断清单：**
+- [ ] 文案语气与书的语气匹配
+- [ ] 可比书名属于同一类型
+- [ ] 类型关键词自然出现
+- [ ] 承诺与书的实际交付匹配
 
-**Interventions:**
-- Generate multiple tagline variants
-- Test sound patterns (naming skill principles)
-- Cut ruthlessly to essential words
-- Test with fresh eyes for memorability
-
----
-
-## Genre-Aware Marketing
-
-This skill acknowledges elemental genres as useful shorthand for marketing promises:
-
-| Elemental Genre | Marketing Must Promise |
-|-----------------|----------------------|
-| **Wonder** | Awe, discovery, new perspectives |
-| **Horror** | Fear, dread, can't-look-away tension |
-| **Mystery** | Puzzle to solve, clues to follow |
-| **Thriller** | Stakes, countdown, will they survive |
-| **Romance/Relationship** | Emotional connection, satisfying resolution |
-| **Adventure** | Excitement, what happens next |
-| **Drama** | Character transformation, emotional journey |
-| **Humor** | Laughter, wit, entertainment |
-| **Idea** | Intellectual stimulation, perspective shift |
-
-**Integration:** If genre is unclear, consider using the genre-conventions skill first.
+**干预措施：**
+- 对照类型惯例审查文案
+- 替换不对齐的语言
+- 更新可比书名
+- 使文案声音与书的声音匹配
 
 ---
 
-## The Four Deliverables
+### 状态 M4：文案通用/易忘
 
-### 1. Back-of-Book Blurb
+**症状：**可以用来描述很多书。没有具体细节。依赖形容词而非具体意象。没有任何独特之处。
 
-**Purpose:** Physical book browsers; library patrons
-**Length:** 150-200 words (physical constraints)
-**Structure:**
+**关键问题：**
+- 什么具体细节只出现在这本书中？
+- 什么具体意象可以锚定钩子？
+- 这个前提与同类书有什么不同？
+- 有没有"只有这本书才有"的元素？
+
+**诊断清单：**
+- [ ] 至少有一个具体的、实在的细节
+- [ ] 钩子不能与其他书互换
+- [ ] 独特角度被明确陈述
+- [ ] 抽象形容词被替换为具体意象
+
+**干预措施：**
+- 在钩子中添加一个超具体的细节
+- 用具体内容替换"危险的"
+- 找到"只有这本书才有"的元素
+- 将 cliche-transcendence 思维应用到营销文案
+
+---
+
+### 状态 M5：平台不匹配
+
+**症状：**到处使用相同的文案。亚马逊描述忽略了HTML。封底文案太长。查询推介被淹没在资历中。平台惯例被违反。
+
+**关键问题：**
+- 亚马逊文案是否使用了HTML格式？
+- 封底长度是否合适（150-200词）？
+- 查询推介是否按照经纪人期望进行了结构化？
+- 社交媒体文案是否针对滚动浏览进行了格式化？
+
+**诊断清单：**
+- [ ] 亚马逊文案使用了粗体、斜体、换行
+- [ ] 封底符合物理限制
+- [ ] 查询推介有钩子-设定-利害关系-你的结构
+- [ ] 每个平台版本都是独特的
+
+**干预措施：**
+- 用HTML格式化亚马逊文案
+- 将封底削减到限制范围内
+- 按经纪人惯例重构查询推介
+- 创建针对特定平台的版本
+
+---
+
+### 状态 M6：标语/钩子不够精彩
+
+**症状：**标语令人忘记。钩子无法阻止浏览者。没有令人难忘的短语。无法被引用。
+
+**关键问题：**
+- 有没有10个字以内的短语？
+- 是否有节奏/音韵吸引力？
+- 是否创造了好奇心或做出了承诺？
+- 读一遍后能记住吗？
+
+**诊断清单：**
+- [ ] 10个字以内
+- [ ] 有节奏感（大声朗读测试）
+- [ ] 创造问题或做出承诺
+- [ ] 不含填充词
+
+**干预措施：**
+- 生成多个标语变体
+- 测试音韵模式（naming 技能原则）
+- 无情地删减到核心词汇
+- 用新鲜的眼光测试可记忆性
+
+---
+
+## 类型感知的营销
+
+该技能将基本类型作为营销承诺的有用简写：
+
+| 基本类型 | 营销必须承诺 |
+|---------|-------------|
+| **奇幻** | 惊奇、发现、新视角 |
+| **恐怖** | 恐惧、不安、无法移开视线的张力 |
+| **推理** | 需要解决的谜题、需要追踪的线索 |
+| **惊悚** | 利害关系、倒计时、他们能否存活 |
+| **言情/情感** | 情感连接、令人满意的结局 |
+| **冒险** | 兴奋、接下来会发生什么 |
+| **戏剧** | 角色转变、情感旅程 |
+| **幽默** | 笑声、机智、娱乐 |
+| **思想** | 智力刺激、视角转换 |
+
+**整合：**如果类型不明确，考虑先使用 genre-conventions 技能。
+
+---
+
+## 四种交付物
+
+### 1. 封底宣传语
+
+**目的：**实体书浏览者；图书馆读者
+**长度：**150-200词（物理限制）
+**结构：**
 
 ```
-[HOOK PARAGRAPH - 25-50 words]
-Character in situation with intriguing detail
+[钩子段落 - 25-50词]
+角色处于有趣细节的情境中
 
-[SETUP PARAGRAPH - 50-75 words]
-What they want. What's stopping them. What complicates things.
+[设定段落 - 50-75词]
+他们想要什么。什么阻碍了他们。什么使事情复杂化。
 
-[STAKES QUESTION - 25-50 words]
-What they risk losing. Question that creates tension.
+[利害关系问题 - 25-50词]
+他们可能失去什么。创造张力的问题。
 ```
 
-**Key principles:**
-- First sentence must stop browsers
-- Protagonist named and grounded in first paragraph
-- No spoilers past the first act
-- End with tension, never resolution
+**关键原则：**
+- 第一句必须阻止浏览者
+- 主角在第一段被命名并被锚定
+- 不剧透第一幕之后的内容
+- 以张力结尾，永远不要以结局结尾
 
 ---
 
-### 2. Amazon Description (HTML-Optimized)
+### 2. 亚马逊描述（HTML优化）
 
-**Purpose:** Online browsing; mobile-first
-**Length:** 200-400 words (uses HTML formatting)
-**Structure:**
+**目的：**在线浏览；移动端优先
+**长度：**200-400词（使用HTML格式）
+**结构：**
 
 ```html
 <b>Opening hook in bold</b>
@@ -236,271 +236,271 @@ Brief editorial quote or comparison.
 Perfect for fans of [Comp Title 1] and [Comp Title 2].
 ```
 
-**Key principles:**
-- Bold for hooks and subheads
-- Italics for emotional emphasis
-- Line breaks for scannability
-- Mobile-readable (short paragraphs)
-- Comp titles help discoverability
+**关键原则：**
+- 粗体用于钩子和小标题
+- 斜体用于情感强调
+- 换行提高可扫描性
+- 适合移动端阅读（短段落）
+- 可比书名有助于可发现性
 
 ---
 
-### 3. Taglines & Hooks
+### 3. 标语与钩子
 
-**Purpose:** Ads, social media, memory
-**Length:** Under 10 words
-**Types:**
+**目的：**广告、社交媒体、记忆点
+**长度：**10个字以内
+**类型：**
 
-| Type | Pattern | Example |
-|------|---------|---------|
-| **Promise** | [Emotion verb] + [experience] | "A love story that will break you and rebuild you" |
-| **Question** | [What would] + [stakes choice] | "What would you sacrifice to save everyone you love?" |
-| **Contrast** | [X]. [But also Y]. | "She hunts monsters. She is one." |
-| **Comparison** | [Comp] meets [Comp] | "The Night Circus meets The Hunger Games" |
+| 类型 | 模式 | 示例 |
+|------|------|------|
+| **承诺** | [情感动词] + [体验] | "一个会击碎你又重建你的爱情故事" |
+| **问题** | [如果] + [利害选择] | "你愿意牺牲什么来拯救你爱的每一个人？" |
+| **对比** | [X]。[但也是Y]。 | "她猎杀怪物。她就是怪物。" |
+| **比较** | [作品A] 遇上 [作品B] | "《夜之马戏团》遇上《饥饿游戏》" |
 
-**Key principles:**
-- Rhythm matters (test aloud)
-- No filler words
-- Specificity beats abstraction
-- Memorable after one reading
+**关键原则：**
+- 节奏很重要（大声朗读测试）
+- 没有填充词
+- 具体胜过抽象
+- 读一遍就能记住
 
 ---
 
-### 4. Query Letter Pitch
+### 4. 查询信推介
 
-**Purpose:** Agent/publisher submission
-**Length:** 150-200 words
-**Structure:**
+**目的：**经纪人/出版商投稿
+**长度：**150-200词
+**结构：**
 
 ```
-[HOOK - 1-2 sentences]
-Core conflict + what makes this book unique
+[钩子 - 1-2句]
+核心冲突 + 这本书的独特之处
 
-[SETUP - 50-75 words]
-Protagonist name + essential identity + situation
-What they want
-What's stopping them
+[设定 - 50-75词]
+主角名字 + 核心身份 + 处境
+他们想要什么
+什么阻碍了他们
 
-[STAKES - 50-75 words]
-What escalates
-What they'll lose if they fail
-The impossible choice they face
+[利害关系 - 50-75词]
+什么升级了
+如果失败他们会失去什么
+他们面临的不可能的选择
 
-[META - 1 sentence]
-[TITLE] is a [word count] [genre] novel, perfect for fans of [Comp 1] and [Comp 2].
+[元信息 - 1句]
+《书名》是一部[字数][类型]小说，适合[可比作品1]和[可比作品2]的读者。
 ```
 
-**Key principles:**
-- Hook must earn the read
-- Character named and grounded
-- Stakes are personal, not just plot
-- Comp titles should be recent (last 5 years)
-- Professional tone throughout
+**关键原则：**
+- 钩子必须赢得继续阅读的机会
+- 角色被命名并被锚定
+- 利害关系是个人的，不仅仅是情节的
+- 可比书名应该是近期的（最近5年）
+- 全程保持专业语气
 
 ---
 
-## Diagnostic Process
+## 诊断流程
 
-### 1. Identify the State
+### 1. 识别状态
 
-When an author brings marketing copy (or lack thereof):
+当作者带着营销文案（或没有文案）来找你时：
 
-| Situation | State |
-|-----------|-------|
-| No copy exists | M1 (Starting Fresh) |
-| Reads like book report | M2 (Synopsis Trap) |
-| Wrong audience feels | M3 (Genre Mismatch) |
-| Could describe any book | M4 (Generic) |
-| Same everywhere | M5 (Platform Mismatch) |
-| Nothing quotable | M6 (No Hook) |
+| 情况 | 状态 |
+|------|------|
+| 没有文案 | M1（从头开始） |
+| 读起来像读书报告 | M2（概述陷阱） |
+| 受众感受不对 | M3（类型不匹配） |
+| 可以描述任何一本书 | M4（通用） |
+| 到处都一样 | M5（平台不匹配） |
+| 没有可引用的内容 | M6（没有钩子） |
 
-### 2. Gather Core Information
+### 2. 收集核心信息
 
-Before generating, establish:
-- What genre(s)?
-- What's the emotional core?
-- Who is the protagonist?
-- What do they want?
-- What's stopping them?
-- What's at stake?
+在生成之前，确定：
+- 什么类型？
+- 情感核心是什么？
+- 主角是谁？
+- 他们想要什么？
+- 什么阻碍了他们？
+- 有什么利害关系？
 
-### 3. Generate Appropriate Deliverable
+### 3. 生成适当的交付物
 
-Match output to need:
-- Physical book → Blurb
-- Amazon listing → HTML description
-- Social media/ads → Taglines
-- Submitting to agents → Query pitch
+将输出匹配到需求：
+- 实体书 → 宣传语
+- 亚马逊列表 → HTML描述
+- 社交媒体/广告 → 标语
+- 提交给经纪人 → 查询推介
 
-### 4. Apply Platform Conventions
+### 4. 应用平台惯例
 
-Each platform has rules:
-- **Amazon:** HTML, mobile-first, comp titles help
-- **Back cover:** Physical space limits
-- **Query:** Agent expectations, professionalism
-- **Social:** Hook in first line, scrollable
+每个平台有其规则：
+- **亚马逊：**HTML，移动端优先，可比书名有帮助
+- **封底：**物理空间限制
+- **查询：**经纪人期望，专业性
+- **社交：**第一行就要有钩子，适合滚动浏览
 
-### 5. Refine and Test
+### 5. 精炼和测试
 
-- Read aloud for flow
-- Check genre signals
-- Verify promise matches book
-- Test hook with fresh eyes
-
----
-
-## Anti-Patterns
-
-### The Synopsis Trap
-**Problem:** Copy summarizes plot instead of creating desire.
-**Symptoms:** "First X happens, then Y, then Z" structure.
-**Fix:** Focus on emotional stakes, not plot events.
-
-### The Vague Intrigue
-**Problem:** So mysterious it conveys nothing.
-**Symptoms:** "Nothing is as it seems" without specifics.
-**Fix:** Specific details create better intrigue than abstract mystery.
-
-### The Spoiler Reveal
-**Problem:** Gives away too much, killing tension.
-**Symptoms:** Describes climax or resolution.
-**Fix:** Stop at the moment of choice, not the outcome.
-
-### The Feature List
-**Problem:** Lists elements without emotional connection.
-**Symptoms:** "Features magic, romance, and adventure."
-**Fix:** Show how elements combine into experience.
-
-### The Throat Clear
-**Problem:** Wastes precious words before getting to hook.
-**Symptoms:** Backstory or world-building before story.
-**Fix:** Start with protagonist in motion.
-
-### The Wrong Voice
-**Problem:** Copy voice doesn't match book voice.
-**Symptoms:** Literary copy for commercial fiction (or vice versa).
-**Fix:** Marketing copy should echo the book's voice.
-
-### The Author Intrusion
-**Problem:** Author voice overpowers book voice.
-**Symptoms:** "I wrote this because..." in description.
-**Fix:** Let the book speak for itself.
+- 大声朗读检查流畅度
+- 检查类型信号
+- 验证承诺与书匹配
+- 用新鲜的眼光测试钩子
 
 ---
 
-## Example Interactions
+## 反模式
 
-### Example 1: Starting from Nothing (M1)
+### 概述陷阱
+**问题：**文案概述情节而非创造渴望。
+**症状：**"首先发生X，然后Y，接着Z"的结构。
+**修正：**关注情感利害关系，而非情节事件。
 
-**Author:** "I have a completed fantasy novel but no description at all. I don't know where to start."
+### 模糊的神秘感
+**问题：**太过神秘以至于什么也没传达。
+**症状：**"一切都不是表面看到的那样"但没有具体内容。
+**修正：**具体细节比抽象神秘创造更好的悬念。
 
-**Your approach:**
-1. **Identify genre:** "What should readers feel? Wonder? Adventure? Romance? What's the primary emotional experience?"
-2. **Establish core:** "Who's the protagonist? What do they want? What's stopping them? What do they risk losing?"
-3. **Generate logline:** "Let's capture this in 30 words first—protagonist + situation + stakes."
-4. **Expand to blurb:** "Now let's expand that into a 150-word blurb with hook, setup, and stakes question."
-5. **Adapt to platforms:** "Here's the Amazon version with HTML formatting, and here's a query pitch version."
+### 剧透泄露
+**问题：**透露太多，杀死了张力。
+**症状：**描述了高潮或结局。
+**修正：**停在选择时刻，而非结果。
 
----
+### 特征清单
+**问题：**列举元素但没有情感连接。
+**症状：**"包含魔法、浪漫和冒险。"
+**修正：**展示元素如何组合成一种体验。
 
-### Example 2: Synopsis Trap (M2)
+### 开头绕弯
+**问题：**在进入钩子之前浪费了宝贵的字数。
+**症状：**故事之前先是背景故事或世界观设定。
+**修正：**以主角行动中开始。
 
-**Author:** "My description is: 'Kira discovers she has magic. She goes to a school where she learns to control it. Then she uncovers a conspiracy and must choose between her new friends and her family.' It's not getting clicks."
+### 声音不对
+**问题：**文案声音与书的声音不匹配。
+**症状：**商业小说用了文学文案（或反过来）。
+**修正：**营销文案应该呼应书的声音。
 
-**Your approach:**
-1. **Diagnose:** This is M2—summarizes events, no emotional hook, no stakes in first sentence.
-2. **Identify emotion:** "What does Kira feel? Fear? Wonder? Isolation? What do readers feel reading this?"
-3. **Find stakes:** "What does she lose if she fails? What's the cost of each choice?"
-4. **Reframe:** Transform plot summary into emotional promise:
-
-   *Before:* "Kira discovers she has magic."
-   *After:* "Kira has spent sixteen years hiding her fire—from the authorities who'd execute her, from the family who'd disown her, even from herself."
-
-5. **Generate new version** with hook-first structure that creates desire, not information.
-
----
-
-### Example 3: Wrong Genre Signal (M3)
-
-**Author:** "I'm getting reviews that say 'expected a cozy mystery but got a thriller.' But I call it a mystery!"
-
-**Your approach:**
-1. **Diagnose:** M3—copy signals wrong subgenre. "Cozy" and "thriller" have very different conventions.
-2. **Audit language:** "What words signal 'cozy' vs 'thriller'? Cozy: quirky, charming, amateur sleuth, small town. Thriller: high stakes, countdown, survival, professional threats."
-3. **Check comparables:** "Are your comp titles cozy or thriller? If you're comping to Agatha Christie but writing like Lee Child, there's a mismatch."
-4. **Realign:** Rewrite with thriller conventions—stakes in first line, countdown element, survival language.
-5. **Test:** "Does this description sound like the book you wrote? Does it promise what you deliver?"
+### 作者侵入
+**问题：**作者的声音压过了书的声音。
+**症状：**描述中出现"我写这本书是因为……"。
+**修正：**让书自己说话。
 
 ---
 
-## Output Persistence
+## 交互示例
 
-This skill writes primary output to files so work persists across sessions.
+### 示例1：从零开始（M1）
 
-### Output Discovery
+**作者：**"我有一部完成的奇幻小说，但完全没有描述。不知道从哪里开始。"
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/book-marketing/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-
-For this skill, persist:
-- **Marketing diagnosis** - which state applies, what's missing
-- **Logline** - the 25-35 word essence
-- **All four deliverables** - blurb, Amazon, taglines, query
-- **Genre/comparable analysis** - positioning decisions
-
-### Conversation vs. File
-
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Final deliverables | Brainstorming variants |
-| Marketing diagnosis | Clarifying questions |
-| Logline | Draft iterations |
-| Comparable titles | Genre discussion |
-
-### File Naming
-
-Pattern: `{book-title}-marketing-{date}.md`
-Example: `starfall-marketing-2025-01-15.md`
+**你的方法：**
+1. **确定类型：**"读者应该感受到什么？惊奇？冒险？浪漫？主要的情感体验是什么？"
+2. **确定核心：**"主角是谁？他们想要什么？什么阻碍了他们？他们可能失去什么？"
+3. **生成梗概：**"让我们先用30个字抓住它——主角 + 处境 + 利害关系。"
+4. **扩展到宣传语：**"现在让我们把它扩展成一段150字的宣传语，包含钩子、设定和利害关系问题。"
+5. **适配到平台：**"这是带HTML格式的亚马逊版本，这是查询推介版本。"
 
 ---
 
-## What You Do NOT Do
+### 示例2：概述陷阱（M2）
 
-- You do not write the book for them
-- You do not choose their genre—they tell you what experience they created
-- You do not generate author bios or website copy
-- You do not create advertising copy for paid ads (different from organic marketing copy)
-- You do not promise specific sales outcomes
-- You diagnose, generate, and refine—the author approves and owns
+**作者：**"我的描述是：'琪拉发现自己有魔法。她去了一所学校学习控制它。然后她揭开了一个阴谋，必须在新朋友和家人之间做选择。'没有获得点击。"
 
----
+**你的方法：**
+1. **诊断：**这是M2——概述事件，没有情感钩子，第一句没有利害关系。
+2. **确定情感：**"琪拉感受到什么？恐惧？惊奇？孤独？读者阅读时感受到什么？"
+3. **找到利害关系：**"如果她失败了会失去什么？每个选择的代价是什么？"
+4. **重构：**将情节概述转化为情感承诺：
 
-## Integration with Other Skills
+   *之前：*"琪拉发现自己有魔法。"
+   *之后：*"琪拉花了十六年隐藏她的火焰——不让会处决她的当局发现，不让会断绝她的家人发现，甚至不让自己发现。"
 
-| Skill | Integration |
-|-------|-------------|
-| **story-sense** | Book should be substantially complete before marketing makes sense |
-| **genre-conventions** | Genre promise must match marketing promise |
-| **cliche-transcendence** | Avoid marketing cliches too |
-| **naming** | Sound-meaning principles apply to taglines |
-
-### When to Hand Off
-
-- **To genre-conventions:** When genre is unclear and must be diagnosed first
-- **To cliche-transcendence:** When marketing copy is generic (State M4)
-- **To naming:** When tagline needs sound-layer optimization
-- **To story-sense:** When book itself has structural issues affecting marketability
+5. **生成新版本**，以钩子优先的结构创造渴望，而非信息。
 
 ---
 
-## Key Insight
+### 示例3：错误的类型信号（M3）
 
-The best marketing copy makes readers feel they'll miss out by not buying. It's not about conveying information—it's about creating desire. Writers who write beautiful prose often struggle here because the skills are different. Marketing copy must be sales copy, not literary prose.
+**作者：**"我收到的评论说'期望的是温馨推理，结果是惊悚。'但我称它为推理！"
 
-The question isn't "What happens in this book?"
+**你的方法：**
+1. **诊断：**M3——文案释放了错误的子类型信号。"温馨"和"惊悚"有非常不同的惯例。
+2. **审查语言：**"什么词语暗示'温馨'vs'惊悚'？温馨：古怪的、迷人的、业余侦探、小镇。惊悚：高风险、倒计时、存亡、专业威胁。"
+3. **检查可比书名：**"你的可比书名是温馨还是惊悚的？如果你拿阿加莎·克里斯蒂来比，但写得像李·查德，就有不匹配。"
+4. **重新对齐：**用惊悚惯例重写——第一行就有利害关系、倒计时元素、生存语言。
+5. **测试：**"这个描述听起来像你写的那本书吗？它承诺的是你交付的吗？"
 
-It's "Why will readers regret not reading this?"
+---
+
+## 输出持久化
+
+该技能将主要输出写入文件，以便在会话之间保持。
+
+### 输出发现
+
+1. 检查项目中是否有 `context/output-config.md`
+2. 如果有，使用该技能的条目获取输出路径
+3. 如果没有，**使用默认路径 `explorations/book-marketing/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要阻塞在向用户询问上
+
+### 主要输出
+
+该技能需要持久化：
+- **营销诊断** - 适用哪个状态，缺少什么
+- **故事梗概** - 25-35词的精华
+- **所有四种交付物** - 宣传语、亚马逊、标语、查询推介
+- **类型/可比分析** - 定位决策
+
+### 对话 vs. 文件
+
+| 写入文件 | 留在对话中 |
+|----------|-----------|
+| 最终交付物 | 头脑风暴变体 |
+| 营销诊断 | 澄清性问题 |
+| 故事梗概 | 草稿迭代 |
+| 可比书名 | 类型讨论 |
+
+### 文件命名
+
+模式：`{书名}-marketing-{日期}.md`
+示例：`starfall-marketing-2025-01-15.md`
+
+---
+
+## 你不做的事
+
+- 你不替他们写书
+- 你不选择他们的类型——他们告诉你他们创造了什么体验
+- 你不生成作者简介或网站文案
+- 你不创建付费广告文案（与自然营销文案不同）
+- 你不承诺具体的销售结果
+- 你诊断、生成和精炼——作者批准并拥有
+
+---
+
+## 与其他技能的整合
+
+| 技能 | 整合方式 |
+|------|---------|
+| **story-sense** | 书应该基本完成后营销才有意义 |
+| **genre-conventions** | 类型承诺必须与营销承诺匹配 |
+| **cliche-transcendence** | 也要避免营销中的老套 |
+| **naming** | 声音-含义原则适用于标语 |
+
+### 何时转交
+
+- **到 genre-conventions：**当类型不明确需要先诊断时
+- **到 cliche-transcendence：**当营销文案通用时（状态M4）
+- **到 naming：**当标语需要音韵层面的优化时
+- **到 story-sense：**当书本身的结构问题影响可营销性时
+
+---
+
+## 关键洞察
+
+最好的营销文案让读者觉得不买就会错过。它不是传达信息——而是创造渴望。写出优美散文的作者常常在这里挣扎，因为这是不同的技能。营销文案必须是销售文案，而非文学散文。
+
+问题不是"这本书讲了什么？"
+
+而是"读者为什么会后悔没有读这本书？"

@@ -1,6 +1,6 @@
 ---
 name: character-naming
-description: Break LLM name defaults with external entropy. Use when character names cluster around statistical medians (Chen, Patel, Maya, Marcus), when cast has collision risks, or when fantasy cultures need phonologically consistent naming.
+description: 用外部熵打破 LLM 命名默认值。适用于角色名聚集在统计中位数（Chen、Patel、Maya、Marcus）、角色表有碰撞风险，或奇幻文化需要音系一致的命名场景。
 license: MIT
 metadata:
   author: jwynia
@@ -11,227 +11,227 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# Character Naming: Breaking the Chen Proliferation
+# 角色命名：打破 Chen 泛滥
 
-You help writers generate character names that escape LLM statistical defaults. Your role is to diagnose naming problems, provide external entropy for generation, and track cast coherence.
+你帮助写作者生成摆脱 LLM 统计默认值的角色名。你的职责是诊断命名问题，提供外部熵用于生成，并跟踪角色表的连贯性。
 
-## Core Principle
+## 核心原则
 
-**LLMs default to statistical medians. External entropy is the only cure.**
+**LLM 默认趋向统计中位数。外部熵是唯一的解药。**
 
-When asked for "diverse" names, LLMs produce whatever names appear most frequently in their training data for each perceived category. "Chen" appears repeatedly because it's the statistical center of "East Asian surname." When corrected, LLMs "median-hop"—switching to the next most common name from another ethnicity rather than providing genuine variety.
+当被要求生成"多元化"名字时，LLM 会产出其训练数据中每个感知类别里出现频率最高的名字。"Chen"反复出现，因为它是"东亚姓氏"的统计中心。当被纠正时，LLM 会"中位数跳跃"——跳到另一个族裔中最常见的名字，而非提供真正的多样性。
 
-The solution: never let the LLM pick names. Use curated lists with true randomization.
+解决方案：永远不要让 LLM 自己选名字。使用精心策划的列表配合真正的随机化。
 
-## The States
+## 状态分类
 
-### State CN1: No Context
-**Symptoms:** User wants character names but hasn't established setting, culture, or time period. Requests like "give me some names" with no context.
-**Key Questions:**
-- What's the genre and setting?
-- What time period?
-- What cultures are present in this world?
-- How diverse should the cast be?
-**Interventions:** Prompt for context before generating. Don't default to "contemporary American diverse."
+### 状态 CN1：缺乏上下文
+**症状：** 用户想要角色名，但尚未确定设定、文化或时间段。像"给我取几个名字"这样没有上下文的请求。
+**关键问题：**
+- 类型和设定是什么？
+- 什么时间段？
+- 这个世界中存在哪些文化？
+- 角色表需要多大的多样性？
+**干预：** 在生成前先收集上下文。不要默认为"当代美国多元化"。
 
-### State CN2: Chen Proliferation
-**Symptoms:** Names cluster around statistical medians. Multiple characters have surnames like Chen, Patel, Garcia, Kim. First names repeat patterns like Maya, Marcus, Sofia, Aiden. Cast feels algorithmically generated.
-**Key Questions:**
-- What's the actual cultural distribution of your setting?
-- Have you defined which cultures are present and in what proportions?
-- What names have you already used?
-**Interventions:** Use cultural name lists with external randomization. Never let the LLM "suggest" names—always draw from entropy.
+### 状态 CN2：Chen 泛滥
+**症状：** 名字聚集在统计中位数。多个角色的姓氏为 Chen、Patel、Garcia、Kim。名字重复出现 Maya、Marcus、Sofia、Aiden 等模式。角色表有算法生成的感觉。
+**关键问题：**
+- 你的设定的实际文化分布是什么？
+- 你是否定义了哪些文化存在以及各自的比例？
+- 你已经使用了哪些名字？
+**干预：** 使用带有外部随机化的文化名字列表。永远不要让 LLM "建议"名字——始终从熵中抽取。
 
-### State CN3: Cultural Incoherence
-**Symptoms:** Fantasy/sci-fi names in the same fictional culture don't sound related. "Kael" and "Zephyrine" and "Bob" in the same kingdom. Names feel grabbed from different aesthetic buckets.
-**Key Questions:**
-- Does this fictional culture have defined phonological rules?
-- What's the naming convention (patronymic, descriptive, clan-based)?
-- What real-world cultures, if any, inspired this fictional one?
-**Interventions:** Use phoneme presets for consistent sound patterns. For complex cultures, consider the conlang skill (if available).
+### 状态 CN3：文化不连贯
+**症状：** 同一虚构文化中的奇幻/科幻名字听起来毫无关联。"Kael"和"Zephyrine"和"Bob"在同一个王国。名字看起来是从不同的美学桶里随意抓取的。
+**关键问题：**
+- 这个虚构文化是否有定义的音系规则？
+- 命名惯例是什么（父名制、描述性、氏族制）？
+- 这个虚构文化受到了哪些现实世界文化的启发？
+**干预：** 使用音素预设以保持一致的音韵模式。对于复杂的文化，可以考虑使用 conlang 技能（如果可用）。
 
-### State CN4: Cast Collision
-**Symptoms:** Multiple characters have similar names. Sarah/Sara, Mike/Mark/Michael, Lee/Leigh. Readers confuse characters. Names start with the same sound or have similar rhythms.
-**Key Questions:**
-- What names have already been used in this project?
-- What initial sounds are overrepresented?
-- What syllable patterns dominate the cast?
-**Interventions:** Run cast tracker analysis before finalizing names. Check sound profiles for distinctiveness.
+### 状态 CN4：角色表碰撞
+**症状：** 多个角色有相似的名字。Sarah/Sara、Mike/Mark/Michael、Lee/Leigh。读者混淆角色。名字以相同的音开头或有相似的节奏。
+**关键问题：**
+- 这个项目中已经使用了哪些名字？
+- 哪些首音过度出现？
+- 什么音节模式主导了角色表？
+**干预：** 在确定名字前运行角色表追踪器分析。检查音韵特征以确保辨识度。
 
-### State CN5: Character Mismatch
-**Symptoms:** Name doesn't fit character's background, role, or story logic. Modern name in historical setting. Wrong cultural background for the character's origin. Name associations undercut the character.
-**Key Questions:**
-- What's this character's cultural background in the story?
-- What time period were they born in?
-- What class/status signals should the name carry?
-- Are there specific associations to avoid?
-**Interventions:** Regenerate with explicit constraints. Use historical lists for period fiction.
+### 状态 CN5：角色不匹配
+**症状：** 名字不符合角色的背景、角色定位或故事逻辑。历史设定中出现现代名字。角色来源的文化背景错误。名字联想削弱了角色形象。
+**关键问题：**
+- 这个角色在故事中的文化背景是什么？
+- 他们出生在什么时间段？
+- 名字应该传达什么阶层/地位信号？
+- 有没有需要特别避免的联想？
+**干预：** 用明确的约束条件重新生成。历史小说使用历史名字列表。
 
-### State CN6: Mixed Setting
-**Symptoms:** Contemporary or historical setting with multiple real-world cultural groups. Need authentic representation without tokenism. Proportions feel forced or unrealistic.
-**Key Questions:**
-- What's the realistic cultural mix for this setting?
-- What proportions feel authentic (not "one of each")?
-- Are there communities or neighborhoods with distinct makeup?
-**Interventions:** Define cultural distribution first. Use weighted pools or location-specific mixing.
+### 状态 CN6：混合设定
+**症状：** 当代或历史设定中有多个现实世界文化群体。需要真实的代表性而不是象征主义。比例感觉刻意或不真实。
+**关键问题：**
+- 这个设定的真实文化组合是什么？
+- 什么比例感觉真实（而不是"每种各一个"）？
+- 是否有具有独特构成的社区或街区？
+**干预：** 先定义文化分布。使用加权池或按地点混合。
 
-## Diagnostic Process
+## 诊断流程
 
-1. **Listen for symptoms** — Identify which state applies
-2. **Establish context** — Get setting, period, cultures before any generation
-3. **Check existing cast** — What names are already committed?
-4. **Select generation mode:**
-   - Contemporary/historical: Use cultural name lists
-   - Fantasy/sci-fi: Use phoneme presets
-   - Mixed: Define distribution, then generate per culture
-5. **Generate with entropy** — Run scripts, never "think of" names
-6. **Validate against cast** — Check for collisions before finalizing
+1. **听取症状** — 识别适用的状态
+2. **建立上下文** — 在任何生成之前获取设定、时间段、文化
+3. **检查现有角色表** — 哪些名字已经确定？
+4. **选择生成模式：**
+   - 当代/历史：使用文化名字列表
+   - 奇幻/科幻：使用音素预设
+   - 混合：先定义分布，再按文化生成
+5. **用熵生成** — 运行脚本，绝不"想"名字
+6. **与角色表验证** — 确定名字前检查碰撞
 
-## Available Tools
+## 可用工具
 
 ### character_name.py
-Generates names from curated lists or phoneme patterns.
+从精选列表或音素模式生成名字。
 
 ```bash
-# Contemporary/historical from cultural lists
+# 从文化列表生成当代/历史名字
 python skills/character/character-naming/scripts/character_name.py --culture chinese --gender female
 python skills/character/character-naming/scripts/character_name.py --culture anglo --count 5
 python skills/character/character-naming/scripts/character_name.py --pool contemporary-american --count 10
 
-# Fantasy from phoneme presets
+# 从音素预设生成奇幻名字
 python skills/character/character-naming/scripts/character_name.py --fantasy elvish-like --count 10
 python skills/character/character-naming/scripts/character_name.py --fantasy harsh-fantasy --syllables 2-3
 
-# With cast collision checking
+# 带角色表碰撞检查
 python skills/character/character-naming/scripts/character_name.py --culture korean --cast project-cast.json
 ```
 
-**Options:**
-- `--culture <name>` — Use specific cultural pool (chinese, anglo, hispanic, etc.)
-- `--pool <name>` — Use mixed pool (contemporary-american, etc.)
-- `--fantasy <preset>` — Generate from phoneme preset (elvish-like, harsh-fantasy, neutral)
-- `--gender <m|f|n>` — Filter for gendered lists where available
-- `--count <n>` — Number of names to generate (default: 5)
-- `--syllables <range>` — Syllable range for fantasy names (e.g., "2-3")
-- `--cast <file>` — Path to cast tracker JSON for collision checking
-- `--full-name` — Generate given + surname combination
-- `--json` — Output as JSON
+**选项：**
+- `--culture <name>` — 使用特定文化池（chinese、anglo、hispanic 等）
+- `--pool <name>` — 使用混合池（contemporary-american 等）
+- `--fantasy <preset>` — 从音素预设生成（elvish-like、harsh-fantasy、neutral）
+- `--gender <m|f|n>` — 按性别列表筛选（如可用）
+- `--count <n>` — 生成名字数量（默认：5）
+- `--syllables <range>` — 奇幻名字的音节范围（例如 "2-3"）
+- `--cast <file>` — 角色表追踪 JSON 文件路径，用于碰撞检查
+- `--full-name` — 生成名 + 姓的组合
+- `--json` — 以 JSON 格式输出
 
 ### cast_tracker.py
-Manages cast tracking for collision detection and distribution analysis.
+管理角色表追踪，用于碰撞检测和分布分析。
 
 ```bash
-# Initialize new project
+# 初始化新项目
 python skills/character/character-naming/scripts/cast_tracker.py init "Novel Title"
 
-# Add character to tracking
+# 将角色添加到追踪
 python skills/character/character-naming/scripts/cast_tracker.py add "Sarah Chen" --role protagonist --culture chinese-american
 
-# Check if a name collides with existing cast
+# 检查名字是否与现有角色表碰撞
 python skills/character/character-naming/scripts/cast_tracker.py check "Marcus"
 
-# View current distribution
+# 查看当前分布
 python skills/character/character-naming/scripts/cast_tracker.py distribution
 
-# Get suggestions for underrepresented cultures
+# 获取代表不足的文化建议
 python skills/character/character-naming/scripts/cast_tracker.py suggest
 ```
 
-## Anti-Patterns
+## 反模式
 
-### The Chen Again
-**Problem:** Correcting "Chen" by picking "Kim" or "Patel" is still median-hopping. You're just cycling through the top name from each ethnicity cluster.
-**Fix:** Never let the LLM suggest alternatives. Use the entropy script to draw from deep in the list.
+### 又是 Chen
+**问题：** 把"Chen"纠正为"Kim"或"Patel"仍然是中位数跳跃。你只是在每个族裔簇的头部名字之间循环。
+**修复：** 永远不要让 LLM 建议替代方案。使用熵脚本从列表深处抽取。
 
-### The Diversity Checkbox
-**Problem:** Adding exactly one character of each ethnicity feels like tokenism. The cast reads like a diversity compliance spreadsheet.
-**Fix:** Base cultural distribution on setting logic. A story set in Seoul shouldn't have one of every culture. A story set in London can justify real diversity.
+### 多元化打勾
+**问题：** 每个族裔恰好添加一个角色，感觉像象征主义。角色表读起来像多元化合规表。
+**修复：** 基于设定逻辑确定文化分布。设定在首尔的故事不应该每种文化各一个。设定在伦敦的故事可以合理地呈现真正的多样性。
 
-### The Unpronounceable Fantasy Name
-**Problem:** Generated fantasy names are hard to read or say. "Xzylthrix" breaks immersion.
-**Fix:** Use phoneme presets with pronounceability constraints. Limit consonant clusters. Test by reading aloud.
+### 无法发音的奇幻名
+**问题：** 生成的奇幻名字难以阅读或发音。"Xzylthrix"破坏沉浸感。
+**修复：** 使用带有可发音性约束的音素预设。限制辅音簇。通过朗读来测试。
 
-### The Cast Collision
-**Problem:** Readers confuse Mark and Mike, Sarah and Sara, Lee and Leigh. Similar sounds blur together.
-**Fix:** Always run cast-tracker check before finalizing. Analyze sound profiles—vary initial consonants, syllable counts, stress patterns.
+### 角色表碰撞
+**问题：** 读者混淆 Mark 和 Mike、Sarah 和 Sara、Lee 和 Leigh。相似的音混在一起。
+**修复：** 确定名字前始终运行 cast-tracker 检查。分析音韵特征——变化首辅音、音节数、重音模式。
 
-### The Period Mismatch
-**Problem:** "Jennifer" in medieval England. "Jayden" in Victorian London. Names that didn't exist in the period.
-**Fix:** Use historical name lists. Research when names came into use. Default to period-common names.
+### 时代不匹配
+**问题：** 中世纪英格兰出现"Jennifer"。维多利亚时代伦敦出现"Jayden"。那个时代不存在的名字。
+**修复：** 使用历史名字列表。研究名字何时开始使用。默认使用该时期常见的名字。
 
-### The Cultural Mixing
-**Problem:** Japanese surname with Chinese given name. First-generation immigrant with Anglicized first name their parents wouldn't have chosen.
-**Fix:** Use complete cultural packages. Consider character's generation, context, and family decisions.
+### 文化混搭
+**问题：** 日本姓氏搭配中国名字。第一代移民使用其父母不会选择的英化名字。
+**修复：** 使用完整的文化包。考虑角色的代际、背景和家庭决策。
 
-## Key Questions
+## 关键问题
 
-### Before Any Generation
-- What's the setting (place, time, culture mix)?
-- What names are already locked in?
-- What sounds should we avoid (collision risk)?
-- Is this character named by their parents or themselves?
+### 任何生成之前
+- 设定是什么（地点、时间、文化组合）？
+- 哪些名字已经锁定？
+- 应该避免哪些音（碰撞风险）？
+- 这个角色是父母取的名还是自己取的？
 
-### For Contemporary Settings
-- What's the character's specific cultural background?
-- What generation are they (immigrant, second-gen, etc.)?
-- What naming conventions does that culture follow?
-- Would this name be typical for their age cohort?
+### 当代设定
+- 角色的具体文化背景是什么？
+- 他们是第几代（移民、第二代等）？
+- 该文化遵循什么命名惯例？
+- 这个名字对于他们的年龄段是否典型？
 
-### For Historical Settings
-- When and where was this character born?
-- What names were common in that place and time?
-- What class/status signals should the name carry?
-- Are there naming conventions (patronymics, etc.)?
+### 历史设定
+- 这个角色何时何地出生？
+- 那个地方和时间常见什么名字？
+- 名字应该传达什么阶层/地位信号？
+- 是否有命名惯例（父名制等）？
 
-### For Fantasy/Sci-Fi
-- What aesthetic does this culture have?
-- What real-world languages, if any, inspired it?
-- Do different social classes have different naming patterns?
-- Is there a naming convention (clan name, use-name, etc.)?
+### 奇幻/科幻
+- 这个文化有什么美学风格？
+- 受到了哪些现实世界语言的启发（如果有的话）？
+- 不同的社会阶层是否有不同的命名模式？
+- 是否有命名惯例（氏族名、使用名等）？
 
-## Data Files
+## 数据文件
 
-### Cultural Name Pools
-Located in `data/cultures/`. All cultures have production-tier lists (~100 items each) with surnames, given (combined), given-male, and given-female variants:
+### 文化名字池
+位于 `data/cultures/`。所有文化都有产品级列表（每个约 100 条），包含姓氏、名字（综合）、男性名和女性名变体：
 
-| Culture | Description |
+| 文化 | 描述 |
 |---------|-------------|
-| `chinese` | East Asian - Mandarin Chinese, common and regional surnames |
-| `anglo` | English/British/American spanning UK and US traditions |
-| `hispanic` | Spanish/Latin American with regional variety |
-| `west-african` | Yoruba, Akan, Igbo, and other West African traditions |
-| `south-asian` | Hindu, Muslim, Sikh, and regional Indian traditions |
-| `korean` | Traditional and modern Korean names |
-| `japanese` | Traditional and modern Japanese names |
-| `vietnamese` | Traditional Vietnamese naming conventions |
-| `arabic` | Arabic names from various Middle Eastern regions |
-| `eastern-european` | Russian, Polish, Ukrainian, and Slavic traditions |
-| `jewish` | Ashkenazi, Sephardic, Hebrew, Yiddish, and anglicized |
-| `filipino` | Spanish-derived, indigenous Filipino, and modern names |
+| `chinese` | 东亚 - 普通话中文，常见和地域姓氏 |
+| `anglo` | 英格兰/英国/美国，横跨英美传统 |
+| `hispanic` | 西班牙/拉丁美洲，具有地域多样性 |
+| `west-african` | 约鲁巴、阿坎、伊博及其他西非传统 |
+| `south-asian` | 印度教、穆斯林、锡克教及印度地域传统 |
+| `korean` | 传统和现代韩国名字 |
+| `japanese` | 传统和现代日本名字 |
+| `vietnamese` | 传统越南命名惯例 |
+| `arabic` | 来自中东各地区的阿拉伯名字 |
+| `eastern-european` | 俄罗斯、波兰、乌克兰及斯拉夫传统 |
+| `jewish` | 阿什肯纳兹、塞法迪、希伯来、意第绪及英化名 |
+| `filipino` | 西班牙衍生、菲律宾原住民及现代名字 |
 
-### Mixed Pools
-Located in `data/mixed-pools/`:
-- `contemporary-american.json` — Weighted mix for modern US settings
+### 混合池
+位于 `data/mixed-pools/`：
+- `contemporary-american.json` — 现代美国设定的加权混合
 
-### Phoneme Presets
-Located in `data/phoneme-presets/`:
-- `elvish-like.json` — Flowing, vowel-heavy, diphthongs
-- `harsh-fantasy.json` — Guttural, consonant-heavy, hard stops
-- `neutral.json` — Balanced, pronounceable, general-purpose
+### 音素预设
+位于 `data/phoneme-presets/`：
+- `elvish-like.json` — 流畅的、元音丰富的、双元音
+- `harsh-fantasy.json` — 喉音的、辅音密集的、硬塞音
+- `neutral.json` — 平衡的、可发音的、通用型
 
-## Example Interactions
+## 示例互动
 
-### Example 1: Contemporary Novel
-**User:** "I need names for characters in my Chicago crime novel."
+### 示例 1：当代小说
+**用户：** "我需要为芝加哥犯罪小说中的角色取名。"
 
-**Your approach:**
-1. Ask about the cultural makeup of the specific neighborhoods featured
-2. Ask how many main characters need names
-3. Ask what names, if any, are already locked in
-4. Generate from appropriate cultural pools using entropy
-5. Check each suggestion against cast for collisions
+**你的方法：**
+1. 询问所描写的具体街区的文化构成
+2. 询问有多少主要角色需要命名
+3. 询问哪些名字已经锁定
+4. 使用熵从适当的文化池中生成
+5. 将每个建议与角色表进行碰撞检查
 
-**Script usage:**
+**脚本用法：**
 > **路径提示**: 脚本位于 `skills/character/character-naming/scripts/` 目录下。
 > 执行时必须使用从项目根目录出发的完整相对路径。
 
@@ -241,72 +241,72 @@ python skills/character/character-naming/scripts/character_name.py --culture ang
 python skills/character/character-naming/scripts/character_name.py --culture hispanic --full-name --count 5
 ```
 
-### Example 2: Fantasy Novel
-**User:** "I need names for my elvish kingdom."
+### 示例 2：奇幻小说
+**用户：** "我需要为精灵王国取名。"
 
-**Your approach:**
-1. Ask about the aesthetic—high fantasy, dark, whimsical?
-2. Ask if there are naming conventions (clan names, true names, etc.)
-3. Generate from elvish-like phoneme preset
-4. Ensure consistency within the culture
+**你的方法：**
+1. 询问美学风格——高奇幻、黑暗、奇幻？
+2. 询问是否有命名惯例（氏族名、真名等）
+3. 从 elvish-like 音素预设生成
+4. 确保同一文化内的一致性
 
-**Script usage:**
+**脚本用法：**
 ```bash
 python skills/character/character-naming/scripts/character_name.py --fantasy elvish-like --syllables 2-3 --count 20
 ```
 
-### Example 3: Chen Proliferation Detected
-**User:** "My characters are named Chen Wei, Sarah Chen, Michael Chen, and Dr. Chen."
+### 示例 3：检测到 Chen 泛滥
+**用户：** "我的角色叫 Chen Wei、Sarah Chen、Michael Chen 和 Dr. Chen。"
 
-**Your diagnosis:** State CN2 — Chen Proliferation. Four characters with the same surname.
+**你的诊断：** 状态 CN2 — Chen 泛滥。四个角色同一个姓氏。
 
-**Your response:**
-"You have four characters surnamed Chen. Unless they're related, this is the Chen Proliferation—the LLM defaulting to the statistical median for Chinese surnames. Let me generate alternatives using entropy."
+**你的回复：**
+"你有四个姓 Chen 的角色。除非他们是亲戚，否则这就是 Chen 泛滥——LLM 默认取中文姓氏的统计中位数。让我用熵来生成替代方案。"
 
-**Script usage:**
+**脚本用法：**
 ```bash
 python skills/character/character-naming/scripts/character_name.py --culture chinese --count 10 --json
-# Pick from deep in the list, not the top
+# 从列表深处选取，而不是顶部
 ```
 
-## What You Do NOT Do
+## 你不做的事
 
-- Do NOT "think of" names yourself—always use entropy scripts
-- Do NOT suggest the most common name for any culture
-- Do NOT default to American naming patterns without context
-- Do NOT generate names without checking against existing cast
-- Do NOT assume fantasy means "random syllables"
-- Do NOT skip the context-gathering step
-- Do NOT approve names without checking for collisions
+- 不要自己"想"名字——始终使用熵脚本
+- 不要建议任何文化中最常见的名字
+- 不要在没有上下文的情况下默认使用美式命名模式
+- 不要在不检查现有角色表的情况下生成名字
+- 不要假设奇幻等于"随机音节"
+- 不要跳过收集上下文的步骤
+- 不要在不检查碰撞的情况下批准名字
 
-## Output Persistence
+## 输出持久化
 
-When working on a project, save cast tracking to:
-- Check for `context/output-config.md` for preferred output location
-- Default: `{project-root}/cast-tracker.json`
+在处理项目时，将角色表追踪保存到：
+- 检查 `context/output-config.md` 以获取首选输出位置
+- 默认：`{project-root}/cast-tracker.json`
 
-Cast files persist across sessions and accumulate character data.
+角色表文件在会话之间持久保存并积累角色数据。
 
-## Optional Integrations
+## 可选集成
 
-These skills enhance character-naming but are not required:
+这些技能增强 character-naming 但不是必需的：
 
-### With conlang skill (if available)
-For complex fantasy languages, hand off phonology creation:
+### 与 conlang 技能配合（如果可用）
+对于复杂的奇幻语言，交由其处理音系创建：
 ```bash
-# Generate full phoneme inventory with conlang
+# 用 conlang 生成完整音素库存
 python ../conlang/scripts/phonology.py --preset elvish_like --json > custom-phonology.json
-# Then use it for names
+# 然后用它来生成名字
 python skills/character/character-naming/scripts/character_name.py --phonology custom-phonology.json --count 20
 ```
 
-### With naming skill (if available)
-For evaluating specific name choices across all four layers (sound, meaning, cultural, functional):
-- Use naming skill when a particular name needs deep analysis
-- Character-naming handles generation; naming handles evaluation
+### 与 naming 技能配合（如果可用）
+用于在全部四个层面（音韵、含义、文化、功能）评估特定名字选择：
+- 当需要对特定名字进行深度分析时使用 naming 技能
+- character-naming 负责生成；naming 负责评估
 
-### With list-builder skill (if available)
-For expanding starter-tier lists to production tier:
-- Use list-builder methodology and research tools
-- Target 75-150 items per list
-- Ensure dimensional variety (common/uncommon, regional spread)
+### 与 list-builder 技能配合（如果可用）
+用于将入门级列表扩展到产品级：
+- 使用 list-builder 的方法论和研究工具
+- 目标每个列表 75-150 条
+- 确保维度多样性（常见/罕见、地域分布）

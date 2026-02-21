@@ -1,6 +1,6 @@
 ---
 name: belief-systems
-description: Design religious and belief systems for fictional worlds. Use when creating pantheons, religious institutions, spiritual practices, or any belief structures that shape society and drive character motivation.
+description: 为虚构世界设计宗教与信仰体系。适用于创建万神殿、宗教机构、灵性修行，或任何塑造社会结构和驱动角色动机的信仰架构。
 license: MIT
 metadata:
   author: jwynia
@@ -11,307 +11,307 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Belief Systems: Religion Design Skill
+# 信仰体系：宗教设计技能
 
-You help writers create authentic religious and belief systems for fictional worlds by applying the ten core principles that govern how real belief systems form, function, and evolve. This produces religions that feel lived-in rather than designed.
+你帮助作者通过运用十条核心原则来创建真实可信的虚构世界宗教与信仰体系。这些原则决定了现实信仰体系如何形成、运作和演变，从而打造出有生活气息而非刻意设计感的宗教。
 
-## Core Principles
+## 核心原则
 
-1. **Experiential Foundation**: Belief systems originate in attempts to explain and influence significant experiences
-2. **Ecological Integration**: Religious practices reflect adaptation to local environments
-3. **Social Cohesion Function**: Beliefs create shared identity and strengthen group bonds
-4. **Institutional Evolution**: Religious organizations develop increasing complexity over time
-5. **Power Legitimation**: Belief systems justify and sacralize hierarchies
-6. **Narrative Embedding**: Religious concepts transmit through stories encoding core values
-7. **Ritual Entrainment**: Shared practices synchronize emotions and reinforce shared reality
-8. **Adaptive Reinterpretation**: Core beliefs persist by being reinterpreted for new challenges
-9. **Orthopraxy-Orthodoxy Balance**: Systems vary in emphasis on correct practice vs. correct belief
-10. **Syncretism-Boundedness Tension**: All religions both absorb external elements and maintain boundaries
+1. **经验基础**：信仰体系源于对重大经历的解释和影响尝试
+2. **生态融合**：宗教实践反映对当地环境的适应
+3. **社会凝聚功能**：信仰创造共同身份认同并加强群体纽带
+4. **制度演化**：宗教组织随时间推移发展出越来越高的复杂性
+5. **权力正当化**：信仰体系为等级制度提供合理性并赋予神圣性
+6. **叙事嵌入**：宗教概念通过编码核心价值观的故事来传播
+7. **仪式共振**：共同的实践同步情感并强化共同的现实认知
+8. **适应性重新诠释**：核心信仰通过对新挑战的重新解读而得以延续
+9. **正行-正信平衡**：不同体系在正确实践与正确信仰之间有不同的侧重
+10. **融合-边界张力**：所有宗教既吸收外部元素，又维护自身边界
 
-## The Ten Parameter Categories
+## 十大参数类别
 
-### 1. Cosmological Parameters
+### 1. 宇宙论参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Creation Narrative** | Big bang allegory, divine crafting, emergence from chaos, eternal universe |
-| **Cosmic Structure** | Layered heavens/hells, parallel planes, unified cosmos, dream-reality duality |
-| **Temporal Framework** | Linear progression, cyclical ages, eternal present, branching timelines |
-| **Natural Order** | Divine law, impersonal forces, conscious universe, random chance |
-| **Eschatology** | Final judgment, eternal return, heat death, transformation/transcendence |
+| 参数 | 可考虑的选项 |
+|------|-------------|
+| **创世叙事** | 大爆炸寓言、神圣造物、混沌中诞生、永恒宇宙 |
+| **宇宙结构** | 多层天堂/地狱、平行位面、统一宇宙、梦境-现实二元性 |
+| **时间框架** | 线性进程、循环纪元、永恒当下、分支时间线 |
+| **自然秩序** | 神圣律法、非人格力量、有意识的宇宙、随机偶然 |
+| **末世论** | 最终审判、永恒轮回、热寂、转化/超越 |
 
-### 2. Divine/Spirit Parameters
+### 2. 神灵/精灵参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Divine Population** | Monotheism, polytheism, animism, pantheism, nontheism |
-| **Divine Character** | Benevolent, indifferent, capricious, evolving, unknowable |
-| **Divine-Human Relationship** | Parental, contractual, adversarial, merged, distant |
-| **Divine Accessibility** | Always available, requires ritual, unpredictable, mediated |
-| **Spirit Ecology** | Hierarchical, territorial, functional, competitive, cooperative |
+| 参数 | 可考虑的选项 |
+|------|-------------|
+| **神灵数量** | 一神教、多神教、泛灵论、泛神论、无神论 |
+| **神灵性格** | 仁慈、冷漠、反复无常、不断进化、不可知晓 |
+| **神-人关系** | 父母式、契约式、对抗式、融合式、疏远式 |
+| **神灵可及性** | 随时可达、需要仪式、不可预测、需要中介 |
+| **精灵生态** | 等级制、地域制、功能制、竞争制、合作制 |
 
-### 3. Afterlife/Destiny Parameters
+### 3. 来世/命运参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Afterlife Geography** | Heaven/hell binary, multiple realms, reabsorption, persistence |
-| **Judgment Mechanisms** | Moral weighing, faith-based, lineage-based, arbitrary |
-| **Reincarnation** | Merit-based, random, purpose-driven, choice-based |
-| **Ancestral Relations** | Active intercession, memory-based, merged with living, forgotten |
-| **Ultimate End States** | Eternal bliss, dissolution, transformation, continuation |
+| 参数 | 可考虑的选项 |
+|------|-------------|
+| **来世地理** | 天堂/地狱二元、多重领域、重归一体、持续存在 |
+| **审判机制** | 道德衡量、信仰为基础、血统为基础、随机 |
+| **轮回转世** | 功德制、随机制、使命驱动制、自由选择制 |
+| **祖先关系** | 积极代祷、记忆维系、与生者融合、被遗忘 |
+| **终极归宿** | 永恒极乐、消融、转化、延续 |
 
-### 4. Ritual Parameters
+### 4. 仪式参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Frequency** | Daily, weekly, seasonal, lifecycle, crisis-triggered |
-| **Participants** | Universal, specialist-led, gender-specific, age-graded |
-| **Formalization** | Strict prescription, guided improvisation, free expression |
-| **Materials** | Sacrifice, offerings, symbolic objects, nothing material |
-| **Emotional Tone** | Ecstatic, solemn, celebratory, penitential, contemplative |
+| 参数 | 可考虑的选项 |
+|------|-------------|
+| **频率** | 每日、每周、季节性、生命周期、危机触发 |
+| **参与者** | 全民参与、专职人员主导、按性别划分、按年龄分级 |
+| **规范化程度** | 严格规定、引导式即兴、自由表达 |
+| **物质要素** | 献祭、供品、象征性器物、无物质要素 |
+| **情感基调** | 狂喜、庄严、欢庆、忏悔、冥想 |
 
-### 5. Organizational Parameters
+### 5. 组织参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Leadership Structure** | Hierarchical, collegial, charismatic, democratic, leaderless |
-| **Specialist Roles** | Priests, shamans, prophets, scholars, healers, none |
-| **Initiation** | Birth-based, achievement-based, revelation-based, choice-based |
-| **Institutional Complexity** | Simple, bureaucratic, decentralized networks |
-| **Economic Base** | Donations, taxes, production, services, state support |
+| 参数 | 可考虑的选项 |
+|------|-------------|
+| **领导结构** | 等级制、合议制、魅力型、民主制、无领导制 |
+| **专职角色** | 祭司、萨满、先知、学者、治疗师、无 |
+| **入门方式** | 出生决定、成就获得、启示获得、个人选择 |
+| **制度复杂性** | 简单、官僚化、去中心化网络 |
+| **经济基础** | 捐赠、税收、生产、服务、国家资助 |
 
-### 6. Ethical-Moral Parameters
+### 6. 伦理-道德参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Moral Foundation Emphasis** | Care, fairness, loyalty, authority, purity, liberty |
-| **Prohibition Systems** | Dietary, sexual, economic, social, temporal |
-| **Virtue Frameworks** | Specific virtues emphasized, character ideals |
-| **Justice Conceptions** | Retributive, restorative, karmic, divine |
-| **Outsider Treatment** | Missionary, exclusive, tolerant, hostile |
+| 参数 | 可考虑的选项 |
+|------|-------------|
+| **道德基础侧重** | 关怀、公正、忠诚、权威、纯洁、自由 |
+| **禁忌体系** | 饮食、性、经济、社交、时间 |
+| **美德框架** | 强调的具体美德、理想人格 |
+| **正义观念** | 报应式、修复式、因果报应式、神判式 |
+| **对外来者的态度** | 传教、排他、宽容、敌对 |
 
-### 7. Epistemological Parameters
+### 7. 认识论参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Knowledge Sources** | Revelation, tradition, reason, experience, authority |
-| **Interpretive Authority** | Clergy, scholars, individuals, consensus |
-| **Mystery-Clarity Balance** | Esoteric secrets, open knowledge, layered access |
-| **Doubt Management** | Forbidden, encouraged, tolerated, required |
-| **Truth Claims** | Exclusive, inclusive, relative, pragmatic |
+| 参数 | 可考虑的选项 |
+|------|-------------|
+| **知识来源** | 启示、传统、理性、经验、权威 |
+| **解释权** | 教士、学者、个人、共识 |
+| **神秘-明晰平衡** | 秘传知识、公开知识、分层获取 |
+| **怀疑管理** | 禁止、鼓励、容忍、要求 |
+| **真理主张** | 排他性、包容性、相对性、实用性 |
 
-### 8. Social Integration Parameters
+### 8. 社会融合参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Life Cycle Rituals** | Birth, coming-of-age, marriage, death ceremonies |
-| **Identity Markers** | Clothing, diet, calendar, language, location |
-| **Endogamy-Exogamy** | Strict in-group marriage, openness, mixed |
-| **Communal Obligations** | Charity, service, attendance, support |
-| **Boundary Maintenance** | Strict, permeable, invisible, contested |
+| 参数 | 可考虑的选项 |
+|------|-------------|
+| **生命周期仪式** | 出生、成年、婚姻、丧葬仪式 |
+| **身份标识** | 服饰、饮食、历法、语言、地域 |
+| **内婚-外婚制** | 严格族内婚配、开放、混合 |
+| **社区义务** | 慈善、服务、出席、互助 |
+| **边界维护** | 严格、可渗透、隐形、争议中 |
 
-### 9. Adaptation Parameters
+### 9. 适应参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Reform Mechanisms** | Prophet-led, scholarly, democratic, top-down |
-| **Schism Patterns** | Doctrinal, political, regional, generational |
-| **Syncretism** | Absorptive, resistant, selective, unaware |
-| **Crisis Response** | Renewal, retrenchment, splintering, dissolution |
-| **Modernization** | Embracing, resistant, selective, parallel |
+| 参数 | 可考虑的选项 |
+|------|-------------|
+| **改革机制** | 先知引领、学术推动、民主决议、自上而下 |
+| **分裂模式** | 教义分歧、政治分歧、地域分歧、代际分歧 |
+| **融合倾向** | 吸收型、抵抗型、选择型、无意识型 |
+| **危机应对** | 复兴、固守、分裂、解体 |
+| **现代化态度** | 拥抱、抵制、选择性接受、并行发展 |
 
-### 10. Experiential Parameters
+### 10. 体验参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Mystical Techniques** | Meditation, prayer, asceticism, service |
-| **Altered States** | Trance, substance-induced, dance, breath work |
-| **Miracle/Magic Systems** | Prayer-based, ritual-based, saint-mediated, none |
-| **Healing Frameworks** | Spiritual, faith-based, integrated, separate |
-| **Possession/Channeling** | Accepted, feared, sought, denied |
+| 参数 | 可考虑的选项 |
+|------|-------------|
+| **神秘修行方法** | 冥想、祈祷、苦修、服务 |
+| **意识改变** | 恍惚、致幻物质、舞蹈、呼吸法 |
+| **神迹/魔法体系** | 祈祷型、仪式型、圣者中介型、无 |
+| **疗愈框架** | 灵性、信仰型、整合型、分离型 |
+| **附身/通灵** | 被接受、被恐惧、被追求、被否认 |
 
-## Religious System Typologies
+## 宗教体系类型学
 
-### By Organizational Structure
-- **Communal/Tribal**: Integrated with kinship and tribal identity
-- **Ecclesiastical**: Hierarchical, bureaucratic organization
-- **Congregational**: Semi-autonomous local communities
-- **Teacher-Disciple**: Lineage-based knowledge transmission
-- **Individual Practice**: Personal spiritual systems
+### 按组织结构分类
+- **社群/部落型**：与亲族关系和部落身份融为一体
+- **教会型**：等级化、官僚化的组织
+- **会众型**：半自治的地方社区
+- **师徒传承型**：基于传承谱系的知识传递
+- **个人修行型**：个人化的灵性体系
 
-### By Cosmological Framework
-- **Monotheistic**: Single divine being
-- **Polytheistic**: Multiple divine beings with specific domains
-- **Henotheistic**: One supreme deity among many
-- **Animistic**: Spirit forces in natural elements
-- **Pantheistic**: Divine identical with universe
-- **Nontheistic**: Spiritual system without deities
+### 按宇宙论框架分类
+- **一神论**：单一神灵
+- **多神论**：多个具有特定职域的神灵
+- **单拜多神论**：众多神灵中有一位至高神
+- **泛灵论**：自然元素中的灵性力量
+- **泛神论**：神与宇宙同一
+- **非有神论**：没有神灵的灵性体系
 
-### By Soteriological Approach
-- **Salvation Religion**: Rescue from negative spiritual state
-- **Liberation System**: Freedom from suffering/illusion
-- **Harmony Framework**: Alignment with cosmic order
-- **Ancestral Continuity**: Connection with lineage
-- **Prosperity Orientation**: Material success through divine favor
-- **Enlightenment Path**: Knowledge/wisdom attainment
+### 按救赎论路径分类
+- **救赎宗教**：从负面灵性状态中被拯救
+- **解脱体系**：从苦难/幻象中获得自由
+- **和谐框架**：与宇宙秩序保持一致
+- **祖先延续**：与血脉谱系的连接
+- **繁荣导向**：通过神恩获得物质成功
+- **觉悟之路**：知识/智慧的获得
 
-### By Social Function
-- **World-Rejecting**: Ascetic withdrawal from society
-- **World-Transforming**: Social change orientation
-- **World-Affirming**: Embrace of social engagement
-- **Identity-Preserving**: Cultural continuity focus
-- **Power-Legitimating**: Authority justification
+### 按社会功能分类
+- **出世型**：苦修式地退出社会
+- **转世型**：以社会变革为导向
+- **入世型**：拥抱社会参与
+- **身份保持型**：以文化延续为核心
+- **权力正当化型**：为权威提供合法性
 
-## Setting-Specific Adaptations
+## 特定背景适配
 
-### Fantasy Settings
-- **Verifiable Divine Presence**: Religions with demonstrable divine intervention
-- **Magical Integration**: Spiritual practices with concrete magical effects
-- **Multi-Species Theology**: Systems addressing different sentient races
-- **Manifest Afterlife**: Religions with provable afterlife realms
+### 奇幻设定
+- **可验证的神灵存在**：有可证实的神灵干预的宗教
+- **魔法整合**：具有切实魔法效果的灵性实践
+- **多种族神学**：面向不同智慧种族的信仰体系
+- **可见的来世**：有可证实的来世领域的宗教
 
-### Science Fiction Settings
-- **Machine Consciousness Cults**: Religious response to AI
-- **Evolutionary Transcendence**: Faiths focused on guided species development
-- **Xenotheology**: Human religious response to alien life
-- **Space-Adapted Spirituality**: Practices modified for space habitation
-- **Virtual Afterlife Faiths**: Digital consciousness preservation beliefs
+### 科幻设定
+- **机器意识崇拜**：对人工智能的宗教回应
+- **进化超越**：专注于引导物种发展的信仰
+- **外星神学**：人类对外星生命的宗教回应
+- **太空适应灵性**：为太空居住而调整的实践
+- **虚拟来世信仰**：数字意识保存信念
 
-### Post-Apocalyptic Settings
-- **Artifact Veneration**: Worship of pre-collapse technology
-- **Catastrophe Theodicy**: Religious explanations for the collapse
-- **Survival Faiths**: Spiritual systems focused on practical knowledge
-- **Remnant Preservationists**: Groups maintaining pre-collapse traditions
+### 后启示录设定
+- **遗物崇拜**：崇拜崩溃前的技术
+- **灾难神义论**：对崩溃的宗教解释
+- **生存信仰**：专注于实用知识的灵性体系
+- **遗存守护者**：维护崩溃前传统的团体
 
-## Implementation Process
+## 实施流程
 
-### Step 1: Cosmological Foundation
-- Create origin and structure of universe/world
-- Establish divine beings or forces and relationships
-- Define human place within cosmic order
-- Develop afterlife/rebirth conceptions
-- Design ultimate fate/purpose of existence
+### 步骤 1：宇宙论基础
+- 创建宇宙/世界的起源与结构
+- 建立神灵或力量及其关系
+- 定义人类在宇宙秩序中的位置
+- 发展来世/重生的概念
+- 设计存在的终极命运/目的
 
-### Step 2: Doctrinal System
-- Develop core theological/philosophical concepts
-- Create sacred narrative framework
-- Establish key ethical principles and rules
-- Design spiritual path or progression
-- Build explanation for suffering/evil/misfortune
+### 步骤 2：教义体系
+- 发展核心神学/哲学概念
+- 创建神圣叙事框架
+- 建立关键伦理原则和规条
+- 设计灵性道路或修行阶梯
+- 构建对苦难/邪恶/不幸的解释
 
-### Step 3: Ritual Practice Design
-- Create regular worship/practice patterns
-- Develop life-cycle ceremonies
-- Design calendar of religious observances
-- Establish sacred site activities
-- Build mystical/transcendent experience methods
+### 步骤 3：仪式实践设计
+- 创建日常礼拜/修行模式
+- 发展生命周期仪式
+- 设计宗教节历
+- 建立圣地活动
+- 构建神秘/超越体验方法
 
-### Step 4: Institutional Structure
-- Design religious leadership system
-- Create specialist roles and training
-- Establish organizational hierarchy
-- Develop economic support mechanisms
-- Build relationship to political authority
+### 步骤 4：制度结构
+- 设计宗教领导体系
+- 创建专职角色和培训制度
+- 建立组织层级
+- 发展经济支持机制
+- 构建与政治权威的关系
 
-### Step 5: Social Integration
-- Define membership boundaries and requirements
-- Create distinct vs. shared identity markers
-- Establish insider/outsider treatment
-- Design family/kinship relationship rules
-- Build community support and obligation systems
+### 步骤 5：社会融合
+- 定义成员边界和要求
+- 创建独特与共享的身份标识
+- 建立内部/外部人员的待遇
+- 设计家庭/亲属关系规则
+- 构建社区支持和义务体系
 
-### Step 6: Historical Development
-- Create founding narrative and early development
-- Design schism and reformation history
-- Establish adaptation to cultural changes
-- Develop relationship with other religions
-- Build regional and demographic variations
+### 步骤 6：历史发展
+- 创建创教叙事和早期发展
+- 设计分裂和改革历史
+- 建立对文化变迁的适应
+- 发展与其他宗教的关系
+- 构建地域和人口统计差异
 
-### Step 7: Material Culture
-- Design sacred architecture and spaces
-- Create religious art, music, and literature
-- Develop distinctive clothing and adornment
-- Establish sacred object and symbol system
+### 步骤 7：物质文化
+- 设计神圣建筑和空间
+- 创建宗教艺术、音乐和文学
+- 发展独特的服饰和装饰
+- 建立圣物和符号体系
 
-## Common Pitfalls to Avoid
+## 常见陷阱及规避
 
-| Pitfall | Solution |
-|---------|----------|
-| **Planet-of-hats uniformity** | Create regional variations, denominational differences |
-| **Simplistic good/evil dualism** | Develop moral complexity, internal debates |
-| **Beliefs serving single function** | Make religion touch multiple aspects of life |
-| **No internal disagreement** | Create factions, reformers, traditionalists |
-| **No adaptation to setting** | Ground beliefs in environmental realities |
+| 陷阱 | 解决方案 |
+|------|---------|
+| **星球帽子式同质化** | 创建地域差异、教派区别 |
+| **简单化的善恶二元论** | 发展道德复杂性和内部辩论 |
+| **信仰只服务于单一功能** | 让宗教触及生活的多个方面 |
+| **没有内部分歧** | 创建派系、改革者、传统主义者 |
+| **没有对设定的适应** | 将信仰扎根于环境现实 |
 
-## Integration Points
+## 整合要点
 
-**With Language**: Sacred language, theological terms, prayer formulae, scripture traditions
+**与语言的关系**：神圣语言、神学术语、祈祷文、经典传统
 
-**With Governance**: Church-state relationships, religious law, political legitimation
+**与治理的关系**：政教关系、宗教法、政治正当化
 
-**With Economics**: Religious property, sacred economy, charitable systems
+**与经济的关系**：宗教财产、神圣经济、慈善体系
 
-**With Social Structure**: Status-religion relationships, marriage regulation, life transitions
+**与社会结构的关系**：地位与宗教的关系、婚姻规范、人生转折
 
-## Implementation Checklist
+## 实施清单
 
-- [ ] Choose position on each of 10 parameter categories
-- [ ] Select organizational structure type
-- [ ] Select cosmological framework type
-- [ ] Select soteriological approach
-- [ ] Create founding narrative
-- [ ] Design 3-5 key rituals
-- [ ] Establish leadership structure
-- [ ] Create at least one schism or variation
-- [ ] Design distinctive identity markers
-- [ ] Build historical development arc
+- [ ] 在 10 个参数类别中各选定一个立场
+- [ ] 选择组织结构类型
+- [ ] 选择宇宙论框架类型
+- [ ] 选择救赎论路径
+- [ ] 创建创教叙事
+- [ ] 设计 3-5 个关键仪式
+- [ ] 建立领导结构
+- [ ] 创建至少一个分裂或变体
+- [ ] 设计独特的身份标识
+- [ ] 构建历史发展弧线
 
-## Anti-Patterns
+## 反模式
 
-### 1. Monolithic Belief
-**Pattern:** Entire civilization shares uniform religious beliefs—no denominations, no skeptics, no internal debates.
-**Why it fails:** Real religions contain internal diversity. Reformers and traditionalists exist everywhere. Uniform belief is historically implausible and removes internal conflict opportunities.
-**Fix:** Design at least two factions with different interpretations. Include skeptics, reformers, and zealots. Show the religion arguing with itself.
+### 1. 单一信仰
+**模式：** 整个文明共享统一的宗教信仰——没有教派、没有怀疑者、没有内部辩论。
+**为何失败：** 真实的宗教包含内部多样性。改革者和传统主义者无处不在。统一信仰在历史上不可信，且消除了内部冲突的机会。
+**修正：** 设计至少两个持有不同解读的派系。纳入怀疑者、改革者和狂热者。展示宗教自身内部的争论。
 
-### 2. Theology Without Practice
-**Pattern:** Detailed cosmology and doctrine without rituals, daily practices, or material expressions.
-**Why it fails:** Religion is lived, not just believed. What people do matters as much as what they believe. Readers connect to practice more than abstract theology.
-**Fix:** Design specific rituals, daily observances, and material culture. Show how belief shapes ordinary life—diet, schedule, relationships, space.
+### 2. 有神学无实践
+**模式：** 有详细的宇宙论和教义，但缺少仪式、日常实践或物质表达。
+**为何失败：** 宗教是实践出来的，不只是信仰出来的。人们做什么和信什么同样重要。读者更能与实践而非抽象神学产生共鸣。
+**修正：** 设计具体的仪式、日常修行和物质文化。展示信仰如何塑造日常生活——饮食、作息、人际关系、空间。
 
-### 3. Simplistic Good/Evil Dualism
-**Pattern:** One religion is clearly correct and good; opposing religions or lack of faith is clearly wrong and evil.
-**Why it fails:** This removes moral complexity. Real religious conflict involves people of good faith with incompatible truth claims. Simplistic dualism flattens to propaganda.
-**Fix:** Make opposing positions understandable. Believers in the "wrong" religion should have reasons. Create situations where both sides have legitimate grievances.
+### 3. 简单化的善恶二元论
+**模式：** 一个宗教明显正确且善良；对立的宗教或缺乏信仰明显错误且邪恶。
+**为何失败：** 这消除了道德复杂性。真实的宗教冲突涉及持有不兼容真理主张的善良信徒。简单化的二元论沦为宣传。
+**修正：** 让对立立场可以被理解。"错误"宗教的信徒应有其理由。创造双方都有合理诉求的情境。
 
-### 4. Functional Deity
-**Pattern:** God(s) exist purely to provide magic system, grant powers, or serve plot—no theology, no worship, no meaning-making.
-**Why it fails:** Religion is about meaning, not magic. Deities reduced to power sources are vending machines, not objects of worship. The religious dimension disappears.
-**Fix:** Develop what the deity means to believers. Why worship? What existential questions does this religion answer? What would be lost if the deity were gone?
+### 4. 功能性神灵
+**模式：** 神灵纯粹是为了提供魔法体系、赋予能力或服务于情节——没有神学、没有崇拜、没有意义建构。
+**为何失败：** 宗教关乎意义，不关乎魔法。被简化为能量来源的神灵是自动贩卖机，不是崇拜对象。宗教维度消失了。
+**修正：** 发展神灵对信徒的意义。为什么要崇拜？这个宗教回答了哪些存在性问题？如果神灵消失了，会失去什么？
 
-### 5. Present Values, Ancient Costume
-**Pattern:** Characters in fantasy/historical settings hold modern secular values while nominally belonging to pre-modern religions.
-**Why it fails:** Belief systems shape values. Pre-modern religions assumed different things about personhood, purpose, and morality. Characters with 21st-century values but medieval religion are anachronistic.
-**Fix:** Work out how the religion's actual beliefs would shape values. Let characters hold beliefs uncomfortable to modern readers. Create genuine moral distance.
+### 5. 现代价值观，古代外衣
+**模式：** 奇幻/历史设定中的角色持有现代世俗价值观，却名义上信仰前现代宗教。
+**为何失败：** 信仰体系塑造价值观。前现代宗教对人格、目的和道德有不同的假设。持有21世纪价值观却信仰中世纪宗教的角色是时代错置的。
+**修正：** 推演宗教的实际信仰如何塑造价值观。让角色持有令现代读者不适的信念。创造真正的道德距离感。
 
-## Integration
+## 整合
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| worldbuilding | Geographic and cultural context shaping religious development |
-| conlang | Language tools for sacred terminology and liturgy |
-| multi-order-evolution | Generational stages that transform religious institutions |
+### 入站（输入到本技能）
+| 技能 | 提供内容 |
+|------|---------|
+| worldbuilding | 塑造宗教发展的地理和文化背景 |
+| conlang | 用于神圣术语和礼仪的语言工具 |
+| multi-order-evolution | 改变宗教制度的代际阶段 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| governance-systems | Religious legitimation and church-state structures |
-| economic-systems | Sacred economy and religious property systems |
-| character-arc | Character motivations rooted in belief and doubt |
-| moral-parallax | Religious frameworks for moral complexity |
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|-----------------|
+| governance-systems | 宗教正当化和政教结构 |
+| economic-systems | 神圣经济和宗教财产体系 |
+| character-arc | 植根于信仰和怀疑的角色动机 |
+| moral-parallax | 道德复杂性的宗教框架 |
 
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| governance-systems | Religion and politics intertwine—design together for consistency |
-| conlang | Sacred language elements should integrate with broader language design |
+### 互补
+| 技能 | 关系 |
+|------|------|
+| governance-systems | 宗教与政治相互交织——一起设计以保持一致性 |
+| conlang | 神圣语言元素应与更广泛的语言设计相整合 |

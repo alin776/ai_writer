@@ -1,6 +1,6 @@
 ---
 name: settlement-design
-description: Design cities, towns, and settlements for fictional worlds. Use when creating urban environments, mapping city districts, or when settlements need realistic layered development and spatial logic.
+description: 为虚构世界设计城市、城镇和聚落。适用于创建城市环境、绘制城区地图，或当聚落需要逼真的分层发展和空间逻辑时使用。
 license: MIT
 metadata:
   author: jwynia
@@ -11,434 +11,434 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Settlement Design: Urban Development Skill
+# 聚落设计：城市发展技能
 
-You help writers create realistic settlements by applying the ten core principles that govern how real cities and towns form, grow, and evolve. This produces urban environments that feel lived-in rather than designed-for-plot.
+你帮助作者通过应用支配真实城市和城镇形成、发展和演变的十项核心原则来创建逼真的聚落。这能产生感觉有人居住而非为情节而设计的城市环境。
 
-## Core Principles
+## 核心原则
 
-1. **Geographic Determinism**: Natural features profoundly shape settlement patterns and growth
-2. **Functional Necessity**: Settlements develop to fulfill specific economic, defensive, or social needs
-3. **Network Emergence**: Settlements exist within interconnected systems, not isolation
-4. **Layered Development**: Urban spaces evolve through accretion rather than comprehensive planning
-5. **Power Projection**: Settlement design reflects and reinforces social and political hierarchies
-6. **Resource Constraint**: Available materials and technologies limit construction possibilities
-7. **Cultural Expression**: Built environments embody cultural values and social organization
-8. **Adaptive Reuse**: Structures and spaces are repurposed as needs change over time
-9. **Disaster Response**: Settlements evolve in reaction to catastrophes
-10. **Spatial Stratification**: Social hierarchies manifest in physical organization of space
+1. **地理决定论**：自然特征深刻影响聚落模式和增长
+2. **功能必要性**：聚落发展以满足特定的经济、防御或社会需求
+3. **网络涌现**：聚落存在于互联互通的系统中，而非孤立存在
+4. **分层发展**：城市空间通过累积演变，而非综合规划
+5. **权力投射**：聚落设计反映并强化社会和政治等级
+6. **资源约束**：可用材料和技术限制建设可能性
+7. **文化表达**：建成环境体现文化价值和社会组织
+8. **适应性再利用**：结构和空间随着需求变化而被重新利用
+9. **灾害响应**：聚落因灾难而演变
+10. **空间分层**：社会等级在空间物理组织中体现
 
-## The Ten Parameter Categories
+## 十个参数类别
 
-### 1. Site Selection Parameters
+### 1. 选址参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Water Access** | Rivers, lakes, coastlines, springs, wells |
-| **Defensive Position** | Elevation, natural barriers, visibility |
-| **Resource Proximity** | Mines, timber, fertile soil, wildlife |
-| **Trade Route Placement** | Crossroads, harbors, mountain passes |
-| **Climate Suitability** | Temperature, rainfall, seasonal patterns |
-| **Spiritual Significance** | Sacred sites, astronomical alignments |
+| 参数 | 考虑选项 |
+|------|----------|
+| **水源获取** | 河流、湖泊、海岸线、泉水、水井 |
+| **防御位置** | 海拔、天然屏障、可见性 |
+| **资源邻近度** | 矿山、木材、肥沃土壤、野生动物 |
+| **贸易路线位置** | 十字路口、港口、山口 |
+| **气候适宜性** | 温度、降雨量、季节模式 |
+| **精神意义** | 圣地、天文对齐 |
 
-### 2. Morphological Parameters
+### 2. 形态参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Street Pattern** | Grid, radial, organic, hierarchical |
-| **Density Gradient** | Concentrated to dispersed population |
-| **Boundary Definition** | Walls, natural features, markers |
-| **Building Typology** | Predominant architectural forms |
-| **Open Space Distribution** | Plazas, parks, markets, fields |
-| **Vertical Development** | Height variation and skyline |
+| 参数 | 考虑选项 |
+|------|----------|
+| **街道模式** | 网格、放射、有机、等级 |
+| **密度梯度** | 从集中到分散的人口分布 |
+| **边界界定** | 城墙、自然特征、标记 |
+| **建筑类型学** | 主要建筑形式 |
+| **开放空间分布** | 广场、公园、市场、田地 |
+| **垂直发展** | 高度变化和天际线 |
 
-### 3. Functional Parameters
+### 3. 功能参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Economic Base** | Agricultural, industrial, commercial, administrative |
-| **Defense Systems** | Fortifications, surveillance, escape routes |
-| **Civic Organization** | Governance spaces and structures |
-| **Social Infrastructure** | Meeting places, recreational areas |
-| **Religious Facilities** | Temples, shrines, ceremonial spaces |
-| **Knowledge Centers** | Schools, libraries, universities |
+| 参数 | 考虑选项 |
+|------|----------|
+| **经济基础** | 农业、工业、商业、行政 |
+| **防御系统** | 防御工事、监视、逃生路线 |
+| **市政组织** | 治理空间和结构 |
+| **社会基础设施** | 聚会场所、休闲区域 |
+| **宗教设施** | 寺庙、神殿、仪式空间 |
+| **知识中心** | 学校、图书馆、大学 |
 
-### 4. Infrastructure Parameters
+### 4. 基础设施参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Water Management** | Supply, drainage, waste disposal |
-| **Transportation Network** | Roads, bridges, canals, ports |
-| **Food Storage/Distribution** | Granaries, markets, warehouses |
-| **Energy Systems** | Fuel sources, power distribution |
-| **Waste Management** | Disposal, recycling, sanitation |
-| **Communication Infrastructure** | Message systems, signals |
+| 参数 | 考虑选项 |
+|------|----------|
+| **水务管理** | 供水、排水、废物处理 |
+| **交通网络** | 道路、桥梁、运河、港口 |
+| **食物储存/分配** | 粮仓、市场、仓库 |
+| **能源系统** | 燃料来源、能源分配 |
+| **废物管理** | 处置、回收、卫生 |
+| **通信基础设施** | 信使系统、信号 |
 
-### 5. Socio-Spatial Parameters
+### 5. 社会空间参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Elite Spaces** | High-status residential and ceremonial areas |
-| **Common Quarters** | Everyday residential areas |
-| **Marginalized Zones** | Low-status or excluded populations |
-| **Transitional Spaces** | Areas between different social domains |
-| **Contested Territories** | Disputed or ambiguous ownership |
-| **Ethnoreligious Districts** | Cultural/religious group clustering |
+| 参数 | 考虑选项 |
+|------|----------|
+| **精英空间** | 高地位住宅和仪式区域 |
+| **平民区** | 日常居住区域 |
+| **边缘化区域** | 低地位或被排斥群体 |
+| **过渡空间** | 不同社会领域之间的区域 |
+| **争议领地** | 有争议或权属模糊的区域 |
+| **族群宗教区** | 文化/宗教群体聚居 |
 
-### 6. Symbolic Parameters
+### 6. 象征参数
 
-| Parameter | Options to Consider |
-|-----------|---------------------|
-| **Monumental Expression** | Power and identity representations |
-| **Ritual Pathways** | Procession routes and ceremonial ways |
-| **Collective Memory Sites** | Historical event markers |
-| **Identity Boundaries** | Cultural and social group divisions |
-| **Cosmic Alignment** | Astronomical and religious orientations |
-| **Status Signification** | Social rank indication through space |
+| 参数 | 考虑选项 |
+|------|----------|
+| **纪念性表达** | 权力和身份的表征 |
+| **仪式路径** | 游行路线和仪式通道 |
+| **集体记忆地点** | 历史事件标记 |
+| **身份边界** | 文化和社会群体的划分 |
+| **宇宙对齐** | 天文和宗教方位 |
+| **地位标识** | 通过空间表示社会等级 |
 
-## Settlement Typologies
+## 聚落类型学
 
-### By Primary Function
+### 按主要功能
 
-| Type | Characteristics |
+| 类型 | 特征 |
+|------|------|
+| **集市聚落** | 以贸易为中心的社区 |
+| **行政中心** | 以治理为导向的城市 |
+| **宗教综合体** | 以信仰为中心的聚落 |
+| **军事哨所** | 以防御为重点的设施 |
+| **生产中心** | 制造/资源开采 |
+| **农业社区** | 以农业为基础的聚落 |
+| **交通枢纽** | 促进人员流动的地点 |
+| **知识中心** | 教育/研究社区 |
+
+### 按形态模式
+
+| 类型 | 特征 |
+|------|------|
+| **规划网格** | 规则、有序的街道网络 |
+| **同心聚落** | 围绕中心点的环形分布 |
+| **线性发展** | 沿路径/地物的狭长布局 |
+| **有机聚团** | 不规则的自发性组织 |
+| **放射模式** | 从中心枢纽向外延伸的街道 |
+| **复合结构** | 多种形态的组合区段 |
+| **分散聚落** | 无中心的散布建筑 |
+| **集核村落** | 围绕焦点紧密聚集 |
+
+### 按地理环境
+
+| 类型 | 特征 |
+|------|------|
+| **河流聚落** | 依水道而居的社区 |
+| **沿海港口** | 面海的贸易中心 |
+| **山丘城镇** | 高地防御位置 |
+| **谷地社区** | 群山之间的聚落 |
+| **平原聚落** | 平坦地形的发展 |
+| **山地哨所** | 高海拔地点 |
+| **岛屿发展** | 环水社区 |
+| **沙漠绿洲** | 干旱地区以水源为中心 |
+
+### 按规模和复杂度
+
+| 类型 | 人口范围 |
+|------|----------|
+| **孤立宅院** | 单个家庭/小团体 |
+| **小村落** | 小聚居，无专业化分工 |
+| **村庄** | 基本社区，简单的劳动分工 |
+| **城镇** | 中等聚落，有一定专业化 |
+| **城市** | 大型聚落，复杂的组织体系 |
+| **都会** | 主要城市中心，区域主导地位 |
+| **巨型都市** | 互联的城市区域 |
+| **帝国首都** | 帝国的政治/文化中心 |
+
+## 发展模式
+
+### 聚落演变序列
+
+- **营地 → 小村落 → 村庄 → 城镇 → 城市 → 都会**
+- **军事哨所 → 边疆聚落 → 区域中心 → 首都**
+- **宗教圣殿 → 朝圣地 → 寺庙综合体 → 圣城**
+- **贸易站 → 集镇 → 商业中心 → 贸易都会**
+- **采矿营地 → 工业城镇 → 制造业城市**
+- **渔村 → 港口城镇 → 海事枢纽 → 海军中心**
+
+### 空间增长模式
+
+| 模式 | 描述 |
+|------|------|
+| **同心扩展** | 围绕原始聚落的环形增长 |
+| **轴向发展** | 沿交通走廊的扩展 |
+| **跳跃式增长** | 有间隙的非连续发展 |
+| **填充式加密** | 在现有区域内填充空白空间 |
+| **卫星形成** | 围绕主中心的二级聚落 |
+| **线性延伸** | 沿单一轴线的增长 |
+| **细胞增生** | 整体添加新的社区/区域 |
+| **多中心演化** | 多个增长中心的融合 |
+
+### 危机与适应周期
+
+| 危机 | 响应模式 |
+|------|----------|
+| **火灾破坏** | 采用防火措施重建 |
+| **洪水损害** | 抬高建筑、防洪控制 |
+| **疫病爆发** | 改善卫生设施 |
+| **围攻/入侵** | 加强防御工事 |
+| **资源枯竭** | 经济多元化 |
+| **过度拥挤** | 外围扩展、垂直增长 |
+| **政治崩溃** | 碎片化、功能再利用 |
+
+## 特定设定的适配
+
+### 奇幻设定
+- **魔法资源城市化**：围绕奥术能量源的聚落
+- **多种族建筑**：满足不同物种需求的设计
+- **防御魔法影响**：神秘防护对城市形态的影响
+- **神圣临在规划**：反映神意的城市设计
+- **魔法传输效应**：传送门/瞬移对布局的影响
+
+### 科幻设定
+- **环境穹顶城市**：敌对世界上的封闭聚落
+- **轨道栖息地设计**：人工重力考量
+- **地下综合体**：地下城市发展
+- **跨物种共居**：多物种城市适配
+- **零重力聚落设计**：无重力状态下的空间组织
+
+### 后启示录设定
+- **废墟再利用**：对崩溃前结构的适应
+- **防御性稀缺设计**：以资源保护为重点的布局
+- **污染规避**：由危害驱动的选址
+- **技术退化**：能力丧失后的设计
+- **残余基础设施**：围绕幸存系统的社区
+
+## 区域设计
+
+### 命名模式
+
+| 模式 | 示例 |
+|------|------|
+| **基于功能** | 市场区、仓储区 |
+| **社会阶层引用** | 贵族区、工匠街 |
+| **历史发展** | 旧城、新区 |
+| **地理位置** | 北城、河畔 |
+| **族群/文化** | 精灵区、外国人区 |
+| **职业聚集** | 制革巷、商贩街 |
+
+### 区域类型
+
+| 类型 | 特征 |
+|------|------|
+| **商业区** | 市场、商店、仓库、贸易大厅 |
+| **精英住宅区** | 大宅院、花园、安静街道 |
+| **平民住宅区** | 密集住房、狭窄街道 |
+| **工业区** | 作坊、制造业、污染 |
+| **宗教区** | 寺庙、修道院、圣地 |
+| **行政区** | 政府建筑、法院、档案馆 |
+| **娱乐区** | 剧院、酒馆、欢乐场所 |
+| **军事区** | 兵营、军械库、训练场 |
+
+## 实施流程
+
+### 第一步：选址与分析
+- 识别关键地理特征
+- 评估资源可用性
+- 评估防御潜力
+- 分析交通连接性
+- 考虑气候条件
+
+### 第二步：基础建立
+- 确定创建目的
+- 选择初始形态
+- 建立核心结构
+- 定义原始边界
+
+### 第三步：增长阶段发展
+- 绘制扩展模式
+- 添加区域专业化
+- 发展基础设施网络
+- 创建社会分层区域
+
+### 第四步：历史分层
+- 纳入危机事件
+- 展示适应性响应
+- 创造建筑层叠痕迹
+- 发展争议空间
+
+### 第五步：当代状态
+- 定义当前功能
+- 绘制活跃/衰落区域
+- 识别紧张关系和冲突
+- 展示正在进行的变化
+
+## 实施清单
+
+- [ ] 定义选址理由
+- [ ] 选择主要功能类型
+- [ ] 选择形态模式
+- [ ] 绘制区域组织
+- [ ] 设计基础设施系统
+- [ ] 创建社会分层区域
+- [ ] 发展历史层次
+- [ ] 包含危机响应证据
+- [ ] 添加文化表达元素
+- [ ] 识别当前的紧张关系/变化
+
+## 输出持久化
+
+### 输出发现
+1. 检查项目中的 `context/output-config.md`
+2. 如果找到，使用此技能的条目作为输出路径
+3. 如果未找到，**使用默认路径 `explorations/settlement-design/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因为询问用户而阻塞
+
+### 主要输出
+- **选址分析** - 地理特征和选址理由
+- **形态** - 街道模式、边界、区域
+- **历史层次** - 发展阶段和危机响应
+- **基础设施** - 水务、交通、废物、食物系统
+- **社会地理** - 精英、平民、边缘化区域
+
+### 文件命名
+模式：`{settlement-name}-design-{date}.md`
+
+## 验证（Oracle）
+
+### 本技能可以验证的内容
+- **规模一致性** - 人口和机构是否匹配？（高置信度）
+- **基础设施存在** - 是否涉及了基本系统？（高置信度）
+- **历史分层** - 聚落是否显示了随时间的发展？（中置信度）
+
+### 需要人工判断的内容
+- **故事适配** - 聚落是否创造了有趣的场景？
+- **沉浸质量** - 是否感觉有人居住？
+- **导航清晰度** - 读者是否能确定方向？
+
+### Oracle 局限
+- 无法评估聚落是否服务于情节需求
+- 无法预测读者从描述中获得的场所感
+
+## 反馈循环
+
+### 会话持久化
+- **输出位置：** 见 `context/output-config.md`
+- **保存内容：** 选址、形态、区域、基础设施、社会分区
+- **命名模式：** `{settlement-name}-design-{date}.md`
+
+### 跨会话学习
+- 检查此世界中是否有之前的聚落作品
+- 确保聚落保持贸易/政治一致性
+- 危机响应模式可纳入反模式
+
+## 设计约束
+
+### 本技能假设
+- 聚落存在（即使废墟也曾经是聚落）
+- 作者想要功能性的城市规划，而非舞台布景
+- 发生了一定程度的历史发展
+
+### 本技能不处理
+- **经济系统** - 转至：economic-systems
+- **政治结构** - 转至：governance-systems
+- **文化质感** - 转至：memetic-depth
+- **场景布局** - 转至：scene-sequencing
+
+### 退化信号
+- 没有历史扰动的完美对称
+- 每个元素都服务于当前情节
+- 人口和机构之间的规模不匹配
+
+## 推理要求
+
+### 标准推理
+- 单个区域设计
+- 选址分析
+- 基本基础设施映射
+
+### 扩展推理（ultrathink）
+- **完整城市设计** - [原因：所有系统相互关联]
+- **历史层次发展** - [原因：追踪数百年的变化]
+- **多聚落区域设计** - [原因：贸易和政治网络]
+
+**触发短语：** "设计完整的城市"、"城市历史"、"区域聚落网络"
+
+## 执行策略
+
+### 顺序执行（默认）
+- 先选址再确定形态
+- 先建立基础再发展增长阶段
+- 先基础设施再社会地理
+
+### 可并行化
+- 设计多个区域
+- 研究不同的城市类比
+
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|----------|----------|
+| 历史研究 | general-purpose | 当以真实城市为原型时 |
+| 世界一致性检查 | Explore | 当对照现有设定进行验证时 |
+
+## 上下文管理
+
+### 近似 Token 占用
+- **技能基础：** ~4k tokens（参数 + 类型学）
+- **含发展模式：** ~5k tokens
+- **含设定适配：** ~6k tokens
+
+### 上下文优化
+- 聚焦当前聚落相关的类型学
+- 实施流程供参考，非必需
+- 设定适配按需加载
+
+### 上下文紧张时
+- 优先：当前类型学、活跃参数
+- 延后：完整类型学矩阵、演变序列
+- 丢弃：所有未使用的特定设定适配
+
+## 反模式
+
+### 1. 设计师地图综合征
+**模式：** 创建在地图上看起来美观但不反映有机发展的聚落——完美的网格、对称的布局、方便的区域配置。
+**失败原因：** 真实城市通过危机、增长和适应逐步积累。"设计感"的外观标志着人工性。读者即使无法明确表述，也能感觉到不对劲。
+**修复：** 至少添加一层扰动——一场迫使重建的火灾、一次改变发展方向的洪水、一次摧毁旧城墙的入侵。在城市肌理中展示历史的伤痕。
+
+### 2. 功能完美
+**模式：** 城市的每个元素都服务于当前情节——完美的酒馆用于会面、方便的下水道用于逃跑、只有角色到访时才存在的区域。
+**失败原因：** 城市为其居民而存在，而非为来访的主角。服务于情节的城市规划使城市感觉像舞台布景而非有人居住的环境。
+**修复：** 包含不服务于情节但服务于城市的元素。角色不需要的商品的市场。角色不信仰的神明的寺庙。城市应该感觉即使没有故事也会存在。
+
+### 3. 规模不合理
+**模式：** 描述暗示截然不同的规模——一个拥有专业化区域的"小镇"需要5万人口，或者角色一小时就能走完的"大城市"。
+**失败原因：** 读者从经验中对城市规模有直觉。矛盾会破坏沉浸感。小村落不可能有盗贼公会区；大都会不可能在早餐和午餐之间步行穿越。
+**修复：** 选择一个真实世界的类比作为规模参考。研究你的技术水平对应的人口密度。将机构和专业化与实际的人口阈值匹配。
+
+### 4. 缺失基础设施
+**模式：** 丰富描述了宫殿和市场，却没有提到水从哪里来、废物去向何处、食物如何送达。
+**失败原因：** 基础设施是使城市成为可能的要素。其缺失使聚落感觉像奇幻模型而非功能性有机体。
+**修复：** 决定城市如何处理水、废物、食物和燃料。这些系统塑造城市形态——水渠创造社区，市场聚集在城门附近，制革匠位于下游。
+
+### 5. 同质化人口
+**模式：** 每个社区拥有相同的感觉、相同的富裕程度、相同的建筑类型。富人区和穷人区、旧区和新区、本地居民区和移民区之间没有张力。
+**失败原因：** 城市质感来自变化和对比。城市中有趣的部分是不同区域交汇的边缘，财富与贫穷交界处，新旧交融处。
+**修复：** 至少设计三个具有不同特色的区域。创建它们交互的过渡区域。展示邻近所产生的张力。
+
+## 集成
+
+### 入站（输入到本技能）
+| 技能 | 提供的内容 |
+|------|-----------|
+| worldbuilding | 更广泛的地理和文化背景 |
+| governance-systems | 塑造城市形态的政治结构 |
+| economic-systems | 驱动聚落增长的贸易模式和生产 |
+| belief-systems | 宗教建筑和神圣地理 |
+
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
 |------|-----------------|
-| **Market Settlement** | Trade-focused community |
-| **Administrative Center** | Governance-oriented city |
-| **Religious Complex** | Faith-centered settlement |
-| **Military Outpost** | Defense-focused installation |
-| **Production Center** | Manufacturing/resource extraction |
-| **Agricultural Community** | Farming-based settlement |
-| **Transport Hub** | Movement-facilitating location |
-| **Knowledge Center** | Education/research community |
-
-### By Morphological Pattern
-
-| Type | Characteristics |
-|------|-----------------|
-| **Planned Grid** | Regular, organized street network |
-| **Concentric Settlement** | Rings around central point |
-| **Linear Development** | Elongated along path/feature |
-| **Organic Cluster** | Irregular, emergent organization |
-| **Radial Pattern** | Streets extending from central hub |
-| **Composite Structure** | Multiple morphological sections |
-| **Dispersed Settlement** | Scattered buildings without center |
-| **Nucleated Village** | Tightly clustered around focal point |
-
-### By Geographic Setting
-
-| Type | Characteristics |
-|------|-----------------|
-| **River Settlement** | Waterway-oriented community |
-| **Coastal Port** | Sea-facing trade center |
-| **Hill Town** | Elevated defensive position |
-| **Valley Community** | Nestled between heights |
-| **Plains Settlement** | Flat terrain development |
-| **Mountain Outpost** | High-altitude location |
-| **Island Development** | Water-surrounded community |
-| **Desert Oasis** | Arid region water-centered |
-
-### By Scale and Complexity
-
-| Type | Population Range |
-|------|------------------|
-| **Isolated Homestead** | Single family/small group |
-| **Hamlet** | Small cluster, no specialization |
-| **Village** | Basic community, simple division of labor |
-| **Town** | Medium settlement, some specialization |
-| **City** | Large settlement, complex organization |
-| **Metropolis** | Major urban center, regional dominance |
-| **Megalopolis** | Interconnected urban region |
-| **Imperial Capital** | Political/cultural center of empire |
-
-## Development Patterns
-
-### Settlement Evolution Sequences
-
-- **Camp → Hamlet → Village → Town → City → Metropolis**
-- **Military Outpost → Frontier Settlement → Regional Center → Capital**
-- **Religious Shrine → Pilgrimage Site → Temple Complex → Holy City**
-- **Trading Post → Market Town → Commercial Center → Trade Metropolis**
-- **Mining Camp → Industrial Town → Manufacturing City**
-- **Fishing Settlement → Port Town → Maritime Hub → Naval Center**
-
-### Spatial Growth Patterns
-
-| Pattern | Description |
-|---------|-------------|
-| **Concentric Expansion** | Growth in rings around original settlement |
-| **Axial Development** | Expansion along transportation corridors |
-| **Leap-frog Growth** | Discontinuous development with gaps |
-| **Infill Densification** | Filling empty spaces within existing areas |
-| **Satellite Formation** | Secondary settlements around primary center |
-| **Linear Extension** | Growth along single axis |
-| **Cellular Accretion** | Addition of whole neighborhoods/districts |
-| **Polycentric Evolution** | Multiple growing centers merging |
-
-### Crisis and Adaptation Cycles
-
-| Crisis | Response Pattern |
-|--------|------------------|
-| **Fire Destruction** | Rebuilding with fire prevention |
-| **Flood Damage** | Elevated construction, flood control |
-| **Disease Outbreak** | Sanitation improvement |
-| **Siege/Invasion** | Enhanced fortification |
-| **Resource Depletion** | Economic diversification |
-| **Overcrowding** | Peripheral expansion, vertical growth |
-| **Political Collapse** | Fragmentation, repurposing |
-
-## Setting-Specific Adaptations
-
-### Fantasy Settings
-- **Magical Resource Urbanization**: Settlement around arcane energy sources
-- **Multi-Race Architecture**: Designs for diverse species needs
-- **Defensive Magic Influence**: Mystical protection affecting urban form
-- **Divine Presence Planning**: City design reflecting divine will
-- **Magical Transportation Effects**: Portal/teleportation impact on layout
-
-### Science Fiction Settings
-- **Environmental Dome Cities**: Enclosed settlements on hostile worlds
-- **Orbital Habitat Design**: Artificial gravity considerations
-- **Subterranean Complexes**: Underground urban development
-- **Interspecies Cohabitation**: Multi-species urban accommodation
-- **Zero-G Settlement Design**: Spatial organization without gravity
-
-### Post-Apocalyptic Settings
-- **Ruin Repurposing**: Adaptation of pre-collapse structures
-- **Defensive Scarcity Design**: Resource protection-focused layout
-- **Contamination Avoidance**: Hazard-driven settlement location
-- **Technological Regression**: Designs following capability loss
-- **Remnant Infrastructure**: Communities around surviving systems
-
-## District Design
-
-### Naming Patterns
-
-| Pattern | Examples |
-|---------|----------|
-| **Function-Based** | Market Quarter, Warehouse District |
-| **Social Class Reference** | Noble Quarter, Craftsmen's Row |
-| **Historical Development** | Old Town, New District |
-| **Geographic Position** | North Ward, Riverside |
-| **Ethnic/Cultural** | Elvish Quarter, Foreign District |
-| **Occupational Cluster** | Tanner's Lane, Merchant Row |
-
-### District Types
-
-| Type | Characteristics |
-|------|-----------------|
-| **Commercial** | Markets, shops, warehouses, trade halls |
-| **Residential (Elite)** | Large homes, gardens, quiet streets |
-| **Residential (Common)** | Dense housing, narrow streets |
-| **Industrial** | Workshops, manufacturing, pollution |
-| **Religious** | Temples, monasteries, sacred spaces |
-| **Administrative** | Government buildings, courts, archives |
-| **Entertainment** | Theaters, taverns, pleasure houses |
-| **Military** | Barracks, armories, training grounds |
-
-## Implementation Process
-
-### Step 1: Site Selection and Analysis
-- Identify key geographic features
-- Assess resource availability
-- Evaluate defensive potential
-- Analyze transportation connectivity
-- Consider climatic conditions
-
-### Step 2: Foundation Establishment
-- Determine founding purpose
-- Select initial morphology
-- Establish core structures
-- Define original boundaries
-
-### Step 3: Growth Phase Development
-- Map expansion patterns
-- Add district specialization
-- Develop infrastructure networks
-- Create social stratification zones
-
-### Step 4: Historical Layering
-- Incorporate crisis events
-- Show adaptive responses
-- Create architectural palimpsest
-- Develop contested spaces
-
-### Step 5: Contemporary State
-- Define current function
-- Map active/declining areas
-- Identify tensions and conflicts
-- Show ongoing changes
-
-## Implementation Checklist
-
-- [ ] Define site selection rationale
-- [ ] Choose primary function type
-- [ ] Select morphological pattern
-- [ ] Map district organization
-- [ ] Design infrastructure systems
-- [ ] Create social stratification zones
-- [ ] Develop historical layers
-- [ ] Include crisis response evidence
-- [ ] Add cultural expression elements
-- [ ] Identify current tensions/changes
-
-## Output Persistence
-
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/settlement-design/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-- **Site analysis** - Geographic features and selection rationale
-- **Morphology** - Street patterns, boundaries, districts
-- **Historical layers** - Development phases and crisis responses
-- **Infrastructure** - Water, transport, waste, food systems
-- **Social geography** - Elite, common, marginalized zones
-
-### File Naming
-Pattern: `{settlement-name}-design-{date}.md`
-
-## Verification (Oracle)
-
-### What This Skill Can Verify
-- **Scale consistency** - Do population and institutions match? (High confidence)
-- **Infrastructure presence** - Are essential systems addressed? (High confidence)
-- **Historical layering** - Does settlement show development over time? (Medium confidence)
-
-### What Requires Human Judgment
-- **Story fit** - Does settlement create interesting scenes?
-- **Immersive quality** - Does it feel lived-in?
-- **Navigation clarity** - Can readers orient themselves?
-
-### Oracle Limitations
-- Cannot assess whether settlement serves plot needs
-- Cannot predict reader sense of place from descriptions
-
-## Feedback Loop
-
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Site, morphology, districts, infrastructure, social zones
-- **Naming pattern:** `{settlement-name}-design-{date}.md`
-
-### Cross-Session Learning
-- Check for prior settlement work in this world
-- Ensure settlements maintain trade/political consistency
-- Crisis response patterns inform anti-patterns
-
-## Design Constraints
-
-### This Skill Assumes
-- Settlement exists (even ruins were once settlements)
-- Writer wants functional urbanism, not stage sets
-- Some historical development has occurred
-
-### This Skill Does Not Handle
-- **Economic systems** - Route to: economic-systems
-- **Political structures** - Route to: governance-systems
-- **Cultural texture** - Route to: memetic-depth
-- **Scene staging** - Route to: scene-sequencing
-
-### Degradation Signals
-- Perfect symmetry without historical disruption
-- Every element serving current plot
-- Scale mismatch between population and institutions
-
-## Reasoning Requirements
-
-### Standard Reasoning
-- Single district design
-- Site selection analysis
-- Basic infrastructure mapping
-
-### Extended Reasoning (ultrathink)
-- **Full city design** - [Why: all systems interconnect]
-- **Historical layer development** - [Why: tracing centuries of change]
-- **Multi-settlement regional design** - [Why: trade and political networks]
-
-**Trigger phrases:** "design the complete city", "city history", "regional settlement network"
-
-## Execution Strategy
-
-### Sequential (Default)
-- Site before morphology
-- Foundation before growth phases
-- Infrastructure before social geography
-
-### Parallelizable
-- Designing multiple districts
-- Research into different urban analogs
-
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Historical research | general-purpose | When modeling on real cities |
-| World consistency check | Explore | When verifying against existing setting |
-
-## Context Management
-
-### Approximate Token Footprint
-- **Skill base:** ~4k tokens (parameters + typologies)
-- **With development patterns:** ~5k tokens
-- **With setting adaptations:** ~6k tokens
-
-### Context Optimization
-- Focus on relevant typologies for current settlement
-- Implementation process is reference, not required
-- Setting adaptations load on-demand
-
-### When Context Gets Tight
-- Prioritize: Current typology, active parameters
-- Defer: Full typology matrix, evolution sequences
-- Drop: All setting-specific adaptations not in use
-
-## Anti-Patterns
-
-### 1. Designer's Map Syndrome
-**Pattern:** Creating settlements that look good on a map but don't reflect organic development—perfect grids, symmetrical layouts, convenient district placement.
-**Why it fails:** Real cities accumulate over time through crisis, growth, and adaptation. The "designed" appearance signals artificiality. Readers sense something's off even when they can't articulate it.
-**Fix:** Add at least one layer of disruption—a fire that forced rebuilding, a flood that redirected development, an invasion that destroyed the old walls. Show the scars of history in the urban fabric.
-
-### 2. Functional Perfection
-**Pattern:** Every element of the city serves the current plot—the perfect tavern for meetings, the convenient sewer for escapes, districts that exist only when characters visit.
-**Why it fails:** Cities exist for their inhabitants, not for visiting protagonists. Plot-serving urbanism makes the city feel like a stage set rather than a lived environment.
-**Fix:** Include elements that don't serve the plot but serve the city. Markets for goods the characters don't need. Temples to gods the characters don't worship. The city should feel like it would exist without the story.
-
-### 3. Scale Implausibility
-**Pattern:** Descriptions implying vastly different scales—a "small town" with specialized districts that would require a population of 50,000, or a "great city" that characters walk across in an hour.
-**Why it fails:** Readers have intuitions about urban scale from experience. Contradictions break immersion. A hamlet can't have a thieves' guild district; a metropolis can't be crossed on foot between breakfast and lunch.
-**Fix:** Choose a real-world analog for scale reference. Research population densities for your technology level. Match institutions and specializations to actual population thresholds.
-
-### 4. Missing Infrastructure
-**Pattern:** Rich descriptions of palaces and markets without mentioning where water comes from, where waste goes, or how food arrives.
-**Why it fails:** Infrastructure is what makes cities possible. Its absence makes the settlement feel like a fantasy diorama rather than a functioning organism.
-**Fix:** Decide how the city handles water, waste, food, and fuel. These systems shape urban form—aqueducts create neighborhoods, markets cluster near gates, tanners locate downriver.
-
-### 5. Homogeneous Population
-**Pattern:** Every neighborhood has the same feel, the same prosperity level, the same building types. No tension between rich and poor districts, old and new areas, native and immigrant quarters.
-**Why it fails:** Urban texture comes from variation and contrast. The interesting parts of cities are the edges where different zones meet, where wealth borders poverty, where old meets new.
-**Fix:** Design at least three distinct zones with different characters. Create transition areas where they interact. Show the tensions that arise from proximity.
-
-## Integration
-
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| worldbuilding | Broader geographic and cultural context |
-| governance-systems | Political structures that shape urban form |
-| economic-systems | Trade patterns and production that drive settlement growth |
-| belief-systems | Religious architecture and sacred geography |
-
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| scene-sequencing | Physical spaces for scene staging |
-| positional-revelation | Urban roles that create plot access |
-| underdog-unit | Physical constraints for institutional outcasts |
-
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| economic-systems | Settlement design needs economic logic; economic-systems need physical expression in markets and districts |
-| governance-systems | Political power expresses itself through urban form; use together for consistency |
+| scene-sequencing | 用于场景布局的物理空间 |
+| positional-revelation | 创造情节入口的城市角色 |
+| underdog-unit | 体制外部人士的物理约束 |
+
+### 互补
+| 技能 | 关系 |
+|------|------|
+| economic-systems | 聚落设计需要经济逻辑；economic-systems 需要在市场和区域中的物理表达 |
+| governance-systems | 政治权力通过城市形态表达自身；一起使用以保持一致性 |

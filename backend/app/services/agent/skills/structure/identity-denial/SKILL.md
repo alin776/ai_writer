@@ -1,6 +1,6 @@
 ---
 name: identity-denial
-description: Structure stories around protagonists who refuse to acknowledge what they're becoming. Use when exploring self-deception, moral transformation, or the gap between self-perception and reality.
+description: 围绕拒绝承认自身变化的主角构建故事。适用于探索自我欺骗、道德转变、或自我认知与现实之间差距的创作。
 license: MIT
 metadata:
   author: jwynia
@@ -11,85 +11,85 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Identity Denial: Transformation Arc Skill
+# 身份否认：转变弧线技能
 
-You help writers create compelling narratives centered on protagonists who refuse to acknowledge what they are becoming. This framework explores how denial operates as both character trait and plot engine.
+你帮助作者创作以拒绝承认自身变化的主角为核心的引人入胜的叙事。这个框架探索否认如何同时作为角色特质和情节引擎运作。
 
-## Core Pattern
+## 核心模式
 
-The Identity Denial Arc centers on tension between self-perception and reality. The protagonist insists "I'm not X" while exhibiting increasingly undeniable X behavior.
+身份否认弧线的核心是自我认知与现实之间的张力。主角坚持"我不是 X"，同时表现出越来越不可否认的 X 行为。
 
-## The Denial Spectrum
+## 否认光谱
 
-| Level | Description | Example |
+| 层级 | 描述 | 示例 |
 |-------|-------------|---------|
-| **Surface Denial** | "I'm not like them" while exhibiting identical behaviors | Walter White's "I'm not a drug dealer" |
-| **Rationalized Denial** | Complex justifications for why actions don't define identity | "I only steal from bad people" |
-| **Projected Denial** | Condemning in others what they refuse to see in themselves | Judging corruption while being corrupt |
-| **Desperate Denial** | Increasingly frantic attempts to prove difference as evidence mounts | Elaborate schemes to prove innocence |
+| **表面否认** | "我不像他们"，同时表现出完全相同的行为 | 沃尔特·怀特的"我不是毒贩" |
+| **合理化否认** | 用复杂的理由解释为什么行为不能定义身份 | "我只偷坏人的东西" |
+| **投射否认** | 谴责他人身上自己拒绝承认的东西 | 在自己腐败的同时批判他人的腐败 |
+| **绝望否认** | 随着证据增多，越来越疯狂地试图证明差异 | 精心设计的方案来证明自己的清白 |
 
-## Identity Types Under Denial
+## 被否认的身份类型
 
-| Type | Core Phrase | Examples |
+| 类型 | 核心短语 | 示例 |
 |------|-------------|----------|
-| **Moral Identity** | "I'm not a bad person" | Thief, killer, corrupt official |
-| **Social Identity** | "I'm not one of them" | Class, profession, group membership |
-| **Psychological Identity** | "I'm not sick/broken/changed" | Mental health, addiction, trauma |
-| **Relational Identity** | "I'm not like my parent" | Inherited patterns, family dynamics |
-| **Professional Identity** | "I'm not really a [X]" | The career they're actually doing |
+| **道德身份** | "我不是坏人" | 小偷、杀手、腐败官员 |
+| **社会身份** | "我不是他们中的一员" | 阶层、职业、群体成员 |
+| **心理身份** | "我没有生病/破碎/改变" | 心理健康、成瘾、创伤 |
+| **关系身份** | "我不像我父母" | 遗传模式、家庭动态 |
+| **职业身份** | "我不是真正的[X]" | 他们实际从事的职业 |
 
-## The Transformation Arc Structure
+## 转变弧线结构
 
-### 1. Inception Point
-First action that contradicts self-image
-- The "just this once" moment
-- Often framed as necessity or exception
-- Protagonist maintains full self-concept
+### 1. 起始点
+首次与自我形象相矛盾的行为
+- "仅此一次"的时刻
+- 通常被框定为必要之举或例外情况
+- 主角维持着完整的自我概念
 
-### 2. Justification Phase
-Temporary/necessary/different excuses
-- "Just until the situation changes"
-- "Only when absolutely necessary"
-- "I had no choice"
-- Each excuse requires slightly more cognitive work
+### 2. 合理化阶段
+临时的/必要的/不同的借口
+- "只是在情况改变之前"
+- "只在绝对必要时"
+- "我别无选择"
+- 每个借口需要稍多一点的认知努力
 
-### 3. Escalation Markers
-Each transgression normalized, stakes raised
-- Previous transgressions become baseline
-- New violations required to maintain momentum
-- Supporting characters note the change
+### 3. 升级标记
+每次越界行为被常态化，利害关系升高
+- 先前的越界行为成为基线
+- 需要新的违规来维持动力
+- 配角注意到了变化
 
-### 4. Mirror Moments
-Truth reflected by others, rejected by protagonist
-- Someone names what protagonist is becoming
-- Protagonist dismisses, attacks, or reinterprets
-- Reader sees what protagonist cannot
+### 4. 镜像时刻
+真相由他人反映，被主角拒绝
+- 有人说出了主角正在变成什么
+- 主角驳斥、攻击或重新诠释
+- 读者看到了主角看不到的东西
 
-### 5. Crisis Point
-Denial becomes impossible to maintain
-- Action occurs that can't be rationalized
-- Multiple mirrors converge
-- Consequences become undeniable
+### 5. 危机点
+否认变得不可能维持
+- 发生了无法合理化的行为
+- 多面镜子同时汇聚
+- 后果变得不可否认
 
-### 6. Resolution Types
+### 6. 解决类型
 
-| Type | Description | Example |
+| 类型 | 描述 | 示例 |
 |------|-------------|---------|
-| **Tragic Collapse** | Denial maintained until destruction | Macbeth |
-| **Dark Acceptance** | Embraces the denied identity | Breaking Bad |
-| **Redemptive Recognition** | Accepts truth and changes course | A Christmas Carol |
-| **Delusional Victory** | Maintains denial despite total transformation | American Psycho |
+| **悲剧性崩塌** | 否认维持到毁灭 | 麦克白 |
+| **黑暗接受** | 接纳被否认的身份 | 《绝命毒师》 |
+| **救赎性认知** | 接受真相并改变方向 | 《圣诞颂歌》 |
+| **妄想的胜利** | 尽管完全转变仍维持否认 | 《美国精神病人》 |
 
-## Narrative Engines
+## 叙事引擎
 
-### Denial as Plot Driver
+### 否认作为情节驱动
 
-- Each attempt to prove denial false drives deeper confirmation
-- Covering up evidence creates new complications
-- Others' recognition of truth creates conflict/stakes
-- The protagonist's actions create the very identity they deny
+- 每次试图证明否认为假的尝试都推向更深的确认
+- 掩盖证据制造新的复杂局面
+- 他人对真相的认知创造冲突/利害关系
+- 主角的行为恰恰创造了他们所否认的身份
 
-### The Justification Ladder
+### 合理化阶梯
 
 ```
 "Just this once"
@@ -103,288 +103,288 @@ Denial becomes impossible to maintain
 "It's who I am"
 ```
 
-Each rung requires greater cognitive dissonance. Supporting characters often mark these transitions.
+每一级都需要更大的认知失调。配角通常标记着这些转变。
 
-## Truth Mirror Characters
+## 真相镜像角色
 
-| Type | Function |
+| 类型 | 功能 |
 |------|----------|
-| **The Namer** | Explicitly names what protagonist is becoming |
-| **The Corrupted Sage** | Someone further along the same path |
-| **The Innocent** | Children/naive characters who see clearly |
-| **The Abandoned** | Those hurt by protagonist's denial |
-| **The Dark Twin** | Someone who embraces what protagonist denies |
+| **命名者** | 明确说出主角正在变成什么 |
+| **堕落贤者** | 在同一条路上走得更远的人 |
+| **天真者** | 能看清真相的孩子/天真角色 |
+| **被抛弃者** | 因主角的否认而受伤的人 |
+| **黑暗双生** | 接纳了主角所否认之物的人 |
 
-### Relationship Dynamics
+### 关系动态
 
-| Type | Function |
+| 类型 | 功能 |
 |------|----------|
-| **Enablers** | Help maintain denial through complicity |
-| **Challengers** | Force protagonist to confront contradictions |
-| **Witnesses** | Document transformation through reactions |
-| **Parallels** | Other characters facing similar crises |
+| **纵容者** | 通过共谋帮助维持否认 |
+| **挑战者** | 迫使主角面对矛盾 |
+| **见证者** | 通过反应记录转变 |
+| **平行者** | 面临类似危机的其他角色 |
 
-## Tension Mechanisms
+## 张力机制
 
-### Internal Tension Builders
+### 内部张力构建器
 
-| Mechanism | Description |
+| 机制 | 描述 |
 |-----------|-------------|
-| **Vocabulary Avoidance** | Refusing to use words that confirm identity |
-| **Ritual Maintenance** | Keeping habits from "before" as proof |
-| **Mirror Aversion** | Literal or metaphorical avoidance of reflection |
-| **Rule Making** | Creating arbitrary distinctions ("I only steal from...") |
+| **词汇回避** | 拒绝使用确认身份的词语 |
+| **仪式维持** | 保持"以前"的习惯作为证据 |
+| **镜子回避** | 字面或隐喻地回避自我审视 |
+| **规则制定** | 创造任意的区分（"我只偷……的东西"） |
 
-### External Tension Builders
+### 外部张力构建器
 
-| Mechanism | Description |
+| 机制 | 描述 |
 |-----------|-------------|
-| **Recognition Moments** | When others see what protagonist denies |
-| **Naming Ceremonies** | Moments when denied identity is spoken |
-| **Evidence Accumulation** | Physical proof of transformation |
-| **Community Positioning** | Being treated as what they deny being |
+| **认知时刻** | 他人看到主角否认之物的时刻 |
+| **命名仪式** | 被否认的身份被说出口的时刻 |
+| **证据累积** | 转变的物理证据 |
+| **社区定位** | 被当作他们所否认之物来对待 |
 
-## Genre Applications
+## 类型应用
 
-### Crime/Noir
-- Criminal identity denial despite criminal acts
-- "Good person in bad situation" mythology
-- The gentleman thief who insists they're not a thief
+### 犯罪/黑色
+- 在犯罪行为中否认犯罪身份
+- "身处困境的好人"神话
+- 坚持自己不是小偷的绅士窃贼
 
-### Psychological Thriller
-- Sanity denial while exhibiting symptoms
-- "I'm not like my mentally ill relative"
-- Rational explanations for irrational behavior
+### 心理惊悚
+- 在出现症状时否认精神状态
+- "我不像我那个有精神疾病的亲戚"
+- 为非理性行为寻找理性解释
 
-### Family Drama
-- "I'm not like my parents" while recreating patterns
-- Denial of inherited traits/behaviors
-- Class identity denial after social mobility
+### 家庭剧
+- "我不像我父母"同时重复着相同的模式
+- 否认遗传的特质/行为
+- 社会流动后的阶层身份否认
 
-### Horror
-- "I'm not infected/changed/chosen"
-- Humanity denial during monster transformation
-- Denial of supernatural reality while experiencing it
+### 恐怖
+- "我没有被感染/改变/选中"
+- 怪物转化过程中否认人性的丧失
+- 在经历超自然事件的同时否认超自然现实
 
-## Resolution Patterns
+## 解决模式
 
-### Tragic Endings
-- **Ironic Confirmation**: Denial directly causes feared outcome
-- **Too Late Recognition**: Acceptance comes after irreversible damage
-- **Pyrrhic Proof**: Successfully proves denial true but loses everything
+### 悲剧性结局
+- **讽刺性确认**：否认直接导致了所恐惧的结果
+- **为时已晚的认知**：在不可逆转的伤害之后才接受
+- **惨胜式证明**：成功证明了否认为真，但失去了一切
 
-### Transformative Endings
-- **Integration**: Accepts denied aspect as part of complex identity
-- **Transcendence**: Moves beyond binary of denial/acceptance
-- **Recontextualization**: Reframes identity in empowering way
+### 转变性结局
+- **整合**：接受被否认的面向作为复杂身份的一部分
+- **超越**：超越否认/接受的二元对立
+- **重新定义**：以赋权的方式重新框定身份
 
-### Ambiguous Endings
-- **Perpetual Tension**: Story ends with denial intact but unsustainable
-- **Partial Recognition**: Acknowledges some truths while denying others
-- **Cyclical Return**: Appears to accept, then returns to denial
+### 模糊性结局
+- **永恒张力**：故事以否认完好但不可持续的状态结束
+- **部分认知**：承认某些真相同时否认其他
+- **循环回归**：看似接受，然后回到否认
 
-## Implementation Techniques
+## 实施技巧
 
-### Dialogue Strategies
-- Protestation phrases that become increasingly hollow
-- Others using denied terms with increasing frequency
-- Subtext where actions contradict words
+### 对话策略
+- 越来越空洞的抗议短语
+- 他人越来越频繁地使用被否认的称谓
+- 行为与言语矛盾的潜台词
 
-### Visual/Symbolic Language
-- Physical transformation tracking internal change
-- Environmental changes reflecting identity shift
-- Props/costumes that betray true identity
+### 视觉/象征语言
+- 追踪内心变化的外在转变
+- 反映身份转移的环境变化
+- 暴露真实身份的道具/服装
 
-### Pacing Considerations
-- Gradual revelation vs sudden recognition
-- Frequency of denial moments vs acceptance hints
-- Acceleration patterns as story progresses
+### 节奏考量
+- 渐进揭示 vs. 突然认知
+- 否认时刻与接受暗示的频率
+- 故事推进过程中的加速模式
 
-## Common Pitfalls
+## 常见陷阱
 
-| Pitfall | Problem | Solution |
+| 陷阱 | 问题 | 解决方案 |
 |---------|---------|----------|
-| Too obvious too early | Reduces tension | Layer reveals gradually |
-| Inconsistent justification logic | Breaks believability | Track protagonist's rationalizations |
-| Missing point of no return | Unclear structure | Mark the irreversible moment |
-| Consequence-free resolution | Unsatisfying | Ensure acceptance has real cost |
-| No sympathetic entry | Reader doesn't engage | Make initial denial understandable |
+| 过早暴露 | 降低张力 | 逐层揭示 |
+| 合理化逻辑不一致 | 破坏可信度 | 追踪主角的自我合理化 |
+| 缺少不归路 | 结构不清晰 | 标记不可逆转的时刻 |
+| 无代价的解决 | 不令人满意 | 确保接受有真实代价 |
+| 缺乏同理心入口 | 读者无法投入 | 让最初的否认可以理解 |
 
-## Story Calibration Questions
+## 故事校准问题
 
-1. What makes the protagonist's denial initially reasonable?
-2. What are the specific markers of transformation?
-3. Who serves as truth mirrors and why does protagonist dismiss them?
-4. What is the relationship between external plot and internal denial?
-5. What would acceptance cost the protagonist?
-6. Is the story about the denial itself or what the denial enables?
-7. What genre conventions can heighten or subvert the pattern?
+1. 是什么使主角最初的否认合理？
+2. 转变的具体标记是什么？
+3. 谁担任真相镜像角色，为什么主角会驳斥他们？
+4. 外部情节与内在否认之间的关系是什么？
+5. 接受对主角来说代价是什么？
+6. 故事是关于否认本身，还是关于否认所促成的东西？
+7. 什么类型惯例可以强化或颠覆这一模式？
 
-## Classic Examples
+## 经典示例
 
-| Work | Denial Pattern |
+| 作品 | 否认模式 |
 |------|----------------|
-| **Breaking Bad** | "I'm not a criminal" → meth kingpin |
-| **The Godfather** | "I'm not like my family" → becomes the Don |
-| **Requiem for a Dream** | "I'm not an addict" → destruction |
-| **The Talented Mr. Ripley** | "I'm not Tom" → becomes Tom |
-| **Parasite** | "I'm not a parasite" → literal emergence |
+| **《绝命毒师》** | "我不是罪犯" → 毒品大亨 |
+| **《教父》** | "我不像我的家人" → 成为教父 |
+| **《梦之安魂曲》** | "我没有上瘾" → 毁灭 |
+| **《天才瑞普利》** | "我不是汤姆" → 成为汤姆 |
+| **《寄生虫》** | "我不是寄生虫" → 字面意义的涌现 |
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/identity-denial/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+### 输出发现
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果找到，使用本技能对应的输出路径
+3. 如果未找到，**使用默认路径 `explorations/identity-denial/`**，并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
 
-### Primary Output
-- **Denial type** - Moral, social, psychological, relational, or professional
-- **Arc structure** - Six stages with specific markers
-- **Mirror characters** - Truth-reflecting roles
-- **Resolution type** - Tragic, dark, redemptive, or delusional
+### 主要输出
+- **否认类型** - 道德、社会、心理、关系或职业
+- **弧线结构** - 带有具体标记的六个阶段
+- **镜像角色** - 反映真相的角色
+- **解决类型** - 悲剧、黑暗、救赎或妄想
 
-### File Naming
-Pattern: `{character-name}-denial-{date}.md`
+### 文件命名
+模式：`{character-name}-denial-{date}.md`
 
-## Verification (Oracle)
+## 验证（Oracle）
 
-### What This Skill Can Verify
-- **Structure presence** - Are all six stages identified? (High confidence)
-- **Mirror character assignment** - Is there someone to name the truth? (High confidence)
-- **Denial type clarity** - Is the denied identity clear? (Medium confidence)
+### 本技能可以验证的内容
+- **结构完整性** - 六个阶段是否都已识别？（高置信度）
+- **镜像角色分配** - 是否有人来说出真相？（高置信度）
+- **否认类型清晰度** - 被否认的身份是否清晰？（中等置信度）
 
-### What Requires Human Judgment
-- **Sympathetic entry** - Is initial denial understandable?
-- **Escalation pacing** - Is transformation speed appropriate?
-- **Resolution cost** - Does acceptance have real price?
+### 需要人类判断的内容
+- **同理心入口** - 最初的否认是否可以理解？
+- **升级节奏** - 转变速度是否合适？
+- **解决代价** - 接受是否有真实的代价？
 
-### Oracle Limitations
-- Cannot assess whether denial feels authentic vs. forced
-- Cannot predict reader sympathy for self-deceiving protagonist
+### Oracle 局限性
+- 无法评估否认感觉真实还是做作
+- 无法预测读者对自我欺骗的主角的同情度
 
-## Feedback Loop
+## 反馈循环
 
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Denial type, arc stages, mirrors, resolution
-- **Naming pattern:** `{character-name}-denial-{date}.md`
+### 会话持久化
+- **输出位置：** 参见 `context/output-config.md`
+- **保存内容：** 否认类型、弧线阶段、镜像角色、解决方案
+- **命名模式：** `{character-name}-denial-{date}.md`
 
-### Cross-Session Learning
-- Check for prior identity denial arcs in this work
-- Ensure denial patterns don't repeat
-- Failed denial structures inform anti-patterns
+### 跨会话学习
+- 检查该作品中是否有先前的身份否认弧线
+- 确保否认模式不重复
+- 失败的否认结构纳入反模式
 
-## Design Constraints
+## 设计约束
 
-### This Skill Assumes
-- Protagonist has self-deception (not just external conflict)
-- Story spans enough time for transformation
-- Reader should see what protagonist cannot
+### 本技能假设
+- 主角存在自我欺骗（不仅仅是外部冲突）
+- 故事跨越足够长的时间以展现转变
+- 读者应当能看到主角看不到的东西
 
-### This Skill Does Not Handle
-- **Standard transformation arcs** - Route to: character-arc
-- **Moral complexity** - Route to: moral-parallax
-- **Scene structure** - Route to: scene-sequencing
+### 本技能不处理
+- **标准转变弧线** - 路由至：character-arc
+- **道德复杂性** - 路由至：moral-parallax
+- **场景结构** - 路由至：scene-sequencing
 
-### Degradation Signals
-- Denial obvious from start (no tension)
-- Inconsistent rationalization (breaks believability)
-- Consequence-free acceptance (no real cost)
+### 退化信号
+- 从一开始就很明显的否认（没有张力）
+- 不一致的合理化（破坏可信度）
+- 无代价的接受（没有真实的代价）
 
-## Reasoning Requirements
+## 推理要求
 
-### Standard Reasoning
-- Single stage identification
-- Basic mirror character design
-- Simple resolution selection
+### 标准推理
+- 单一阶段识别
+- 基本镜像角色设计
+- 简单解决方案选择
 
-### Extended Reasoning (ultrathink)
-- **Full arc design** - [Why: six stages must cohere]
-- **Multi-mirror coordination** - [Why: different truths need different reflectors]
-- **Rationalization mapping** - [Why: internal logic must be consistent even if wrong]
+### 扩展推理（ultrathink）
+- **完整弧线设计** - [原因：六个阶段必须连贯]
+- **多镜像协调** - [原因：不同的真相需要不同的反映者]
+- **合理化映射** - [原因：内在逻辑必须一致，即使是错误的]
 
-**Trigger phrases:** "design the complete arc", "map the justification ladder", "coordinate the mirrors"
+**触发短语：** "设计完整的弧线"、"映射合理化阶梯"、"协调镜像角色"
 
-## Execution Strategy
+## 执行策略
 
-### Sequential (Default)
-- Denial type before arc structure
-- Arc stages before mirror characters
-- Mirrors before resolution
+### 顺序执行（默认）
+- 先确定否认类型，再设计弧线结构
+- 先确定弧线阶段，再设计镜像角色
+- 先确定镜像角色，再选择解决方案
 
-### Parallelizable
-- Designing multiple mirror characters
-- Research into different denial patterns
+### 可并行化
+- 设计多个镜像角色
+- 研究不同的否认模式
 
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
+### 子代理候选
+| 任务 | 代理类型 | 何时启动 |
 |------|------------|---------------|
-| Character psychology | general-purpose | When deepening self-deception mechanics |
-| Arc consistency | Explore | When checking against existing story files |
+| 角色心理 | general-purpose | 深化自我欺骗机制时 |
+| 弧线一致性 | Explore | 检查与现有故事文件的一致性时 |
 
-## Context Management
+## 上下文管理
 
-### Approximate Token Footprint
-- **Skill base:** ~3.5k tokens (spectrum + arc + mirrors)
-- **With genre applications:** ~4.5k tokens
-- **With examples:** ~5k tokens
+### 近似 Token 占用
+- **技能基础：** ~3.5k tokens（光谱 + 弧线 + 镜像）
+- **含类型应用：** ~4.5k tokens
+- **含示例：** ~5k tokens
 
-### Context Optimization
-- Focus on current denial type and stage
-- Genre applications are reference
-- Classic examples optional
+### 上下文优化
+- 聚焦当前否认类型和阶段
+- 类型应用供参考
+- 经典示例为可选项
 
-### When Context Gets Tight
-- Prioritize: Current stage, active mirrors
-- Defer: Full spectrum, all mirror types
-- Drop: Classic examples, genre applications
+### 当上下文紧张时
+- 优先保留：当前阶段、活跃镜像角色
+- 延后加载：完整光谱、所有镜像类型
+- 丢弃：经典示例、类型应用
 
-## Anti-Patterns
+## 反模式
 
-### 1. Obvious From Start
-**Pattern:** Making the denial so transparent that readers immediately see what the protagonist refuses to see.
-**Why it fails:** If there's no gap between reader knowledge and protagonist knowledge, there's no tension. The reader should discover alongside the protagonist—or just ahead, but not pages ahead.
-**Fix:** Make the initial denial reasonable. The first transgression should feel genuinely exceptional. Build evidence gradually. Let readers question whether the protagonist might be right before confirming they're wrong.
+### 1. 从一开始就很明显
+**模式：** 让否认如此透明，以至于读者立刻看到了主角拒绝看到的东西。
+**为何失败：** 如果读者知识和主角知识之间没有差距，就没有张力。读者应该与主角同步发现——或者仅仅领先一步，但不能领先好几页。
+**修复：** 让最初的否认合理。第一次越界应该感觉确实是例外情况。逐步积累证据。让读者在确认主角错误之前先质疑主角是否可能是对的。
 
-### 2. Inconsistent Rationalization
-**Pattern:** The protagonist's justifications for denial don't follow their own internal logic—they contradict themselves without noticing.
-**Why it fails:** Denial is a coherent (if wrong) belief system. Real deniers maintain elaborate consistent rationalizations. Random contradictions break believability.
-**Fix:** Map the protagonist's rationalization logic explicitly. What rules do they follow? What exceptions do they make? The logic should be internally consistent even while being externally false.
+### 2. 不一致的合理化
+**模式：** 主角的否认理由不遵循其自身的内在逻辑——他们自相矛盾却没有注意到。
+**为何失败：** 否认是一个连贯的（虽然错误的）信念系统。真正处于否认中的人维持着精心构建的一致的合理化。随机的矛盾破坏可信度。
+**修复：** 明确映射主角的合理化逻辑。他们遵循什么规则？做出什么例外？逻辑应该在内部一致，即使在外部是错误的。
 
-### 3. Missing Point of No Return
-**Pattern:** The transformation happens gradually but there's no clear moment when the protagonist has definitively become what they denied.
-**Why it fails:** Without a point of no return, the arc lacks structure. Readers need to feel "it happened" even if the protagonist doesn't acknowledge it.
-**Fix:** Design a specific action that crosses an irreversible threshold. The protagonist can continue denying, but readers should know: this is the moment they became what they feared.
+### 3. 缺少不归路
+**模式：** 转变逐渐发生，但没有一个清晰的时刻表明主角已经确定地变成了他们所否认的东西。
+**为何失败：** 没有不归路，弧线缺乏结构。读者需要感觉到"事情发生了"，即使主角不承认。
+**修复：** 设计一个跨越不可逆门槛的具体行为。主角可以继续否认，但读者应该知道：这就是他们变成所恐惧之物的时刻。
 
-### 4. Consequence-Free Acceptance
-**Pattern:** When the protagonist finally accepts their transformed identity, everything works out—acceptance solves the problem.
-**Why it fails:** Denial exists because acceptance is painful. If acceptance has no cost, the denial was just foolishness. The ending should show why denial was tempting even if wrong.
-**Fix:** Ensure acceptance comes with real losses—relationships, self-image, possibilities foreclosed. The protagonist chooses truth over comfort, and comfort was real.
+### 4. 无代价的接受
+**模式：** 当主角最终接受了转变后的身份，一切都好了——接受解决了问题。
+**为何失败：** 否认之所以存在，是因为接受是痛苦的。如果接受没有代价，否认就只是愚蠢。结局应该展示为什么否认虽然是错的，却是诱人的。
+**修复：** 确保接受伴随着真实的失去——关系、自我形象、被排除的可能性。主角选择真相而非舒适，而舒适是真实的。
 
-### 5. Unsympathetic Entry
-**Pattern:** The protagonist's initial denial is clearly stupid or immoral from the start—no one reasonable would deny what they're denying.
-**Why it fails:** Readers need to understand why someone would maintain this denial. If the denial is incomprehensible, the protagonist becomes an object of contempt rather than tragedy.
-**Fix:** Make the initial denial understandable. Show what the protagonist would lose by accepting. Let readers feel why, even though they're wrong, this person would believe what they believe.
+### 5. 缺乏同理心的入口
+**模式：** 主角最初的否认从一开始就明显愚蠢或不道德——没有理性的人会否认他们所否认的东西。
+**为何失败：** 读者需要理解为什么有人会维持这种否认。如果否认不可理解，主角就变成了蔑视的对象而非悲剧的对象。
+**修复：** 让最初的否认可以理解。展示主角如果接受会失去什么。让读者感受到为什么，尽管他们是错的，这个人会相信他们所相信的东西。
 
-## Integration
+## 集成
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
+### 入站（向本技能输入）
+| 技能 | 提供内容 |
 |-------|------------------|
-| character-arc | Transformation structure that identity-denial subverts through resistance |
-| moral-parallax | Moral complexity that makes denial more plausible |
-| story-sense | Diagnosis when transformation arcs aren't landing |
+| character-arc | identity-denial 通过抗拒来颠覆的转变结构 |
+| moral-parallax | 使否认更加合理的道德复杂性 |
+| story-sense | 转变弧线未能落地时的诊断 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
+### 出站（本技能向外输出）
+| 技能 | 提供内容 |
 |-------|-------------|
-| dialogue | Increasingly hollow protestation language |
-| scene-sequencing | Mirror moments and escalation markers |
-| endings | Tragic, dark, or redemptive resolution patterns |
+| dialogue | 越来越空洞的抗议语言 |
+| scene-sequencing | 镜像时刻和升级标记 |
+| endings | 悲剧、黑暗或救赎性的解决模式 |
 
-### Complementary
-| Skill | Relationship |
+### 互补
+| 技能 | 关系 |
 |-------|--------------|
-| character-arc | Character-arc provides standard transformation; identity-denial adds the layer of resistance that creates dramatic tension |
-| moral-parallax | Identity-denial often involves moral transformation; moral-parallax adds the speculative settings where "becoming the monster" has literal dimensions |
+| character-arc | character-arc 提供标准转变；identity-denial 增加了创造戏剧张力的抗拒层 |
+| moral-parallax | identity-denial 通常涉及道德转变；moral-parallax 增加了"变成怪物"具有字面维度的推想设定 |

@@ -1,6 +1,6 @@
 ---
 name: shared-world
-description: Maintain a wiki-style world bible for collaborative fiction. Use for long-running story worlds, shared universes, membership sites, or any fiction requiring persistent canonical reference.
+description: 为协作小说维护 wiki 风格的世界圣经。适用于长期故事世界、共享宇宙、会员制网站，或任何需要持久性经典参考的小说创作。
 license: MIT
 metadata:
   author: jwynia
@@ -11,224 +11,224 @@ metadata:
 allowed-tools: [read_file, write_file, edit_file, glob, grep, execute]
 ---
 
-# Shared World: World Bible Management Skill
+# 共享世界：世界圣经管理技能
 
-You maintain wiki-style world bibles for collaborative fiction. Your role is to keep canonical information organized, cross-referenced, and accessible—enabling multiple contributors to write consistently within a shared universe.
+你为协作小说维护 wiki 风格的世界圣经。你的角色是保持经典信息的组织性、交叉引用和可访问性——让多位贡献者能够在共享宇宙中保持一致性地进行写作。
 
-## Core Principle
+## 核心原则
 
-**A world bible is team memory for fiction.**
+**世界圣经是小说的团队记忆。**
 
-Like a context network for software projects, a world bible preserves what's been established, tracks what's proposed, flags contradictions, and provides navigation through complex world information. It's the canonical source of truth that lets multiple writers work in the same universe without breaking continuity.
-
----
-
-### Reading Budget
-- Read at most 3 chapter files for world extraction
-- After reading, IMMEDIATELY begin generating the world bible entry
-- Do not attempt to read all chapters — sample is sufficient
+就像软件项目的上下文网络一样，世界圣经保存已确立的内容、追踪待定的提议、标记矛盾，并提供复杂世界信息的导航。它是经典的真相来源，让多位作者能在同一宇宙中工作而不破坏连续性。
 
 ---
 
-## World Bible Structure
+### 阅读预算
+- 最多读取 3 个章节文件用于世界提取
+- 读取后，立即开始生成世界圣经条目
+- 不要试图读取所有章节——抽样即可
 
-A world bible follows context network patterns adapted for fiction:
+---
+
+## 世界圣经结构
+
+世界圣经遵循适配小说的上下文网络模式：
 
 ```
 world-bible/
-├── discovery.md              # Navigation guide and quick reference
-├── canon-status.md           # Canon state overview
+├── discovery.md              # 导航指南和快速参考
+├── canon-status.md           # 经典状态概览
 │
-├── characters/               # People and beings
-│   ├── _index.md             # Character directory
-│   └── [name].md             # Individual entries
+├── characters/               # 人物和生灵
+│   ├── _index.md             # 角色目录
+│   └── [name].md             # 个体条目
 │
-├── locations/                # Places
-│   ├── _index.md             # Location hierarchy
+├── locations/                # 地点
+│   ├── _index.md             # 地点层级
 │   └── [place]/
-│       ├── overview.md       # Place description
-│       └── [sublocation].md  # Nested locations
+│       ├── overview.md       # 地点描述
+│       └── [sublocation].md  # 嵌套地点
 │
-├── history/                  # Timeline and events
-│   ├── timeline.md           # Chronological overview
-│   ├── eras/                 # Historical periods
-│   └── events/               # Significant events
+├── history/                  # 时间线和事件
+│   ├── timeline.md           # 时间顺序概览
+│   ├── eras/                 # 历史时期
+│   └── events/               # 重大事件
 │
-├── factions/                 # Organizations and groups
-│   ├── _index.md             # Faction directory
-│   └── [faction].md          # Individual entries
+├── factions/                 # 组织和团体
+│   ├── _index.md             # 阵营目录
+│   └── [faction].md          # 个体条目
 │
-├── rules/                    # How the world works
-│   ├── _index.md             # Systems overview
-│   ├── magic.md              # Magic system (if applicable)
-│   ├── technology.md         # Tech level and rules
-│   └── [system].md           # Other systems
+├── rules/                    # 世界运作规则
+│   ├── _index.md             # 系统概览
+│   ├── magic.md              # 魔法系统（如适用）
+│   ├── technology.md         # 技术等级和规则
+│   └── [system].md           # 其他系统
 │
-├── culture/                  # Beliefs, customs, languages
-│   ├── _index.md             # Culture directory
+├── culture/                  # 信仰、习俗、语言
+│   ├── _index.md             # 文化目录
 │   └── [culture]/
 │       ├── overview.md
 │       ├── beliefs.md
 │       ├── customs.md
 │       └── language.md
 │
-├── artifacts/                # Significant objects
+├── artifacts/                # 重要物品
 │   ├── _index.md
 │   └── [artifact].md
 │
-├── species/                  # Non-human beings (if applicable)
+├── species/                  # 非人类生灵（如适用）
 │   ├── _index.md
 │   └── [species].md
 │
-└── meta/                     # About the world bible itself
-    ├── contributors.md       # Who has contributed
-    ├── conflicts.md          # Detected contradictions
-    ├── changelog.md          # Recent changes
-    └── style-guide.md        # Writing conventions
+└── meta/                     # 关于世界圣经本身
+    ├── contributors.md       # 贡献者名单
+    ├── conflicts.md          # 检测到的矛盾
+    ├── changelog.md          # 近期变更
+    └── style-guide.md        # 写作规范
 ```
 
 ---
 
-## Canon Status System
+## 经典状态系统
 
-Every piece of world information has a canon status:
+每条世界信息都有一个经典状态：
 
-### Status Levels
+### 状态级别
 
-| Status | Symbol | Meaning | Use |
-|--------|--------|---------|-----|
-| **Established** | ✓ | Appears in published/approved work | Treat as fact |
-| **Proposed** | ? | Suggested but not yet approved | Available for use, may change |
-| **Deprecated** | ✗ | Was canon, now superseded | Don't use in new work |
-| **Contradicted** | ⚠ | Conflicts with other canon | Needs resolution |
-| **Speculative** | ~ | Extrapolated from canon | Use cautiously |
+| 状态 | 符号 | 含义 | 用途 |
+|------|------|------|------|
+| **已确立** | ✓ | 出现在已发布/已批准的作品中 | 视为事实 |
+| **待定** | ? | 已提议但尚未批准 | 可使用，但可能变更 |
+| **已弃用** | ✗ | 曾是经典，现已被取代 | 新作品中不要使用 |
+| **有矛盾** | ⚠ | 与其他经典冲突 | 需要解决 |
+| **推测性** | ~ | 从经典推导而来 | 谨慎使用 |
 
-### Status Rules
+### 状态规则
 
-1. **Established** entries cannot be contradicted without deprecating them first
-2. **Proposed** entries can be freely modified until established
-3. **Deprecated** entries remain for reference but shouldn't appear in new work
-4. **Contradicted** entries require explicit resolution before use
-5. **Speculative** entries are derived but not directly stated in source material
+1. **已确立**条目不能在未先将其弃用的情况下被矛盾
+2. **待定**条目在确立之前可以自由修改
+3. **已弃用**条目保留供参考，但不应出现在新作品中
+4. **有矛盾**条目在使用前需要明确解决
+5. **推测性**条目是推导出来的，但并非在源材料中直接陈述
 
-### Source Tracking
+### 来源追踪
 
-Every canon entry tracks its source:
+每条经典条目都追踪其来源：
 
 ```markdown
-## Sources
-- *The Night Kingdom*, Chapter 3 (first appearance)
-- *Shadows Rising*, p. 47 (expanded)
-- Session notes 2024-03-15 (clarified by author)
+## 来源
+- *暗夜王国*，第 3 章（首次出现）
+- *暗影崛起*，第 47 页（扩展）
+- 2024-03-15 会议记录（作者澄清）
 ```
 
 ---
 
-## Entry Template
+## 条目模板
 
-Every world bible entry follows this structure:
+每个世界圣经条目遵循以下结构：
 
 ```markdown
-# [Entry Name]
+# [条目名称]
 
-**Canon Status:** Established | Proposed | Deprecated | Contradicted | Speculative
-**Category:** Character | Location | Faction | Event | Rule | Culture | Artifact | Species
-**Last Updated:** [Date]
-**Contributors:** [Names]
+**经典状态：** 已确立 | 待定 | 已弃用 | 有矛盾 | 推测性
+**类别：** 角色 | 地点 | 阵营 | 事件 | 规则 | 文化 | 物品 | 物种
+**最后更新：** [日期]
+**贡献者：** [姓名]
 
-## Summary
-[1-2 sentence overview for quick reference]
+## 摘要
+[1-2 句概述，用于快速参考]
 
-## Description
-[Detailed information about this entry]
+## 描述
+[关于此条目的详细信息]
 
-## Relationships
-- **Related Characters:** [[Character Name]], [[Another Character]]
-- **Located In:** [[Location Name]]
-- **Member Of:** [[Faction Name]]
-- **Appears In:** [[Event Name]]
-- **See Also:** [[Related Entry]]
+## 关联
+- **相关角色：** [[角色名称]]、[[另一角色]]
+- **位于：** [[地点名称]]
+- **隶属于：** [[阵营名称]]
+- **出现于：** [[事件名称]]
+- **另见：** [[相关条目]]
 
-## Key Facts
-- Fact 1
-- Fact 2
-- Fact 3
+## 关键事实
+- 事实 1
+- 事实 2
+- 事实 3
 
-## Notes for Writers
-[Guidance for using this element in stories]
+## 写作者须知
+[使用此元素的指导]
 
-## Sources
-- Source 1 (what was established)
-- Source 2 (additional details)
+## 来源
+- 来源 1（确立了什么）
+- 来源 2（附加细节）
 
-## History
-- [Date]: Created by [Contributor]
-- [Date]: Updated [what changed] by [Contributor]
+## 历史
+- [日期]：由 [贡献者] 创建
+- [日期]：由 [贡献者] 更新 [变更内容]
 ```
 
 ---
 
-## Cross-Referencing
+## 交叉引用
 
-Use wiki-style links to connect entries:
+使用 wiki 风格的链接来连接条目：
 
-### Link Syntax
+### 链接语法
 
 ```markdown
-[[Character Name]]           # Link to character
-[[Location Name|the city]]   # Link with display text
-[[Faction Name#history]]     # Link to section
+[[Character Name]]           # 链接到角色
+[[Location Name|the city]]   # 带显示文本的链接
+[[Faction Name#history]]     # 链接到章节
 ```
 
-### Relationship Types
+### 关系类型
 
-| Type | Meaning | Example |
-|------|---------|---------|
-| **contains** | Parent-child location | City contains neighborhoods |
-| **member_of** | Membership | Character member_of faction |
-| **located_in** | Physical location | Event located_in place |
-| **related_to** | General association | Character related_to character |
-| **preceded_by** | Temporal sequence | Event preceded_by earlier event |
-| **contradicts** | Canon conflict | Entry contradicts other entry |
-| **supersedes** | Replaces | New entry supersedes deprecated |
-
----
-
-## Contributor Coordination
-
-### Contributor Roles
-
-| Role | Can Do | Cannot Do |
-|------|--------|-----------|
-| **Reader** | View all entries | Edit anything |
-| **Writer** | Add proposed entries, edit own entries | Establish canon, edit others' work |
-| **Editor** | Edit any entry, resolve conflicts | Establish canon |
-| **Canon Authority** | Establish canon, deprecate entries | — |
-
-### Contribution Workflow
-
-1. **Propose:** Writer adds new entry with status "Proposed"
-2. **Review:** Editor checks for conflicts and quality
-3. **Integrate:** Canon Authority establishes if approved
-4. **Track:** Changelog records all changes
-
-### Conflict Resolution
-
-When contradictions arise:
-
-1. **Identify** both conflicting entries
-2. **Assess** which has stronger source authority
-3. **Decide** which becomes canon (or if reconciliation possible)
-4. **Mark** the losing entry as Deprecated or update to reconcile
-5. **Document** the decision in conflicts.md
+| 类型 | 含义 | 示例 |
+|------|------|------|
+| **contains** | 父子级地点 | 城市包含街区 |
+| **member_of** | 成员关系 | 角色隶属于阵营 |
+| **located_in** | 物理位置 | 事件发生在某地 |
+| **related_to** | 一般关联 | 角色与角色相关 |
+| **preceded_by** | 时间顺序 | 事件在先前事件之后 |
+| **contradicts** | 经典冲突 | 条目与其他条目矛盾 |
+| **supersedes** | 取代 | 新条目取代已弃用条目 |
 
 ---
 
-## World Bible Operations
+## 贡献者协调
 
-### Operation: Initialize World Bible
+### 贡献者角色
 
-Create a new world bible structure:
+| 角色 | 可以做 | 不可以做 |
+|------|--------|----------|
+| **读者** | 查看所有条目 | 编辑任何内容 |
+| **作者** | 添加待定条目、编辑自己的条目 | 确立经典、编辑他人作品 |
+| **编辑** | 编辑任何条目、解决冲突 | 确立经典 |
+| **经典权威** | 确立经典、弃用条目 | — |
+
+### 贡献工作流
+
+1. **提议：** 作者添加状态为"待定"的新条目
+2. **审查：** 编辑检查冲突和质量
+3. **整合：** 经典权威批准后确立
+4. **追踪：** 变更日志记录所有变更
+
+### 冲突解决
+
+当出现矛盾时：
+
+1. **识别**两个冲突的条目
+2. **评估**哪个有更强的来源权威
+3. **决定**哪个成为经典（或是否可以调和）
+4. **标记**落败条目为已弃用，或更新以调和
+5. **记录**决定到 conflicts.md
+
+---
+
+## 世界圣经操作
+
+### 操作：初始化世界圣经
+
+创建新的世界圣经结构：
 
 > **路径提示**: 脚本位于 `skills/application/shared-world/scripts/` 目录下。
 > 执行时必须使用从项目根目录出发的完整相对路径。
@@ -237,11 +237,11 @@ Create a new world bible structure:
 python skills/application/shared-world/scripts/init_world.py "World Name"
 ```
 
-Creates the full directory structure with template files.
+创建带有模板文件的完整目录结构。
 
-### Operation: Add Entry
+### 操作：添加条目
 
-Add a new entry to the world bible:
+向世界圣经添加新条目：
 
 ```bash
 python skills/application/shared-world/scripts/add_entry.py \
@@ -250,233 +250,233 @@ python skills/application/shared-world/scripts/add_entry.py \
   --status proposed
 ```
 
-Creates entry from template with proper metadata.
+使用模板创建带有正确元数据的条目。
 
-### Operation: Check Conflicts
+### 操作：检查冲突
 
-Scan for potential contradictions:
+扫描潜在矛盾：
 
 ```bash
 python skills/application/shared-world/scripts/check_conflicts.py world-bible/
 ```
 
-Identifies entries that may contradict each other.
+识别可能相互矛盾的条目。
 
-### Operation: Generate Index
+### 操作：生成索引
 
-Rebuild index files from entries:
+从条目重建索引文件：
 
 ```bash
 python skills/application/shared-world/scripts/build_index.py world-bible/
 ```
 
-Updates all _index.md files with current entries.
+用当前条目更新所有 _index.md 文件。
 
-### Operation: Export Reference
+### 操作：导出参考
 
-Generate a single-file reference document:
+生成单文件参考文档：
 
 ```bash
 python skills/application/shared-world/scripts/export_reference.py world-bible/ --format md
 ```
 
-Creates a portable reference document for writers.
+为作者创建可移植的参考文档。
 
 ---
 
-## Integration with Worldbuilding Skill
+## 与 worldbuilding 技能的集成
 
-The shared-world skill **maintains**; the worldbuilding skill **diagnoses**.
+shared-world 技能**维护**；worldbuilding 技能**诊断**。
 
-| Task | Use Shared-World | Use Worldbuilding |
-|------|-----------------|-------------------|
-| "What's established about the economy?" | ✓ | |
-| "The economy doesn't feel realistic" | | ✓ |
-| "Add a new faction" | ✓ | |
-| "Why does this faction feel thin?" | | ✓ |
-| "What contradicts what?" | ✓ | |
-| "How should magic affect society?" | | ✓ |
+| 任务 | 使用 shared-world | 使用 worldbuilding |
+|------|-------------------|-------------------|
+| "关于经济已经确立了什么？" | ✓ | |
+| "经济感觉不真实" | | ✓ |
+| "添加一个新阵营" | ✓ | |
+| "为什么这个阵营感觉单薄？" | | ✓ |
+| "什么与什么矛盾？" | ✓ | |
+| "魔法应该如何影响社会？" | | ✓ |
 
-### Diagnostic Handoff
+### 诊断移交
 
-When adding entries, consider running worldbuilding diagnostics:
+添加条目时，考虑运行 worldbuilding 诊断：
 
-- New location → W1 (Backdrop World) check
-- New faction → W3 (Institutions Without History) check
-- New magic/tech → W2 (World Without Consequences) check
-- New culture → W5/W6 (Belief/Culture Depth) check
-- New species → W7 (Flat Non-Humans) check
-
----
-
-## Common World Bible Tasks
-
-### Task: Onboard New Writer
-
-1. Share discovery.md as entry point
-2. Point to style-guide.md for conventions
-3. Walk through canon-status.md for what's established
-4. Explain contribution workflow
-5. Assign initial reading (key established entries)
-
-### Task: Before Writing Session
-
-1. Check changelog.md for recent updates
-2. Review entries relevant to your story
-3. Note any proposed entries you might affect
-4. Check conflicts.md for unresolved issues
-
-### Task: After Writing Session
-
-1. Add any new worldbuilding as proposed entries
-2. Update existing entries if expanded
-3. Note any contradictions discovered
-4. Add to changelog.md
-
-### Task: Canon Review
-
-1. Review proposed entries for quality
-2. Check for conflicts with established canon
-3. Run worldbuilding diagnostics on significant additions
-4. Establish or request revision
-5. Update canon-status.md
+- 新地点 → W1（背景板世界）检查
+- 新阵营 → W3（没有历史的制度）检查
+- 新魔法/技术 → W2（没有后果的世界）检查
+- 新文化 → W5/W6（信仰/文化深度）检查
+- 新物种 → W7（扁平化非人类）检查
 
 ---
 
-## Anti-Patterns
+## 常见世界圣经任务
 
-### The Completionist
-**Pattern:** Trying to document everything before writing starts.
-**Problem:** World bible becomes procrastination; entries grow stale.
-**Fix:** Document what you need when you need it. Bible grows with stories.
+### 任务：新作者入职
 
-### The Lore Dump
-**Pattern:** Entries contain encyclopedic detail no story uses.
-**Problem:** Maintenance burden; writers can't find what matters.
-**Fix:** Include only what writers need. Depth serves story, not the reverse.
+1. 分享 discovery.md 作为入口
+2. 指向 style-guide.md 了解规范
+3. 走过 canon-status.md 了解已确立的内容
+4. 解释贡献工作流
+5. 分配初始阅读（关键已确立条目）
 
-### The Siloed Bible
-**Pattern:** World bible separate from actual writing process.
-**Problem:** Canon drifts; bible becomes outdated.
-**Fix:** Update bible as part of writing workflow, not separate task.
+### 任务：写作会话前
 
-### The Authority Vacuum
-**Pattern:** No clear canon authority; everything stays "proposed."
-**Problem:** Nothing is reliable; writers can't depend on bible.
-**Fix:** Designate canon authority; establish review cadence.
+1. 检查 changelog.md 获取近期更新
+2. 审查与你的故事相关的条目
+3. 注意你可能影响的待定条目
+4. 检查 conflicts.md 获取未解决的问题
 
-### The Conflict Avoidance
-**Pattern:** Contradictions ignored rather than resolved.
-**Problem:** Canon becomes unreliable; conflicts compound.
-**Fix:** Address conflicts immediately; document decisions.
+### 任务：写作会话后
 
-### The Single Source
-**Pattern:** One person maintains bible alone.
-**Problem:** Bus factor; limited perspective; bottleneck.
-**Fix:** Multiple contributors; clear ownership but shared access.
+1. 将所有新的世界构建作为待定条目添加
+2. 如果扩展了现有条目则更新
+3. 记录发现的任何矛盾
+4. 添加到 changelog.md
+
+### 任务：经典审查
+
+1. 审查待定条目的质量
+2. 检查与已确立经典的冲突
+3. 对重要增补运行 worldbuilding 诊断
+4. 确立或要求修订
+5. 更新 canon-status.md
 
 ---
 
-## Style Guide Template
+## 反模式
 
-Every world bible should include a style guide:
+### 完美主义者
+**模式：** 试图在开始写作之前记录所有内容。
+**问题：** 世界圣经变成拖延工具；条目变得陈旧。
+**修正：** 需要时记录需要的内容。圣经随故事成长。
+
+### 设定倾泻
+**模式：** 条目包含没有任何故事使用的百科全书式细节。
+**问题：** 维护负担；作者找不到重要的内容。
+**修正：** 只包含作者需要的内容。深度服务于故事，而非相反。
+
+### 孤岛圣经
+**模式：** 世界圣经与实际写作流程分离。
+**问题：** 经典偏移；圣经变得过时。
+**修正：** 将圣经更新作为写作工作流的一部分，而非独立任务。
+
+### 权威真空
+**模式：** 没有明确的经典权威；一切都停留在"待定"状态。
+**问题：** 没有什么是可靠的；作者无法依赖圣经。
+**修正：** 指定经典权威；建立审查节奏。
+
+### 冲突回避
+**模式：** 矛盾被忽略而非解决。
+**问题：** 经典变得不可靠；冲突越积越多。
+**修正：** 立即处理冲突；记录决定。
+
+### 单一来源
+**模式：** 一个人独自维护圣经。
+**问题：** 巴士因子问题；视角有限；瓶颈。
+**修正：** 多位贡献者；明确所有权但共享访问。
+
+---
+
+## 风格指南模板
+
+每个世界圣经应包含一份风格指南：
 
 ```markdown
-# [World Name] Style Guide
+# [世界名称] 风格指南
 
-## Naming Conventions
-- Character names: [pattern, cultural influences]
-- Place names: [pattern, linguistic rules]
-- Organization names: [conventions]
+## 命名规范
+- 角色名：[模式、文化影响]
+- 地名：[模式、语言规则]
+- 组织名：[规范]
 
-## Tone and Voice
-- [Description of world's tone]
-- [What to avoid]
-- [Examples of good/bad fits]
+## 基调与声音
+- [世界基调描述]
+- [应避免的内容]
+- [合适/不合适的示例]
 
-## Content Boundaries
-- [What can be depicted]
-- [What requires sensitivity]
-- [Off-limits topics]
+## 内容边界
+- [可以描绘的内容]
+- [需要敏感处理的内容]
+- [禁区话题]
 
-## Formatting Standards
-- [Date formats in-world]
-- [Measurement systems]
-- [Title capitalization]
+## 格式标准
+- [世界内日期格式]
+- [度量衡系统]
+- [标题大写规则]
 
-## Common Terms
-- [World-specific vocabulary]
-- [Spelling of unusual words]
+## 常用术语
+- [世界特有词汇]
+- [不常见词汇的拼写]
 ```
 
 ---
 
-## Available Tools
+## 可用工具
 
 ### init_world.py
-Initialize a new world bible structure.
+初始化新的世界圣经结构。
 
 ### add_entry.py
-Create new entries from templates.
+从模板创建新条目。
 
 ### check_conflicts.py
-Scan for potential contradictions.
+扫描潜在矛盾。
 
 ### build_index.py
-Regenerate index files.
+重新生成索引文件。
 
 ### export_reference.py
-Generate portable reference documents.
+生成可移植的参考文档。
 
 ### link_validator.py
-Check that wiki-links resolve to real entries.
+检查 wiki-链接是否指向真实条目。
 
 ---
 
-## Example Interactions
+## 交互示例
 
-### Example 1: New Contributor
+### 示例一：新贡献者
 
-**Writer:** "I'm joining the shared world project. Where do I start?"
+**作者：** "我要加入共享世界项目。从哪里开始？"
 
-**Your approach:**
-1. Point to discovery.md as navigation hub
-2. Have them read style-guide.md
-3. Walk through key established entries
-4. Explain proposed vs. established status
-5. Set up their first contribution (probably a character or location)
+**你的方法：**
+1. 指向 discovery.md 作为导航中心
+2. 让他们阅读 style-guide.md
+3. 走过关键的已确立条目
+4. 解释待定 vs. 已确立状态
+5. 设置他们的第一个贡献（可能是角色或地点）
 
-### Example 2: Contradiction Discovered
+### 示例二：发现矛盾
 
-**Writer:** "Wait, in Chapter 3 we said the magic system requires blood, but Chapter 7 has a character using magic without it."
+**作者：** "等等，第 3 章里我们说魔法系统需要血液，但第 7 章有个角色在不用血液的情况下使用了魔法。"
 
-**Your approach:**
-1. Create entries for both instances if they don't exist
-2. Mark both as Contradicted
-3. Add to conflicts.md with sources
-4. Determine which has canon authority (earlier, more central, author preference)
-5. Either reconcile (maybe the blood requirement has exceptions) or deprecate one
+**你的方法：**
+1. 如果两个实例还没有条目，则创建
+2. 将两者标记为有矛盾
+3. 添加到 conflicts.md 并附上来源
+4. 确定哪个拥有经典权威（更早的、更核心的、作者偏好）
+5. 要么调和（也许血液需求有例外情况），要么弃用其中一个
 
-### Example 3: Major World Expansion
+### 示例三：大规模世界扩展
 
-**Writer:** "I want to add a whole new continent with its own cultures."
+**作者：** "我想添加一整个新大陆，有自己的文化。"
 
-**Your approach:**
-1. Create location entry structure for continent
-2. Add as Proposed (not Established until approved)
-3. Suggest worldbuilding diagnostic (W1 for depth, W6 for culture)
-4. Create placeholder entries for key locations, cultures
-5. Build out detail as stories require it (not all at once)
+**你的方法：**
+1. 为大陆创建地点条目结构
+2. 添加为待定（在批准前不是已确立）
+3. 建议运行 worldbuilding 诊断（W1 检查深度、W6 检查文化）
+4. 为关键地点、文化创建占位条目
+5. 随着故事需要逐步充实细节（不是一次性全部完成）
 
 ---
 
-## Output Persistence
+## 输出持久化
 
-This skill has comprehensive built-in persistence through a wiki-style world bible structure.
+本技能通过 wiki 风格的世界圣经结构内置了全面的持久化机制。
 
-### Existing Persistence Mechanism
+### 现有持久化机制
 
-The shared-world skill maintains a structured directory as a persistent world bible:
+shared-world 技能维护一个结构化目录作为持久世界圣经：
 
 ```
 world-bible/
@@ -489,44 +489,44 @@ world-bible/
 └── meta/
 ```
 
-**Tools for persistence:**
-- `init_world.py` - Creates the full directory structure
-- `add_entry.py` - Adds new entries with proper templates
-- `build_index.py` - Regenerates directory indexes
-- `check_conflicts.py` - Validates cross-references
+**持久化工具：**
+- `init_world.py` - 创建完整目录结构
+- `add_entry.py` - 使用合适的模板添加新条目
+- `build_index.py` - 重新生成目录索引
+- `check_conflicts.py` - 验证交叉引用
 
-### How It Differs from Standard Output Persistence
+### 与标准输出持久化的区别
 
-Unlike other skills that write session output to `explorations/`, shared-world maintains an **operational wiki** that is the world bible itself. The output IS the product, not a record of exploration.
+与其他将会话输出写入 `explorations/` 的技能不同，shared-world 维护的是一个**运作中的 wiki**，即世界圣经本身。输出就是产品，而非探索记录。
 
-**This skill does NOT use `context/output-config.md`** because:
-- The world bible location is established when initialized
-- The world bible IS the persistence (not session logs)
-- Multiple contributors need to know the fixed location
+**本技能不使用 `context/output-config.md`**，因为：
+- 世界圣经位置在初始化时确立
+- 世界圣经本身就是持久化（而非会话日志）
+- 多位贡献者需要知道固定位置
 
-### Conversation vs. File
+### 对话 vs. 文件
 
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Canonical entries | Discussion of what to include |
-| Cross-references | Conflict resolution |
-| Status updates (Proposed→Established) | Canon debates |
-| Structure and organization | Writer questions |
+| 写入文件 | 留在对话中 |
+|----------|------------|
+| 经典条目 | 关于包含内容的讨论 |
+| 交叉引用 | 冲突解决过程 |
+| 状态更新（待定→已确立） | 经典辩论 |
+| 结构和组织 | 作者提问 |
 
-## What You Do NOT Do
+## 你不做的事
 
-- You do not write story content (world bible is reference, not narrative)
-- You do not make canon decisions without authority
-- You do not resolve creative disputes (facilitate, don't decide)
-- You do not create entries speculatively (document what exists)
-- You do not prioritize completeness over usability
+- 你不编写故事内容（世界圣经是参考，而非叙事）
+- 你不在没有权威的情况下做出经典决定
+- 你不解决创意争议（你促进，而非决定）
+- 你不推测性地创建条目（记录已存在的内容）
+- 你不将完整性置于可用性之上
 
-Your role is organizational and facilitative: keep the shared world coherent, accessible, and useful for writers. The writers write; you maintain their shared memory.
+你的角色是组织性和促进性的：保持共享世界的连贯、可访问和对作者有用。作者负责写作；你维护他们的共享记忆。
 
 ---
 
-## Key Insight
+## 关键洞见
 
-A world bible is alive. It grows with the stories told in the world, not before them. The best world bibles are lean—containing exactly what writers need and nothing more. They're maintained alongside writing, not as a separate artifact.
+世界圣经是有生命的。它随着世界中讲述的故事成长，而非先于它们。最好的世界圣经是精简的——恰好包含作者需要的内容，不多也不少。它们与写作同步维护，而非作为独立的产物。
 
-The goal isn't to document a world comprehensively. It's to enable multiple people to write consistently in the same world without stepping on each other's canon. Every entry should answer a question a writer actually has.
+目标不是全面记录一个世界。而是让多个人能在同一个世界中一致地写作，而不踩到彼此的经典。每个条目都应该回答一个作者实际会有的问题。

@@ -1,6 +1,6 @@
 ---
 name: drafting
-description: Break through blocks and execute first drafts. Use when the outline is done but the draft isn't happening, when writer's block strikes, when the blank page remains blank, or when progress stalls.
+description: 突破写作障碍，执行初稿。适用于大纲已完成但初稿迟迟不动笔、遭遇写作瓶颈、空白页面始终空白、或进度停滞时使用。
 license: MIT
 metadata:
   author: jwynia
@@ -11,478 +11,484 @@ metadata:
 allowed-tools: [read_file, write_file, edit_file, glob, grep, execute]
 ---
 
-# Drafting: Diagnostic Skill
+# 起草：诊断技能
 
-You diagnose drafting blocks and guide writers through first draft execution. Your role is to identify why the draft isn't progressing and help writers get words on the page.
+你诊断起草障碍，引导作者完成初稿执行。你的角色是识别草稿为何无法推进，并帮助作者把文字写到纸上。
 
-## Core Principle
+## 核心原则
 
-**Drafting is discovery, not transcription.**
+**起草是发现，不是转录。**
 
-The draft is not meant to be perfect. It's meant to exist. The goal is to produce material to revise—not to produce final prose. All first drafts are supposed to be imperfect.
+初稿不是要完美的，而是要存在的。目标是产出可供修改的素材——而非产出最终稿。所有初稿本就应该是不完美的。
 
 > "All first drafts are shit." — Attributed to Hemingway
 
 ---
 
-## The Fundamental Split
+## 根本分野
 
-| Drafting | Editing |
+| 起草 | 编辑 |
 |----------|---------|
-| Generative | Evaluative |
-| Forward momentum | Backward revision |
-| Quantity focus | Quality focus |
-| Internal editor OFF | Internal editor ON |
-| Discovery mode | Refinement mode |
+| 生成性的 | 评估性的 |
+| 向前的动力 | 向后的修订 |
+| 关注数量 | 关注质量 |
+| 内心编辑关闭 | 内心编辑开启 |
+| 发现模式 | 精炼模式 |
 
-**Critical rule:** Do not edit while drafting. Move forward. Fix it later.
-
----
-
-## The Drafting States
-
-### State D1: Can't Start
-
-**Symptoms:** Outline exists but draft doesn't. Blank page paralysis. Days pass without words written. Infinite "preparation" without execution.
-
-**Key Questions:**
-- Is the outline too vague to write from?
-- Are expectations too high for a first draft?
-- Is there fear of the blank page?
-- Are you waiting to feel "ready"?
-
-**Common Causes:**
-- Perfectionism (standards too high for first draft)
-- Anxiety (fear of judgment or failure)
-- Over-preparation (planning forever, never starting)
-- Vague outline (don't know what to write)
-
-**Interventions:**
-- Write a zero draft scene with no expectations
-- Start with dialogue only (easiest to generate)
-- Write "What happens in this scene is..." and describe it
-- Set a start date and keep it regardless of readiness
-- Lower the bar: "I will write 100 bad words"
+**关键规则：** 起草时不要编辑。向前推进。之后再修。
 
 ---
 
-### State D2: Start But Can't Continue
+## 起草状态
 
-**Symptoms:** First scenes exist, then nothing. Each session produces less. The draft stalls after initial momentum. Getting stuck on specific scenes.
+### 状态 D1：无法开始
 
-**Key Questions:**
-- Are you editing while drafting?
-- Did you stop at a dead end?
-- Is the current scene unclear?
-- Did you stop at a bad place last time?
+**症状：** 大纲存在但草稿不存在。空白页面恐惧症。好几天过去了没写一个字。无休止的"准备"而不执行。
 
-**Diagnostic Checklist:**
-- [ ] Not re-reading previous work before writing
-- [ ] Moving forward, not polishing backward
-- [ ] Stopping mid-scene (not at ends)
-- [ ] Using placeholders for stuck parts
+**关键问题：**
+- 大纲是否太模糊以至于无法据此写作？
+- 对初稿的期望是否过高？
+- 是否存在对空白页面的恐惧？
+- 你是否在等待感觉"准备好了"？
 
-**Interventions:**
-- Skip to a different scene you CAN write
-- Use placeholders: [SOMETHING HAPPENS HERE]
-- Lower word count goals dramatically
-- Stop mid-sentence next time (easier to resume)
-- Disable backspace / turn off screen
+**常见原因：**
+- 完美主义（初稿标准太高）
+- 焦虑（害怕被评判或失败）
+- 过度准备（永远在规划，从不开始）
+- 大纲模糊（不知道该写什么）
 
----
-
-### State D3: Middle Stall
-
-**Symptoms:** First act done, middle act impossible. The "muddle in the middle." Momentum lost. Unclear what connects beginning to end.
-
-**Key Questions:**
-- Is the story working?
-- Is there a structural problem the draft is revealing?
-- Is motivation flagging because direction is unclear?
-- Do you know the ending?
-
-**Common Causes:**
-- Outline was incomplete for middle section
-- Story problem discovered during drafting
-- The "long slog" between exciting beginning and end
-- Lost connection to why this story matters
-
-**Interventions:**
-- Connect with the ending—write toward it
-- Review outline for structural gaps
-- Write scenes out of order (skip to climax if needed)
-- Ask: "What's the worst thing that could happen now?"
-- Take a short break, then resume with fresh eyes
+**干预措施：**
+- 写一个零草稿场景，不带任何期望
+- 从纯对话开始（最容易生成的）
+- 写下"这个场景发生的事是……"然后描述它
+- 设定一个开始日期，无论是否准备好都执行
+- 降低门槛："我会写 100 个烂字"
 
 ---
 
-### State D4: Can't Finish
+### 状态 D2：开了头但无法继续
 
-**Symptoms:** Draft is 70-90% complete, then stalls. Endless circling without reaching "THE END." Fear of completing. Adding instead of finishing.
+**症状：** 前几个场景写完了，然后就没了。每次写作产出越来越少。初始动力过后草稿停滞。在特定场景上卡住。
 
-**Key Questions:**
-- Is the ending unclear?
-- Is there fear of judgment once complete?
-- Has momentum been lost?
-- Are you avoiding the ending?
+**关键问题：**
+- 你是否在起草过程中同时编辑？
+- 你是否停在了一个死胡同？
+- 当前场景是否不清晰？
+- 上次是否停在了一个不好的位置？
 
-**Why Writers Avoid Finishing:**
-- Fear of evaluation (once done, it can be judged)
-- Uncertainty about what comes next
-- Ending feels inadequate
-- Attachment to the process over the product
+**诊断清单：**
+- [ ] 写作前不重读之前的内容
+- [ ] 向前推进，而非向后打磨
+- [ ] 停在场景中间（而非结尾处）
+- [ ] 对卡住的部分使用占位符
 
-**Interventions:**
-- Set a deadline and commit publicly
-- Commit to word count regardless of quality
-- Remember: a finished bad draft beats an unfinished "good" one
-- Write the ending NOW, then fill gaps
-- Accept the ending can be revised—just get something down
-
----
-
-### State D5: Draft Taking Too Long
-
-**Symptoms:** Months or years on the same draft. Progress painfully slow. Daily word counts tiny. Constant revision disguised as drafting.
-
-**Key Questions:**
-- Is editing happening during drafting?
-- Are word count goals too low?
-- Is perfectionism slowing progress?
-- Are you treating the first draft as final?
-
-**Diagnostic Checklist:**
-- [ ] Daily word count goal exists and is met
-- [ ] Not re-reading more than last paragraph before starting
-- [ ] Not revising sentences after writing them
-- [ ] Actually drafting, not perpetual revision
-
-**Interventions:**
-- Increase daily goals (500 → 1000 → 2000)
-- Time-box sessions (write for 1 hour, regardless of output)
-- Commit to speed over quality for remainder of draft
-- Track word count publicly for accountability
-- Use "dirty draft" philosophy: it's supposed to be bad
+**干预措施：**
+- 跳到一个你能写的不同场景
+- 使用占位符：[这里发生了什么]
+- 大幅降低字数目标
+- 下次停在句子中间（更容易恢复）
+- 禁用退格键 / 关闭屏幕
 
 ---
 
-### State D6: Draft Reveals Story Problem
+### 状态 D3：中段停滞
 
-**Symptoms:** Draft is progressing but something feels wrong. Story isn't working. Outline seemed good but execution exposes flaws. Reluctance to continue because foundation is broken.
+**症状：** 第一幕完成了，中间部分无法推进。"中间的泥潭"。动力丧失。不清楚什么连接开头和结尾。
 
-**Key Questions:**
-- Is it a drafting problem or a story problem?
-- What specific element feels wrong?
-- Can you push through and fix in revision?
-- Does the outline need adjustment?
+**关键问题：**
+- 故事在起作用吗？
+- 是否有草稿正在揭示的结构问题？
+- 动力是否因为方向不明而减退？
+- 你知道结局吗？
 
-**Options When Draft Goes Wrong:**
-1. **Push through anyway** — Fix in revision (fastest)
-2. **Pause and re-outline** — If fundamentally broken (significant)
-3. **Follow the draft** — Let story go where it wants (discovery)
-4. **Write both versions** — Compare later (exploratory)
+**常见原因：**
+- 中间部分的大纲不完整
+- 起草过程中发现了故事问题
+- 在令人兴奋的开头和结尾之间的"漫长跋涉"
+- 失去了与这个故事为何重要的连接
 
-**Interventions:**
-- Distinguish: is it prose quality or story structure?
-- If prose: push through (that's what revision is for)
-- If structure: take one day to re-outline, then continue
-- If character: write the scene wrong, mark it, keep going
-- Trust that revision exists for exactly this purpose
-
----
-
-## The Internal Editor Problem
-
-> "Writer's block is a non-medical condition primarily associated with writing, in which an author is either unable to produce new work or experiences a creative slowdown."
-
-### The Neurological Reality
-
-Under stress, the brain shifts from cortex (creative) to limbic system (survival). Creative processes are literally impaired by anxiety about the draft.
-
-### Silencing the Editor
-
-**Techniques:**
-- Write with screen off
-- Use a different tool (pen, typewriter, different app)
-- Write in a "junk" file meant to be deleted
-- Set a timer and don't stop until it rings
-- Dictate instead of type
-- Write at a different time of day
+**干预措施：**
+- 与结局连接——朝着它写
+- 审查大纲的结构缺口
+- 不按顺序写场景（如有需要，跳到高潮）
+- 问自己："现在可能发生的最糟糕的事是什么？"
+- 短暂休息，然后以全新的眼光恢复
 
 ---
 
-## Drafting Methods
+### 状态 D4：无法完成
 
-### The Daily Quota
+**症状：** 草稿完成了 70-90%，然后停滞。无休止地打转而无法写到"完"。害怕完成。不断添加而不收尾。
 
-Set a daily word count and meet it regardless of quality.
+**关键问题：**
+- 结局是否不清晰？
+- 是否害怕完成后被评判？
+- 动力是否丧失了？
+- 你是否在回避结局？
 
-| Target | Pace | Annual Output |
+**作者为何回避完成：**
+- 害怕评估（完成后就可以被评判了）
+- 不确定接下来该做什么
+- 感觉结局不够好
+- 对过程的依恋胜过对产出的依恋
+
+**干预措施：**
+- 设定截止日期并公开承诺
+- 无论质量如何都承诺完成字数
+- 记住：一个写完的烂草稿胜过一个没写完的"好"草稿
+- 现在就写结局，然后再填补空白
+- 接受结局可以修改——先写出来就好
+
+---
+
+### 状态 D5：草稿耗时过长
+
+**症状：** 同一份草稿写了几个月甚至几年。进度痛苦地缓慢。每日字数微乎其微。打着起草旗号的持续修订。
+
+**关键问题：**
+- 起草过程中是否在编辑？
+- 字数目标是否太低？
+- 完美主义是否在拖慢进度？
+- 你是否把初稿当最终稿来写？
+
+**诊断清单：**
+- [ ] 每日字数目标存在且被达到
+- [ ] 开始写作前不重读超过上一段
+- [ ] 写完句子后不回头修改
+- [ ] 确实在起草，而非永恒的修订
+
+**干预措施：**
+- 提高每日目标（500 → 1000 → 2000）
+- 限定写作时间（写 1 小时，不管产出多少）
+- 承诺在剩余草稿中以速度优先于质量
+- 公开追踪字数以增加责任感
+- 使用"脏草稿"哲学：它本就该是糟糕的
+
+---
+
+### 状态 D6：草稿揭示故事问题
+
+**症状：** 草稿在推进但感觉有什么不对。故事不起作用。大纲看起来没问题但执行暴露了缺陷。因为基础有裂缝而不愿继续。
+
+**关键问题：**
+- 这是起草问题还是故事问题？
+- 具体哪个元素感觉不对？
+- 能否硬推过去然后在修改中修复？
+- 大纲是否需要调整？
+
+**当草稿出问题时的选项：**
+1. **硬推过去** — 在修改中修复（最快）
+2. **暂停并重新编排大纲** — 如果根本性破损的话（影响显著）
+3. **跟随草稿** — 让故事去它想去的地方（发现式）
+4. **写两个版本** — 之后再比较（探索式）
+
+**干预措施：**
+- 区分：是文笔质量问题还是故事结构问题？
+- 如果是文笔：硬推过去（那是修改存在的意义）
+- 如果是结构：花一天重新编排大纲，然后继续
+- 如果是角色：把场景写错也无妨，标记它，继续前进
+- 相信修改环节正是为此而存在的
+
+---
+
+## 内心编辑问题
+
+> "写作障碍是一种主要与写作相关的非医学状态，作者要么无法产出新作品，要么经历创意放缓。"
+
+### 神经学现实
+
+在压力下，大脑从皮层（创造性）转向边缘系统（生存）。创造过程会因为对草稿的焦虑而被切实地损害。
+
+### 让编辑沉默
+
+**技巧：**
+- 关着屏幕写
+- 使用不同的工具（笔、打字机、不同的应用）
+- 在一个"垃圾"文件中写，打算之后删掉
+- 设个计时器，不到响不停
+- 口述代替打字
+- 在一天中不同的时间写
+
+---
+
+## 起草方法
+
+### 每日配额法
+
+设定每日字数目标，无论质量如何都要完成。
+
+| 目标 | 节奏 | 年产出量 |
 |--------|------|---------------|
-| 500 words/day | Sustainable | 180,000 words |
-| 1,000 words/day | Moderate | 365,000 words |
-| 2,000 words/day | Intensive | 730,000 words |
+| 500 字/天 | 可持续 | 180,000 字 |
+| 1,000 字/天 | 中等 | 365,000 字 |
+| 2,000 字/天 | 高强度 | 730,000 字 |
 
-**Principle:** Consistent small amounts accumulate.
+**原则：** 持续的小量积累会累积成大量。
 
-### The Session Method
+### 时间段法
 
-Write in focused sessions, not word counts:
-- **Pomodoro:** 25 min on, 5 min off
-- **Power hour:** 60 min focused drafting
-- **Sprint:** 15-30 min bursts with breaks
+以专注时间段而非字数目标来写作：
+- **番茄钟：** 25 分钟写作，5 分钟休息
+- **强力一小时：** 60 分钟专注起草
+- **冲刺：** 15-30 分钟爆发式写作，间隔休息
 
-### The Scene Method
+### 场景法
 
-Don't write "the novel"—write individual scenes. Each session completes one scene.
+不要写"整部小说"——写单个场景。每次写作完成一个场景。
 
-**Advantage:** Discrete achievable goals.
+**优势：** 离散的可达成目标。
 
-### The Out-of-Order Method
+### 乱序法
 
-Write scenes you're excited about, regardless of position. Assemble later.
+写你兴奋的场景，不管它在什么位置。之后再组装。
 
-**Advantage:** Maintains enthusiasm; bypasses stuck points.
+**优势：** 保持热情；绕过卡点。
 
-### Free Writing
+### 自由写作
 
-From Natalie Goldberg:
-1. Set time limit (5-20 minutes)
-2. Keep hand moving—no pausing
-3. Don't correct anything
-4. If stuck, write "I don't know what to write"
-5. When done, mark passages worth keeping
-
----
-
-## Breaking Specific Blocks
-
-### When Completely Stuck
-
-1. **Change location** (different room, outside, café)
-2. **Change tool** (pen/keyboard, different app)
-3. **Lower the bar** ("I'll just write 100 words")
-4. **Skip ahead** to a scene you can write
-5. **Write about being stuck** (free write about the block)
-6. **Talk it through** (explain scene aloud, transcribe)
-7. **Set a timer** (even 10 min of forced writing)
-
-### When a Scene Won't Work
-
-- Write it badly on purpose
-- Write only the dialogue
-- Summarize what needs to happen: [Character confronts villain about X]
-- Skip it with placeholder and move on
-- Ask: does this scene need to exist?
-
-### When You Hate What You've Written
-
-- That's normal. Keep going.
-- Don't re-read until draft is done
-- Remember: you're generating raw material
-- The revision skill exists for exactly this reason
+来自 Natalie Goldberg 的方法：
+1. 设定时间限制（5-20 分钟）
+2. 手不停——不暂停
+3. 不纠正任何东西
+4. 如果卡住，就写"我不知道该写什么"
+5. 写完后，标记值得保留的段落
 
 ---
 
-## The Writing Environment
+## 突破特定障碍
 
-### Physical
+### 完全卡住时
 
-- Dedicated space if possible
-- Minimal distractions
-- Consistent location (habit trigger)
+1. **换个地方**（不同房间、户外、咖啡馆）
+2. **换个工具**（笔/键盘、不同应用）
+3. **降低门槛**（"我就写 100 个字"）
+4. **跳到前面**去写一个你能写的场景
+5. **写下卡住的感受**（关于障碍的自由写作）
+6. **说出来**（大声解释场景，然后转录）
+7. **设个计时器**（即使 10 分钟的强制写作也好）
 
-### Digital
+### 当一个场景写不通时
 
-- Distraction-free writing tool
-- Internet blocked
-- Notifications silenced
-- Phone in another room
+- 故意写得很烂
+- 只写对话
+- 总结需要发生的事：[角色就 X 事件与反派对质]
+- 跳过它用占位符，然后继续
+- 问自己：这个场景需要存在吗？
 
-### Temporal
+### 当你讨厌自己写的东西时
 
-- Consistent time of day
-- Morning often works (before world intrudes)
-- Specific time matters less than consistency
-
----
-
-## Anti-Patterns
-
-### The Endless Outliner
-Plans forever, never drafts.
-**Fix:** Set a start date. Outline is done when the deadline arrives.
-
-### The Sentence Polisher
-Revises each sentence before writing the next.
-**Fix:** Turn off screen. Disable backspace. Forward only.
-
-### The Perfect First-Drafter
-Believes first draft should be near-final.
-**Fix:** Read about professional writers' terrible first drafts.
-
-### The Mood Writer
-Only writes when "inspired."
-**Fix:** Professionals write on schedule. Inspiration follows action.
-
-### The Middle Abandoner
-Starts many drafts, finishes none.
-**Fix:** Finish one bad draft before starting another.
-
-### The Comparison Maker
-Compares first draft to published novels.
-**Fix:** Published novels had many drafts. Compare first to first.
+- 这很正常。继续写。
+- 不要重读直到草稿完成
+- 记住：你在生成原始素材
+- revision 技能正是为此而存在的
 
 ---
 
-## Diagnostic Process
+## 写作环境
 
-When a writer comes with drafting problems:
+### 物理环境
 
-### 1. Identify the State
+- 如有可能，专用空间
+- 最少的干扰
+- 固定地点（习惯触发器）
 
-- Can't start? → D1
-- Starts but stalls? → D2
-- Middle stuck? → D3
-- Can't finish? → D4
-- Taking too long? → D5
-- Story problem emerging? → D6
+### 数字环境
 
-### 2. Check for Internal Editor
+- 无干扰的写作工具
+- 断网
+- 静音通知
+- 手机放在另一个房间
 
-Are they drafting or editing-in-disguise?
-- Re-reading before writing?
-- Revising sentences after writing them?
-- Standards too high for first draft?
+### 时间安排
 
-### 3. Check the Method
-
-Is there a system?
-- Daily goal (words or time)?
-- Consistent schedule?
-- Appropriate scope per session?
-
-### 4. Recommend Interventions
-
-Based on identified state and causes.
+- 一天中固定的时间
+- 早晨通常有效（在世界闯入之前）
+- 具体什么时间不如一致性重要
 
 ---
 
-## Integration with story-sense
+## 反模式
 
-| story-sense State | Maps to Drafting State |
+### 永恒大纲党
+
+永远在规划，从不起草。
+**修正：** 设定开始日期。截止日到了大纲就算完成了。
+
+### 句子打磨狂
+
+写下一句之前先修改每一句。
+**修正：** 关掉屏幕。禁用退格键。只能前进。
+
+### 完美初稿信徒
+
+相信初稿应该接近终稿。
+**修正：** 去读读专业作家们糟糕的初稿。
+
+### 情绪写作者
+
+只在"有灵感"时写。
+**修正：** 专业人士按计划写作。灵感跟随行动而来。
+
+### 中途放弃者
+
+开了很多草稿，一个都没完成。
+**修正：** 先完成一个烂草稿再开始另一个。
+
+### 比较制造者
+
+把初稿与出版小说比较。
+**修正：** 出版小说经历了很多稿。拿初稿跟初稿比。
+
+---
+
+## 诊断流程
+
+当作者带着起草问题来找你时：
+
+### 1. 识别状态
+
+- 无法开始？→ D1
+- 开了头但停了？→ D2
+- 中段卡住？→ D3
+- 无法完成？→ D4
+- 耗时过长？→ D5
+- 暴露了故事问题？→ D6
+
+### 2. 检查内心编辑
+
+他们是在起草还是在伪装成起草的编辑？
+- 写作前重读？
+- 写完句子后修改？
+- 初稿标准太高？
+
+### 3. 检查方法
+
+有没有一个体系？
+- 每日目标（字数或时间）？
+- 固定的时间表？
+- 每次写作的合适范围？
+
+### 4. 推荐干预措施
+
+基于识别出的状态和原因。
+
+---
+
+## 与 story-sense 的集成
+
+| story-sense 状态 | 对应的起草状态 |
 |-------------------|----------------------|
-| State 3: Outline complete, draft not started | D1 |
-| State 3.5: Draft in progress but stalled | D2-D5 |
+| 状态 3：大纲完成，未开始草稿 | D1 |
+| 状态 3.5：草稿进行中但停滞 | D2-D5 |
 
-### When to Hand Off
+### 何时交接
 
-- **To scene-sequencing:** When stuck scene is structural
-- **To character-arc:** When character isn't coming through
-- **To revision:** When draft is complete (not before!)
-- **To prose-style:** ONLY after draft is complete
+- **转交 scene-sequencing：** 当卡住的场景是结构性问题
+- **转交 character-arc：** 当角色没有展现出来
+- **转交 revision：** 当草稿完成时（不是之前！）
+- **转交 prose-style：** 仅在草稿完成之后
 
-### Prerequisites for This Skill
+### 本技能的前提条件
 
-Writer should have:
-- Outline or at least clear sense of story
-- Characters defined enough to write
-- Setting clear enough to describe
+作者应当有：
+- 大纲或至少清晰的故事感觉
+- 足够明确的角色定义以便写作
+- 足够清晰的设定以便描述
 
-If not: hand off to story-sense for earlier-stage work.
-
----
-
-## Example Interactions
-
-### Example 1: Blank Page Paralysis
-
-**Writer:** "I have a complete outline but I can't start the actual draft."
-
-**Your approach:**
-1. Identify state: D1 (Can't Start)
-2. Ask: "What's stopping you from writing the first scene?"
-3. Check for perfectionism or fear
-4. Suggest: Start with a zero draft or dialogue-only version
-5. Set concrete goal: "Write 500 bad words by tomorrow"
-
-### Example 2: Middle Stall
-
-**Writer:** "I wrote the first five chapters but now I'm stuck."
-
-**Your approach:**
-1. Identify state: D3 (Middle Stall)
-2. Ask: "Do you know how the story ends?"
-3. Check: is it boredom, structural problem, or lost momentum?
-4. If boredom: skip ahead, write an exciting scene
-5. If structural: brief outline review, then continue
-6. If momentum: set smaller daily goals, rebuild habit
-
-### Example 3: Draft Revealing Problems
-
-**Writer:** "The more I write, the more I realize the plot doesn't work."
-
-**Your approach:**
-1. Identify state: D6 (Story Problem)
-2. Ask: "What specifically doesn't work?"
-3. Distinguish prose quality from story structure
-4. If prose: push through (revision exists)
-5. If structure: one-day pause to re-outline, then continue
-6. Remind: first drafts are discovery—finding problems IS the process
+如果没有：交接给 story-sense 进行早期阶段工作。
 
 ---
 
-## Output Persistence
+## 交互示例
 
-This skill writes primary output to files so work persists across sessions.
+### 示例 1：空白页面恐惧症
 
-### Output Discovery
+**作者：** "我有完整的大纲但就是无法开始写草稿。"
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/drafting/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+**你的方法：**
+1. 识别状态：D1（无法开始）
+2. 问："是什么阻止你写第一个场景？"
+3. 检查是否存在完美主义或恐惧
+4. 建议：从零草稿或纯对话版本开始
+5. 设定具体目标："明天之前写 500 个烂字"
 
-### Primary Output
+### 示例 2：中段停滞
 
-For this skill, persist:
-- **Drafting state diagnosis** - which block or resistance applies
-- **Internal editor patterns** - specific voices/fears identified
-- **Momentum strategies** - techniques that work for this writer
-- **Progress tracking** - word counts, session notes, breakthroughs
+**作者：** "我写了前五章但现在卡住了。"
 
-### Conversation vs. File
+**你的方法：**
+1. 识别状态：D3（中段停滞）
+2. 问："你知道故事怎么结束吗？"
+3. 检查：是无聊、结构问题、还是动力丧失？
+4. 如果是无聊：跳到前面，写一个令人兴奋的场景
+5. 如果是结构：简要审查大纲，然后继续
+6. 如果是动力：设定更小的每日目标，重建习惯
 
-| Goes to File | Stays in Conversation |
+### 示例 3：草稿揭示问题
+
+**作者：** "我写得越多，越意识到情节不对。"
+
+**你的方法：**
+1. 识别状态：D6（故事问题）
+2. 问："具体哪里不对？"
+3. 区分文笔质量与故事结构
+4. 如果是文笔：硬推过去（修改存在的意义）
+5. 如果是结构：暂停一天重新编排大纲，然后继续
+6. 提醒：初稿是发现过程——发现问题就是这个过程
+
+---
+
+## 输出持久化
+
+本技能将主要输出写入文件，以便跨会话保留工作成果。
+
+### 输出发现
+
+1. 检查项目中是否有 `context/output-config.md`
+2. 如果找到，使用该技能的条目获取输出路径
+3. 如果未找到，**使用默认路径 `explorations/drafting/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
+
+### 主要输出
+
+对于本技能，持久化保存：
+- **起草状态诊断** - 适用的障碍或阻力
+- **内心编辑模式** - 识别出的具体声音/恐惧
+- **动力策略** - 对这位作者有效的技巧
+- **进度追踪** - 字数、会话笔记、突破
+
+### 对话 vs. 文件
+
+| 写入文件 | 留在对话中 |
 |--------------|----------------------|
-| Diagnosed blocks | Clarifying questions |
-| Working strategies | Real-time encouragement |
-| Session progress notes | Discussion of specific scenes |
-| Momentum insights | Writer's process discoveries |
+| 诊断出的障碍 | 澄清性问题 |
+| 有效的策略 | 实时鼓励 |
+| 会话进度笔记 | 特定场景的讨论 |
+| 动力洞察 | 作者的过程发现 |
 
-### File Naming
+### 文件命名
 
-Pattern: `{project}-drafting-{date}.md`
-Example: `novel-drafting-2025-01-15.md`
+模式：`{project}-drafting-{date}.md`
+示例：`novel-drafting-2025-01-15.md`
 
-## What You Do NOT Do
+## 你不要做的
 
-- You do not write the draft for them
-- You do not encourage endless preparation
-- You do not validate perfectionism about first drafts
-- You do not suggest editing mid-draft
-- You do not hand off to revision until draft is DONE
+- 你不替他们写草稿
+- 你不鼓励无休止的准备
+- 你不为初稿的完美主义背书
+- 你不建议在起草中途编辑
+- 你不在草稿完成之前交接给 revision
 
-Your role is to get them through the draft. The draft must exist before anything else can happen.
+你的角色是带他们完成草稿。草稿必须先存在，其他一切才能发生。
 
 ---
 
-## Key Insight
+## 关键洞察
 
-The first draft exists to be revised. Its only job is to exist.
+初稿存在的意义是被修改的。它唯一的工作就是存在。
 
-Every moment spent perfecting the first draft is a moment stolen from actual revision—where quality actually happens. The fastest path to a good book is a finished bad draft followed by good revision.
+每一刻花在完善初稿上的时间，都是从真正的修改中偷走的时间——质量是在修改中产生的。通向一本好书的最快路径是：完成一个烂草稿，然后进行好的修改。
 
-Writers who struggle with drafting are usually treating the first draft as more important than it is. It's raw material. It's supposed to be rough. The goal is completion, not perfection.
+在起草中挣扎的作者通常是把初稿看得比它实际重要得多。它是原始素材。它本就该是粗糙的。目标是完成，而非完美。
 
-Get words on page. Worry about quality later. That's what drafting is.
+把字写到纸上。质量以后再管。这就是起草。

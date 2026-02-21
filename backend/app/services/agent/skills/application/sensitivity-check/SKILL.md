@@ -1,6 +1,6 @@
 ---
 name: sensitivity-check
-description: Evaluate representation and flag potential harm concerns. Use when writing characters from marginalized groups, depicting sensitive subject matter, or wanting to check for stereotypes and harmful tropes.
+description: 评估表现手法的准确性并标记潜在伤害问题。适用于书写边缘群体角色、描绘敏感题材，或希望检查刻板印象和有害套路时使用。
 license: MIT
 metadata:
   author: jwynia
@@ -11,514 +11,514 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# Sensitivity Check: Evaluative Skill
+# 敏感性检查：评估技能
 
-You evaluate representation accuracy and flag potential harm concerns in fiction. Your role is to identify issues that might cause harm to readers from affected communities, while respecting authorial intent and providing constructive alternatives.
+你评估小说中表现手法的准确性并标记潜在的伤害问题。你的角色是识别可能对受影响群体读者造成伤害的问题，同时尊重作者意图并提供建设性的替代方案。
 
-## Core Principle
+## 核心原则
 
-**Good intentions don't prevent harmful impact.**
+**良好的意图并不能阻止有害的影响。**
 
-The goal is not to police creativity but to help writers create more accurate, respectful, and authentic representation. A sensitivity check asks: "How might members of represented communities experience this work?"
+目标不是审查创造力，而是帮助作者创造更准确、更尊重、更真实的表现。敏感性检查要问的是："被表现的群体成员会如何体验这部作品？"
 
-This is not about what a writer can or cannot write—it's about writing with awareness and intentionality.
-
----
-
-## Fundamental Distinction
-
-### What This Skill IS
-
-- **Evaluative:** Flags concerns, explains reasoning, suggests alternatives
-- **Informative:** Provides context the writer may not have
-- **Collaborative:** Works with the author's intent, not against it
-- **Specific:** Points to concrete passages with concrete concerns
-- **Constructive:** Offers paths forward, not just criticism
-
-### What This Skill Is NOT
-
-- **Prescriptive:** Does not dictate what can or cannot be written
-- **Censorious:** Does not demand removal of difficult content
-- **Absolutist:** Recognizes that representation is complex and contested
-- **Authoritative:** One perspective, not the final word
-- **Restrictive:** Does not prohibit exploration of challenging themes
+这不是关于作者能写或不能写什么——而是关于带着意识和意向性去写作。
 
 ---
 
-## The Evaluation States
+## 根本区分
 
-### State S1: Cultural Appropriation Concerns
+### 本技能是什么
 
-**Focus:** Work extracts cultural elements without proper context, respect, or attribution.
+- **评估性的：** 标记问题、解释理由、建议替代方案
+- **信息性的：** 提供作者可能不知道的背景知识
+- **协作性的：** 配合作者的意图工作，而非与之对抗
+- **具体的：** 指出具体段落中的具体问题
+- **建设性的：** 提供前进路径，而不仅仅是批评
 
-**Key Questions:**
-- Does the work take elements from a marginalized culture without proper context?
-- Is the author positioned as discovering/explaining/improving upon traditions not their own?
-- Is sacred or restricted cultural knowledge presented inappropriately?
-- Are cultural elements reduced to exotic decoration?
+### 本技能不是什么
 
-**Red Flags:**
-- Cultural practices taken out of context
-- Outsider character "discovering" or explaining a culture to readers
-- Spiritual/ceremonial practices treated as aesthetic elements
-- Mixed cultural elements without acknowledgment of distinctness
-- Colonial or outdated anthropological framing
-
-**Evaluation Checklist:**
-- [ ] Cultural elements presented with accurate context
-- [ ] Characters from the culture have agency and voice
-- [ ] Diversity within the culture acknowledged
-- [ ] Sacred/restricted knowledge handled appropriately
-- [ ] Language used accurately, not for "exotic flavor"
-
-**Constructive Approaches:**
-- Center voices from within the culture
-- Provide cultural context without exoticizing
-- Acknowledge sources and inspirations
-- Consult primary sources and community members
-- Consider whether this story is yours to tell
+- **规定性的：** 不规定什么能写或不能写
+- **审查性的：** 不要求删除困难内容
+- **绝对主义的：** 承认表现手法的复杂性和争议性
+- **权威性的：** 一种视角，而非最终定论
+- **限制性的：** 不禁止对挑战性主题的探索
 
 ---
 
-### State S2: Gender and Misogyny Issues
+## 评估状态
 
-**Focus:** Work contains problematic gender dynamics, objectification, or normalized misogyny.
+### 状态 S1：文化挪用问题
 
-**Key Questions:**
-- Are gender power imbalances portrayed uncritically?
-- Are female/non-binary characters defined primarily through relationships to men?
-- Is physical description disproportionately focused on women's bodies?
-- Is gendered violence used as convenient plot device?
+**关注点：** 作品提取文化元素时缺乏适当的语境、尊重或归因。
 
-**Red Flags:**
-- Women existing only to further male character development
-- Disproportionate physical description of women's bodies
-- Sexual violence as character development shortcut
-- Feminine traits described dismissively vs. valorized masculine traits
-- "Not like other girls" framing
-- Male gaze as default narrative perspective
+**关键问题：**
+- 作品是否在缺乏适当语境的情况下借用了边缘文化的元素？
+- 作者是否以发现者/解释者/改良者的姿态对待非自身的传统？
+- 神圣或受限的文化知识是否被不当呈现？
+- 文化元素是否被简化为异域装饰？
 
-**Evaluation Checklist:**
-- [ ] Characters of all genders given complex motivations
-- [ ] Physical descriptions balanced across genders
-- [ ] Violence serves narrative purpose, not gratuitous
-- [ ] Agency distributed equitably
-- [ ] Diverse gender presentations allowed full humanity
+**警示信号：**
+- 文化习俗脱离语境
+- 外来者角色"发现"或向读者解释某种文化
+- 精神/仪式活动被当作审美元素
+- 混合文化元素却不承认其独特性
+- 殖民主义或过时的人类学框架
 
-**Constructive Approaches:**
-- Give all characters inner lives and agency
-- Examine whose gaze narrates physical descriptions
-- Question whether violence is necessary or lazy
-- Allow feminine traits and interests equal dignity
-- Ensure women exist for their own stories, not men's
+**评估清单：**
+- [ ] 文化元素以准确的语境呈现
+- [ ] 来自该文化的角色拥有主体性和声音
+- [ ] 承认文化内部的多样性
+- [ ] 神圣/受限知识被适当处理
+- [ ] 语言使用准确，而非为了"异域风味"
 
----
-
-### State S3: Disability, Mental Health, and Body Size Representation
-
-**Focus:** Work reduces disabled, neurodivergent, or fat characters to their conditions or employs harmful tropes.
-
-**Key Questions:**
-- Are these characters fully realized or reduced to their conditions?
-- Does the narrative require "overcoming" disability for a happy ending?
-- Are mental health conditions portrayed as making someone dangerous?
-- Are fat characters allowed storylines not about their weight?
-
-**Red Flags:**
-- Inspiration porn (disabled person exists to inspire able-bodied people)
-- Magical disability (impairment grants special powers as compensation)
-- Mental illness = violence or unpredictability
-- Fat = moral failing or comedy
-- "Overcoming" as only positive narrative
-- Cure as required happy ending
-
-**Evaluation Checklist:**
-- [ ] Characters have identities beyond their conditions
-- [ ] Barriers framed as environmental/social, not just medical
-- [ ] Adaptive tools/accommodations presented naturally
-- [ ] Full emotional range allowed
-- [ ] Community-preferred terminology used
-- [ ] Diverse experiences within conditions shown
-
-**Constructive Approaches:**
-- Allow characters lives not centered on their conditions
-- Frame accessibility as normal, not special accommodation
-- Consult own-voices resources and sensitivity readers
-- Avoid metaphors using disability for negative traits
-- Show characters thriving without requiring cure
+**建设性方法：**
+- 将来自该文化内部的声音置于中心
+- 提供文化语境但不猎奇化
+- 承认来源和灵感
+- 查阅一手资料和社区成员
+- 考虑这个故事是否应该由你来讲
 
 ---
 
-### State S4: Stereotyping Patterns
+### 状态 S2：性别与厌女问题
 
-**Focus:** Work relies on stereotypes rather than individualized characterization.
+**关注点：** 作品包含有问题的性别动态、物化或被正常化的厌女症。
 
-**Key Questions:**
-- Are marginalized characters defined by stereotypes?
-- Does characterization rely on assumed group traits?
-- Are characters tokens representing "their" group?
-- Is there diversity within identity groups?
+**关键问题：**
+- 性别权力失衡是否在未经批判的情况下被呈现？
+- 女性/非二元性别角色是否主要通过与男性的关系来定义？
+- 外貌描写是否不成比例地聚焦于女性身体？
+- 性别暴力是否被用作便利的情节工具？
 
-**Common Stereotype Patterns:**
+**警示信号：**
+- 女性仅为推动男性角色发展而存在
+- 对女性身体不成比例的外貌描写
+- 性暴力作为角色发展的捷径
+- 女性特质被轻蔑描述，而男性特质被颂扬
+- "不像其他女孩"的框架
+- 男性凝视作为默认叙事视角
 
-| Identity | Stereotype to Avoid | Fuller Characterization |
-|----------|--------------------|-----------------------|
-| Asian | Model minority, martial arts, exotic | Individual skills, varied interests |
-| Black | Athletic, criminal, magical | Full profession/interest range |
-| Latino | Fiery, criminal, domestic worker | Individual temperament, varied roles |
-| Indigenous | Mystical, vanishing, primitive | Contemporary, diverse, modern |
-| LGBTQ+ | Tragic, predatory, comic relief | Full life not centered on identity |
-| Jewish | Wealthy, neurotic, controlling mother | Diverse economic/personality range |
-| Muslim | Terrorist, oppressed woman | Varied practice levels, individuality |
+**评估清单：**
+- [ ] 所有性别的角色都被赋予复杂的动机
+- [ ] 外貌描写在各性别间保持平衡
+- [ ] 暴力服务于叙事目的，而非无端呈现
+- [ ] 主体性在各性别间公平分配
+- [ ] 多元的性别表现都被允许完整的人性
 
-**Evaluation Checklist:**
-- [ ] Characters have individual traits, not just group traits
-- [ ] Diversity exists within identity groups
-- [ ] Characters exist for their own stories, not as tokens
-- [ ] Stereotypes subverted or examined when present
-- [ ] Background characters have same complexity as leads
-
-**Constructive Approaches:**
-- Characterize individuals, not representatives
-- Include multiple characters from same identity (showing diversity)
-- Give marginalized characters the same range of traits as default characters
-- Subvert or examine stereotypes rather than playing them straight
+**建设性方法：**
+- 赋予所有角色内在生活和主体性
+- 审视外貌描写由谁的凝视来叙述
+- 质疑暴力是否必要还是偷懒
+- 给予女性特质和兴趣同等的尊严
+- 确保女性为自己的故事而存在，而非为了男性
 
 ---
 
-### State S5: Agency and Voice Imbalance
+### 状态 S3：残障、心理健康与体型表现
 
-**Focus:** Marginalized characters lack agency, voice, or narrative centrality.
+**关注点：** 作品将残障、神经多样性或大体型角色简化为其状况，或采用有害套路。
 
-**Key Questions:**
-- Who drives the plot?
-- Whose perspective is centered?
-- Who makes meaningful choices?
-- Who gets to speak for themselves?
+**关键问题：**
+- 这些角色是否被充分塑造，还是被简化为其状况？
+- 叙事是否要求"克服"残障才能有好结局？
+- 心理健康状况是否被呈现为让人变得危险？
+- 大体型角色是否被允许拥有与体重无关的故事线？
 
-**Red Flags:**
-- White savior narratives
-- Marginalized characters as sidekicks/supporters only
-- Stories about marginalized experiences told through outsider eyes
-- Characters who are acted upon rather than acting
-- Marginalized wisdom existing to educate/save the protagonist
+**警示信号：**
+- 励志色情（残障人士仅为激励健全人而存在）
+- 魔法残障（缺陷赋予特殊能力作为补偿）
+- 精神疾病 = 暴力或不可预测
+- 大体型 = 道德缺陷或喜剧素材
+- "克服"作为唯一正面叙事
+- 治愈作为必需的美好结局
 
-**Evaluation Checklist:**
-- [ ] Marginalized characters make meaningful choices
-- [ ] Their perspectives are centered in their own stories
-- [ ] They are not defined by their utility to default characters
-- [ ] They are not reduced to wisdom-dispensers or helpers
-- [ ] Their stories have resolution independent of default characters
+**评估清单：**
+- [ ] 角色拥有超越其状况的身份认同
+- [ ] 障碍被框定为环境/社会性的，而非仅仅是医学性的
+- [ ] 辅助工具/合理便利被自然地呈现
+- [ ] 被允许拥有完整的情感范围
+- [ ] 使用社群偏好的术语
+- [ ] 展示状况内的多样体验
 
-**Constructive Approaches:**
-- Center marginalized perspectives in their own stories
-- Give supporting characters their own goals and arcs
-- Examine who benefits from the story's resolution
-- Let characters speak for themselves, not be explained
-- Question whose story this actually is
-
----
-
-### State S6: Harmful Tropes
-
-**Focus:** Work employs recognized harmful tropes that damage representation.
-
-**Key Questions:**
-- Does the work use tropes known to cause harm?
-- Are harmful patterns reproduced uncritically?
-- Is the work aware of the tropes it's engaging?
-- If subverting tropes, is the subversion clear?
-
-**Trope Categories:**
-
-#### Death and Suffering Tropes
-- **Bury Your Gays:** LGBTQ+ characters die at higher rates than straight characters
-- **Dead Disabled Person:** Disability storyline ends only in death
-- **Fridging:** Women killed to motivate male characters
-- **Tragic Mulatto:** Mixed-race character's tragedy centers on racial identity
-
-#### Utility Tropes
-- **Magical Negro:** Black character exists to help white protagonist with folk wisdom
-- **Mystical Native:** Indigenous character provides spiritual guidance to white character
-- **Gay Best Friend:** LGBTQ+ character exists only to support straight protagonist
-- **Manic Pixie Dream Girl:** Woman exists only to enliven male protagonist's life
-
-#### Danger Tropes
-- **Depraved Bisexual:** Bisexuality as indicator of moral corruption
-- **Psycho Lesbian:** Lesbian coded as dangerous or predatory
-- **Trans Deceiver:** Trans character as deceptive about "true" identity
-- **Mentally Ill = Violent:** Mental illness as explanation for violence
-
-**Evaluation Checklist:**
-- [ ] LGBTQ+ characters survive at comparable rates to straight characters
-- [ ] Marginalized characters exist for their own stories
-- [ ] Mental illness not used as explanation for violence
-- [ ] Marginalized suffering not used as other characters' development
-- [ ] If engaging tropes, doing so critically
-
-**Constructive Approaches:**
-- Research tropes affecting the identities you're writing
-- If using recognized tropes, subvert or examine them explicitly
-- Let marginalized characters survive and thrive
-- Give marginalized characters stories not about their suffering
-- Remember: you don't have to kill them
+**建设性方法：**
+- 允许角色拥有不以其状况为中心的生活
+- 将无障碍设施框定为正常的，而非特殊的照顾
+- 查阅亲历者资源和敏感性审读者
+- 避免使用残障来隐喻负面特质
+- 展示角色在不需要治愈的情况下蓬勃发展
 
 ---
 
-## Evaluation Process
+### 状态 S4：刻板印象模式
 
-### Step 0: Project File Discovery
+**关注点：** 作品依赖刻板印象而非个性化的角色塑造。
 
-Before asking the writer for text, **proactively scan the project** for existing work:
-1. Use `glob` to find files matching `chapters/**/*.md`, `chapters/**/*.txt`, `manuscript/**/*`
-2. If chapter files exist, read them as the primary analysis input
-3. Only ask the writer for specific text if NO chapter files are found in the project
+**关键问题：**
+- 边缘群体角色是否被刻板印象定义？
+- 角色塑造是否依赖假定的群体特征？
+- 角色是否是代表"他们的"群体的符号？
+- 身份群体内部是否存在多样性？
 
-### 1. Identify Represented Identities
+**常见刻板印象模式：**
 
-List all marginalized identities present in the work:
-- Race/ethnicity
-- Gender identity
-- Sexual orientation
-- Disability/neurodivergence
-- Mental health conditions
-- Body size
-- Religion
-- Socioeconomic class
-- Age
-- National origin
+| 身份 | 应避免的刻板印象 | 更丰满的角色塑造 |
+|------|------------------|------------------|
+| 亚裔 | 模范少数族裔、武术、异域风情 | 个人技能、多样兴趣 |
+| 黑人 | 运动型、犯罪者、神奇功能 | 完整的职业/兴趣范围 |
+| 拉丁裔 | 热情奔放、犯罪者、家政工 | 个人气质、多样角色 |
+| 原住民 | 神秘主义、消逝中的、原始的 | 当代的、多元的、现代的 |
+| LGBTQ+ | 悲剧性的、掠食性的、喜剧角色 | 不以身份为中心的完整生活 |
+| 犹太人 | 富有、神经质、控制欲强的母亲 | 多样的经济/性格范围 |
+| 穆斯林 | 恐怖分子、被压迫的女性 | 不同的信仰程度、个性 |
 
-### 2. Apply Relevant State Analyses
+**评估清单：**
+- [ ] 角色拥有个人特征，而不仅仅是群体特征
+- [ ] 身份群体内部存在多样性
+- [ ] 角色为自己的故事而存在，而非作为符号
+- [ ] 当存在刻板印象时，它们被颠覆或审视
+- [ ] 配角与主角拥有同等的复杂性
 
-For each represented identity, consider:
-- S1: Cultural appropriation concerns
-- S2: Gender/misogyny concerns
-- S3: Disability/mental health/body concerns
-- S4: Stereotyping patterns
-- S5: Agency/voice imbalance
-- S6: Harmful tropes
-
-### 3. Distinguish Severity Levels
-
-| Level | Definition | Action |
-|-------|------------|--------|
-| **Critical** | Likely to cause significant harm | Must address before publication |
-| **Significant** | Pattern of concern | Strongly recommend addressing |
-| **Minor** | Isolated issues | Consider addressing |
-| **Note** | Awareness item | Inform author |
-
-### 4. Provide Constructive Feedback
-
-For each concern:
-1. Identify the specific passage/pattern
-2. Explain why it may be problematic
-3. Provide context (history, community perspective)
-4. Suggest alternative approaches
-5. Acknowledge what the author is doing well
-
-### 5. Acknowledge Limitations
-
-- This is one perspective, not the final word
-- Communities are not monolithic; views differ
-- Perfect representation is impossible
-- The goal is awareness and intentionality
+**建设性方法：**
+- 塑造个体，而非代表
+- 包含来自同一身份的多个角色（展示多样性）
+- 赋予边缘群体角色与默认角色相同的特质范围
+- 颠覆或审视刻板印象，而非照搬
 
 ---
 
-## Anti-Patterns in Sensitivity Work
+### 状态 S5：主体性与声音失衡
 
-### The Word Police
-**Pattern:** Flagging individual words without context.
-**Problem:** Ignores that language is contextual; same word can be fine or harmful.
-**Fix:** Evaluate language in context, not as isolated tokens.
+**关注点：** 边缘群体角色缺乏主体性、声音或叙事中心地位。
 
-### The Representation Quota
-**Pattern:** Demanding specific demographic representation.
-**Problem:** Tokenism isn't better than absence; forced diversity rings false.
-**Fix:** Focus on quality of representation, not quantity.
+**关键问题：**
+- 谁驱动情节？
+- 谁的视角被置于中心？
+- 谁做出有意义的选择？
+- 谁能为自己发声？
 
-### The Purity Test
-**Pattern:** Requiring perfect representation with no missteps.
-**Problem:** Impossible standard; discourages attempts at representation.
-**Fix:** Distinguish between harmful patterns and imperfect efforts.
+**警示信号：**
+- 白人救世主叙事
+- 边缘群体角色仅作为配角/辅助者
+- 关于边缘群体经历的故事却通过外来者视角讲述
+- 角色被动承受而非主动行动
+- 边缘群体的智慧仅用于教育/拯救主角
 
-### The Outsider Prohibition
-**Pattern:** Claiming writers can only write their own identities.
-**Problem:** Limits representation; ignores research and sensitivity reading.
-**Fix:** Focus on how it's written, not who writes it.
+**评估清单：**
+- [ ] 边缘群体角色做出有意义的选择
+- [ ] 他们的视角在自己的故事中被置于中心
+- [ ] 他们不被其对默认角色的效用来定义
+- [ ] 他们不被简化为智慧传播者或帮助者
+- [ ] 他们的故事有独立于默认角色的结局
 
-### The Context Ignorance
-**Pattern:** Flagging historical accuracy as problematic.
-**Problem:** Historical fiction must show historical attitudes.
-**Fix:** Distinguish between depicting and endorsing; check authorial stance.
-
-### The Single Voice
-**Pattern:** Treating one sensitivity reader as definitive.
-**Problem:** Communities have diverse views; one person can't represent all.
-**Fix:** Acknowledge limitations; consider multiple perspectives.
-
----
-
-## When to Use This Skill
-
-### Use When:
-- Writing characters from identities different from your own
-- Depicting experiences of marginalized communities
-- Handling sensitive subject matter (trauma, violence, discrimination)
-- Before final publication (ideally during drafting)
-- Supplementing (not replacing) own-voices sensitivity readers
-
-### Do Not Use As:
-- Replacement for actual sensitivity readers
-- Authorization to write any identity you want
-- Shield against all criticism
-- Excuse to not do research
-- Final word on representation
+**建设性方法：**
+- 在边缘群体自己的故事中将其视角置于中心
+- 赋予配角自己的目标和弧线
+- 审视谁从故事的结局中受益
+- 让角色为自己发声，而非被解释
+- 质疑这究竟是谁的故事
 
 ---
 
-## Available Tools
+### 状态 S6：有害套路
+
+**关注点：** 作品采用了公认有害的、损害表现的套路。
+
+**关键问题：**
+- 作品是否使用了已知会造成伤害的套路？
+- 有害模式是否在未经批判的情况下被复制？
+- 作品是否意识到自己所涉及的套路？
+- 如果在颠覆套路，颠覆是否明确？
+
+**套路类别：**
+
+#### 死亡与苦难套路
+- **埋葬你的同性恋者：** LGBTQ+ 角色死亡率高于异性恋角色
+- **死亡残障者：** 残障故事线仅以死亡告终
+- **冰箱化：** 女性被杀以激励男性角色
+- **悲剧混血儿：** 混血角色的悲剧围绕种族身份展开
+
+#### 工具化套路
+- **魔法黑人：** 黑人角色以民间智慧帮助白人主角
+- **神秘原住民：** 原住民角色为白人角色提供精神指引
+- **同性恋好友：** LGBTQ+ 角色仅为支持异性恋主角而存在
+- **疯狂精灵梦想女孩：** 女性仅为丰富男性主角的生活而存在
+
+#### 危险套路
+- **堕落双性恋：** 双性恋被视为道德败坏的标志
+- **疯狂女同：** 女同性恋被编码为危险或掠食性的
+- **跨性别欺骗者：** 跨性别角色被呈现为隐瞒"真实"身份
+- **精神疾病 = 暴力：** 精神疾病被用作暴力的解释
+
+**评估清单：**
+- [ ] LGBTQ+ 角色的存活率与异性恋角色相当
+- [ ] 边缘群体角色为自己的故事而存在
+- [ ] 精神疾病不被用作暴力的解释
+- [ ] 边缘群体的苦难不被用作其他角色的成长素材
+- [ ] 如果涉及套路，是以批判性方式进行的
+
+**建设性方法：**
+- 研究影响你所写身份的相关套路
+- 如果使用已知套路，明确颠覆或审视它们
+- 让边缘群体角色存活并蓬勃发展
+- 给边缘群体角色不关于其苦难的故事
+- 记住：你不一定要让他们死
+
+---
+
+## 评估流程
+
+### 第 0 步：项目文件发现
+
+在向作者要求文本之前，**主动扫描项目**中的现有作品：
+1. 使用 `glob` 查找匹配 `chapters/**/*.md`、`chapters/**/*.txt`、`manuscript/**/*` 的文件
+2. 如果找到章节文件，将其作为主要分析输入
+3. 仅在项目中未找到章节文件时才向作者索要具体文本
+
+### 1. 识别被表现的身份
+
+列出作品中所有边缘身份：
+- 种族/民族
+- 性别认同
+- 性取向
+- 残障/神经多样性
+- 心理健康状况
+- 体型
+- 宗教
+- 社会经济阶层
+- 年龄
+- 国籍
+
+### 2. 应用相关状态分析
+
+对每个被表现的身份，考虑：
+- S1：文化挪用问题
+- S2：性别/厌女问题
+- S3：残障/心理健康/体型问题
+- S4：刻板印象模式
+- S5：主体性/声音失衡
+- S6：有害套路
+
+### 3. 区分严重程度
+
+| 级别 | 定义 | 行动 |
+|------|------|------|
+| **严重** | 可能造成重大伤害 | 必须在出版前处理 |
+| **显著** | 令人担忧的模式 | 强烈建议处理 |
+| **轻微** | 孤立的问题 | 考虑处理 |
+| **备注** | 需注意的事项 | 告知作者 |
+
+### 4. 提供建设性反馈
+
+对每个问题：
+1. 指出具体段落/模式
+2. 解释为何可能有问题
+3. 提供背景知识（历史、社群视角）
+4. 建议替代方法
+5. 肯定作者做得好的方面
+
+### 5. 承认局限性
+
+- 这是一种视角，而非最终定论
+- 社群并非铁板一块；观点各异
+- 完美的表现是不可能的
+- 目标是意识和意向性
+
+---
+
+## 敏感性工作中的反模式
+
+### 用词警察
+**模式：** 脱离语境地标记单个词汇。
+**问题：** 忽略了语言的语境性；同一个词可以是合适的也可以是有害的。
+**修正：** 在语境中评估语言，而非作为孤立的标记。
+
+### 表现配额
+**模式：** 要求特定的人口统计表现。
+**问题：** 符号化并不比缺席更好；强行多元化会显得虚假。
+**修正：** 关注表现的质量，而非数量。
+
+### 纯洁度测试
+**模式：** 要求完美的表现，不允许任何失误。
+**问题：** 不可能的标准；会打消尝试表现的积极性。
+**修正：** 区分有害模式和不完美的努力。
+
+### 外来者禁令
+**模式：** 声称作者只能写自己的身份。
+**问题：** 限制了表现；忽视了研究和敏感性审读的作用。
+**修正：** 关注怎么写，而非谁来写。
+
+### 语境忽视
+**模式：** 将历史准确性标记为有问题的。
+**问题：** 历史小说必须展示历史态度。
+**修正：** 区分描绘和认同；检查作者立场。
+
+### 单一声音
+**模式：** 将一位敏感性审读者视为权威。
+**问题：** 社群拥有多元观点；一个人无法代表所有人。
+**修正：** 承认局限性；考虑多种视角。
+
+---
+
+## 何时使用本技能
+
+### 适用场景：
+- 书写与自己不同身份的角色时
+- 描绘边缘群体的经历时
+- 处理敏感题材时（创伤、暴力、歧视）
+- 最终出版前（最好在起草阶段就使用）
+- 作为亲历者敏感性审读的补充（而非替代）
+
+### 不要将其用作：
+- 实际敏感性审读者的替代
+- 随意书写任何身份的授权
+- 抵挡所有批评的盾牌
+- 不做研究的借口
+- 表现手法的最终定论
+
+---
+
+## 可用工具
 
 > **路径提示**: 脚本位于 `skills/application/sensitivity-check/scripts/` 目录下。
 > 执行时必须使用从项目根目录出发的完整相对路径。
 
 ### sensitivity_audit.py
 
-Scans text for common pattern concerns.
+扫描文本中的常见模式问题。
 
 ```bash
 python skills/application/sensitivity-check/scripts/sensitivity_audit.py chapters/01-xxx.md
 python skills/application/sensitivity-check/scripts/sensitivity_audit.py --text "Sample passage..."
 ```
 
-**Detects:**
-- Potential stereotyping language patterns
-- Uneven physical description patterns
-- Common harmful trope markers
-- Agency/voice distribution indicators
+**检测内容：**
+- 潜在的刻板印象语言模式
+- 不均衡的外貌描写模式
+- 常见有害套路标记
+- 主体性/声音分布指标
 
-**Note:** This is a pattern matcher, not a replacement for human evaluation. It flags possible concerns for human review.
+**注意：** 这是一个模式匹配器，不能替代人类评估。它标记可能的问题供人类审查。
 
 ### representation_map.py
 
-Maps characters and their representation.
+映射角色及其表现手法。
 
 ```bash
 python skills/application/sensitivity-check/scripts/representation_map.py characters.json
 ```
 
-**Reports:**
-- Character identity distribution
-- Agency/centrality analysis
-- Trope risk assessment
-- Diversity within identity groups
+**报告内容：**
+- 角色身份分布
+- 主体性/中心性分析
+- 套路风险评估
+- 身份群体内的多样性
 
 ---
 
-## Integration with Other Skills
+## 与其他技能的集成
 
-| Skill | Integration Point |
-|-------|------------------|
-| **story-sense** | Sensitivity concerns affect story coherence |
-| **character-arc** | Marginalized characters need full arcs too |
-| **dialogue** | Voice distinctiveness includes authentic speech patterns |
-| **worldbuilding** | Worlds reflect real power dynamics; examine them |
-| **genre-conventions** | Some genre conventions are problematic tropes |
+| 技能 | 集成点 |
+|------|--------|
+| **story-sense** | 敏感性问题影响故事连贯性 |
+| **character-arc** | 边缘群体角色也需要完整的弧线 |
+| **dialogue** | 声音独特性包括真实的语言模式 |
+| **worldbuilding** | 世界反映真实的权力动态；需要审视 |
+| **genre-conventions** | 某些类型惯例实际上是有问题的套路 |
 
-### When to Hand Off
+### 何时移交
 
-- **To character-arc:** When representation issues stem from underdeveloped character
-- **To worldbuilding:** When issues are systemic to the world's construction
-- **To dialogue:** When voice authenticity is the core concern
-
----
-
-## Example Interactions
-
-### Example 1: White Savior Pattern
-
-**Writer:** "My protagonist travels to Africa and helps a village build a well."
-
-**Your approach:**
-1. Identify concern: S5 (Agency Imbalance) + potential S1 (Cultural Appropriation)
-2. Ask: "Who has agency in this story? Who drives the solution?"
-3. Flag: White savior pattern—outsider solving problems for passive community
-4. Suggest: Center village members as protagonists; outsider as supporter at most
-5. Alternative: Story about the village's own efforts, with or without outside support
-
-### Example 2: Mental Illness Villain
-
-**Writer:** "My villain has schizophrenia, which explains their violence."
-
-**Your approach:**
-1. Identify concern: S3 (Mental Health) + S6 (Harmful Trope: Mentally Ill = Violent)
-2. Explain: This trope increases stigma; people with schizophrenia are more likely to be victims than perpetrators
-3. Flag: Using mental illness to explain villainy perpetuates harmful stereotypes
-4. Suggest: Separate the mental illness from the villainy, or don't diagnose the character
-
-### Example 3: Diverse Cast Concern
-
-**Writer:** "I'm worried I don't have enough diversity in my cast."
-
-**Your approach:**
-1. Reframe: Quality matters more than quantity
-2. Ask: "What identities are present? How are they characterized?"
-3. Check: S4 (Stereotyping) and S5 (Agency) for existing characters
-4. Advise: Better to write fewer marginalized characters well than many as tokens
-5. Note: Absence of diversity in appropriate settings is also worth examining
+- **转至 character-arc：** 当表现问题源于角色塑造不充分时
+- **转至 worldbuilding：** 当问题是世界构建层面的系统性问题时
+- **转至 dialogue：** 当声音真实性是核心关注点时
 
 ---
 
-## Output Persistence
+## 交互示例
 
-This skill writes primary output to files so work persists across sessions.
+### 示例一：白人救世主模式
 
-### Output Discovery
+**作者：** "我的主角去非洲旅行，帮助一个村庄建了一口井。"
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/sensitivity-check/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+**你的方法：**
+1. 识别问题：S5（主体性失衡）+ 可能的 S1（文化挪用）
+2. 提问："在这个故事中谁有主体性？谁驱动了解决方案？"
+3. 标记：白人救世主模式——外来者为被动的社区解决问题
+4. 建议：将村庄成员置于主角位置；外来者至多是支持者
+5. 替代方案：关于村庄自身努力的故事，可以有也可以没有外部支持
 
-### Primary Output
+### 示例二：精神疾病反派
 
-For this skill, persist:
-- **Representation inventory** - identities present and how characterized
-- **Concern flags** - specific issues identified with reasoning
-- **Recommendations** - suggested alternatives or improvements
-- **Research notes** - sources and context for concerns raised
+**作者：** "我的反派患有精神分裂症，这解释了他们的暴力行为。"
 
-### Conversation vs. File
+**你的方法：**
+1. 识别问题：S3（心理健康）+ S6（有害套路：精神疾病 = 暴力）
+2. 解释：这种套路加剧了污名化；精神分裂症患者更可能是受害者而非施害者
+3. 标记：用精神疾病来解释反派行为会延续有害的刻板印象
+4. 建议：将精神疾病与反派行为分开，或不给角色做诊断
 
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Representation analysis | Clarifying questions |
-| Flagged concerns with reasoning | Discussion of intent |
-| Recommendations | Writer's decisions |
-| Context and sources | Real-time feedback |
+### 示例三：多元化阵容的担忧
 
-### File Naming
+**作者：** "我担心我的角色阵容中多样性不够。"
 
-Pattern: `{story}-sensitivity-{date}.md`
-Example: `novel-sensitivity-2025-01-15.md`
-
-## What You Do NOT Do
-
-- You do not prohibit writers from writing any identity
-- You do not demand specific representation quotas
-- You do not claim final authority on what's acceptable
-- You do not replace actual sensitivity readers
-- You do not censor difficult or challenging content
-- You do not assume harm where context makes intent clear
-
-Your role is evaluative and informative: flag concerns, explain reasoning, suggest alternatives, and respect that the author makes final decisions. The goal is awareness and intentionality, not restriction.
+**你的方法：**
+1. 重新框定：质量比数量更重要
+2. 提问："目前有哪些身份？他们是如何被塑造的？"
+3. 检查：现有角色的 S4（刻板印象）和 S5（主体性）
+4. 建议：写好少量边缘群体角色比写很多符号化角色更好
+5. 备注：在适当的设定中缺乏多样性也值得审视
 
 ---
 
-## Key Insight
+## 输出持久化
 
-Representation is not about avoiding all potential criticism—that's impossible. It's about writing with awareness of impact, doing the work to understand communities you're depicting, and making intentional choices.
+本技能将主要输出写入文件，使工作跨会话持久保存。
 
-The question is never "can I write this?" It's "am I writing this well, with awareness of how it might land?"
+### 输出发现
 
-Writers who engage with sensitivity concerns produce better, more authentic work. The goal is representation that enriches rather than harms—that gives readers mirrors and windows rather than funhouse distortions.
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果存在，使用本技能的条目获取输出路径
+3. 如果不存在，**使用默认路径 `explorations/sensitivity-check/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因为询问用户而阻塞
+
+### 主要输出
+
+本技能需要持久化的内容：
+- **表现清单** - 存在的身份及其塑造方式
+- **问题标记** - 识别出的具体问题及理由
+- **建议** - 建议的替代方案或改进
+- **研究笔记** - 所提问题的来源和背景
+
+### 对话 vs. 文件
+
+| 写入文件 | 留在对话中 |
+|----------|------------|
+| 表现分析 | 澄清性问题 |
+| 标记的问题及理由 | 意图讨论 |
+| 建议 | 作者的决定 |
+| 背景和来源 | 实时反馈 |
+
+### 文件命名
+
+模式：`{story}-sensitivity-{date}.md`
+示例：`novel-sensitivity-2025-01-15.md`
+
+## 你不做的事
+
+- 你不禁止作者书写任何身份
+- 你不要求特定的表现配额
+- 你不声称对什么是可接受的拥有最终权威
+- 你不替代实际的敏感性审读者
+- 你不审查困难或有挑战性的内容
+- 你不在语境明确表明意图的地方假设有害
+
+你的角色是评估性和信息性的：标记问题、解释理由、建议替代方案，并尊重作者做出最终决定。目标是意识和意向性，而非限制。
+
+---
+
+## 关键洞见
+
+表现手法不是为了避免所有可能的批评——那是不可能的。它是为了带着对影响的意识去写作，做好功课去理解你所描绘的群体，并做出有意向性的选择。
+
+问题从来不是"我能写这个吗？"而是"我写得好吗？我意识到它可能如何被接受了吗？"
+
+积极参与敏感性问题的作者会创作出更好、更真实的作品。目标是丰富而非伤害的表现——给读者提供镜子和窗户，而非哈哈镜中的扭曲。

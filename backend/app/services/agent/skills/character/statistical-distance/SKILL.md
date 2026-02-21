@@ -1,6 +1,6 @@
 ---
 name: statistical-distance
-description: Transform clichéd story elements by pushing along the emotional vector toward statistical edges. Use when first instincts are too predictable, when elements feel generic, or when you need the core methodology for avoiding statistical-center defaults.
+description: 通过沿情感向量推向统计边缘来转化老套的故事元素。适用于第一直觉过于可预测、元素感觉泛泛，或需要核心方法论来避免统计中心默认值的场景。
 license: MIT
 metadata:
   author: jwynia
@@ -11,368 +11,368 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Statistical Distance: Cliché Transformation Skill
+# 统计距离：老套转化技能
 
-You help writers recognize when their instincts have landed at statistical center (the most common expression of a narrative need) and guide them toward statistical edges (less common but equally functional alternatives).
+你帮助写作者识别他们的直觉何时落在了统计中心（叙事需求的最常见表达），并引导他们走向统计边缘（不那么常见但同样有效的替代方案）。
 
-## Core Principle
+## 核心原则
 
-**First instincts identify correct emotional/functional needs but land at statistical center. Effective storytelling maintains the emotional vector while pushing toward statistical edges.**
+**第一直觉能识别正确的情感/功能需求，但会落在统计中心。有效的叙事在保持情感向量的同时推向统计边缘。**
 
-When writers reach for a story element, they're usually right about what the story needs but wrong about the specific expression. The instinct identifies genuine requirements—stakes, pressure, conflict—but grabs the nearest cliché.
+当写作者去抓取一个故事元素时，他们通常对故事需要什么是正确的，但对具体的表达方式是错误的。直觉识别了真正的需求——利害关系、压力、冲突——但抓住了最近的老套。
 
-The solution: Travel further along the same emotional vector to find less crowded territory.
+解决方案：沿着同一情感向量走得更远，找到不那么拥挤的领地。
 
-## Statistical Center vs. Statistical Edge
+## 统计中心 vs. 统计边缘
 
-### Statistical Center (Avoid)
-The 3-5 most common expressions of any narrative need:
-- Communicate immediately (require no explanation)
-- Work reliably (proven function)
-- Feel "right" (match expectations)
-- Are easily recognized (trigger familiar patterns)
+### 统计中心（需要避免）
+任何叙事需求的 3-5 种最常见表达：
+- 立即传达（不需要解释）
+- 可靠运作（经过验证的功能）
+- 感觉"对"（符合期望）
+- 容易被识别（触发熟悉的模式）
 
-**Problems**:
-- Reader fatigue
-- Limited fertility (single function)
-- Reduced specificity
-- Predictable trajectories
-- Emotional flatness
+**问题**：
+- 读者疲劳
+- 有限的生殖力（单一功能）
+- 降低的特异性
+- 可预测的轨迹
+- 情感平淡
 
-### Statistical Edge (Target)
-Elements at 60-80% familiarity that maintain function while adding specificity:
-- Require some explanation (creating engagement)
-- Generate multiple possibilities (narrative fertility)
-- Feel both familiar and fresh
-- Create unique character/world specificity
+### 统计边缘（目标）
+熟悉度在 60-80% 的元素，保持功能的同时增加特异性：
+- 需要一些解释（创造参与感）
+- 生成多种可能性（叙事生殖力）
+- 感觉既熟悉又新鲜
+- 创造独特的角色/世界特异性
 
-## The Vector/Distance Method
+## 向量/距离方法
 
-### Step 1: Identify Initial Instinct
-When you catch yourself reaching for an element, document:
-- What element did you choose?
-- What narrative function does it serve?
-- What emotional effect does it create?
+### 第一步：识别初始直觉
+当你发现自己在抓取一个元素时，记录：
+- 你选择了什么元素？
+- 它服务于什么叙事功能？
+- 它创造了什么情感效果？
 
-### Step 2: Map the Functional Core
-Ask: "What does this element actually do for my story?"
+### 第二步：映射功能核心
+问："这个元素实际上为我的故事做了什么？"
 
-| Functional Core | What It Provides |
+| 功能核心 | 它提供什么 |
 |-----------------|------------------|
-| Stakes | Something valuable at risk |
-| Pressure | Force preventing abandonment |
-| Sympathy | Reason readers connect |
-| Complexity | Competing obligations |
-| Expertise | Justified knowledge/skill |
-| Access | Legitimate presence in spaces |
-| Time pressure | Urgency for action |
-| Moral weight | Ethical complexity |
+| 利害关系 | 有价值的东西面临风险 |
+| 压力 | 阻止放弃的力量 |
+| 同情 | 读者产生联系的原因 |
+| 复杂性 | 竞争性义务 |
+| 专业知识 | 合理的知识/技能 |
+| 准入 | 合理出现在特定空间 |
+| 时间压力 | 行动的紧迫性 |
+| 道德分量 | 伦理复杂性 |
 
-**Example**: Sick parent provides financial pressure, emotional stakes, time pressure, sympathy
+**举例**：生病的父母提供了经济压力、情感利害关系、时间压力、同情
 
-### Step 3: List Statistical Center Options
-Identify the 3-5 most common ways stories achieve this function.
+### 第三步：列出统计中心选项
+识别故事实现此功能的 3-5 种最常见方式。
 
-**"Can't quit job" pressure**:
-1. Sick family member (medical bills)
-2. Mounting debts (financial crisis)
-3. Blackmail (secret held)
-4. Contract/obligation (legal binding)
-5. Protecting someone (they'll be hurt)
+**"无法辞职"的压力**：
+1. 生病的家人（医疗费用）
+2. 不断增加的债务（财务危机）
+3. 被勒索（秘密被握住）
+4. 合同/义务（法律约束）
+5. 保护某人（他们会受到伤害）
 
-### Step 4: Push Toward Statistical Edge
-Generate alternatives using these techniques:
+### 第四步：推向统计边缘
+使用以下技巧生成替代方案：
 
-**A. Adjacent Substitution**
-Replace common with related but less common:
-- Parent → Sibling/Cousin/Mentor/Ex-partner
-- Child → Nephew/Student/Ward
-- Spouse → Business partner/Best friend
+**A. 相邻替换**
+将常见的替换为相关但不那么常见的：
+- 父母 → 兄弟姐妹/表亲/导师/前伴侣
+- 孩子 → 侄子/学生/被监护人
+- 配偶 → 商业伙伴/最好的朋友
 
-**B. Complication Layering**
-Add unexpected dimensions:
-- Sick parent → Parent getting better from cursed object
-- Debt → Debt to someone now missing
-- Blackmail → Blackmail about something not actually wrong
+**B. 复杂化叠加**
+添加意想不到的维度：
+- 生病的父母 → 因诅咒物品而好转的父母
+- 债务 → 欠现在失踪之人的债
+- 被勒索 → 被勒索的内容实际上没有错
 
-**C. Ironic Inversion**
-Flip expected dynamics:
-- Hiding addiction → Falsely accused of addiction
-- Owing money → Owed money can't collect
-- Protecting the weak → Protected by the weak
+**C. 反讽倒转**
+翻转预期的动态：
+- 隐藏成瘾 → 被错误地指控成瘾
+- 欠钱 → 别人欠你钱但你收不回
+- 保护弱者 → 被弱者保护
 
-**D. Category Jumping**
-Find different category, same pressure:
-- Financial → Reputation management
-- Family obligation → Community responsibility
-- Legal requirement → Social expectation
+**D. 类别跳跃**
+找到不同类别、同样的压力：
+- 财务 → 声誉管理
+- 家庭义务 → 社区责任
+- 法律要求 → 社会期望
 
-**E. Specificity Injection**
-Add highly specific details:
-- "Sick parent" → "Parent with face blindness who's the only witness"
-- "Mounting debts" → "Inherited deceased spouse's secret day-trading losses"
-- "Being blackmailed" → "Blackmailed by someone wrong about what they think they know"
+**E. 特异性注入**
+添加高度具体的细节：
+- "生病的父母" → "患有面部失认症的父母，而他是唯一的目击者"
+- "不断增加的债务" → "继承了已故配偶秘密的日内交易亏损"
+- "被勒索" → "被一个弄错了自以为知道之事的人勒索"
 
-### Step 5: Evaluate Fertility
-Test your statistical edge choice:
+### 第五步：评估生殖力
+测试你的统计边缘选择：
 
-**High Fertility Indicators**:
-- Generates multiple subplot possibilities
-- Creates natural conflict with other elements
-- Raises questions that propel investigation
-- Connects to multiple relationships
-- Can evolve through the story
+**高生殖力指标**：
+- 生成多个支线情节可能性
+- 与其他元素产生自然冲突
+- 提出推动调查的问题
+- 连接多重关系
+- 能在故事中演化
 
-**Low Fertility Indicators**:
-- Serves single function then disappears
-- Requires constant maintenance
-- Doesn't connect to main plot
-- Creates only one type of scene
-- Has obvious/single resolution
+**低生殖力指标**：
+- 服务单一功能后消失
+- 需要持续维护
+- 与主线情节不相连
+- 只创造一种类型的场景
+- 有明显/单一的解决方案
 
-## Genre-Specific Statistical Centers and Edges
+## 特定类型的统计中心与边缘
 
-### Noir
+### 黑色小说
 
-| Need | Statistical Center | Statistical Edge |
+| 需求 | 统计中心 | 统计边缘 |
 |------|-------------------|------------------|
-| Compromised protagonist | Alcoholic ex-cop, grieving widower | Failed authenticator, documentary subject |
-| Femme fatale | Seductive client with hidden agenda | Ambitious student filmmaker, efficiency expert |
-| Corruption | Police corruption, mob | Authentication boards, gallery collusion |
+| 受损的主角 | 酗酒的前警察，悲痛的丧偶者 | 失败的鉴定师，纪录片拍摄对象 |
+| 蛇蝎美人 | 带有隐藏目的的诱人客户 | 野心勃勃的学生纪录片导演，效率专家 |
+| 腐败 | 警察腐败，黑帮 | 鉴定委员会，画廊勾结 |
 
-### Romance
+### 言情
 
-| Need | Statistical Center | Statistical Edge |
+| 需求 | 统计中心 | 统计边缘 |
 |------|-------------------|------------------|
-| Meeting obstacle | Different classes, same job competition | Anonymous online enemies, parallel lives same building |
-| Keeping apart | Misunderstanding, ex returns | Synchronized schedules never overlap, incompatible sleep disorders |
+| 相遇障碍 | 不同阶层，同一工作竞争 | 匿名网络对头，同一栋楼里的平行人生 |
+| 分离原因 | 误会，前任回归 | 永不重叠的同步时间表，不兼容的睡眠障碍 |
 
-### Horror
+### 恐怖
 
-| Need | Statistical Center | Statistical Edge |
+| 需求 | 统计中心 | 统计边缘 |
 |------|-------------------|------------------|
-| Isolation | Cabin in woods, abandoned hospital | Crowded place where no one speaks your language, underwater station |
-| Vulnerability | Phone dead, car won't start | Can't close eyes, makes noise when afraid |
+| 隔离 | 林中小屋，废弃医院 | 没人说你的语言的拥挤场所，水下站 |
+| 脆弱性 | 手机没电，车发动不了 | 无法闭眼，害怕时会发出声音 |
 
-## Diagnostic Questions
+## 诊断问题
 
-### Identifying Statistical Center
-- Could I swap this with 5 other stories unchanged?
-- Does this require zero explanation?
-- Have I seen this exact situation 10+ times?
-- Does this solve only the immediate problem?
-- Would anyone be surprised by this choice?
+### 识别统计中心
+- 这个元素能否与 5 个其他故事互换而不变？
+- 它是否完全不需要解释？
+- 我是否见过这个确切情境 10 次以上？
+- 它是否只解决了眼前的问题？
+- 这个选择会让任何人惊讶吗？
 
-### Confirming Statistical Edge
-- Does this require some explanation?
-- Does this create additional story possibilities?
-- Is this specific to my world/characters?
-- Would this feel fresh to readers?
-- Does this maintain the emotional core?
+### 确认统计边缘
+- 它是否需要一些解释？
+- 它是否创造了额外的故事可能性？
+- 它是否对我的世界/角色有特异性？
+- 读者会感到新鲜吗？
+- 它是否保持了情感核心？
 
-## Common Pitfalls
+## 常见陷阱
 
-| Pitfall | Problem | Solution |
+| 陷阱 | 问题 | 解决方案 |
 |---------|---------|----------|
-| Pushing Too Far | Emotional core lost | Stay within 60-80% familiarity |
-| Complexity Without Purpose | Complications don't generate story | Every push should create fertility |
-| Pushing Everything | Cognitive overload | Mix center (stability) with edge (interest) |
-| Category Confusion | Functional category changes | Maintain emotional vector while changing expression |
+| 推得太远 | 情感核心丢失 | 保持在 60-80% 的熟悉度 |
+| 没有目的的复杂化 | 复杂不生成故事 | 每次推进都应创造生殖力 |
+| 什么都推 | 认知超负荷 | 混合中心（稳定性）与边缘（趣味性） |
+| 类别混淆 | 功能类别改变了 | 在改变表达方式的同时保持情感向量 |
 
-## The Workspace Method
+## 工作空间方法
 
-Maintain a three-column document:
+维护一个三列文档：
 
-| Functional Need | Statistical Center | Statistical Edge Options |
+| 功能需求 | 统计中心 | 统计边缘选项 |
 |----------------|-------------------|----------------------|
-| Can't quit job | Sick parent, Debts, Blackmail | Inherited property complications, Only witness, Holds key evidence |
-| Professional pressure | Boss, Client, Board | Documentary filmmaker following them, Sibling's success |
-| Expertise source | Former specialist, Degree | Failed at adjacent field, Learned through failure |
+| 无法辞职 | 生病的父母、债务、勒索 | 继承的房产纠纷、唯一目击者、持有关键证据 |
+| 职业压力 | 老板、客户、董事会 | 跟拍他们的纪录片导演、兄弟姐妹的成功 |
+| 专业知识来源 | 前专家、学位 | 在相邻领域失败过、从失败中学习 |
 
-## Advanced Techniques
+## 进阶技巧
 
-### The Fertility Chain
-Create edge elements that connect:
-- Sibling is performance artist (family pressure)
-- Who's recreating the painter's work (professional intersection)
-- In shared studio building (community pressure)
-- Funded by suspicious source (conspiracy element)
+### 生殖力链
+创造相互连接的边缘元素：
+- 兄弟姐妹是行为艺术家（家庭压力）
+- 正在重现那位画家的作品（职业交叉）
+- 在共享工作室大楼里（社区压力）
+- 由可疑来源资助（阴谋元素）
 
-### The Specificity Cascade
-One specific detail forces others:
-- If authenticator → needs art world connections
-- If painter was prolific → supernatural paintings are minority
-- If mostly correct → discovering errors is devastating
+### 特异性连锁
+一个具体细节迫使其他细节：
+- 如果是鉴定师 → 需要艺术界人脉
+- 如果画家多产 → 超自然画作只是少数
+- 如果大多正确 → 发现错误会是毁灭性的
 
-## Implementation Checklist
+## 实施检查清单
 
-- [ ] Identified initial instinct
-- [ ] Named functional/emotional need
-- [ ] Listed statistical center options
-- [ ] Generated 5+ statistical edge alternatives
-- [ ] Tested for narrative fertility
-- [ ] Verified emotional core maintained
-- [ ] Checked genre-appropriate distance
-- [ ] Ensured some familiar elements remain
+- [ ] 识别了初始直觉
+- [ ] 命名了功能/情感需求
+- [ ] 列出了统计中心选项
+- [ ] 生成了 5 个以上统计边缘替代方案
+- [ ] 测试了叙事生殖力
+- [ ] 验证了情感核心保持
+- [ ] 检查了类型适当的距离
+- [ ] 确保保留了一些熟悉元素
 
-## The Key Insight
+## 核心洞察
 
-Your instincts about what your story needs are probably right. Your first idea about how to fulfill that need is probably too common. Push along the same vector until you find territory that's yours alone.
+你对故事需要什么的直觉大概是对的。你关于如何满足那个需求的第一个想法大概太常见了。沿着同一向量推进，直到你找到只属于你的领地。
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/statistical-distance/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+### 输出路径发现
+1. 检查项目中是否有 `context/output-config.md`
+2. 如果找到，使用本技能的条目作为输出路径
+3. 如果未找到，**使用默认路径 `explorations/statistical-distance/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
 
-### Primary Output
-- **Functional need** - What the story requires
-- **Statistical center options** - 3-5 most common expressions
-- **Statistical edge choices** - Alternatives with fertility
-- **Workspace document** - Three-column tracking table
+### 主要输出
+- **功能需求** - 故事需要什么
+- **统计中心选项** - 3-5 种最常见的表达
+- **统计边缘选择** - 具有生殖力的替代方案
+- **工作空间文档** - 三列跟踪表
 
-### File Naming
-Pattern: `{story-name}-statistical-{date}.md`
+### 文件命名
+模式：`{story-name}-statistical-{date}.md`
 
-## Verification (Oracle)
+## 验证（预言机）
 
-### What This Skill Can Verify
-- **Functional core identified** - Is the need clear? (High confidence)
-- **Center enumeration** - Are common options listed? (High confidence)
-- **Edge fertility** - Does alternative generate possibilities? (Medium confidence)
+### 本技能可以验证的内容
+- **功能核心已识别** - 需求是否清晰？（高置信度）
+- **中心枚举** - 常见选项是否列出？（高置信度）
+- **边缘生殖力** - 替代方案是否生成可能性？（中等置信度）
 
-### What Requires Human Judgment
-- **Emotional core preserved** - Does edge still deliver the feeling?
-- **Distance calibration** - Too far or not far enough?
-- **Genre appropriateness** - Does edge fit the story type?
+### 需要人工判断的内容
+- **情感核心保持** - 边缘是否仍然传递那种感觉？
+- **距离校准** - 太远了还是不够远？
+- **类型适当性** - 边缘是否适合这种故事类型？
 
-### Oracle Limitations
-- Cannot assess whether edge feels fresh vs. forced
-- Cannot predict reader response to unfamiliar elements
+### 预言机局限
+- 无法评估边缘感觉是新鲜的还是牵强的
+- 无法预测读者对陌生元素的反应
 
-## Feedback Loop
+## 反馈循环
 
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Need, center options, edge choices, reasoning
-- **Naming pattern:** `{story-name}-statistical-{date}.md`
+### 会话持久化
+- **输出位置：** 见 `context/output-config.md`
+- **保存内容：** 需求、中心选项、边缘选择、推理
+- **命名模式：** `{story-name}-statistical-{date}.md`
 
-### Cross-Session Learning
-- Check for prior statistical distance work in this story
-- Ensure different elements use different edge strategies
-- Failed edge choices inform anti-patterns
+### 跨会话学习
+- 检查此故事中之前的统计距离工作
+- 确保不同元素使用不同的边缘策略
+- 失败的边缘选择为反模式提供信息
 
-## Design Constraints
+## 设计约束
 
-### This Skill Assumes
-- Element has been identified as too common/clichéd
-- There's a functional need to preserve
-- Story can accommodate some explanation
+### 本技能假设
+- 元素已被确定为过于常见/老套
+- 有需要保留的功能需求
+- 故事可以容纳一些解释
 
-### This Skill Does Not Handle
-- **Whether element is actually clichéd** - Route to: story-sense
-- **Generating raw options** - Route to: brainstorming
-- **Worldbuilding consistency** - Route to: worldbuilding
+### 本技能不处理的内容
+- **元素是否真的老套** - 转交给：story-sense
+- **生成原始选项** - 转交给：brainstorming
+- **世界构建一致性** - 转交给：worldbuilding
 
-### Degradation Signals
-- Pushing everything to edge (exhausting)
-- Losing emotional core (wrong problem solved)
-- Adjacent substitution without dynamic change
+### 降解信号
+- 什么都推到边缘（令人疲惫）
+- 丢失情感核心（解决了错误的问题）
+- 相邻替换但没有动态变化
 
-## Reasoning Requirements
+## 推理要求
 
-### Standard Reasoning
-- Single element transformation
-- Basic center enumeration
-- Simple fertility check
+### 标准推理
+- 单一元素转化
+- 基本中心枚举
+- 简单生殖力检查
 
-### Extended Reasoning (ultrathink)
-- **Full workspace design** - [Why: multiple elements need coherent edge strategy]
-- **Fertility chain creation** - [Why: edge elements should interconnect]
-- **Specificity cascade** - [Why: one specific detail forces others]
+### 扩展推理（ultrathink）
+- **完整工作空间设计** - [原因：多个元素需要连贯的边缘策略]
+- **生殖力链创建** - [原因：边缘元素应该相互连接]
+- **特异性连锁** - [原因：一个具体细节会迫使其他细节]
 
-**Trigger phrases:** "transform all default elements", "create fertility chains", "full statistical analysis"
+**触发短语：** "转化所有默认元素"、"创建生殖力链"、"完整统计分析"
 
-## Execution Strategy
+## 执行策略
 
-### Sequential (Default)
-- Identify instinct before mapping function
-- List center before generating edge
-- Generate edge before testing fertility
+### 顺序执行（默认）
+- 先识别直觉再映射功能
+- 先列出中心再生成边缘
+- 先生成边缘再测试生殖力
 
-### Parallelizable
-- Transforming multiple independent elements
-- Research into different edge expressions
+### 可并行
+- 转化多个独立元素
+- 研究不同的边缘表达
 
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
 |------|------------|---------------|
-| Edge research | general-purpose | When seeking unusual expressions of common needs |
-| Story consistency | Explore | When checking edge against existing story elements |
+| 边缘研究 | general-purpose | 当寻找常见需求的不寻常表达时 |
+| 故事一致性 | Explore | 当检查边缘与现有故事元素的一致性时 |
 
-## Context Management
+## 上下文管理
 
-### Approximate Token Footprint
-- **Skill base:** ~3k tokens (method + techniques + workspace)
-- **With genre tables:** ~4k tokens
-- **With advanced techniques:** ~4.5k tokens
+### 大致 Token 足迹
+- **技能基础：** ~3k tokens（方法 + 技巧 + 工作空间）
+- **含类型表格：** ~4k tokens
+- **含进阶技巧：** ~4.5k tokens
 
-### Context Optimization
-- Focus on current functional need and push technique
-- Genre tables are reference, not required
-- Workspace method is core
+### 上下文优化
+- 聚焦当前功能需求和推进技巧
+- 类型表格是参考，不是必需的
+- 工作空间方法是核心
 
-### When Context Gets Tight
-- Prioritize: Current need, active push technique
-- Defer: Full genre tables, all techniques
-- Drop: Advanced techniques, implementation checklist
+### 上下文紧张时
+- 优先：当前需求、正在使用的推进技巧
+- 延迟：完整类型表格、所有技巧
+- 丢弃：进阶技巧、实施检查清单
 
-## Anti-Patterns
+## 反模式
 
-### 1. Edge for Edge's Sake
-**Pattern:** Pushing every element to the statistical edge regardless of whether it serves the story.
-**Why it fails:** Not all elements need to be surprising. Some statistical-center elements provide stability and cognitive rest. A story where everything is unexpected becomes exhausting and loses coherence.
-**Fix:** Identify which 2-3 elements most need differentiation. Leave supporting elements at statistical center. Mix edge and center strategically.
+### 1. 为边缘而边缘
+**模式：** 不管是否服务于故事，将每个元素都推到统计边缘。
+**为什么失败：** 并非所有元素都需要令人惊讶。一些统计中心元素提供稳定性和认知休息。一个什么都出人意料的故事会变得令人疲惫并失去连贯性。
+**修复：** 识别最需要差异化的 2-3 个元素。让辅助元素停留在统计中心。策略性地混合边缘和中心。
 
-### 2. Losing the Emotional Core
-**Pattern:** Pushing so far from center that the original emotional function no longer works.
-**Why it fails:** The instinct was right about what the story needs—stakes, pressure, sympathy. If the edge alternative doesn't deliver that function, you've solved the wrong problem.
-**Fix:** After every push, verify: "Does this still create the emotional effect I need?" If not, push in a different direction, not further.
+### 2. 丢失情感核心
+**模式：** 推得离中心太远，以至于原始的情感功能不再有效。
+**为什么失败：** 直觉对故事需要什么是正确的——利害关系、压力、同情。如果边缘替代方案不能提供那个功能，你就解决了错误的问题。
+**修复：** 每次推进后验证："这是否仍然创造了我需要的情感效果？"如果不是，换一个方向推，而不是推得更远。
 
-### 3. Complexity Confusion
-**Pattern:** Equating "less common" with "more complicated." Adding layers of explanation to justify an unusual choice.
-**Why it fails:** Edge elements should feel natural once established. If you need paragraphs of setup, you've created a logic puzzle, not a story element. The audience spends energy understanding rather than feeling.
-**Fix:** Edge elements should require some explanation but click quickly. If it takes more than 2-3 sentences to establish, it's probably too far.
+### 3. 复杂性混淆
+**模式：** 将"不那么常见"等同于"更复杂"。添加层层解释来证明一个不寻常选择的合理性。
+**为什么失败：** 边缘元素一旦建立应该感觉自然。如果你需要整段的铺垫，你创造的是逻辑谜题，不是故事元素。观众花精力去理解而不是去感受。
+**修复：** 边缘元素应该需要一些解释但很快就能理解。如果需要超过 2-3 句话来建立，可能太远了。
 
-### 4. Adjacent Isn't Edge
-**Pattern:** Making superficial substitutions—parent to aunt, cop to detective—without changing the underlying dynamic.
-**Why it fails:** Same dynamics with different labels. The reader's pattern-matching still fires because the functional relationship is identical.
-**Fix:** Change the relationship, not just the label. Aunt who's estranged is still sick-parent dynamics. Aunt who's the family success everyone compares you to is a different pressure entirely.
+### 4. 相邻不等于边缘
+**模式：** 做表面替换——父母换成姑姑，警察换成侦探——却不改变底层动态。
+**为什么失败：** 换了标签的相同动态。读者的模式匹配仍然被触发，因为功能关系完全相同。
+**修复：** 改变关系，而不仅仅是标签。疏远的姑姑仍然是生病父母的动态。全家人都拿你跟之比较的成功姑姑则是完全不同的压力。
 
-### 5. Fertility Neglect
-**Pattern:** Choosing edge elements that solve one problem but generate no new story possibilities.
-**Why it fails:** The best edge choices don't just avoid cliché—they create narrative fertility. An element that's unusual but inert is wasted differentiation.
-**Fix:** Test edge choices with "And then what?" A good edge element should generate at least 2-3 new scene possibilities or relationship complications.
+### 5. 生殖力忽视
+**模式：** 选择解决一个问题但不生成新故事可能性的边缘元素。
+**为什么失败：** 最好的边缘选择不仅仅是避免老套——它们创造叙事生殖力。一个不寻常但惰性的元素是浪费了的差异化。
+**修复：** 用"然后呢？"测试边缘选择。一个好的边缘元素应该至少生成 2-3 个新的场景可能性或关系复杂化。
 
-## Integration
+## 集成
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
+### 入站（为本技能提供输入）
+| 技能 | 提供的内容 |
 |-------|------------------|
-| story-sense | Diagnosis that elements feel generic or default |
-| brainstorming | Raw material for edge alternatives |
+| story-sense | 诊断元素感觉泛泛或默认 |
+| brainstorming | 边缘替代方案的原始素材 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
+### 出站（本技能为其提供输出）
+| 技能 | 本技能提供的内容 |
 |-------|-------------|
-| worldbuilding | Unique world elements that avoid genre defaults |
-| character-arc | Fresh relationship pressures and stakes |
-| dialogue | Specific character circumstances to draw from |
+| worldbuilding | 避免类型默认值的独特世界元素 |
+| character-arc | 新鲜的关系压力和利害关系 |
+| dialogue | 可以借鉴的具体角色情境 |
 
-### Complementary
-| Skill | Relationship |
+### 互补
+| 技能 | 关系 |
 |-------|--------------|
-| cliche-transcendence | Statistical-distance focuses on the vector/distance method; cliche-transcendence uses the orthogonality principle. Both fight defaults differently |
-| brainstorming | Use brainstorming to generate edge options, statistical-distance to evaluate which edges maintain emotional function |
+| cliche-transcendence | statistical-distance 聚焦于向量/距离方法；cliche-transcendence 使用正交性原则。两者以不同方式对抗默认值 |
+| brainstorming | 使用 brainstorming 生成边缘选项，使用 statistical-distance 评估哪些边缘保持了情感功能 |

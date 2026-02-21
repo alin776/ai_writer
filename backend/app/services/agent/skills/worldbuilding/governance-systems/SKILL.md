@@ -1,6 +1,6 @@
 ---
 name: governance-systems
-description: Design political entities and governance systems for fictional worlds. Use when creating kingdoms, empires, federations, or any political structures that need realistic internal complexity and external relationships.
+description: 为虚构世界设计政治实体和治理体系。适用于创建王国、帝国、联邦，或任何需要真实内部复杂性和外部关系的政治结构。
 license: MIT
 metadata:
   author: jwynia
@@ -11,451 +11,451 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Governance Systems: Political Entity Design Skill
-
-You help writers create realistic political entities by applying the eight core principles that govern how real governance systems form, function, and evolve. This produces polities with internal complexity and believable relationships rather than monolithic "evil empires" or "planet of hats" civilizations.
-
-## Core Principles
-
-1. **Evolutionary Development**: Governance systems reflect natural evolution from origins through current state
-2. **Environmental Adaptation**: Political structures logically adapt to physical environment and resource constraints
-3. **Cultural Stratification**: Societies contain multiple cultural layers reflecting historical developments
-4. **Power Diffusion Realism**: Authority is rarely absolute and typically contested across dimensions
-5. **Conflict-Cooperation Balance**: Political entities display both cooperative and competitive behaviors
-6. **Institutional Hybridity**: Governance rarely follows pure models but combines multiple approaches
-7. **Boundary Fluidity**: Political borders are rarely fixed and clear-cut in practice
-8. **Fractal Organization**: Similar political patterns often repeat at different scales within societies
-
-## The Ten Parameter Categories
-
-### 1. Geographic and Environmental Parameters
-
-| Parameter | Questions to Answer |
-|-----------|---------------------|
-| **Physical Geography** | How do terrain, climate, and features shape boundaries? |
-| **Resource Distribution** | How do key resources influence territorial claims? |
-| **Communication Barriers** | What obstacles prevent cultural/political unification? |
-| **Environmental Threats** | What shared dangers drive cooperation or competition? |
-| **Spatial Scale** | What are distance implications for governance? |
-
-### 2. Historical Evolution Parameters
-
-| Parameter | Questions to Answer |
-|-----------|---------------------|
-| **Formation Pathway** | Origin context (conquest, colonization, migration, revolution)? |
-| **Age-Related Patterns** | How has governance evolved over time periods? |
-| **External Influence Legacy** | What impact have outside powers had? |
-| **Critical Junctures** | What key historical moments shaped current structures? |
-| **Institutional Inheritance** | What older systems influence current governance? |
-
-### 3. Demographic Parameters
-
-| Parameter | Questions to Answer |
-|-----------|---------------------|
-| **Population Distribution** | How do density and spread affect governance? |
-| **Ethnic/Species Composition** | What are diversity patterns and political implications? |
-| **Migration Patterns** | How does population movement affect stability? |
-| **Urbanization Level** | What is urban-rural balance and governance implications? |
-| **Age Structure** | What are demographic political consequences? |
-
-### 4. Economic Parameters
-
-| Parameter | Questions to Answer |
-|-----------|---------------------|
-| **Resource Economy Type** | Extraction, manufacturing, information, etc.? |
-| **Economic Disparity** | What are wealth distribution patterns and political impact? |
-| **Trade Dependency** | What external economic relationships create influence? |
-| **Technology Level** | What tools exist for governance and control? |
-| **Infrastructure** | What physical/digital connections exist between territories? |
-
-### 5. Cultural Parameters
-
-| Parameter | Questions to Answer |
-|-----------|---------------------|
-| **Linguistic Diversity** | What language patterns create communication barriers? |
-| **Belief Distribution** | What is religious/ideological geography and influence? |
-| **Cultural Cohesion Forces** | What promotes shared identity? |
-| **Cultural Divergence Forces** | What promotes distinctive identities? |
-| **Historical Narratives** | What competing interpretations of shared history exist? |
-
-### 6. Power Structure Parameters
-
-| Parameter | Questions to Answer |
-|-----------|---------------------|
-| **Authority Distribution** | How centralized or diffused is decision-making? |
-| **Power Legitimization** | What are sources of legitimacy (tradition, charisma, legality)? |
-| **Elite Composition** | What is the nature and background of ruling classes? |
-| **Opposition Organization** | How is resistance to authority structured? |
-| **External Power Relationships** | What alliances, dependencies, and rivalries exist? |
-
-### 7. Institutional Parameters
-
-| Parameter | Questions to Answer |
-|-----------|---------------------|
-| **Governance Mechanism** | How are decisions made and implemented? |
-| **Legal Tradition** | What is the basis and evolution of law and justice? |
-| **Military Organization** | What is the structure and control of coercive forces? |
-| **Civic Engagement** | How do populations participate in governance? |
-| **Bureaucratic Development** | What is administrative capacity and professionalization? |
-
-### 8. Technological Parameters
-
-| Parameter | Questions to Answer |
-|-----------|---------------------|
-| **Communication Tech** | What impact on governance span and methods? |
-| **Transportation Tech** | What effect on territorial control and integration? |
-| **Military Tech** | What is balance of offensive/defensive capabilities? |
-| **Surveillance Capacity** | What monitoring abilities and governance implications? |
-| **Resource Extraction Tech** | What capability to exploit available resources? |
-
-### 9. Temporal Parameters
-
-| Parameter | Questions to Answer |
-|-----------|---------------------|
-| **Governance Cycle Stage** | Formation, expansion, stability, contraction, transformation? |
-| **Crisis Frequency** | What pattern of existential challenges? |
-| **Adaptation Rate** | How fast is response to changing conditions? |
-| **Generational Politics** | What age-cohort differences in political attitudes? |
-| **Historical Consciousness** | Future vs. past oriented population? |
-
-### 10. External Relationship Parameters
-
-| Parameter | Questions to Answer |
-|-----------|---------------------|
-| **Diplomatic Position** | Alliance, neutrality, isolation patterns? |
-| **Threat Environment** | Nature and proximity of external dangers? |
-| **Cultural Exchange** | Information and value transmission patterns? |
-| **Economic Integration** | Trade relationships and dependencies? |
-| **Status in Hierarchies** | Position in regional/global power structures? |
-
-## Polity Type Matrix
-
-### Nation-States and Equivalents
-
-| Type | Characteristics | Naming Patterns |
-|------|-----------------|-----------------|
-| **Unitary State** | Centralized authority, uniform laws | [Place] Republic/Kingdom/State |
-| **Federal System** | Division of powers between levels | United/Federated [Places/Peoples] |
-| **Confederacy** | Loose alliance, limited central power | Confederation/League/Alliance of [X] |
-| **Constitutional Monarchy** | Hereditary ruler within legal framework | Kingdom/Emirate/Sultanate of [Place] |
-| **Absolute Monarchy** | Unconstrained hereditary rule | Empire/Dominion of [Ruler/Dynasty] |
-| **Military Dictatorship** | Armed forces control | [Place] Military Council/Junta |
-| **Single-Party State** | One dominant political organization | People's/Democratic Republic of [Place] |
-| **Theocracy** | Religious authority dominates | Holy State/Divine Realm of [Place/Faith] |
-| **City-State** | Urban center with independence | Free City of [Place] |
-| **Tribal Confederation** | Allied kinship groups | [People] Nations/Tribes |
-
-### Non-State Political Entities
-
-| Type | Characteristics | Naming Patterns |
-|------|-----------------|-----------------|
-| **Corporate Authority** | Company with governmental powers | [Industry] Corporation of [Place] |
-| **Religious Order Domain** | Faith organization with territory | Order/Brotherhood of [Faith Symbol] |
-| **Criminal Syndicate Territory** | Organized crime governance | [Family/Symbol] Syndicate |
-| **Autonomous Zone** | Self-governing area within states | Autonomous Region of [Place/People] |
-| **Mercenary Guild Control** | Military contractors governing | [Founder/Symbol] Company/Legion |
-| **Nomadic Federation** | Mobile political alliance | [People/Symbol] Horde/Caravan/Fleet |
-| **Trade League** | Merchant coalition with territory | [Place] Merchant Council/Exchange |
-| **Technocratic Enclave** | Expert-ruled specialized area | [Technology] Institute of [Place] |
-
-### Interstellar/Multispecies Entities
-
-| Type | Characteristics | Naming Patterns |
-|------|-----------------|-----------------|
-| **Hegemonic Empire** | Dominant power with vassals | [Species/Star] Imperium/Dominion |
-| **Democratic Federation** | Voluntary union of equals | Federation/Union of [Planets/Species] |
-| **Interspecies Concordat** | Treaty-based cooperation | Concordat/Compact of [Founding Place] |
-| **Colonial Protectorate** | External control claimed benevolent | [Species] Protectorate of [Region] |
-| **Trading Collective** | Commerce-based association | [Region] Exchange/Consortium |
-| **Security Alliance** | Defense-focused cooperation | [Region] Defense Pact/Initiative |
-| **Stellar Aristocracy** | Elite families ruling star systems | Houses/Dynasties of [Region] |
-
-## Political Behavior Patterns
-
-### Internal Cohesion Levels
-
-| Level | Characteristics |
-|-------|-----------------|
-| **High Unity** | Strong shared identity, willing sacrifice |
-| **Factional** | Competing identity groups, coalition politics |
-| **Regional Division** | Geographic loyalty trumps central authority |
-| **Class Stratification** | Horizontal solidarity across vertical divisions |
-| **Fragmentation** | Multiple overlapping divisions, unstable alliances |
-
-### Territorial Control Levels
-
-| Level | Characteristics |
-|-------|-----------------|
-| **Effective Control** | Consistent rule enforcement, taxation |
-| **Negotiated Control** | Central authority compromises with local powers |
-| **Layered Authority** | Multiple overlapping claims, situational compliance |
-| **Contested Zones** | Active competition for loyalty and control |
-| **Nominal Claim** | Asserted ownership with minimal actual control |
-
-### Legitimacy Sources
-
-| Type | Governance Implications |
-|------|------------------------|
-| **Traditional** | Reverence for established practices, hereditary rights |
-| **Charismatic** | Personal loyalty to exceptional leadership |
-| **Legal-Rational** | Respect for procedural correctness, institutions |
-| **Performance** | Support based on delivering tangible benefits |
-| **Ideological** | Commitment to shared values and beliefs |
-
-### Power Transition Patterns
-
-| Type | Stability Implications |
-|------|------------------------|
-| **Orderly Succession** | Predictable change, policy continuity |
-| **Elite Selection** | Limited competition within ruling class |
-| **Popular Contest** | Mass participation, potential rapid change |
-| **Violent Overthrow** | Instability, policy discontinuity |
-| **External Imposition** | Questionable legitimacy, resistance potential |
-
-## Implementation Process
-
-### Step 1: Environmental Foundation
-- Map physical geography and resource distribution
-- Identify natural communication barriers and connections
-- Determine environmental threats and opportunities
-- Establish technological context and implications
-
-### Step 2: Historical Timeline Development
-- Create formation stories for major political entities
-- Identify critical historical junctures and conflicts
-- Map cultural diffusion and divergence patterns
-- Establish legacy systems and ongoing influence
-
-### Step 3: Population Distribution
-- Map ethnic/species distribution and density
-- Establish migration patterns and causes
-- Identify demographic tensions and complementarities
-- Determine urbanization patterns and governance implications
-
-### Step 4: Economic Network Mapping
-- Identify key resource locations and controllers
-- Map trade routes and dependencies
-- Establish wealth distribution patterns
-- Determine technological specialization areas
-
-### Step 5: Political Structure Design
-- Apply appropriate polity types from matrix
-- Establish internal cohesion patterns for each entity
-- Map territorial control effectiveness realistically
-- Identify legitimacy sources for each governance system
-
-### Step 6: Relationship Network Creation
-- Establish alliance patterns and motivations
-- Identify conflict zones and strategic importance
-- Map cultural exchange networks
-- Determine economic interdependencies
-
-### Step 7: Layered Identity Creation
-- Establish multiple identity levels for populations
-- Create cross-cutting identities that complicate politics
-- Identify identity-based movements and goals
-- Determine identity markers and significance
-
-### Step 8: Dynamic Element Incorporation
-- Identify entities in different cycle stages
-- Create emergent threats to stability
-- Establish reform movements and opposition
-- Identify succession questions and controversies
-
-## Common Clichés to Avoid
-
-| Cliché | Solution |
-|--------|----------|
-| **Planet/Species of Hats** | Create internal divisions, regional variations |
-| **Evil Empire Syndrome** | Develop legitimate perspectives, internal factions |
-| **Unchanging Political Stasis** | Create dynamic histories with rises, falls, transformations |
-| **Simplistic Allegories** | Develop unique combinations of features |
-| **Binary Conflict Structures** | Create complex alliance networks, shifting loyalties |
-| **Cultural Uniformity** | Develop internal divisions, generational differences |
-| **Administrative Implausibility** | Scale governance to available technology |
-| **Resource Blindness** | Align territorial control with strategic resources |
-
-## Naming Evolution Patterns
-
-| Historical Stage | Naming Characteristics |
-|------------------|------------------------|
-| **Foundation Era** | Descriptive, founder-focused, geographical |
-| **Expansion Era** | Grandiose, aspirational, inclusive |
-| **Consolidation Era** | Institutional, traditional, stability-focused |
-| **Transformation Era** | Rebranded, reform-signaling, future-oriented |
-| **Decline Era** | Past-glorifying, territorial overstatement |
-
-## Implementation Checklist
-
-- [ ] Define territory and key geographical features
-- [ ] Determine founding context and historical development
-- [ ] Identify population composition and distribution
-- [ ] Establish economic basis and resource control
-- [ ] Choose appropriate governance system type
-- [ ] Develop internal cohesion pattern and divisions
-- [ ] Create relationship pattern with other entities
-- [ ] Establish naming convention appropriate to context
-- [ ] Add distinctive cultural elements and identity markers
-- [ ] Incorporate dynamic elements and current challenges
-
-## Output Persistence
-
-This skill writes primary output to files so work persists across sessions.
-
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/governance-systems/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-- **Polity type selection** - From matrix with naming
-- **Parameter values** - Choices across 10 categories
-- **Internal factions** - Competing groups within polity
-- **External relationships** - Alliances, rivalries, dependencies
-- **Legitimacy sources** - What justifies rule
-
-### File Naming
-Pattern: `{polity-name}-governance-{date}.md`
-
-## Verification (Oracle)
-
-### What This Skill Can Verify
-- **Parameter coverage** - Have all 10 categories been considered? (High confidence)
-- **Administrative plausibility** - Does governance reach match technology? (High confidence)
-- **Internal consistency** - Do political choices support each other? (Medium confidence)
-
-### What Requires Human Judgment
-- **Story fit** - Does this polity create interesting conflicts?
-- **Cliché avoidance** - Is this more than "evil empire" or "planet of hats"?
-- **Faction interest** - Are internal divisions compelling?
-
-### Oracle Limitations
-- Cannot assess narrative interest of political design
-- Cannot predict how governance affects character motivation without story context
-
-## Feedback Loop
-
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Polity type, parameter values, factions, relationships
-- **Naming pattern:** `{polity-name}-governance-{date}.md`
-
-### Cross-Session Learning
-- Check for prior political work on this world
-- Ensure new polities maintain relationship consistency
-- Political crises and transitions inform anti-patterns
-
-## Design Constraints
-
-### This Skill Assumes
-- Political organization exists (even anarchies have decision-making)
-- Writer wants realistic complexity, not backdrop kingdoms
-- Multiple polities may exist in the setting
-
-### This Skill Does Not Handle
-- **Economic foundations** - Route to: economic-systems
-- **Cultural values** - Route to: belief-systems
-- **General worldbuilding** - Route to: worldbuilding
-
-### Degradation Signals
-- Single-faction polities without internal conflict
-- Administrative reach exceeding technological capacity
-- Empires without legitimate internal supporters
-
-## Reasoning Requirements
-
-### Standard Reasoning
-- Single polity type selection
-- Parameter selection for one category
-- Basic relationship mapping
-
-### Extended Reasoning (ultrathink)
-- **Multi-polity system design** - [Why: relationships form complex network]
-- **Politics-economics integration** - [Why: requires cross-skill synthesis]
-- **Political history development** - [Why: tracing transformation through time]
-
-**Trigger phrases:** "design the political landscape", "how do nations interact", "political history"
-
-## Execution Strategy
-
-### Sequential (Default)
-- Environmental foundation before historical timeline
-- Historical timeline before population distribution
-- Population before economic basis
-
-### Parallelizable
-- Research into multiple historical political systems
-- Designing different regional polities
-
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Historical research | general-purpose | When modeling on real political systems |
-| Economic integration | general-purpose | When coordinating with economic-systems |
-
-## Context Management
-
-### Approximate Token Footprint
-- **Skill base:** ~4k tokens (10 categories + polity matrix)
-- **With behavior patterns:** ~5k tokens
-- **Full implementation process:** ~6k tokens
-
-### Context Optimization
-- Load only relevant parameter categories for current task
-- Reference economic-systems/belief-systems by name
-- Polity matrix is core; behavior patterns are supplementary
-
-### When Context Gets Tight
-- Prioritize: Current polity type, active parameters
-- Defer: Full polity matrix, naming evolution patterns
-- Drop: All implementation steps not in current use
-
-## Anti-Patterns
-
-### 1. Evil Empire Syndrome
-**Pattern:** Creating antagonist polities as uniformly evil, incompetent, or irrational—existing only to be defeated.
-**Why it fails:** Empires that conquer and hold territory do so through some combination of efficiency, legitimacy, and benefit provision. Pure evil collapses from internal resistance. Readers sense the artificiality.
-**Fix:** Develop the empire's internal logic. What do its citizens get from the bargain? Who benefits and defends the system? What would be lost if it fell? Create sympathetic characters who genuinely support it.
-
-### 2. Planet of Hats
-**Pattern:** Making every member of a polity, species, or culture identical—all warlike, all mercantile, all spiritual.
-**Why it fails:** Real societies contain every type of person. Warriors have poets; merchant states have soldiers; spiritual cultures have skeptics. Uniformity eliminates internal conflict and feels cartoonish.
-**Fix:** Design at least three distinct factions within each major polity. Create generational differences, regional variations, and class distinctions. Show the culture arguing with itself.
-
-### 3. Administrative Implausibility
-**Pattern:** Creating vast empires with detailed central control using pre-industrial technology.
-**Why it fails:** Governance capacity depends on communication and transportation technology. Medieval kings couldn't micromanage distant provinces. Orders took weeks to arrive. Local lords had real autonomy.
-**Fix:** Match administrative reach to technology. Distant provinces have more autonomy. Central directives are general principles, not detailed commands. Local variation is the norm.
-
-### 4. Static Political Stasis
-**Pattern:** Political structures unchanged for centuries, ancient borders perfectly maintained, no internal evolution.
-**Why it fails:** Polities rise, transform, fragment, and fall. Borders shift. Institutions adapt. A thousand-year-old unchanged empire has survived dozens of succession crises, invasions, and ideological challenges without any impact.
-**Fix:** Create a political history with transformations. Show how current structures evolved from earlier forms. Include at least one major political crisis in recent memory.
-
-### 5. Binary Conflict Structures
-**Pattern:** Two sides in opposition—Federation vs Empire, Light vs Dark—with everyone aligned to one or the other.
-**Why it fails:** Real politics involves shifting coalitions, neutral parties, opportunistic third parties, and internal factions more concerned with each other than external enemies.
-**Fix:** Create at least three major powers with complex relationships. Include neutrals, mercenaries, and opportunists. Show factions within each side that might flip under pressure.
-
-## Integration
-
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| worldbuilding | Geographic constraints shaping political boundaries |
-| economic-systems | Economic foundations of political power |
-| belief-systems | Legitimacy sources and ideological divisions |
-
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| underdog-unit | Institutional structures the outcasts work within |
-| character-arc | Political pressures driving character choices |
-| moral-parallax | Competing legitimate political perspectives |
-
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| economic-systems | Political and economic systems are deeply intertwined—design together for consistency |
-| multi-order-evolution | Use multi-order-evolution to trace how political systems change over time |
+# 治理体系：政治实体设计技能
+
+你帮助作者通过运用八条核心原则来创建真实的政治实体。这些原则决定了现实治理系统如何形成、运作和演变，从而产出具有内部复杂性和可信关系的政体，而非铁板一块的"邪恶帝国"或"星球帽子"式文明。
+
+## 核心原则
+
+1. **演化发展**：治理系统反映了从起源到现状的自然演化
+2. **环境适应**：政治结构逻辑性地适应物理环境和资源约束
+3. **文化分层**：社会包含反映历史发展的多个文化层次
+4. **权力扩散现实主义**：权威很少是绝对的，通常在多个维度上被争夺
+5. **冲突-合作平衡**：政治实体同时表现出合作和竞争行为
+6. **制度混合性**：治理很少遵循纯粹的模型，而是结合多种方法
+7. **边界流动性**：政治边界在实践中很少是固定和清晰的
+8. **分形组织**：类似的政治模式在社会的不同尺度上重复出现
+
+## 十大参数类别
+
+### 1. 地理与环境参数
+
+| 参数 | 需要回答的问题 |
+|------|--------------|
+| **自然地理** | 地形、气候和地貌特征如何塑造边界？ |
+| **资源分布** | 关键资源如何影响领土主张？ |
+| **通信障碍** | 什么障碍阻碍了文化/政治统一？ |
+| **环境威胁** | 什么共同危险驱动合作或竞争？ |
+| **空间尺度** | 距离对治理有什么影响？ |
+
+### 2. 历史演化参数
+
+| 参数 | 需要回答的问题 |
+|------|--------------|
+| **形成路径** | 起源背景（征服、殖民、迁移、革命）？ |
+| **年龄相关模式** | 治理如何在不同时期演变？ |
+| **外部影响遗产** | 外部势力产生了什么影响？ |
+| **关键节点** | 哪些关键历史时刻塑造了当前结构？ |
+| **制度遗产** | 哪些旧体系影响了当前治理？ |
+
+### 3. 人口参数
+
+| 参数 | 需要回答的问题 |
+|------|--------------|
+| **人口分布** | 密度和分散程度如何影响治理？ |
+| **族群/物种构成** | 多样性模式和政治影响是什么？ |
+| **迁移模式** | 人口流动如何影响稳定性？ |
+| **城市化水平** | 城乡平衡和治理影响是什么？ |
+| **年龄结构** | 人口统计的政治后果是什么？ |
+
+### 4. 经济参数
+
+| 参数 | 需要回答的问题 |
+|------|--------------|
+| **资源经济类型** | 开采、制造、信息等？ |
+| **经济差距** | 财富分配模式和政治影响？ |
+| **贸易依赖** | 哪些外部经济关系产生影响？ |
+| **技术水平** | 存在什么治理和控制工具？ |
+| **基础设施** | 领土间存在什么实体/数字连接？ |
+
+### 5. 文化参数
+
+| 参数 | 需要回答的问题 |
+|------|--------------|
+| **语言多样性** | 什么语言模式造成沟通障碍？ |
+| **信仰分布** | 宗教/意识形态的地理分布和影响？ |
+| **文化凝聚力** | 什么促进共同身份认同？ |
+| **文化分化力** | 什么促进独特的身份认同？ |
+| **历史叙事** | 对共同历史存在哪些竞争性解读？ |
+
+### 6. 权力结构参数
+
+| 参数 | 需要回答的问题 |
+|------|--------------|
+| **权力分配** | 决策权有多集中或分散？ |
+| **权力正当化** | 正当性来源是什么（传统、魅力、法律）？ |
+| **精英构成** | 统治阶层的性质和背景？ |
+| **反对派组织** | 对权威的反抗如何组织？ |
+| **外部权力关系** | 存在什么联盟、依赖和对抗？ |
+
+### 7. 制度参数
+
+| 参数 | 需要回答的问题 |
+|------|--------------|
+| **治理机制** | 决策如何制定和执行？ |
+| **法律传统** | 法律和司法的基础及演变？ |
+| **军事组织** | 武装力量的结构和控制？ |
+| **公民参与** | 民众如何参与治理？ |
+| **官僚发展** | 行政能力和专业化程度？ |
+
+### 8. 技术参数
+
+| 参数 | 需要回答的问题 |
+|------|--------------|
+| **通信技术** | 对治理范围和方式的影响？ |
+| **交通技术** | 对领土控制和整合的影响？ |
+| **军事技术** | 攻防能力的平衡？ |
+| **监控能力** | 监控能力和治理影响？ |
+| **资源开采技术** | 利用可用资源的能力？ |
+
+### 9. 时间参数
+
+| 参数 | 需要回答的问题 |
+|------|--------------|
+| **治理周期阶段** | 形成、扩张、稳定、收缩、转型？ |
+| **危机频率** | 存在什么样的生存挑战模式？ |
+| **适应速度** | 对变化条件的反应有多快？ |
+| **代际政治** | 年龄群体在政治态度上有什么差异？ |
+| **历史意识** | 人口是面向未来还是面向过去？ |
+
+### 10. 外部关系参数
+
+| 参数 | 需要回答的问题 |
+|------|--------------|
+| **外交立场** | 联盟、中立、孤立模式？ |
+| **威胁环境** | 外部危险的性质和距离？ |
+| **文化交流** | 信息和价值观的传播模式？ |
+| **经济整合** | 贸易关系和依赖？ |
+| **等级地位** | 在区域/全球权力结构中的位置？ |
+
+## 政体类型矩阵
+
+### 民族国家及等价物
+
+| 类型 | 特征 | 命名模式 |
+|------|------|---------|
+| **单一制国家** | 中央集权，统一法律 | [地名] 共和国/王国/国 |
+| **联邦制** | 各级政府分权 | 联合/联邦 [地名/族名] |
+| **邦联** | 松散联盟，有限中央权力 | [X] 联盟/同盟 |
+| **君主立宪** | 法律框架内的世袭统治者 | [地名] 王国/酋长国/苏丹国 |
+| **绝对君主制** | 不受约束的世袭统治 | [统治者/王朝] 帝国/领地 |
+| **军事独裁** | 武装力量控制 | [地名] 军事委员会/军政府 |
+| **一党制国家** | 一个主导政治组织 | [地名] 人民/民主共和国 |
+| **神权政治** | 宗教权威主导 | [地名/信仰] 圣国/神域 |
+| **城邦** | 有独立地位的城市中心 | [地名] 自由城 |
+| **部落联盟** | 联合的亲族群体 | [族名] 诸国/诸部 |
+
+### 非国家政治实体
+
+| 类型 | 特征 | 命名模式 |
+|------|------|---------|
+| **公司权威** | 拥有政府权力的公司 | [行业] [地名] 公司 |
+| **宗教教团领地** | 拥有领土的信仰组织 | [信仰符号] 教团/兄弟会 |
+| **犯罪集团领地** | 有组织犯罪的治理 | [家族/符号] 辛迪加 |
+| **自治区** | 国家内的自治区域 | [地名/族名] 自治区 |
+| **佣兵公会控制** | 军事承包商治理 | [创始人/符号] 军团/连队 |
+| **游牧联盟** | 流动的政治联盟 | [族名/符号] 部落/商队/舰队 |
+| **贸易联盟** | 拥有领土的商人联合 | [地名] 商会/交易所 |
+| **技术官僚飞地** | 专家治理的特区 | [技术] [地名] 学院 |
+
+### 星际/多物种实体
+
+| 类型 | 特征 | 命名模式 |
+|------|------|---------|
+| **霸权帝国** | 拥有附庸的主导力量 | [物种/星系] 帝权/统治领 |
+| **民主联邦** | 平等主体的自愿联盟 | [行星/物种] 联邦/联盟 |
+| **跨物种协约** | 基于条约的合作 | [建立地] 协约/协定 |
+| **殖民保护国** | 自称仁慈的外部控制 | [物种] [区域] 保护国 |
+| **贸易集体** | 基于商业的联合 | [区域] 交易所/财团 |
+| **安全联盟** | 以防御为重心的合作 | [区域] 防御协定/倡议 |
+| **星域贵族** | 统治星系的精英家族 | [区域] 诸家/诸王朝 |
+
+## 政治行为模式
+
+### 内部凝聚力水平
+
+| 水平 | 特征 |
+|------|------|
+| **高度统一** | 强烈的共同身份认同，愿意牺牲 |
+| **派系化** | 竞争性身份群体，联盟政治 |
+| **区域分裂** | 地方忠诚压过中央权威 |
+| **阶级分层** | 跨越纵向分化的横向团结 |
+| **碎片化** | 多重交叉分化，不稳定的联盟 |
+
+### 领土控制水平
+
+| 水平 | 特征 |
+|------|------|
+| **有效控制** | 一致的执法、税收 |
+| **协商控制** | 中央权威与地方势力妥协 |
+| **分层权威** | 多重重叠的主权主张，情境性服从 |
+| **争夺区** | 对忠诚和控制的积极竞争 |
+| **名义主张** | 宣称拥有但实际控制最小 |
+
+### 正当性来源
+
+| 类型 | 治理影响 |
+|------|---------|
+| **传统型** | 对既定惯例的尊崇、世袭权利 |
+| **魅力型** | 对杰出领袖的个人忠诚 |
+| **法理型** | 尊重程序正确性、制度 |
+| **绩效型** | 基于提供切实利益获得支持 |
+| **意识形态型** | 对共同价值观和信仰的承诺 |
+
+### 权力交接模式
+
+| 类型 | 稳定性影响 |
+|------|----------|
+| **有序继承** | 可预测的变更，政策连续性 |
+| **精英遴选** | 统治阶级内部的有限竞争 |
+| **民众竞争** | 大众参与，潜在的快速变革 |
+| **暴力推翻** | 不稳定，政策中断 |
+| **外部强加** | 正当性存疑，抵抗潜力 |
+
+## 实施流程
+
+### 步骤 1：环境基础
+- 绘制自然地理和资源分布
+- 识别天然的通信障碍和连接
+- 确定环境威胁和机遇
+- 建立技术背景及其影响
+
+### 步骤 2：历史时间线发展
+- 为主要政治实体创建形成故事
+- 识别关键历史节点和冲突
+- 绘制文化传播和分化模式
+- 建立遗留系统和持续影响
+
+### 步骤 3：人口分布
+- 绘制族群/物种的分布和密度
+- 建立迁移模式及其原因
+- 识别人口张力和互补性
+- 确定城市化模式和治理影响
+
+### 步骤 4：经济网络映射
+- 识别关键资源的位置和控制者
+- 绘制贸易路线和依赖关系
+- 建立财富分配模式
+- 确定技术专业化区域
+
+### 步骤 5：政治结构设计
+- 从矩阵中选择适当的政体类型
+- 为每个实体建立内部凝聚力模式
+- 真实地绘制领土控制的有效性
+- 识别每个治理系统的正当性来源
+
+### 步骤 6：关系网络创建
+- 建立联盟模式及其动机
+- 识别冲突区域和战略重要性
+- 绘制文化交流网络
+- 确定经济相互依赖关系
+
+### 步骤 7：分层身份创建
+- 为人口建立多层次身份
+- 创建使政治复杂化的交叉身份
+- 识别基于身份的运动和目标
+- 确定身份标识及其意义
+
+### 步骤 8：动态元素纳入
+- 识别处于不同周期阶段的实体
+- 创建对稳定性的新兴威胁
+- 建立改革运动和反对派
+- 识别继承问题和争议
+
+## 常见刻板印象及规避
+
+| 刻板印象 | 解决方案 |
+|---------|---------|
+| **星球/物种帽子** | 创建内部分化、区域变体 |
+| **邪恶帝国综合症** | 发展正当的视角、内部派系 |
+| **不变的政治僵局** | 创建有兴衰转变的动态历史 |
+| **简单化寓言** | 发展独特的特征组合 |
+| **二元冲突结构** | 创建复杂的联盟网络、变化的忠诚 |
+| **文化同质化** | 发展内部分化、代际差异 |
+| **行政不可信** | 将治理范围匹配到可用技术 |
+| **资源盲区** | 将领土控制与战略资源对齐 |
+
+## 命名演化模式
+
+| 历史阶段 | 命名特征 |
+|---------|---------|
+| **建立时代** | 描述性、以创始人为中心、地理性 |
+| **扩张时代** | 宏大、志向性、包容性 |
+| **巩固时代** | 制度化、传统、注重稳定 |
+| **转型时代** | 品牌重塑、改革信号、面向未来 |
+| **衰落时代** | 美化过去、领土夸大 |
+
+## 实施清单
+
+- [ ] 定义领土和关键地理特征
+- [ ] 确定建立背景和历史发展
+- [ ] 识别人口构成和分布
+- [ ] 建立经济基础和资源控制
+- [ ] 选择适当的治理系统类型
+- [ ] 发展内部凝聚力模式和分化
+- [ ] 创建与其他实体的关系模式
+- [ ] 建立适合背景的命名规范
+- [ ] 添加独特的文化元素和身份标识
+- [ ] 纳入动态元素和当前挑战
+
+## 输出持久化
+
+本技能将主要输出写入文件，以便工作在跨会话中持续。
+
+### 输出发现
+1. 检查项目中的 `context/output-config.md`
+2. 如找到，使用本技能的条目作为输出路径
+3. 如未找到，**使用默认路径 `explorations/governance-systems/`** 并立即进行核心工作
+4. 在回复末尾简要提及输出位置——不要阻塞询问用户
+
+### 主要输出
+- **政体类型选择** - 从矩阵中选择并命名
+- **参数值** - 10 个类别的选择
+- **内部派系** - 政体内的竞争群体
+- **外部关系** - 联盟、对抗、依赖
+- **正当性来源** - 统治的正当化依据
+
+### 文件命名
+模式：`{polity-name}-governance-{date}.md`
+
+## 验证（Oracle）
+
+### 本技能可验证的内容
+- **参数覆盖度** - 是否考虑了全部 10 个类别？（高置信度）
+- **行政可信度** - 治理范围是否匹配技术？（高置信度）
+- **内部一致性** - 政治选择是否相互支持？（中置信度）
+
+### 需要人工判断的内容
+- **故事适配性** - 这个政体是否创造了有趣的冲突？
+- **刻板印象规避** - 这是否不只是"邪恶帝国"或"星球帽子"？
+- **派系趣味性** - 内部分化是否引人入胜？
+
+### Oracle 限制
+- 无法评估政治设计的叙事趣味性
+- 没有故事背景时无法预测治理如何影响角色动机
+
+## 反馈循环
+
+### 会话持久化
+- **输出位置：** 参见 `context/output-config.md`
+- **保存内容：** 政体类型、参数值、派系、关系
+- **命名模式：** `{polity-name}-governance-{date}.md`
+
+### 跨会话学习
+- 检查本世界之前的政治工作
+- 确保新政体保持关系一致性
+- 政治危机和转型为反模式提供参考
+
+## 设计约束
+
+### 本技能假设
+- 政治组织存在（即使无政府状态也有决策机制）
+- 作者需要真实的复杂性，而非背景王国
+- 设定中可能存在多个政体
+
+### 本技能不处理
+- **经济基础** - 路由到：economic-systems
+- **文化价值观** - 路由到：belief-systems
+- **通用世界构建** - 路由到：worldbuilding
+
+### 退化信号
+- 没有内部冲突的单派系政体
+- 行政范围超越技术能力
+- 没有内部正当支持者的帝国
+
+## 推理要求
+
+### 标准推理
+- 单个政体类型选择
+- 单个类别的参数选择
+- 基本关系映射
+
+### 扩展推理（ultrathink）
+- **多政体系统设计** - [原因：关系构成复杂网络]
+- **政治-经济整合** - [原因：需要跨技能综合]
+- **政治史发展** - [原因：追踪随时间的转变]
+
+**触发短语：** "设计政治版图"、"国家如何互动"、"政治史"
+
+## 执行策略
+
+### 顺序执行（默认）
+- 环境基础先于历史时间线
+- 历史时间线先于人口分布
+- 人口先于经济基础
+
+### 可并行化
+- 研究多个历史政治体系
+- 设计不同区域的政体
+
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|---------|---------|
+| 历史研究 | general-purpose | 以真实政治体系为模型时 |
+| 经济整合 | general-purpose | 与 economic-systems 协调时 |
+
+## 上下文管理
+
+### 大致 Token 占用
+- **技能基础：** ~4k tokens（10 个类别 + 政体矩阵）
+- **含行为模式：** ~5k tokens
+- **完整实施流程：** ~6k tokens
+
+### 上下文优化
+- 仅加载当前任务相关的参数类别
+- 以名称引用 economic-systems/belief-systems
+- 政体矩阵是核心；行为模式是补充
+
+### 上下文紧张时
+- 优先：当前政体类型、活跃参数
+- 延迟：完整政体矩阵、命名演化模式
+- 丢弃：当前未使用的所有实施步骤
+
+## 反模式
+
+### 1. 邪恶帝国综合症
+**模式：** 将对手政体创建为统一的邪恶、无能或非理性——只是为了被击败而存在。
+**为何失败：** 征服并维持领土的帝国是通过效率、正当性和利益提供的某种组合来做到的。纯粹的邪恶会因内部反抗而崩溃。读者能感受到这种不真实。
+**修正：** 发展帝国的内部逻辑。它的公民从这个交易中得到了什么？谁从中获益并捍卫这个体系？如果它倒下了，会失去什么？创建真心支持它的有共情力的角色。
+
+### 2. 星球帽子
+**模式：** 让一个政体、物种或文化的每个成员都一模一样——全部好战、全部经商、全部虔诚。
+**为何失败：** 真实社会包含各种类型的人。武士有诗人；商业国家有士兵；虔诚文化有怀疑者。同质性消除了内部冲突，显得卡通化。
+**修正：** 为每个主要政体设计至少三个不同派系。创建代际差异、区域变体和阶级区分。展示文化在自身内部的争论。
+
+### 3. 行政不可信
+**模式：** 用前工业技术创建拥有详细中央控制的庞大帝国。
+**为何失败：** 治理能力取决于通信和交通技术。中世纪国王无法微观管理遥远的省份。命令需要数周才能送达。地方领主拥有真正的自主权。
+**修正：** 将行政范围匹配到技术。偏远省份拥有更多自主权。中央指令是一般原则，不是详细命令。地方变异才是常态。
+
+### 4. 静态政治僵局
+**模式：** 政治结构几个世纪不变，古老边界完美维持，没有内部演化。
+**为何失败：** 政体兴起、转型、分裂和覆灭。边界移动。制度适应。一个千年不变的帝国经历了数十次继承危机、入侵和意识形态挑战却毫无影响。
+**修正：** 创建有转变的政治史。展示当前结构如何从早期形式演化而来。至少包含一次近期记忆中的重大政治危机。
+
+### 5. 二元冲突结构
+**模式：** 两方对立——联邦 vs 帝国，光明 vs 黑暗——每个人都站队其一。
+**为何失败：** 真实政治涉及变化的联盟、中立方、机会主义第三方，以及更关心内斗而非外敌的内部派系。
+**修正：** 创建至少三个关系复杂的主要势力。包括中立者、佣兵和机会主义者。展示各方内部在压力下可能倒戈的派系。
+
+## 整合
+
+### 入站（输入到本技能）
+| 技能 | 提供内容 |
+|------|---------|
+| worldbuilding | 塑造政治边界的地理约束 |
+| economic-systems | 政治权力的经济基础 |
+| belief-systems | 正当性来源和意识形态分化 |
+
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|-----------------|
+| underdog-unit | 边缘人运作其中的制度结构 |
+| character-arc | 驱动角色选择的政治压力 |
+| moral-parallax | 竞争性的合法政治视角 |
+
+### 互补
+| 技能 | 关系 |
+|------|------|
+| economic-systems | 政治和经济系统深度交织——一起设计以保持一致性 |
+| multi-order-evolution | 使用 multi-order-evolution 追踪政治系统如何随时间变化 |

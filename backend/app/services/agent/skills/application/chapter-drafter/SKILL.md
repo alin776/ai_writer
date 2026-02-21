@@ -1,6 +1,6 @@
 ---
 name: chapter-drafter
-description: Autonomously draft and polish chapters through multi-skill editorial passes. Use when you have a complete outline and want to produce a polished first draft with iterative refinement.
+description: 自主起草和打磨章节，通过多技能编辑轮次进行。适用于已有完整大纲且想要通过迭代精炼产出精打磨的初稿时。
 license: MIT
 metadata:
   author: jwynia
@@ -31,353 +31,353 @@ metadata:
 allowed-tools: [read_file, write_file, edit_file, glob, grep, execute]
 ---
 
-# Chapter Drafter: Orchestrator Skill
+# 章节起草器：编排技能
 
-You autonomously draft and polish chapter scenes through iterative editorial passes. Given an outline, you produce polished first-draft prose by drafting each scene, evaluating it against editorial criteria, and revising until quality thresholds are met.
+你自主起草和打磨章节场景，通过迭代的编辑轮次进行。给定大纲后，你通过起草每个场景、对照编辑标准评估、反复修改直到达到质量阈值来产出精打磨的初稿散文。
 
-## Core Principle
+## 核心原则
 
-**Orchestration is iteration with hierarchy.** Fix structure before character, character before originality, originality before dialogue, dialogue before prose. Don't polish what might be cut; don't revise dialogue in a scene that needs structural rework.
-
----
-
-## Prerequisites
-
-Before invoking this skill, ensure:
-
-1. **Complete outline exists** - Scene beats with goals, conflicts, and intended outcomes
-2. **Characters defined** - Lie/want/need, voice patterns, arc positions
-3. **World established** - Setting details sufficient for scene work
-4. **Story-sense diagnosis complete** - No structural story problems remaining
-
-**Do NOT use this skill if:**
-- Outline is still in flux
-- Character arcs undefined
-- Story-sense would diagnose structural problems
+**编排就是带层级的迭代。**先修结构再修角色，先修角色再修原创性，先修原创性再修对话，先修对话再修文笔。不要打磨可能被删的内容；不要修改需要结构重写的场景中的对话。
 
 ---
 
-### Reading Budget
-- Read the outline/plan file first (1 file)
-- Read at most the 2 most recent chapters for context (2 files)
-- Total pre-generation reading: ≤ 5 files
-- After reading, IMMEDIATELY begin drafting — do not read more files
+## 前置条件
+
+在调用该技能之前，确保：
+
+1. **完整大纲已存在** - 场景节拍包含目标、冲突和预期结果
+2. **角色已定义** - 谎言/欲望/需要、声音模式、弧线位置
+3. **世界已建立** - 足够支撑场景工作的背景细节
+4. **story-sense 诊断已完成** - 不存在结构性故事问题
+
+**不要在以下情况使用该技能：**
+- 大纲仍在变动中
+- 角色弧线未定义
+- story-sense 会诊断出结构问题
 
 ---
 
-## The Orchestration Loop
+### 阅读预算
+- 先读大纲/计划文件（1个文件）
+- 最多读最近的2个章节作为上下文（2个文件）
+- 生成前总阅读量：≤ 5个文件
+- 阅读后，立即开始起草——不要再读更多文件
+
+---
+
+## 编排循环
 
 ```
 FOR each scene in chapter outline:
 
-    1. BUILD CONTEXT
-       - Load character voices from previous scenes
-       - Load open plot threads
-       - Load cliche avoidances
-       - Extract scene purpose from outline
+    1. 构建上下文
+       - 从前面的场景加载角色声音
+       - 加载未完结的情节线索
+       - 加载老套回避清单
+       - 从大纲中提取场景目的
 
-    2. DRAFT SCENE
-       - Generate initial prose from outline beat
-       - Apply character voices
-       - Maintain plot thread continuity
+    2. 起草场景
+       - 从大纲节拍生成初始散文
+       - 应用角色声音
+       - 保持情节线索连续性
 
-    3. EVALUATION LOOP (max 5 cycles)
+    3. 评估循环（最多5轮）
        │
-       ├─► Pass 1: scene-sequencing (35%)
-       │   └─► If FAIL: REWRITE scene
-       ├─► Pass 2: character-arc (25%)
-       ├─► Pass 3: cliche-transcendence (15%)
-       ├─► Pass 4: dialogue (15%)
-       └─► Pass 5: prose-style (10%)
+       ├─► 轮次1：scene-sequencing（35%）
+       │   └─► 如果不通过：重写场景
+       ├─► 轮次2：character-arc（25%）
+       ├─► 轮次3：cliche-transcendence（15%）
+       ├─► 轮次4：dialogue（15%）
+       └─► 轮次5：prose-style（10%）
        │
-       Calculate composite score
+       计算综合得分
        │
-       ├─► >= 80: ACCEPT
-       ├─► 60-79: TARGETED FIX → re-evaluate
-       ├─► 40-59: REWRITE → return to draft
-       └─► <40: REJECT → full re-draft from outline
+       ├─► >= 80：接受
+       ├─► 60-79：定向修正 → 重新评估
+       ├─► 40-59：重写 → 返回起草
+       └─► <40：拒绝 → 从大纲重新起草
 
-    4. POST-ACCEPT
-       - Extract character voice patterns → update context
-       - Track plot thread changes → update registry
-       - Record cliche transcendences → update avoidances
-       - Write scene to output
-       - Update progress tracker
+    4. 接受后处理
+       - 提取角色声音模式 → 更新上下文
+       - 跟踪情节线索变化 → 更新注册表
+       - 记录老套超越 → 更新回避清单
+       - 将场景写入输出
+       - 更新进度跟踪器
 
 END FOR
 ```
 
 ---
 
-## Pass Criteria
+## 轮次标准
 
-### Pass 1: Scene-Sequencing (35% weight)
+### 轮次1：场景排序（35%权重）
 
-Evaluates Goal-Conflict-Disaster structure and pacing.
+评估目标-冲突-灾难结构和节奏。
 
-| Criterion | PASS | WARN | FAIL |
-|-----------|------|------|------|
-| **Goal clarity** | POV goal clear in opening beats | Goal exists but buried | No discernible goal |
-| **Conflict escalation** | Opposition intensifies | Conflict static but present | No real opposition |
-| **Disaster quality** | "Yes, but..." or "No, and..." | Simple "No" | Clean "Yes" or no resolution |
-| **Sequel presence** | Reaction-dilemma-decision present | Abbreviated sequel | Missing after high-tension |
-| **Scene-sequel ratio** | Matches intended pacing | Slight mismatch | Severely mismatched |
+| 标准 | 通过 | 警告 | 不通过 |
+|------|------|------|--------|
+| **目标清晰度** | 视角目标在开头节拍清晰 | 目标存在但被埋没 | 无可辨识的目标 |
+| **冲突升级** | 对抗加剧 | 冲突静态但存在 | 没有真正的对抗 |
+| **灾难质量** | "是的，但是……"或"不，而且……" | 简单的"不" | 干净的"是"或无结局 |
+| **续接存在** | 反应-困境-决定存在 | 续接缩略 | 高张力后缺失 |
+| **场景-续接比例** | 匹配预期节奏 | 轻微不匹配 | 严重不匹配 |
 
-**Critical:** If scene-sequencing FAILS, do NOT proceed to other passes. Structural problems invalidate downstream evaluation.
+**关键：**如果场景排序不通过，不要继续其他轮次。结构问题会使下游评估无效。
 
-### Pass 2: Character-Arc (25% weight)
+### 轮次2：角色弧线（25%权重）
 
-Evaluates transformation consistency and arc progress.
+评估转变一致性和弧线进展。
 
-| Criterion | PASS | WARN | FAIL |
-|-----------|------|------|------|
-| **Lie visibility** | False belief evident in choices | Lie present but unstated | No lie operative |
-| **Want/Need gap** | Clear tension between stated/actual | Gap exists but unclear | Want = Need (no tension) |
-| **Arc progress** | Scene advances or challenges arc | Arc static but consistent | Character contradicts arc |
-| **Transformation markers** | Choices reflect arc position | Position unclear | Acts against personality |
+| 标准 | 通过 | 警告 | 不通过 |
+|------|------|------|--------|
+| **谎言可见性** | 虚假信念在选择中明显 | 谎言存在但未陈述 | 没有谎言在运作 |
+| **欲望/需要差距** | 表面/实际之间张力清晰 | 差距存在但不清楚 | 欲望 = 需要（无张力） |
+| **弧线进展** | 场景推进或挑战弧线 | 弧线静态但一致 | 角色与弧线矛盾 |
+| **转变标记** | 选择反映弧线位置 | 位置不清楚 | 行为违反个性 |
 
-### Pass 3: Cliche-Transcendence (15% weight)
+### 轮次3：老套超越（15%权重）
 
-Evaluates originality via orthogonality test.
+通过正交性测试评估原创性。
 
-| Criterion | PASS | WARN | FAIL |
-|-----------|------|------|------|
-| **Form axis** | Non-default form | Slight variation | Exactly genre default |
-| **Knowledge axis** | Own concerns, accidental intersection | Some plot awareness | Fully story-serving |
-| **Goal axis** | Own agenda that collides | Goal connected to plot | Purely protagonist-serving |
-| **Role axis** | Own story that intersects | Somewhat independent | Exists only for hero |
-| **Orthogonality test** | 2+ axes orthogonal | 1 axis orthogonal | All axes match default |
+| 标准 | 通过 | 警告 | 不通过 |
+|------|------|------|--------|
+| **形式轴** | 非默认形式 | 轻微变化 | 完全是类型默认 |
+| **认知轴** | 自身关注点，意外交叉 | 有些情节感知 | 完全服务于故事 |
+| **目标轴** | 自身议程与之碰撞 | 目标与情节相关 | 纯粹为主角服务 |
+| **角色轴** | 自身故事与之交叉 | 有些独立性 | 只为英雄存在 |
+| **正交性测试** | 2+轴正交 | 1轴正交 | 所有轴匹配默认 |
 
-### Pass 4: Dialogue (15% weight)
+### 轮次4：对话（15%权重）
 
-Evaluates voice distinctiveness, subtext, and function.
+评估声音独特性、潜台词和功能。
 
-| Criterion | PASS | WARN | FAIL |
-|-----------|------|------|------|
-| **Voice distinctiveness** | Characters distinguishable without tags | Some overlap | Identical voices (D1) |
-| **Subtext presence** | Gap between said and meant | Occasional direct statements | Everything on-the-nose (D4) |
-| **Double-duty test** | 3+ functions per exchange | 2 functions | Single function only (D5) |
-| **Naturalness** | Contractions, interruptions, rhythm | Slightly formal | Wooden/stilted (D2) |
-| **Exposition handling** | Information through conflict | Minor "as you know" | Exposition dump (D3) |
+| 标准 | 通过 | 警告 | 不通过 |
+|------|------|------|--------|
+| **声音独特性** | 不看标签也能区分角色 | 有些重叠 | 声音一样（D1） |
+| **潜台词存在** | 说出的和意味的有差距 | 偶尔直接陈述 | 一切都在表面（D4） |
+| **双重功能测试** | 每次交流3+功能 | 2个功能 | 只有单一功能（D5） |
+| **自然度** | 缩略、打断、节奏 | 稍微正式 | 生硬/呆板（D2） |
+| **说明处理** | 通过冲突传递信息 | 轻微的"你知道的" | 说明文倾泻（D3） |
 
-### Pass 5: Prose-Style (10% weight)
+### 轮次5：散文风格（10%权重）
 
-Evaluates sentence-level craft.
+评估句子层面的技巧。
 
-| Criterion | PASS | WARN | FAIL |
-|-----------|------|------|------|
-| **Sentence variety** | Length and structure vary | Some variation | Monotonous (P4) |
-| **Clarity** | Concrete, clear antecedents | Occasional abstraction | Unclear writing (P2) |
-| **Voice consistency** | Diction level consistent | Minor shifts | Random shifts (P6) |
-| **Economy** | Words earn place | Minor redundancy | Overwrought (P3) |
-| **Active voice** | Passive intentional | Some default passive | Passive overuse (P5) |
-
----
-
-## Composite Scoring
-
-Each pass produces a score from 0-100:
-- All PASS = 100
-- Each WARN = -15
-- Each FAIL = -40
-
-**Composite = SUM(pass_score × pass_weight)**
-
-| Composite | Outcome | Action |
-|-----------|---------|--------|
-| >= 80 | ACCEPT | Scene complete, proceed to next |
-| 60-79 | REVISE | Fix lowest-scoring pass, re-evaluate |
-| 40-59 | REWRITE | Regenerate with failure constraints |
-| < 40 | REJECT | Full re-draft from outline |
+| 标准 | 通过 | 警告 | 不通过 |
+|------|------|------|--------|
+| **句式变化** | 长度和结构有变化 | 有些变化 | 单调（P4） |
+| **清晰度** | 具体、明确的先行词 | 偶有抽象 | 写作不清楚（P2） |
+| **声音一致性** | 措辞水平一致 | 轻微偏移 | 随机偏移（P6） |
+| **经济性** | 每个词都有存在理由 | 轻微冗余 | 过度雕琢（P3） |
+| **主动语态** | 被动语态是有意的 | 有些默认被动 | 过度使用被动（P5） |
 
 ---
 
-## Iteration Limits
+## 综合评分
 
-| Level | Limit | On Exceed |
-|-------|-------|-----------|
-| Per-pass | 3 | Escalate to rewrite |
-| Per-scene | 12 | Accept at threshold 50, flag for review |
-| Per-chapter | 50 | Stop, report remaining issues |
+每个轮次产出0-100分：
+- 全部通过 = 100
+- 每个警告 = -15
+- 每个不通过 = -40
 
-**Diminishing returns detection:** If improvement < 10% between iterations, accept current state or escalate.
+**综合分 = SUM(轮次得分 × 轮次权重)**
 
----
-
-## Context Accumulation
-
-Maintain across scenes:
-
-### Character Voices
-After each scene, extract and store:
-- Vocabulary patterns per character
-- Sentence rhythm patterns
-- Directness level
-- Verbal tics and avoidances
-
-Use as constraint for subsequent scenes: "Character X speaks like [markers]"
-
-### Plot Threads
-Track:
-- **Open threads** - Introduced, not resolved
-- **Closed threads** - Resolved this chapter
-- **Foreshadowing** - Planted for future payoff
-
-Each scene checks:
-- No contradiction with established facts
-- Open threads acknowledged or advanced
-- At least one element progresses
-
-### Cliche Avoidances
-After cliche-transcendence pass, record:
-- Which defaults were avoided
-- How they were transcended
-- New elements that feel fresh
-
-Use as constraint: "Already transcended [X], maintain freshness"
+| 综合分 | 结果 | 操作 |
+|--------|------|------|
+| >= 80 | 接受 | 场景完成，进入下一个 |
+| 60-79 | 修改 | 修正最低分轮次，重新评估 |
+| 40-59 | 重写 | 带失败约束重新生成 |
+| < 40 | 拒绝 | 从大纲重新起草 |
 
 ---
 
-## Progress Tracker
+## 迭代限制
 
-Use the progress tracker template to persist state:
+| 层级 | 限制 | 超限时 |
+|------|------|--------|
+| 每轮次 | 3 | 升级为重写 |
+| 每场景 | 12 | 在阈值50接受，标记待审 |
+| 每章节 | 50 | 停止，报告剩余问题 |
+
+**递减收益检测：**如果迭代之间改善 < 10%，接受当前状态或升级。
+
+---
+
+## 上下文积累
+
+跨场景维护：
+
+### 角色声音
+每个场景之后，提取并存储：
+- 每个角色的词汇模式
+- 句子节奏模式
+- 直接程度
+- 口头习惯和回避
+
+用作后续场景的约束："角色X说话像[标记]"
+
+### 情节线索
+跟踪：
+- **未结线索** - 已引入，未解决
+- **已结线索** - 本章已解决
+- **伏笔** - 为未来回收埋下的铺垫
+
+每个场景检查：
+- 不与已建立的事实矛盾
+- 未结线索被提及或推进
+- 至少一个元素有进展
+
+### 老套回避
+cliche-transcendence 轮次后，记录：
+- 回避了哪些默认选项
+- 如何超越它们
+- 感觉新鲜的新元素
+
+用作约束："已超越[X]，保持新鲜感"
+
+---
+
+## 进度跟踪器
+
+使用进度跟踪器模板来持久化状态：
 
 ```markdown
-## Chapter Progress: [Title]
-Started: [timestamp]
-Current: Scene [N], Pass [M], Iteration [K]
+## 章节进度：[标题]
+开始时间：[时间戳]
+当前：场景 [N]，轮次 [M]，迭代 [K]
 
-### Scenes
-| Scene | Status | Pass | Iterations | Score | Issues |
-|-------|--------|------|------------|-------|--------|
+### 场景
+| 场景 | 状态 | 轮次 | 迭代次数 | 得分 | 问题 |
+|------|------|------|---------|------|------|
 
-### Context
-- Character Voices: [accumulated]
-- Plot Threads: [open/closed]
-- Cliche Avoidances: [list]
+### 上下文
+- 角色声音：[累积]
+- 情节线索：[未结/已结]
+- 老套回避：[列表]
 
-### Change Log
-- [timestamp] [change]
+### 变更日志
+- [时间戳] [变更]
 ```
 
 ---
 
-## Revision Strategy
+## 修改策略
 
-### Targeted Fix (score 60-79)
-1. Identify lowest-scoring pass
-2. Extract specific failure criteria
-3. Generate minimal fix addressing that criterion
-4. Re-evaluate that pass + downstream passes
-5. If pass improves, recalculate composite
+### 定向修正（得分60-79）
+1. 确定最低分轮次
+2. 提取具体的失败标准
+3. 生成针对该标准的最小修正
+4. 重新评估该轮次 + 下游轮次
+5. 如果轮次改善，重新计算综合分
 
-### Rewrite (score 40-59)
-1. Preserve scene goal from outline
-2. Generate new draft with explicit constraints:
-   - "Must include clear goal in opening"
-   - "Conflict must escalate"
-   - etc. based on failures
-3. Re-run full evaluation loop
+### 重写（得分40-59）
+1. 保留大纲中的场景目标
+2. 生成带明确约束的新草稿：
+   - "开头必须包含清晰目标"
+   - "冲突必须升级"
+   - 等等，基于失败项
+3. 重新运行完整评估循环
 
-### Reject (score < 40)
-1. Return to outline beat
-2. Re-draft from scratch
-3. Treat as new scene (reset iterations)
-
----
-
-## Conflict Resolution
-
-When fixing one pass breaks another:
-
-1. **Detect:** Re-run all passes after any fix
-2. **Compare:** Did any pass regress?
-3. **Prioritize:** Higher-weight pass wins ties
-4. **Seek synthesis:** Can fix satisfy both?
-5. **Accept trade-off:** If irreconcilable, accept per hierarchy
-
-**Escalation:** If conflict persists after 2 attempts, flag scene for human review.
+### 拒绝（得分 < 40）
+1. 回到大纲节拍
+2. 从头重新起草
+3. 视为新场景（重置迭代）
 
 ---
 
-## Anti-Patterns
+## 冲突解决
 
-### The Infinite Polisher
-**Pattern:** Keeps iterating because one criterion is at WARN.
-**Fix:** WARN is acceptable. Accept at threshold after iteration limit.
+当修正一个轮次破坏了另一个：
 
-### The Pass Skipper
-**Pattern:** Jumps to prose-style when scene-sequencing failed.
-**Fix:** Hard gate on structural passes. FAIL blocks progression.
+1. **检测：**任何修正后重新运行所有轮次
+2. **比较：**有任何轮次退步了吗？
+3. **优先：**权重更高的轮次在平局中获胜
+4. **寻求综合：**修正能同时满足两者吗？
+5. **接受权衡：**如果不可调和，按层级接受
 
-### The Context Amnesiac
-**Pattern:** Each scene drafted in isolation, losing voice and threads.
-**Fix:** Explicit context loading before each scene draft.
-
-### The Cascade Blind Spot
-**Pattern:** Fixes dialogue, doesn't check if prose-style regressed.
-**Fix:** Always re-evaluate current pass + downstream after any fix.
-
-### The Silent Failer
-**Pattern:** Hits iteration limit, proceeds without documentation.
-**Fix:** Log all limit exits with categorized remaining issues.
+**升级：**如果冲突在2次尝试后持续，标记场景待人工审查。
 
 ---
 
-## Output Persistence
+## 反模式
 
-### Progress Tracker
-- **Location:** `context/chapter-drafter/[chapter]-progress.md`
-- **Update:** After each scene acceptance
-- **Purpose:** Resume point if interrupted
+### 无限打磨者
+**模式：**因为一个标准处于警告状态就持续迭代。
+**修正：**警告是可接受的。迭代限制后在阈值接受。
 
-### Scene Output
-- **Location:** `drafts/[story]/[chapter]/scene-[N].md`
-- **Update:** On scene acceptance
-- **Purpose:** Accumulated draft prose
+### 轮次跳过者
+**模式：**场景排序不通过时跳到散文风格。
+**修正：**结构轮次有硬性门槛。不通过阻止继续。
 
-### Context State
-- **Location:** `context/chapter-drafter/[chapter]-context.md`
-- **Update:** After each scene
-- **Purpose:** Character voices, threads, avoidances
+### 上下文失忆症
+**模式：**每个场景孤立起草，丢失声音和线索。
+**修正：**每个场景起草前明确加载上下文。
 
----
+### 级联盲区
+**模式：**修正了对话，没检查散文风格是否退步。
+**修正：**任何修正后始终重新评估当前轮次 + 下游轮次。
 
-## Integration
-
-### Inbound (feeds into chapter-drafter)
-| Skill | What it provides |
-|-------|------------------|
-| outline-collaborator | Scene beats with goal-conflict-disaster |
-| character-arc | Lie/want/need for each character |
-| worldbuilding | Setting details for scene work |
-| story-sense | Confirmation structure is solid |
-
-### Outbound (chapter-drafter produces)
-| Output | Next step |
-|--------|-----------|
-| Draft chapter | revision (for full manuscript revision) |
-| Flagged scenes | Human review |
-| Context state | Next chapter drafting |
+### 沉默失败者
+**模式：**达到迭代限制，不加记录地继续。
+**修正：**记录所有限制退出，附带分类的剩余问题。
 
 ---
 
-## Example Invocation
+## 输出持久化
 
-**Input:** Chapter outline with 5 scene beats
+### 进度跟踪器
+- **位置：**`context/chapter-drafter/[章节]-progress.md`
+- **更新：**每个场景接受后
+- **目的：**中断时的恢复点
 
-**Process:**
-1. Load outline, confirm prerequisites
-2. Initialize progress tracker
-3. For each scene:
-   - Build context from prior scenes
-   - Draft initial prose
-   - Run evaluation loop
-   - On ACCEPT: extract context, write output
-4. Complete: 5 polished scenes, flagged issues documented
+### 场景输出
+- **位置：**`drafts/[故事]/[章节]/scene-[N].md`
+- **更新：**场景接受时
+- **目的：**累积的草稿散文
 
-**Output:**
-- 5 scene files in `drafts/[story]/[chapter]/`
-- Progress tracker showing all iterations
-- Context file for next chapter
-- List of any flagged issues for human review
+### 上下文状态
+- **位置：**`context/chapter-drafter/[章节]-context.md`
+- **更新：**每个场景之后
+- **目的：**角色声音、线索、回避清单
+
+---
+
+## 整合
+
+### 入站（输入到 chapter-drafter）
+| 技能 | 提供什么 |
+|------|---------|
+| outline-collaborator | 带目标-冲突-灾难的场景节拍 |
+| character-arc | 每个角色的谎言/欲望/需要 |
+| worldbuilding | 场景工作所需的背景细节 |
+| story-sense | 确认结构稳固 |
+
+### 出站（chapter-drafter 产出）
+| 输出 | 下一步 |
+|------|--------|
+| 草稿章节 | revision（用于完整稿件修改） |
+| 标记的场景 | 人工审查 |
+| 上下文状态 | 下一章起草 |
+
+---
+
+## 调用示例
+
+**输入：**包含5个场景节拍的章节大纲
+
+**过程：**
+1. 加载大纲，确认前置条件
+2. 初始化进度跟踪器
+3. 对每个场景：
+   - 从之前的场景构建上下文
+   - 起草初始散文
+   - 运行评估循环
+   - 接受时：提取上下文，写入输出
+4. 完成：5个打磨过的场景，标记的问题已记录
+
+**输出：**
+- `drafts/[故事]/[章节]/` 中的5个场景文件
+- 显示所有迭代的进度跟踪器
+- 下一章的上下文文件
+- 任何标记的问题清单，待人工审查

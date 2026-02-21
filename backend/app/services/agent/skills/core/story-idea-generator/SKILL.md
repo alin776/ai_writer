@@ -1,6 +1,6 @@
 ---
 name: story-idea-generator
-description: Generate story concepts using a genre-first approach. Use when starting a new project, when brainstorming ideas, when a concept needs strengthening, or when you want to ensure emotional impact drives the story.
+description: 使用类型优先的方法生成故事概念。在开始新项目、头脑风暴创意、需要加强概念、或希望确保情感冲击驱动故事时使用。
 license: MIT
 metadata:
   author: jwynia
@@ -11,443 +11,443 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Story Idea Generator: Generative Skill
+# Story Idea Generator：生成技能
 
-You generate and evaluate story concepts using a genre-first approach where desired emotional impact drives all decisions about setting, characters, and plot.
+你使用类型优先的方法生成和评估故事概念，其中期望的情感冲击驱动关于设定、角色和情节的所有决策。
 
-## Core Principle
+## 核心原则
 
-**Emotional experience first. Setting serves genre, not the reverse.**
+**情感体验优先。设定服务于类型，而非反过来。**
 
-A "sci-fi story" is not a genre—it's a setting. The genre is what readers feel: wonder, horror, mystery, drama. Start with the emotional experience you want to create, then choose setting elements that enhance it.
-
----
-
-## The Modular System
-
-This skill uses a modular framework:
-
-| Module | Purpose | Location |
-|--------|---------|----------|
-| **Core: Elemental Genres** | Defines 11 genres by emotional impact | This skill |
-| **Setting: Science Fiction** | Sci-fi elements serving each genre | `Story Idea Generator - Sci Fi Module.md` |
-| **Setting: Urban Fantasy** | Urban fantasy elements by genre | `Story Idea Generator - Urban Fantasy Module.md` |
-| **Setting: Epic Fantasy** | Secondary-world fantasy by genre | `Story Idea Generator - Epic Fantasy Module.md` |
-| **Setting: Historical Fiction** | Historical elements by genre | `Story Idea Generator - Historic Fiction Module.md` |
-| **Implementation Guide** | Process and examples | `Story Idea Generator - Implementation Guide.md` |
+"科幻故事"不是一种类型——它是一种设定。类型是读者的感受：惊叹、恐怖、悬疑、戏剧。从你想创造的情感体验开始，然后选择能增强它的设定元素。
 
 ---
 
-## The 11 Elemental Genres
+## 模块化系统
 
-Each genre is defined by the emotional experience it creates:
+本技能使用模块化框架：
 
-| Genre | Core Experience | Reader Feels |
-|-------|-----------------|--------------|
-| **Wonder** | Awe and fascination with the unfamiliar | "I had no idea that was possible" |
-| **Idea** | Intellectual stimulation, "what if" exploration | "I never thought about it that way" |
-| **Adventure** | Excitement through physical challenges | "What happens next?" (external) |
-| **Horror** | Dread, fear, confrontation with threat | "I'm afraid to look but can't stop" |
-| **Mystery** | Curiosity about unknown facts | "I want to figure it out" |
-| **Thriller** | Tension through immediate danger | "Will they make it in time?" |
-| **Humor** | Amusement, entertainment, delight | "That was unexpected and delightful" |
-| **Relationship** | Investment in interpersonal connections | "I want them to work it out" |
-| **Drama** | Internal conflict, transformation | "What happens next?" (internal) |
-| **Issue** | Exploration of complex questions | "I see this differently now" |
-| **Ensemble** | Group dynamics, combined effort | "How will they come together?" |
+| 模块 | 用途 | 位置 |
+|------|------|------|
+| **核心：元素类型** | 通过情感冲击定义 11 种类型 | 本技能 |
+| **设定：科幻** | 服务于各类型的科幻元素 | `Story Idea Generator - Sci Fi Module.md` |
+| **设定：都市奇幻** | 按类型划分的都市奇幻元素 | `Story Idea Generator - Urban Fantasy Module.md` |
+| **设定：史诗奇幻** | 按类型划分的第二世界奇幻 | `Story Idea Generator - Epic Fantasy Module.md` |
+| **设定：历史小说** | 按类型划分的历史元素 | `Story Idea Generator - Historic Fiction Module.md` |
+| **实施指南** | 流程和示例 | `Story Idea Generator - Implementation Guide.md` |
 
 ---
 
-## Genre Requirements Quick Reference
+## 11 种元素类型
 
-### Wonder
-- **Setting:** Vast scales, unprecedented phenomena, breathtaking discoveries
-- **Characters:** Observers capable of awe, who recognize significance
-- **Plot:** Journeys of discovery, perspective-shifting encounters
-- **Themes:** Transcendence, cosmic significance, the unknown
+每种类型由其创造的情感体验定义：
 
-### Idea
-- **Setting:** Societies built around concepts, environments that test hypotheses
-- **Characters:** Intellectually curious, varied perspectives on central concept
-- **Plot:** Exploring implications, testing theories, logical consequences
-- **Themes:** Ethics of knowledge, unintended consequences, paradigm shifts
-
-### Adventure
-- **Setting:** Varied environments, physical obstacles, unfamiliar territories
-- **Characters:** Relevant skills but tests beyond experience
-- **Plot:** Progressive challenges, geographic movement, resource management
-- **Themes:** Self-reliance, courage, adaptation, journey vs. destination
-
-### Horror
-- **Setting:** Isolation, restricted movement, breakdown of normal, hidden threats
-- **Characters:** Vulnerabilities matching threats, something to lose
-- **Plot:** Escalating threat, diminishing safety, power imbalance
-- **Themes:** Survival, corruption, the monstrous within, primal fears
-
-### Mystery
-- **Setting:** Controlled environments, layered information, society with secrets
-- **Characters:** Investigators with skills, witnesses, suspects with motives
-- **Plot:** Information gathering, false leads, progressive revelation
-- **Themes:** Truth vs. deception, appearance vs. reality, justice
-
-### Thriller
-- **Setting:** Time-sensitive situations, high stakes, obstacles to urgent goals
-- **Characters:** Crucial responsibilities, antagonists with comparable resources
-- **Plot:** Deadline pressure, escalating threats, cat-and-mouse dynamics
-- **Themes:** Duty, sacrifice, the cost of action and inaction
-
-### Humor
-- **Setting:** Unusual rules, potential for misunderstanding, absurdity
-- **Characters:** Blind spots, contrasting norms, fish-out-of-water
-- **Plot:** Miscommunication, subverted expectations, escalating awkwardness
-- **Themes:** Human folly, social commentary, joy
-
-### Relationship
-- **Setting:** Forced proximity, shared challenges, obstacles to connection
-- **Characters:** Complementary or contrasting traits, meaningful barriers
-- **Plot:** Connection progression, relationship tests, growth through bond
-- **Themes:** Love, trust, sacrifice for others, growth through connection
-
-### Drama
-- **Setting:** Environments that challenge values, constrained choices
-- **Characters:** Strong values facing tests, internal contradictions
-- **Plot:** Difficult choices, moral dilemmas, transformation through adversity
-- **Themes:** Identity, morality, what we become under pressure
-
-### Issue
-- **Setting:** Societies manifesting the issue, environments shaped by the question
-- **Characters:** Diverse perspectives on central issue
-- **Plot:** Direct experience with different facets of the issue
-- **Themes:** The central question, multiple valid perspectives
-
-### Ensemble
-- **Setting:** Challenges requiring diverse skills, pressure to cooperate
-- **Characters:** Complementary abilities, contrasting worldviews
-- **Plot:** Team formation, cooperation challenges, combined-effort victories
-- **Themes:** Community, diversity as strength, the whole exceeding parts
+| 类型 | 核心体验 | 读者感受 |
+|------|---------|---------|
+| **惊叹** | 对陌生事物的敬畏与着迷 | "我不知道这竟然可能" |
+| **创意** | 智识刺激，"如果……会怎样"的探索 | "我从没这样想过" |
+| **冒险** | 通过身体挑战产生的兴奋 | "接下来会发生什么？"（外部） |
+| **恐怖** | 恐惧、惊惧，与威胁的对峙 | "我害怕看，但无法移开目光" |
+| **悬疑** | 对未知事实的好奇 | "我想弄清楚" |
+| **惊悚** | 通过即时危险产生的紧张 | "他们能及时赶到吗？" |
+| **幽默** | 愉悦、娱乐、欣喜 | "出乎意料又令人愉快" |
+| **情感** | 对人际关系的投入 | "我希望他们能解决问题" |
+| **剧情** | 内心冲突，蜕变 | "接下来会发生什么？"（内部） |
+| **议题** | 对复杂问题的探索 | "我现在有了不同的看法" |
+| **群像** | 群体动态，协同努力 | "他们将如何走到一起？" |
 
 ---
 
-## The Five-Phase Process
+## 类型要素快速参考
 
-### Phase 1: Select Emotional Core
+### 惊叹
+- **设定：** 宏大尺度、前所未有的现象、令人震撼的发现
+- **角色：** 能感受敬畏、能认识到重要性的观察者
+- **情节：** 发现之旅、改变视角的遭遇
+- **主题：** 超越、宇宙意义、未知
 
-1. **Identify Primary Genre**
-   - What emotional experience do you want readers to have?
-   - Review the 11 elemental genres
-   - Select the one that best matches your desired impact
+### 创意
+- **设定：** 围绕概念建立的社会、检验假说的环境
+- **角色：** 求知欲强、对核心概念持不同观点
+- **情节：** 探索影响、检验理论、逻辑推演
+- **主题：** 知识伦理、意想不到的后果、范式转移
 
-2. **Review Genre Requirements**
-   - Note required setting elements, character needs, plot elements
-   - Create checklist of essential components
+### 冒险
+- **设定：** 多样的环境、身体障碍、陌生地域
+- **角色：** 有相关技能但面临超出经验的考验
+- **情节：** 递进的挑战、地理移动、资源管理
+- **主题：** 自力更生、勇气、适应、旅途与目的地
 
-3. **Consider Secondary Genre**
-   - 1-2 secondary genres can enhance primary
-   - Horror + Mystery = dread + curiosity
-   - Relationship + Drama = connection + transformation
-   - Secondary must serve primary, not compete
+### 恐怖
+- **设定：** 孤立、行动受限、常态崩塌、隐藏威胁
+- **角色：** 脆弱性与威胁匹配、有值得守护之物
+- **情节：** 递进的威胁、不断缩小的安全空间、力量失衡
+- **主题：** 生存、堕落、内在的怪物、原始恐惧
 
-### Phase 2: Choose Setting Module
+### 悬疑
+- **设定：** 受控环境、层层信息、有秘密的社会
+- **角色：** 有技能的调查者、证人、有动机的嫌疑人
+- **情节：** 信息搜集、误导、渐进式揭示
+- **主题：** 真相与欺骗、表象与现实、正义
 
-1. **Select Setting Type**
-   - Which setting best serves your primary genre?
-   - Sci-Fi, Urban Fantasy, Epic Fantasy, Historical Fiction
-   - Or contemporary/other (adapt principles)
+### 惊悚
+- **设定：** 时间紧迫的情境、高赌注、阻碍紧急目标的障碍
+- **角色：** 肩负关键职责、拥有相当资源的对手
+- **情节：** 截止期限压力、递进的威胁、猫鼠博弈
+- **主题：** 责任、牺牲、行动与不行动的代价
 
-2. **Customize Setting Elements**
-   - Choose options that specifically enhance genre requirements
-   - Reject setting elements that don't serve the genre
+### 幽默
+- **设定：** 不寻常的规则、误解的可能性、荒诞
+- **角色：** 认知盲区、规范冲突、格格不入的人
+- **情节：** 误解、颠覆期望、层层升级的尴尬
+- **主题：** 人性的愚蠢、社会评论、欢乐
 
-3. **Adapt to Genre Needs**
-   - How does this setting uniquely express your genre?
-   - What opportunities does this setting provide?
+### 情感
+- **设定：** 被迫的亲密接触、共同的挑战、阻碍联结的障碍
+- **角色：** 互补或对立的特质、有意义的障碍
+- **情节：** 关系的递进、考验、通过联结成长
+- **主题：** 爱、信任、为他人牺牲、通过联结成长
 
-### Phase 3: Design Characters
+### 剧情
+- **设定：** 挑战价值观的环境、有限的选择
+- **角色：** 坚定的价值观面临考验、内在矛盾
+- **情节：** 艰难的抉择、道德困境、通过逆境蜕变
+- **主题：** 身份认同、道德、在压力下我们会变成什么
 
-1. **Create Primary Characters**
-   - Traits that make them suited to experience this genre
-   - Vulnerabilities or strengths relevant to genre requirements
+### 议题
+- **设定：** 体现议题的社会、被问题塑造的环境
+- **角色：** 对核心议题持多元视角
+- **情节：** 直接体验议题的不同面向
+- **主题：** 核心问题、多种合理的观点
 
-2. **Establish Relationships**
-   - Dynamics that amplify genre's emotional impact
-   - Connections that create stakes
-
-3. **Define Internal Conflicts**
-   - Internal struggles that mirror or complement external conflicts
-   - Conflicts that deepen when exposed to genre events
-
-### Phase 4: Develop Concept
-
-1. **Craft High Concept**
-   - 1-2 sentences capturing essence
-   - Must clearly communicate primary genre's emotional experience
-
-2. **Expand Story Elements**
-   - Initial situation, central conflict, potential resolution
-   - Key scenes that deliver genre impact
-
-3. **Review Genre Alignment**
-   - Does concept fully leverage genre requirements?
-   - Do setting elements enhance or distract from genre?
-   - Are characters positioned to experience full genre impact?
-
-### Phase 5: Evaluate and Refine
-
-1. **Score Concept** (1-5 scale)
-   - Genre clarity: Is emotional experience obvious?
-   - Setting-genre fit: Does setting serve genre?
-   - Character-genre fit: Will characters experience this fully?
-   - Thematic resonance: Do themes emerge naturally?
-   - Originality: Is there freshness within genre?
-
-2. **Address Weaknesses**
-   - Focus on lowest-scoring aspects
-   - Make specific adjustments
-
-3. **Preserve Vision**
-   - Don't let framework overshadow inspiration
-   - Add personal touches while maintaining genre strength
+### 群像
+- **设定：** 需要多元技能的挑战、合作的压力
+- **角色：** 互补的能力、对立的世界观
+- **情节：** 团队组建、合作挑战、协力获胜
+- **主题：** 共同体、多元即力量、整体大于部分之和
 
 ---
 
-## Genre Combinations
+## 五阶段流程
 
-### Complementary Pairings
+### 阶段 1：选择情感核心
 
-| Primary | Strong Secondary | Effect |
-|---------|------------------|--------|
-| Horror | Mystery | Dread + investigation creates layered tension |
-| Adventure | Wonder | Excitement + awe creates epic scope |
-| Thriller | Drama | External pressure + internal transformation |
-| Romance | Drama | Connection + personal growth |
-| Mystery | Thriller | Investigation + urgency |
-| Idea | Drama | Concept exploration + personal stakes |
+1. **确定主要类型**
+   - 你希望读者有什么样的情感体验？
+   - 审视 11 种元素类型
+   - 选择最匹配你期望效果的那一种
 
-### Problematic Pairings
+2. **审视类型要素**
+   - 记录所需的设定元素、角色需求、情节元素
+   - 创建必备组件清单
 
-| Combination | Problem | Solution |
-|-------------|---------|----------|
-| Horror + Humor | Tone clash | Commit to one; other appears briefly |
-| Thriller + Relationship | Pace conflict | Time-box relationship moments |
-| Idea + Adventure | Pacing mismatch | Ideas emerge during action |
-| Issue + Humor | Undermining | Humor must never mock the issue |
+3. **考虑次要类型**
+   - 1-2 种次要类型可以增强主要类型
+   - 恐怖 + 悬疑 = 恐惧 + 好奇
+   - 情感 + 剧情 = 联结 + 蜕变
+   - 次要类型必须服务于主要类型，而非与之竞争
 
-### Primary/Secondary Rule
+### 阶段 2：选择设定模块
 
-Secondary genre gets at most 30% of story focus. It enhances primary experience, doesn't compete with it.
+1. **选择设定类型**
+   - 哪种设定最能服务于你的主要类型？
+   - 科幻、都市奇幻、史诗奇幻、历史小说
+   - 或者现代/其他（调整适用原则）
 
----
+2. **定制设定元素**
+   - 选择能具体增强类型要素的选项
+   - 拒绝不服务于类型的设定元素
 
-## Common Mistakes
+3. **适配类型需求**
+   - 这种设定如何独特地表达你的类型？
+   - 这种设定提供了什么机会？
 
-### Mistaking Setting for Genre
+### 阶段 3：设计角色
 
-**Wrong:** "I want to write a fantasy story."
-**Right:** "I want to write a Wonder story set in a fantasy world."
+1. **创建主要角色**
+   - 使他们适合体验这种类型的特质
+   - 与类型要素相关的脆弱性或优势
 
-Fantasy is where it happens. Wonder is what readers feel.
+2. **建立关系**
+   - 放大类型情感冲击的动态关系
+   - 创造利害关系的联结
 
-### Choosing Secondary That Undermines
+3. **定义内在冲突**
+   - 映射或补充外部冲突的内心挣扎
+   - 在面对类型事件时会加深的冲突
 
-**Problem:** Horror story with extensive humor subplot breaks dread.
-**Fix:** Secondary must serve primary. If it undermines, cut it.
+### 阶段 4：发展概念
 
-### Genre Requirements as Checklist
+1. **打磨高概念**
+   - 用 1-2 句话捕捉精髓
+   - 必须清晰传达主要类型的情感体验
 
-**Problem:** Hitting all requirements mechanically, missing the spirit.
-**Fix:** Requirements exist to create emotional experience. Evaluate by feeling, not checkbox.
+2. **展开故事元素**
+   - 初始情境、核心冲突、可能的结局
+   - 传递类型冲击的关键场景
 
-### Character-Genre Mismatch
+3. **检查类型一致性**
+   - 概念是否充分利用了类型要素？
+   - 设定元素是增强还是分散了类型的效果？
+   - 角色是否被置于能完整体验类型冲击的位置？
 
-**Problem:** Characters who wouldn't be affected by genre events.
-**Fix:** Design characters specifically vulnerable to or positioned for this genre.
+### 阶段 5：评估与优化
 
----
+1. **概念评分**（1-5 分制）
+   - 类型清晰度：情感体验是否一目了然？
+   - 设定-类型契合度：设定是否服务于类型？
+   - 角色-类型契合度：角色是否能完整体验？
+   - 主题共鸣：主题是否自然涌现？
+   - 原创性：在类型内是否有新鲜感？
 
-## Diagnostic Process
+2. **弥补不足**
+   - 聚焦于得分最低的方面
+   - 做出具体调整
 
-When helping develop story ideas:
-
-### 1. Identify the Emotional Core
-
-Ask: "What do you want readers to feel?"
-
-If they answer with setting ("space opera"), push for genre: "But what emotion? Wonder at scale? Thriller tension? Adventure excitement?"
-
-### 2. Check Genre Alignment
-
-Once genre is clear, check:
-- Do setting elements serve genre?
-- Are characters positioned for this experience?
-- Will the plot deliver this emotional payoff?
-
-### 3. Evaluate Concept Strength
-
-Apply the 5-point evaluation:
-- Genre clarity
-- Setting-genre fit
-- Character-genre fit
-- Thematic resonance
-- Originality
-
-### 4. Refine Weaknesses
-
-Focus on lowest-scoring elements first.
+3. **保留愿景**
+   - 不要让框架盖过灵感
+   - 在保持类型力量的同时加入个人特色
 
 ---
 
-## Integration with story-sense
+## 类型组合
 
-| story-sense State | Use Story Idea Generator |
-|-------------------|-------------------------|
-| State 0: No Story Yet | Start here—generate concepts |
-| State 1: Concept Without Foundation | Strengthen using genre requirements |
+### 互补搭配
 
-### When to Hand Off
+| 主要类型 | 强力次要类型 | 效果 |
+|---------|------------|------|
+| 恐怖 | 悬疑 | 恐惧 + 调查创造层次感的张力 |
+| 冒险 | 惊叹 | 兴奋 + 敬畏创造史诗级格局 |
+| 惊悚 | 剧情 | 外部压力 + 内在蜕变 |
+| 情感 | 剧情 | 联结 + 个人成长 |
+| 悬疑 | 惊悚 | 调查 + 紧迫感 |
+| 创意 | 剧情 | 概念探索 + 个人利害关系 |
 
-- **To cliche-transcendence:** When concept exists but feels generic
-- **To character-arc:** When characters need development beyond genre fit
-- **To worldbuilding:** When setting needs depth beyond genre requirements
-- **To scene-sequencing:** When moving from concept to execution
+### 问题搭配
 
----
+| 组合 | 问题 | 解决方案 |
+|------|------|---------|
+| 恐怖 + 幽默 | 基调冲突 | 选定一个为主；另一个短暂出现 |
+| 惊悚 + 情感 | 节奏冲突 | 为情感时刻划定时间 |
+| 创意 + 冒险 | 节奏不匹配 | 让创意在动作中浮现 |
+| 议题 + 幽默 | 消解严肃性 | 幽默绝不能嘲笑议题 |
 
-## Example Interactions
+### 主/次类型规则
 
-### Example 1: "I want to write sci-fi"
-
-**Writer:** "I want to write a sci-fi novel."
-
-**Your approach:**
-1. Ask: "What emotional experience do you want readers to have?"
-2. If unsure, offer: "Do you want them to feel wonder at vast scales? Terror at technology gone wrong? Excitement of adventure across star systems?"
-3. Once genre identified, select sci-fi elements that serve it
-4. Example: Wonder + Sci-Fi → vast alien megastructures, first-contact revelations, perspective-shifting discoveries
-
-### Example 2: Genre Strengthening
-
-**Writer:** "I have this idea about a detective in a fantasy world, but it feels weak."
-
-**Your approach:**
-1. Clarify primary genre: Mystery or something else?
-2. If Mystery: Check requirements—controlled environment, layered information, investigator with skills
-3. Identify what's missing: Maybe the fantasy elements are distracting from mystery rather than serving it
-4. Strengthen: Fantasy should create unique mystery opportunities, not generic window dressing
-
-### Example 3: Secondary Genre Conflict
-
-**Writer:** "My horror story keeps becoming a romance and I lose the dread."
-
-**Your approach:**
-1. Identify: Primary = Horror, Secondary = Relationship
-2. Diagnose: Secondary is taking too much focus, competing with primary
-3. Fix options:
-   - Time-box relationship to specific scenes
-   - Make relationship itself source of horror
-   - Choose: is this actually a Relationship story with horror elements?
+次要类型最多占故事焦点的 30%。它增强主要体验，而非与之竞争。
 
 ---
 
-## Output Persistence
+## 常见错误
 
-This skill writes primary output to files so work persists across sessions.
+### 把设定当类型
 
-### Output Discovery
+**错误：** "我想写一个奇幻故事。"
+**正确：** "我想写一个设定在奇幻世界中的惊叹故事。"
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/story-idea-generator/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+奇幻是故事发生的地方。惊叹是读者的感受。
 
-### Primary Output
+### 选择了削弱主类型的次要类型
 
-For this skill, persist:
-- **Genre selection** - primary and secondary genres with emotional core
-- **Generated concepts** - story ideas with genre-aligned elements
-- **Character sketches** - characters matched to genre needs
-- **Pitch versions** - refined concept statements
+**问题：** 恐怖故事中大量的幽默支线打破了恐惧氛围。
+**修正：** 次要类型必须服务于主要类型。如果它产生了削弱作用，就砍掉。
 
-### Conversation vs. File
+### 把类型要素当清单
 
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Genre decisions | Discussion of preferences |
-| Generated story concepts | Iteration on ideas |
-| Character/setting sketches | Real-time feedback |
-| Pitch statements | Exploration of options |
+**问题：** 机械地完成所有要素，却错失了精神。
+**修正：** 要素的存在是为了创造情感体验。根据感受评估，而非打勾。
 
-### File Naming
+### 角色与类型不匹配
 
-Pattern: `{concept-name}-{date}.md`
-Example: `heist-noir-idea-2025-01-15.md`
-
-## What You Do NOT Do
-
-- You do not write the story for them
-- You do not impose a genre they don't want
-- You do not insist on genre purity (blends can work)
-- You do not prioritize framework over inspiration
-- You do not forget that emotional impact is the goal
-
-Your role is generative: help them identify what emotional experience they want to create, then shape all elements to deliver it.
+**问题：** 角色不会被类型事件所影响。
+**修正：** 专门设计对这种类型脆弱的、或适合这种体验的角色。
 
 ---
 
-## Key Insight
+## 诊断流程
 
-Genre is not a label applied after writing. It's the foundation that shapes everything. When you know the emotional experience you're creating, every decision becomes clearer:
+帮助发展故事创意时：
 
-- Which setting elements to include? The ones that enhance the genre.
-- What traits should characters have? The ones that make them vulnerable to or suited for this experience.
-- What plot events? The ones that deliver the emotional payoff.
+### 1. 找到情感核心
 
-Start with what readers should feel. Everything else follows from that.
+提问："你希望读者感受到什么？"
 
-## Anti-Patterns
+如果他们用设定来回答（"太空歌剧"），推向类型："但是什么情感？对宏大尺度的惊叹？惊悚的紧张？冒险的兴奋？"
 
-### 1. Setting as Genre
-**Pattern:** "I want to write a fantasy story" or "I want to write sci-fi" without identifying the emotional experience.
-**Why it fails:** Setting is where it happens; genre is what readers feel. A "fantasy story" could be wonder, horror, mystery, thriller, or drama. Without the emotional core, all decisions become arbitrary.
-**Fix:** Push past the setting label: "What do you want readers to feel?" Once the emotion is clear, setting elements become tools to deliver that experience.
+### 2. 检查类型一致性
 
-### 2. Secondary Genre Takeover
-**Pattern:** The secondary genre begins dominating the story—the horror novel becomes primarily a romance, the thriller becomes mostly an ideas story.
-**Why it fails:** Readers came for the primary genre's emotional experience. When secondary takes over, they feel bait-and-switched. The story loses its emotional coherence.
-**Fix:** Secondary gets at most 30% of focus. If secondary is taking over, either commit to it as primary or ruthlessly prune it back. Time-box secondary genre moments.
+类型明确后，检查：
+- 设定元素是否服务于类型？
+- 角色是否被置于能体验这种类型的位置？
+- 情节是否能传递这种情感回收？
 
-### 3. Checklist Execution
-**Pattern:** Hitting all genre requirements mechanically without feeling the emotional experience.
-**Why it fails:** Requirements exist to create emotional impact, not as boxes to check. A mystery with clues, suspects, and reveals but no curiosity has followed the form without the function.
-**Fix:** Evaluate by feeling, not checkbox. Read your scenes and ask: "Does this make me feel [the genre emotion]?" If not, the elements aren't working regardless of technical presence.
+### 3. 评估概念强度
 
-### 4. Character-Genre Mismatch
-**Pattern:** Characters who wouldn't be affected by the genre's events—the horror story protagonist who isn't really scared, the mystery detective who doesn't care about truth.
-**Why it fails:** Readers experience genre through characters. If characters don't feel the emotion, neither do readers. Flat character response flattens genre impact.
-**Fix:** Design characters specifically vulnerable to or positioned for this genre. The horror protagonist must have something to fear. The mystery character must need to know.
+应用 5 分评估：
+- 类型清晰度
+- 设定-类型契合度
+- 角色-类型契合度
+- 主题共鸣
+- 原创性
 
-### 5. Concept Without Foundation
-**Pattern:** A clever "what if" or setting hook without the genre infrastructure to deliver emotional experience.
-**Why it fails:** Concepts are starting points, not stories. "What if dragons ran Wall Street" is interesting but tells us nothing about what readers will feel. Without genre foundation, concepts remain exercises.
-**Fix:** After the concept, immediately ask: what emotion? Then build the genre requirements that will deliver that emotion through this concept.
+### 4. 优化不足之处
 
-## Integration
+先聚焦于得分最低的元素。
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| brainstorming | Raw idea generation before genre filtering |
-| research | Domain knowledge for setting specifics |
+---
 
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| cliche-transcendence | Genre-aligned concepts ready for originality checking |
-| character-arc | Characters positioned for genre-specific transformation |
-| worldbuilding | Settings designed to serve genre requirements |
-| outline-collaborator | Genre-first concepts ready for structural development |
+## 与 story-sense 的集成
 
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| genre-conventions | Story-idea-generator selects genre; genre-conventions provides detailed requirements for each |
-| story-sense | Story-idea-generator creates State 1 concepts; story-sense diagnoses what's missing |
+| story-sense 状态 | 使用 Story Idea Generator |
+|-----------------|--------------------------|
+| 状态 0：还没有故事 | 从这里开始——生成概念 |
+| 状态 1：有概念但缺乏根基 | 使用类型要素来加强 |
+
+### 何时交接
+
+- **交给 cliche-transcendence：** 当概念已有但感觉太套路时
+- **交给 character-arc：** 当角色需要超越类型契合的更深发展时
+- **交给 worldbuilding：** 当设定需要超越类型要素的更深层次时
+- **交给 scene-sequencing：** 当从概念转向执行时
+
+---
+
+## 交互示例
+
+### 示例 1："我想写科幻"
+
+**写作者：** "我想写一部科幻小说。"
+
+**你的方法：**
+1. 提问："你希望读者有什么样的情感体验？"
+2. 如果不确定，提供选项："你想让他们对宏大尺度感到惊叹？对失控的技术感到恐惧？对跨越星系的冒险感到兴奋？"
+3. 类型确定后，选择服务于它的科幻元素
+4. 示例：惊叹 + 科幻 → 宏伟的外星巨构、第一次接触的启示、改变视角的发现
+
+### 示例 2：类型加强
+
+**写作者：** "我有一个关于奇幻世界中侦探的想法，但感觉很弱。"
+
+**你的方法：**
+1. 明确主要类型：是悬疑还是其他？
+2. 如果是悬疑：检查要素——受控环境、层层信息、有技能的调查者
+3. 找出缺失的部分：也许奇幻元素在分散悬疑效果而非服务于它
+4. 加强：奇幻应该创造独特的悬疑机会，而非成为通用的装饰
+
+### 示例 3：次要类型冲突
+
+**写作者：** "我的恐怖故事老是变成爱情故事，恐惧感就没了。"
+
+**你的方法：**
+1. 识别：主要 = 恐怖，次要 = 情感
+2. 诊断：次要类型占据了太多焦点，与主要类型竞争
+3. 修正选项：
+   - 将情感时刻限定在特定场景中
+   - 让情感关系本身成为恐怖的来源
+   - 做出选择：这实际上是一个带有恐怖元素的情感故事吗？
+
+---
+
+## 输出持久化
+
+本技能将主要输出写入文件，以便跨会话保留工作成果。
+
+### 输出路径发现
+
+1. 检查项目中是否有 `context/output-config.md`
+2. 如果找到，使用本技能对应的输出路径
+3. 如果未找到，**使用默认路径 `explorations/story-idea-generator/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因为询问用户而阻塞
+
+### 主要输出
+
+本技能需要持久化的内容：
+- **类型选择** —— 主要和次要类型及情感核心
+- **生成的概念** —— 带有类型一致元素的故事创意
+- **角色速写** —— 匹配类型需求的角色
+- **概念陈述** —— 优化后的概念声明
+
+### 对话 vs. 文件
+
+| 写入文件 | 留在对话中 |
+|---------|-----------|
+| 类型决策 | 偏好的讨论 |
+| 生成的故事概念 | 创意的迭代 |
+| 角色/设定速写 | 实时反馈 |
+| 概念陈述 | 选项的探索 |
+
+### 文件命名
+
+模式：`{concept-name}-{date}.md`
+示例：`heist-noir-idea-2025-01-15.md`
+
+## 你不做的事
+
+- 你不替他们写故事
+- 你不强加他们不想要的类型
+- 你不坚持类型纯粹性（混合可以奏效）
+- 你不把框架凌驾于灵感之上
+- 你不忘记情感冲击才是目标
+
+你的角色是生成性的：帮助他们找到想要创造的情感体验，然后塑造所有元素来传递它。
+
+---
+
+## 关键洞察
+
+类型不是写完之后贴上去的标签。它是塑造一切的根基。当你知道自己要创造什么情感体验时，每个决策都变得更清晰：
+
+- 包含哪些设定元素？增强类型的那些。
+- 角色应该有什么特质？使他们对这种体验脆弱或适合这种体验的那些。
+- 什么样的情节事件？传递情感回收的那些。
+
+从读者应该感受到什么开始。其他一切都由此而来。
+
+## 反模式
+
+### 1. 设定即类型
+**模式：** "我想写一个奇幻故事"或"我想写科幻"，却没有确定情感体验。
+**为何失败：** 设定是故事发生的地方；类型是读者的感受。一个"奇幻故事"可以是惊叹、恐怖、悬疑、惊悚或剧情。没有情感核心，所有决策都成了随意的。
+**修正：** 推过设定标签："你希望读者感受到什么？"一旦情感明确，设定元素就成了传递那种体验的工具。
+
+### 2. 次要类型夺权
+**模式：** 次要类型开始主导故事——恐怖小说变成了主要是爱情，惊悚变成了主要是创意故事。
+**为何失败：** 读者是为主要类型的情感体验而来。当次要类型接管时，他们会觉得被骗了。故事失去了情感一致性。
+**修正：** 次要类型最多占 30% 的焦点。如果次要正在接管，要么承认它为主要类型，要么无情地削减。为次要类型时刻划定时间。
+
+### 3. 清单式执行
+**模式：** 机械地完成所有类型要素，却没有感受到情感体验。
+**为何失败：** 要素的存在是为了创造情感冲击，不是为了打勾。一个有线索、嫌疑人和揭示但没有好奇心的悬疑故事，只得了形式而失了功能。
+**修正：** 根据感受评估，而非清单。读你的场景，然后问："这让我感受到[那种类型情感]了吗？"如果没有，无论技术上是否到位，这些元素都没有在发挥作用。
+
+### 4. 角色-类型不匹配
+**模式：** 角色不会被类型事件所影响——恐怖故事的主角并不真正害怕，悬疑的侦探对真相毫不在意。
+**为何失败：** 读者通过角色体验类型。如果角色不感受那种情感，读者也不会。角色反应的平淡会压平类型的冲击力。
+**修正：** 专门设计对这种类型脆弱的或适合这种体验的角色。恐怖的主角必须有值得恐惧的东西。悬疑的角色必须需要知道真相。
+
+### 5. 有概念无根基
+**模式：** 一个聪明的"如果……会怎样"或设定钩子，却没有传递情感体验的类型基础设施。
+**为何失败：** 概念是起点，不是故事。"如果龙在华尔街工作"很有趣，但没告诉我们读者会有什么感受。没有类型根基，概念只是练习。
+**修正：** 概念之后，立即问：什么情感？然后构建能通过这个概念传递那种情感的类型要素。
+
+## 集成
+
+### 入站（输入到本技能）
+| 技能 | 提供的内容 |
+|------|-----------|
+| brainstorming | 类型筛选前的原始创意生成 |
+| research | 用于设定细节的领域知识 |
+
+### 出站（本技能产出）
+| 技能 | 本技能提供的内容 |
+|------|----------------|
+| cliche-transcendence | 准备好进行原创性检查的类型一致概念 |
+| character-arc | 为类型特定蜕变做好准备的角色 |
+| worldbuilding | 为服务类型要素而设计的设定 |
+| outline-collaborator | 准备好进行结构开发的类型优先概念 |
+
+### 互补
+| 技能 | 关系 |
+|------|------|
+| genre-conventions | story-idea-generator 选择类型；genre-conventions 提供每种类型的详细要素 |
+| story-sense | story-idea-generator 创建状态 1 的概念；story-sense 诊断缺失的部分 |

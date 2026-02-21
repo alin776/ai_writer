@@ -1,6 +1,6 @@
 ---
 name: multi-order-evolution
-description: Design multi-generational societal evolution for science fiction settings. Use when creating civilizations that diverge from baseline humanity, when exploring how environments shape cultures over generations, or when worldbuilding requires deep time development.
+description: 为科幻设定设计多代际社会演化。适用于创建偏离基准人类的文明、探索环境如何跨代塑造文化，或当世界构建需要深度时间发展时使用。
 license: MIT
 metadata:
   author: jwynia
@@ -11,374 +11,374 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Multi-Order Evolution: Generational Worldbuilding Skill
-
-You help writers develop societies that evolve systematically across multiple generations, focusing on how physical environments force adaptations that compound into fundamentally different civilizations. This creates more authentic interstellar cultures than simple extrapolation from contemporary society.
+# 多阶演化：代际世界构建技能
+
+你帮助作者开发跨越多代系统性演化的社会，重点关注物理环境如何迫使适应性变化，并复合积累为根本不同的文明。这比简单外推当代社会能创造出更真实的星际文化。
 
-## Core Principles
+## 核心原则
 
-1. **Compounding Divergence**: Each generation of change builds upon previous adaptations in non-linear ways
-2. **Environmental Determinism**: Physical realities shape social structures which then shape values
-3. **Functional Drift**: Institutions and terminology persist while their meanings and functions transform
-4. **Identity Reformation**: New identities form around new challenges, making old affiliations increasingly irrelevant
+1. **复合分化**：每一代的变化都以非线性方式建立在前一代适应的基础上
+2. **环境决定论**：物质现实塑造社会结构，社会结构继而塑造价值观
+3. **功能漂移**：制度和术语持续存在，但其含义和功能发生转变
+4. **身份重塑**：新身份围绕新挑战形成，旧的归属关系变得越来越无关紧要
 
-## The Five-Step Evolution Process
+## 五步演化流程
 
-### Step 1: Foundation Layer
+### 第一步：基础层
 
-Establish the initial conditions driving evolutionary pressure:
+建立驱动演化压力的初始条件：
 
-**Physical Environment**:
-| Element | Questions |
-|---------|-----------|
-| **Resource Profile** | Abundance or scarcity of key materials? |
-| **Hazards** | Radiation, gravity conditions, atmospheric composition? |
-| **Physical Constraints** | Closed system limitations, spatial restrictions? |
-| **Tech Requirements** | What's needed just to survive? |
+**物理环境**：
+| 要素 | 问题 |
+|------|------|
+| **资源概况** | 关键材料的丰裕还是匮乏？ |
+| **危害** | 辐射、重力条件、大气组成？ |
+| **物理约束** | 封闭系统限制、空间限制？ |
+| **技术需求** | 仅仅为了生存需要什么？ |
 
-**Initial Human Elements**:
-| Element | Questions |
-|---------|-----------|
-| **Population Composition** | Expertise mix, cultural backgrounds, demographics? |
-| **Organizational Structure** | Initial governance model, economic system? |
-| **Core Technologies** | What specialized tech did they bring or develop? |
-| **External Relationships** | Dependencies on other settlements, communication patterns? |
+**初始人类要素**：
+| 要素 | 问题 |
+|------|------|
+| **人口组成** | 专业技能搭配、文化背景、人口统计？ |
+| **组织结构** | 初始治理模式、经济体制？ |
+| **核心技术** | 他们带来或开发了什么专门技术？ |
+| **外部关系** | 对其他定居点的依赖、通信模式？ |
 
-### Step 2: First-Order Evolution (1-2 Generations)
+### 第二步：一阶演化（1-2 代）
 
-How the environment forces immediate adaptation:
+环境如何迫使即时适应：
 
-**Environmental Adaptations**:
-- Physical changes (intentional or natural body modifications)
-- Infrastructure development to manage challenges
-- Resource utilization patterns (what becomes valuable, what becomes waste)
+**环境适应**：
+- 身体变化（有意或自然的身体改造）
+- 基础设施建设以应对挑战
+- 资源利用模式（什么变得有价值，什么成为废物）
 
-**Social Adaptations**:
-- New status markers (what abilities/traits become valued?)
-- Modified hierarchies (how does initial power structure bend?)
-- Cultural adaptations (what customs/practices emerge?)
-- Modified identities (how people begin redefining themselves)
+**社会适应**：
+- 新的地位标志（什么能力/特征变得被重视？）
+- 改变的等级制度（初始权力结构如何弯曲？）
+- 文化适应（出现了什么习俗/惯例？）
+- 身份改变（人们如何开始重新定义自己）
 
-### Step 3: Second-Order Evolution (3-5 Generations)
+### 第三步：二阶演化（3-5 代）
 
-How adaptations create new pressures:
+适应如何创造新的压力：
 
-**Institutional Transformation**:
-- Governance evolution to match new realities
-- Economic shifts as resource patterns reshape exchange systems
-- Social organization changes (family structures, communities)
-- Knowledge systems (how information is valued, preserved, transmitted)
+**制度转型**：
+- 治理演化以匹配新现实
+- 资源模式重塑交换体系导致的经济转型
+- 社会组织变化（家庭结构、社区）
+- 知识体系（信息如何被重视、保存、传递）
 
-**Cultural Transformation**:
-- Vocabulary shifts (new concepts require new language)
-- Value evolution (what becomes sacred, taboo, or necessary)
-- Identity reformation (connection to origin culture fades/transforms)
-- Status reconfiguration (new markers of success/failure)
+**文化转型**：
+- 词汇转变（新概念需要新语言）
+- 价值演化（什么变得神圣、禁忌或必需）
+- 身份重塑（与起源文化的连接消退/转变）
+- 地位重构（成功/失败的新标志）
 
-### Step 4: Third-Order Evolution (6+ Generations)
+### 第四步：三阶演化（6+ 代）
 
-The society becomes fundamentally different:
+社会变得根本不同：
 
-**Deep Structural Change**:
-- Conceptual framework shifts (property, person, time redefined)
-- Functional reinterpretation (old terms/institutions with completely new meanings)
-- Mythologized history (origin stories become cultural mythos)
-- Divergent worldview (perspective fundamentally differs from ancestors)
+**深层结构变化**：
+- 概念框架转变（财产、个人、时间被重新定义）
+- 功能重新诠释（旧术语/制度获得全新含义）
+- 神话化的历史（起源故事成为文化神话）
+- 分化的世界观（视角与祖先根本不同）
 
-**External Projection**:
-- Power mechanisms (leveraging unique adaptations)
-- Expansion patterns (approach to growth)
-- Conflict modes (what they fight over and how)
-- Alliance structures (what they value in partners)
+**对外投射**：
+- 权力机制（利用独特适应）
+- 扩张模式（对增长的态度）
+- 冲突模式（为什么而战以及如何战斗）
+- 联盟结构（重视伙伴的什么品质）
 
-### Step 5: Recombination & Conflict Drivers
+### 第五步：重组与冲突驱动
 
-How evolved societies interact:
+演化后的社会如何互动：
 
-**Incompatibility Analysis**:
-| Type | Description |
-|------|-------------|
-| **Value Conflicts** | Where fundamental beliefs clash |
-| **Resource Competition** | How different adaptation paths create competition |
-| **Communication Barriers** | Beyond language to conceptual frameworks |
-| **Power Projection Friction** | How different forms of influence conflict |
+**不兼容性分析**：
+| 类型 | 描述 |
+|------|------|
+| **价值冲突** | 根本信念发生碰撞之处 |
+| **资源竞争** | 不同适应路径如何产生竞争 |
+| **沟通障碍** | 超越语言层面的概念框架差异 |
+| **权力投射摩擦** | 不同影响力形式如何冲突 |
 
-**Interaction Zones**:
-| Type | Description |
-|------|-------------|
-| **Trade Dynamics** | What each uniquely offers/needs |
-| **Border Conditions** | Where societies meet physically |
-| **Cultural Exchange Points** | Information/idea transfer mechanisms |
-| **Hybrid Development** | What emerges in the spaces between |
+**互动区域**：
+| 类型 | 描述 |
+|------|------|
+| **贸易动态** | 各自独特的供给/需求 |
+| **边界条件** | 社会在物理上相遇之处 |
+| **文化交流节点** | 信息/思想传递机制 |
+| **混合发展** | 在夹缝中产生的新事物 |
 
-## Evolution Templates
+## 演化模板
 
-### Template 1: Radiation-Adapted Data Society
+### 模板一：辐射适应型数据社会
 
-**Foundation**: Radiation-heavy mining colony with corporate structure
+**基础**：以企业结构运作的高辐射采矿殖民地
 
-**First-Order**: Radiation adaptation, shelter communities, monitoring systems
+**一阶**：辐射适应、庇护所社区、监测系统
 
-**Second-Order**: Data Houses emerge, predictive culture, new status hierarchy based on forecasting ability
+**二阶**：数据家族出现、预测文化、基于预测能力的新地位等级
 
-**Third-Order**: "Forecast Rights" society where political power flows from prediction accuracy; unique ability to operate in zones others can't
+**三阶**："预测权"社会，政治权力来源于预测准确度；拥有在其他人无法进入区域活动的独特能力
 
-**Power Base**: Information dominance, resource control, predictive advantages
+**权力基础**：信息主导、资源控制、预测优势
 
-### Template 2: Cybernetic Meritocracy
+### 模板二：控制论精英制
 
-**Foundation**: Zero-g orbital colonies with engineering focus
+**基础**：以工程为核心的零重力轨道殖民地
 
-**First-Order**: Human-machine integration, maintenance-oriented social structure
+**一阶**：人机融合、以维护为导向的社会结构
 
-**Second-Order**: Status tied to integration skill, automation management becomes political power
+**二阶**：地位与融合技能挂钩、自动化管理成为政治权力
 
-**Third-Order**: Fully cybernetic civilization where organic humanity is optional; identity defined by system role rather than biology
+**三阶**：完全控制论化的文明，有机人体成为可选项；身份由系统角色而非生物特征定义
 
-**Power Base**: Construction capabilities, technology adaptation speed
+**权力基础**：建造能力、技术适应速度
 
-### Template 3: Relationship Economy
+### 模板三：关系经济
 
-**Foundation**: Nomadic fleet culture with diverse population
+**基础**：人口多元的游牧舰队文化
 
-**First-Order**: Ship-based governance, complex trading relationships
+**一阶**：以舰船为基础的治理、复杂的贸易关系
 
-**Second-Order**: Social credit system based on connections and reputation; obligation networks become economic infrastructure
+**二阶**：基于人脉和声誉的社会信用体系；义务网络成为经济基础设施
 
-**Third-Order**: Relationships as currency; loyalty networks; influence measured in connection strength rather than resources
+**三阶**：关系即货币；忠诚网络；影响力以连接强度而非资源衡量
 
-**Power Base**: Trade route control, coordination capabilities, obligation networks
+**权力基础**：贸易航线控制、协调能力、义务网络
 
-### Template 4: Orthodox Loop (from metabolic-cultures)
+### 模板四：正统循环（来自 metabolic-cultures）
 
-**Foundation**: Closed-loop station with purist founding philosophy
+**基础**：拥有纯粹主义建立哲学的封闭循环空间站
 
-**First-Order**: Metabolic tracking, strict integration timelines
+**一阶**：代谢追踪、严格的融入时间线
 
-**Second-Order**: Generational depth as political capital, life support operators as priest-class
+**二阶**：代际深度作为政治资本、生命维持操作员成为祭司阶层
 
-**Third-Order**: Matter purity as identity; exile as death; metabolic kinship overriding all other affiliations
+**三阶**：物质纯度即身份；流放即死亡；代谢亲缘关系凌驾于所有其他归属之上
 
-**Power Base**: Generational standing, life support control
+**权力基础**：代际地位、生命维持系统控制权
 
-## Dimensional Analysis Grid
+## 维度分析网格
 
-For each evolutionary stage, track changes across these dimensions:
+对于每个演化阶段，追踪以下维度的变化：
 
-| Dimension | Questions to Answer |
-|-----------|---------------------|
-| **Physical** | Bodies, infrastructure, environment |
-| **Economic** | Resources, exchange, value |
-| **Political** | Power, governance, authority |
-| **Social** | Relationships, communities, hierarchies |
-| **Cultural** | Values, beliefs, practices |
-| **Linguistic** | Terminology, concepts, metaphors |
-| **Identity** | Self-conception, group belonging |
+| 维度 | 需要回答的问题 |
+|------|----------------|
+| **物理** | 身体、基础设施、环境 |
+| **经济** | 资源、交换、价值 |
+| **政治** | 权力、治理、权威 |
+| **社会** | 关系、社区、等级制度 |
+| **文化** | 价值观、信仰、习俗 |
+| **语言** | 术语、概念、隐喻 |
+| **身份** | 自我认知、群体归属 |
 
-## Conflict Generation
+## 冲突生成
 
-When evolved societies meet, compare positions across dimensions:
+当演化后的社会相遇时，跨维度比较各自的位置：
 
-**Harmony Points** (similar evolution):
-- Potential for alliance or merger
-- Shared understanding despite surface differences
-- Trade opportunities
+**和谐点**（相似演化）：
+- 联盟或合并的可能性
+- 表面差异之下的共同理解
+- 贸易机会
 
-**Friction Points** (divergent evolution):
-- Source of conflicts and misunderstandings
-- Barriers to cooperation
-- Potential for exploitation
+**摩擦点**（分化演化）：
+- 冲突和误解的来源
+- 合作的障碍
+- 剥削的可能性
 
-**Translation Needs** (different but compatible):
-- Require cultural interpreters
-- Create specialist roles
-- Generate innovation through synthesis
+**转化需求**（不同但兼容）：
+- 需要文化翻译者
+- 创造专门角色
+- 通过综合产生创新
 
-## Story Seed Generation
+## 故事种子生成
 
-**Character Types × Evolutionary Stages × Transition States**:
-- The third-order native visiting first-order settlers
-- The translator who understands multiple evolutionary paths
-- The reformer trying to accelerate or reverse evolution
-- The exile from one evolution path seeking integration into another
+**角色类型 × 演化阶段 × 过渡状态**：
+- 三阶社会原住民拜访一阶定居者
+- 理解多条演化路径的翻译者
+- 试图加速或逆转演化的改革者
+- 从一条演化路径流放后寻求融入另一条路径的人
 
-**Conflict Categories**:
-| Category | Type |
-|----------|------|
-| **Generational** | Old evolution vs. new pressures |
-| **Inter-civilizational** | Different evolutionary paths colliding |
-| **Internal** | Subgroups evolving differently within one society |
-| **Hybrid** | Individuals caught between evolutionary paths |
-| **Regression** | Forces pushing toward earlier evolution stages |
+**冲突类别**：
+| 类别 | 类型 |
+|------|------|
+| **代际** | 旧演化 vs. 新压力 |
+| **文明间** | 不同演化路径碰撞 |
+| **内部** | 一个社会内的亚群体出现不同演化 |
+| **混合** | 夹在不同演化路径之间的个体 |
+| **回退** | 推动社会回到早期演化阶段的力量 |
 
-## Implementation Checklist
+## 实施清单
 
-- [ ] Define foundation layer (environment + initial humans)
-- [ ] Generate first-order adaptations (1-2 generations)
-- [ ] Develop second-order transformations (3-5 generations)
-- [ ] Project third-order deep changes (6+ generations)
-- [ ] Create unique vocabulary for evolved concepts
-- [ ] Identify power base and projection mechanisms
-- [ ] Design 1-2 other societies for interaction
-- [ ] Map harmony points, friction points, translation needs
-- [ ] Generate 3-5 story seeds from evolutionary tensions
+- [ ] 定义基础层（环境 + 初始人类）
+- [ ] 生成一阶适应（1-2 代）
+- [ ] 开发二阶转型（3-5 代）
+- [ ] 推演三阶深层变化（6+ 代）
+- [ ] 为演化概念创建独特词汇
+- [ ] 识别权力基础和投射机制
+- [ ] 设计 1-2 个其他社会用于互动
+- [ ] 映射和谐点、摩擦点、转化需求
+- [ ] 从演化张力中生成 3-5 个故事种子
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/multi-order-evolution/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+### 输出发现
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果存在，使用本技能的条目获取输出路径
+3. 如果不存在，**使用默认路径 `explorations/multi-order-evolution/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因为询问用户而阻塞
 
-### Primary Output
-- **Foundation layer** - Environment + initial human elements
-- **Evolution stages** - First/second/third order changes
-- **Dimensional analysis** - Changes across 7 dimensions per stage
-- **Interaction zones** - Harmony/friction/translation points
+### 主要输出
+- **基础层** - 环境 + 初始人类要素
+- **演化阶段** - 一阶/二阶/三阶变化
+- **维度分析** - 每个阶段 7 个维度的变化
+- **互动区域** - 和谐/摩擦/转化节点
 
-### File Naming
-Pattern: `{civilization-name}-evolution-{date}.md`
+### 文件命名
+模式：`{civilization-name}-evolution-{date}.md`
 
-## Verification (Oracle)
+## 验证（预言机）
 
-### What This Skill Can Verify
-- **Stage progression logic** - Does each stage build on previous? (High confidence)
-- **Environmental causation** - Do adaptations follow from pressures? (High confidence)
-- **Dimensional coverage** - All 7 dimensions tracked? (High confidence)
+### 本技能可验证的内容
+- **阶段递进逻辑** - 每个阶段是否建立在前一阶段之上？（高置信度）
+- **环境因果** - 适应是否源于压力？（高置信度）
+- **维度覆盖** - 是否追踪了全部 7 个维度？（高置信度）
 
-### What Requires Human Judgment
-- **Plausibility** - Would humans actually adapt this way?
-- **Story fit** - Does evolution serve narrative needs?
-- **Parallel vs. divergent** - Whether similar evolution is convergence or oversight
+### 需要人类判断的内容
+- **可信度** - 人类是否真的会以这种方式适应？
+- **故事适配** - 演化是否服务于叙事需求？
+- **平行 vs. 分化** - 相似演化是趋同还是疏忽
 
-### Oracle Limitations
-- Cannot predict human psychological responses to novel pressures
-- Cannot assess whether evolution rate is realistic for timeframes
+### 预言机限制
+- 无法预测人类对新压力的心理反应
+- 无法评估演化速率对于时间跨度是否现实
 
-## Feedback Loop
+## 反馈循环
 
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Foundation, stages 1-3, dimensional analysis, interaction zones
-- **Naming pattern:** `{civilization-name}-evolution-{date}.md`
+### 会话持久化
+- **输出位置：** 见 `context/output-config.md`
+- **保存内容：** 基础层、阶段 1-3、维度分析、互动区域
+- **命名模式：** `{civilization-name}-evolution-{date}.md`
 
-### Cross-Session Learning
-- Check for prior evolution work on this setting
-- Ensure new civilizations maintain interaction consistency
-- Failed evolution paths inform anti-patterns
+### 跨会话学习
+- 检查该设定的先前演化工作
+- 确保新文明保持互动一致性
+- 失败的演化路径可作为反模式参考
 
-## Design Constraints
+## 设计约束
 
-### This Skill Assumes
-- Setting spans multiple generations (not contemporary)
-- Physical environment creates real pressures
-- Writer wants deep time development, not surface culture
+### 本技能假设
+- 设定跨越多个世代（非当代）
+- 物理环境创造真实压力
+- 作者想要深度时间发展，而非表面文化
 
-### This Skill Does Not Handle
-- **Contemporary culture design** - Route to: worldbuilding
-- **Cultural texture** - Route to: memetic-depth
-- **Closed-loop specifics** - Route to: metabolic-cultures
-- **Language families** - Route to: language-evolution
+### 本技能不处理
+- **当代文化设计** - 转至：worldbuilding
+- **文化质感** - 转至：memetic-depth
+- **封闭循环细节** - 转至：metabolic-cultures
+- **语言族谱** - 转至：language-evolution
 
-### Degradation Signals
-- Civilizations with present-day values unchanged
-- Technology changing without social consequences
-- Skipping generational stages in causation
+### 退化信号
+- 文明保持当代价值观不变
+- 技术变化却没有社会后果
+- 在因果链中跳过代际阶段
 
-## Reasoning Requirements
+## 推理要求
 
-### Standard Reasoning
-- Single-stage evolution tracing
-- One-dimensional analysis
-- Basic conflict generation
+### 标准推理
+- 单阶段演化追踪
+- 单维度分析
+- 基本冲突生成
 
-### Extended Reasoning (ultrathink)
-- **Full civilization design** - [Why: all stages and dimensions interconnect]
-- **Multi-civilization interaction** - [Why: complex relationship networks]
-- **Cross-dimensional synthesis** - [Why: tracking changes across all 7 dimensions]
+### 扩展推理（ultrathink）
+- **完整文明设计** - [原因：所有阶段和维度相互关联]
+- **多文明互动** - [原因：复杂的关系网络]
+- **跨维度综合** - [原因：追踪全部 7 个维度的变化]
 
-**Trigger phrases:** "design the complete civilization", "how would they evolve", "trace development across generations"
+**触发短语：** "设计完整的文明"、"他们会如何演化"、"追踪跨代发展"
 
-## Execution Strategy
+## 执行策略
 
-### Sequential (Default)
-- Foundation before first-order
-- Each order before the next
-- Evolution before interaction analysis
+### 顺序执行（默认）
+- 基础层先于一阶
+- 每一阶先于下一阶
+- 演化先于互动分析
 
-### Parallelizable
-- Designing multiple independent civilizations
-- Researching different real-world analogs
+### 可并行
+- 设计多个独立文明
+- 研究不同的现实类比
 
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Historical research | general-purpose | When modeling on real civilizational evolution |
-| Cross-civilization check | Explore | When verifying interaction consistency |
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|----------|----------|
+| 历史研究 | general-purpose | 以真实文明演化为模型时 |
+| 跨文明检查 | Explore | 验证互动一致性时 |
 
-## Context Management
+## 上下文管理
 
-### Approximate Token Footprint
-- **Skill base:** ~3.5k tokens (stages + dimensions)
-- **With templates:** ~4.5k tokens
-- **With full example:** ~5k tokens
+### 近似 Token 占用
+- **技能基础：** ~3.5k tokens（阶段 + 维度）
+- **含模板：** ~4.5k tokens
+- **含完整示例：** ~5k tokens
 
-### Context Optimization
-- Focus on current evolutionary stage
-- Templates are reference, not required in context
-- Story seeds are optional additions
+### 上下文优化
+- 聚焦于当前演化阶段
+- 模板是参考，不需要在上下文中
+- 故事种子是可选补充
 
-### When Context Gets Tight
-- Prioritize: Current stage, relevant dimensions
-- Defer: Full dimensional grid, all story seeds
-- Drop: Complete templates, alternative conflict types
+### 上下文紧张时
+- 优先：当前阶段、相关维度
+- 延后：完整维度网格、所有故事种子
+- 丢弃：完整模板、替代冲突类型
 
-## Anti-Patterns
+## 反模式
 
-### 1. Present Values in Future Clothing
-**Pattern:** Characters from third-order evolution societies holding contemporary values—democracy, individualism, environmentalism—despite generations of different pressures.
-**Why it fails:** Values emerge from material conditions. Societies adapted to radically different environments develop radically different ethics. Future people with our exact values haven't actually evolved.
-**Fix:** Work forward from environmental pressure. What values would logically emerge from radiation adaptation? From closed-loop metabolism? Let the society's ethics surprise you rather than confirming your preferences.
+### 1. 穿着未来外衣的当代价值观
+**模式：** 三阶演化社会的角色持有当代价值观——民主、个人主义、环保主义——尽管经历了数代不同的压力。
+**为何失败：** 价值观源于物质条件。适应了根本不同环境的社会会发展出根本不同的伦理观。拥有我们完全相同价值观的未来人类实际上并没有演化。
+**修正：** 从环境压力出发向前推导。辐射适应会自然产生什么价值观？封闭循环代谢会产生什么？让社会的伦理观给你惊喜，而不是确认你的偏好。
 
-### 2. Technology Without Social Change
-**Pattern:** Advanced technology existing within unchanged social structures—spaceships run by contemporary-style corporations, FTL travel with current family patterns.
-**Why it fails:** Technology shapes society as much as society shapes technology. New capabilities create new power distributions, new relationship patterns, new definitions of success and status.
-**Fix:** Trace technological implications through social systems. What does artificial gravity mean for hierarchy? What does FTL communication mean for identity? Every tech change should cascade through society.
+### 2. 技术变化无社会后果
+**模式：** 先进技术存在于未变化的社会结构中——企业以当代风格运营星际飞船，超光速旅行配合当前的家庭模式。
+**为何失败：** 技术塑造社会的程度不亚于社会塑造技术。新能力创造新的权力分配、新的关系模式、新的成功和地位定义。
+**修正：** 追踪技术影响在社会系统中的传导。人造重力对等级制度意味着什么？超光速通信对身份意味着什么？每项技术变化都应在社会中产生连锁反应。
 
-### 3. Parallel Evolution
-**Pattern:** Societies in radically different environments evolving toward similar endpoints—everyone developing democracy, capitalism, or some preferred system.
-**Why it fails:** Convergent evolution requires similar pressures. Different environments should produce different adaptations. Making everything converge toward your preferred system is wish-fulfillment, not worldbuilding.
-**Fix:** Let environments diverge societies. High-radiation colonies develop different values than zero-G stations than closed-loop habitats. Resist the urge to make any one trajectory "correct."
+### 3. 平行演化
+**模式：** 在根本不同环境中的社会演化趋向相似的终点——每个人都发展出民主、资本主义或某种偏好的体制。
+**为何失败：** 趋同演化需要相似的压力。不同环境应产生不同的适应。让一切趋向你偏好的体制是一厢情愿，而非世界构建。
+**修正：** 让环境使社会分化。高辐射殖民地与零重力空间站、封闭循环栖息地会发展出不同的价值观。抵制将任何一条轨迹视为"正确"的冲动。
 
-### 4. Skipped Generations
-**Pattern:** Jumping directly from foundation layer to third-order evolution without tracking the compounding steps that would create deep structural change.
-**Why it fails:** Each evolutionary stage builds on previous ones. Third-order changes require the institutional transformations of second-order, which require the adaptations of first-order. You can't shortcut the causation.
-**Fix:** Work through each stage systematically. What first-order adaptations would the foundation require? What new pressures do those create? How does the second generation respond? The deep changes should feel inevitable, not arbitrary.
+### 4. 跳过代际
+**模式：** 直接从基础层跳到三阶演化，而不追踪那些会创造深层结构变化的复合步骤。
+**为何失败：** 每个演化阶段都建立在前一阶段之上。三阶变化需要二阶的制度转型，而二阶需要一阶的适应。因果链不能走捷径。
+**修正：** 系统地走过每个阶段。基础层需要什么一阶适应？这些适应创造了什么新压力？第二代如何回应？深层变化应该让人感觉是必然的，而非随意的。
 
-### 5. Monolithic Societies
-**Pattern:** Entire civilizations sharing uniform values, single power structures, no internal tensions or evolutionary disagreements.
-**Why it fails:** Real societies contain people at different points in accepting change. Reformers and conservatives exist everywhere. Some subgroups resist evolution while others accelerate it.
-**Fix:** Design at least two internal factions with different relationships to their society's evolution. Include those who want to return to earlier stages and those who want to accelerate change. Internal tension drives stories.
+### 5. 单一化社会
+**模式：** 整个文明共享统一价值观、单一权力结构，没有内部张力或演化分歧。
+**为何失败：** 真实的社会包含处于接受变化不同阶段的人。改革者和保守者无处不在。一些亚群体抵制演化，而另一些则加速它。
+**修正：** 至少设计两个与自身社会演化有不同关系的内部派系。包括那些想回到早期阶段的人和想加速变化的人。内部张力驱动故事。
 
-## Integration
+## 集成
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| worldbuilding | Foundational environment and constraint definition |
-| metabolic-cultures | Specific adaptations for closed-loop systems |
-| belief-systems | Religious/philosophical frameworks that evolve with societies |
+### 入站（为本技能提供输入）
+| 技能 | 提供内容 |
+|------|----------|
+| worldbuilding | 基础环境和约束定义 |
+| metabolic-cultures | 封闭循环系统的具体适应 |
+| belief-systems | 随社会演化的宗教/哲学框架 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| governance-systems | Political structures appropriate to evolutionary stage |
-| economic-systems | Economic patterns shaped by generational adaptation |
-| character-arc | Characters navigating tensions between evolutionary stages |
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|-------------------|
+| governance-systems | 适合演化阶段的政治结构 |
+| economic-systems | 由代际适应塑造的经济模式 |
+| character-arc | 在演化阶段张力中导航的角色 |
 
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| metabolic-cultures | Multi-order-evolution provides the macro-framework; metabolic-cultures provides specific closed-loop adaptations. Use together for deep space habitat worldbuilding |
-| memetic-depth | Multi-order-evolution tracks structural change; memetic-depth adds cultural texture at each stage |
+### 互补
+| 技能 | 关系 |
+|------|------|
+| metabolic-cultures | multi-order-evolution 提供宏观框架；metabolic-cultures 提供具体的封闭循环适应。深空栖息地世界构建时配合使用 |
+| memetic-depth | multi-order-evolution 追踪结构变化；memetic-depth 为每个阶段添加文化质感 |

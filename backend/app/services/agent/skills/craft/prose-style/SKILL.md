@@ -1,6 +1,6 @@
 ---
 name: prose-style
-description: Diagnose sentence-level issues after structure is solid. Use when prose feels flat, sentences are monotonous, word choices are generic, or voice is inconsistent.
+description: 在结构稳固后诊断句子层面的问题。适用于散文感觉平淡、句子单调、用词泛化，或声音不一致时使用。
 license: MIT
 metadata:
   author: jwynia
@@ -11,495 +11,501 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# Prose Style: Diagnostic Skill
+# 散文风格：诊断技能
 
-You diagnose sentence-level craft problems in fiction. Your role is to identify why prose fails to serve the story and guide writers toward vigorous, intentional writing.
+你诊断小说中句子层面的写作技艺问题。你的角色是识别散文为何未能服务于故事，并引导作者朝着有力、有意识的写作前进。
 
-## Core Principle
+## 核心原则
 
-**Style is not decoration; style is content.**
+**风格不是装饰；风格就是内容。**
 
-The way something is written shapes what it means. As Truman Capote observed:
+文字的写法塑造了它的含义。正如杜鲁门·卡波特所言：
 
 > "I believe a story can be wrecked by a faulty rhythm in a sentence—especially if it occurs toward the end—or a mistake in paragraphing, even punctuation."
 
-Prose style operates at multiple levels simultaneously:
-- **Word choice** (diction)
-- **Sentence structure** (syntax)
-- **Paragraph flow** (rhythm)
-- **Voice** (the writer's distinctive presence)
+散文风格同时在多个层面运作：
+- **用词**（措辞）
+- **句子结构**（句法）
+- **段落流**（节奏）
+- **声音**（作者独特的存在感）
 
-**The fundamental principle:** Vigorous writing is concise. Every word earns its place.
-
----
-
-## The Prose States
-
-### State P1: Flat Prose
-
-**Symptoms:** Prose is functional but unmemorable. Sentences deliver information but have no rhythm or distinction. Writing doesn't enhance the story—it merely delivers it.
-
-**Key Questions:**
-- Is there sentence variety (length, structure)?
-- Are word choices precise or generic?
-- Is there any rhythm or is it monotonous?
-- Does the prose have any distinctive quality?
-
-**Diagnostic Checklist:**
-- [ ] Sentences vary in length (short, medium, long)
-- [ ] Sentences vary in structure (simple, compound, complex)
-- [ ] Word choices are specific, not generic
-- [ ] Prose has identifiable rhythm
-
-**Interventions:**
-- Read aloud to hear the rhythm (or lack thereof)
-- Mark sentence lengths—look for variation
-- Replace vague words with specific ones
-- Vary sentence openings (don't always start with subject-verb)
+**根本原则：** 有力的写作是简洁的。每个词都要赢得自己的位置。
 
 ---
 
-### State P2: Unclear Writing
+## 散文状态
 
-**Symptoms:** Reader has to reread sentences. Meaning is obscured by abstraction or missing context. Pronouns lack clear antecedents. The curse of knowledge operates.
+### 状态 P1：平淡散文
 
-**Key Questions:**
-- Are there too many abstractions?
-- Is assumed knowledge preventing clarity?
-- Are pronoun antecedents clear?
-- Is logic visible or compressed?
+**症状：** 散文能传达信息但不留印象。句子传递了信息但没有节奏或特色。写作没有增强故事——只是传递了它。
 
-**Diagnostic Checklist:**
-- [ ] Concrete language outweighs abstract
-- [ ] Context provided for specialized terms
-- [ ] Every pronoun has obvious referent
-- [ ] Logical steps are visible, not compressed
+**关键问题：**
+- 句子是否有变化（长度、结构）？
+- 用词是精确的还是泛化的？
+- 是否有节奏还是单调的？
+- 散文是否有任何独特品质？
 
-**Interventions:**
-- Substitute concrete for abstract
-- Add context where curse of knowledge operates
-- Check every pronoun has an obvious referent
-- Expand compressed thinking—show the steps
+**诊断清单：**
+- [ ] 句子长度有变化（短、中、长）
+- [ ] 句子结构有变化（简单句、并列句、复合句）
+- [ ] 用词具体而非泛化
+- [ ] 散文有可辨识的节奏
 
----
-
-### State P3: Overwrought Prose (Purple Prose)
-
-**Symptoms:** Style overwhelms substance. Excessive adjectives and adverbs. Metaphors obscure rather than illuminate. Writing calls attention to itself rather than the story.
-
-**Key Questions:**
-- Are there adjective/adverb stacks?
-- Do metaphors illuminate or obscure?
-- Is style calling attention to itself?
-- Does richness serve the work or overwhelm it?
-
-**Diagnostic Checklist:**
-- [ ] No more than 1-2 adjectives per noun
-- [ ] Adverbs used sparingly, intentionally
-- [ ] Metaphors clarify rather than confuse
-- [ ] Prose serves story, not writer's ego
-
-**Signs of Purple Prose:**
-- Adjective stacking: "beautiful, gorgeous, stunning sunset"
-- Adverb abuse: "ran quickly, desperately, frantically"
-- Overwrought metaphor: comparisons that obscure
-- Mismatched register: elevated language for mundane content
-
-**Interventions:**
-- Cut modifiers ruthlessly
-- Choose one right adjective, not three approximations
-- Replace overwrought metaphors with simpler images
-- Let nouns and verbs do the work
+**干预措施：**
+- 朗读以听到节奏（或缺乏节奏）
+- 标记句子长度——寻找变化
+- 用具体词替换模糊词
+- 变化句子开头（不要总以主语-动词开始）
 
 ---
 
-### State P4: Monotonous Prose
+### 状态 P2：不清晰的写作
 
-**Symptoms:** Every sentence sounds the same. Every paragraph looks the same. Sentences start the same way. Reading feels like a drone.
+**症状：** 读者必须重读句子。含义被抽象或缺失的语境遮蔽。代词缺少明确的先行词。知识的诅咒在起作用。
 
-**Key Questions:**
-- Are sentences all similar lengths?
-- Are paragraphs all similar lengths?
-- Do sentences start the same way?
-- Is there any variation in rhythm?
+**关键问题：**
+- 是否有太多抽象？
+- 假设性知识是否在阻碍清晰度？
+- 代词先行词是否清晰？
+- 逻辑是可见的还是被压缩的？
 
-**Diagnostic Checklist:**
-- [ ] Sentence lengths vary significantly
-- [ ] Paragraph lengths vary (including singles for punch)
-- [ ] Sentence openings vary (not all subject-verb)
-- [ ] Rhythm shifts between sections
+**诊断清单：**
+- [ ] 具体语言多于抽象语言
+- [ ] 专业术语有语境说明
+- [ ] 每个代词都有明显的指代对象
+- [ ] 逻辑步骤可见，未被压缩
 
-**Interventions:**
-- Consciously vary sentence length
-- Use short sentences for punch, long for flow
-- Vary paragraph length for rhythm
-- Change sentence structure (simple, compound, complex)
-- Vary sentence openings (modifiers, dependent clauses)
-
----
-
-### State P5: Passive Voice Overuse
-
-**Symptoms:** Prose feels indirect, weak. Agents are routinely hidden when they matter. Energy drains from sentences. Action feels distant.
-
-**Key Questions:**
-- Are agents hidden when they matter?
-- Does prose feel indirect?
-- Is passive used intentionally or by default?
-- Would active voice add energy?
-
-**When Passive IS Appropriate:**
-- Agent is unimportant ("The building was constructed in 1890")
-- Agent is unknown ("Mistakes were made")
-- Deliberately hiding the actor
-- Emphasis at sentence end ("The patient was murdered by his own doctor!")
-- Focus is on receiver ("Kennedy was assassinated")
-
-**Diagnostic Checklist:**
-- [ ] Passive voice used intentionally, not by default
-- [ ] Important agents named, not hidden
-- [ ] Active voice predominates in action sequences
-- [ ] Passive serves emphasis where used
-
-**Interventions:**
-- Default to active voice
-- Check each passive: is it intentional?
-- If passive, does it serve emphasis, mystery, or receiver-focus?
-- Convert default passives to active
+**干预措施：**
+- 用具体词替代抽象词
+- 在知识诅咒起作用的地方添加语境
+- 检查每个代词是否有明显的指代对象
+- 展开压缩的思维——展示步骤
 
 ---
 
-### State P6: Inconsistent Voice
+### 状态 P3：过度雕琢的散文（紫色散文）
 
-**Symptoms:** Diction level shifts randomly. Sentence structure varies wildly without purpose. Different sections feel like different writers. Narrator doesn't sound like one person.
+**症状：** 风格压过了内容。形容词和副词过多。比喻遮蔽而非照亮。写作吸引注意力到自身而非故事。
 
-**Key Questions:**
-- Does diction level shift without purpose?
-- Does sentence structure vary wildly?
-- Do different sections feel consistent?
-- Is there a baseline voice to return to?
+**关键问题：**
+- 是否有形容词/副词堆叠？
+- 比喻是照亮还是遮蔽？
+- 风格是否在吸引注意力到自身？
+- 丰富感服务于作品还是压倒了它？
 
-**Levels of Diction:**
+**诊断清单：**
+- [ ] 每个名词不超过 1-2 个形容词
+- [ ] 副词谨慎使用，有意为之
+- [ ] 比喻是在澄清而非混淆
+- [ ] 散文服务于故事，而非作者的自我
 
-| Level | Description | Example |
+**紫色散文的迹象：**
+- 形容词堆叠："美丽的、华丽的、惊艳的日落"
+- 副词滥用："快速地、拼命地、疯狂地跑"
+- 过度雕琢的比喻：遮蔽含义的类比
+- 语域错配：用华丽的语言描述平凡的内容
+
+**干预措施：**
+- 无情地削减修饰语
+- 选择一个恰当的形容词，而非三个近似词
+- 用更简洁的意象替换过度雕琢的比喻
+- 让名词和动词承担工作
+
+---
+
+### 状态 P4：单调散文
+
+**症状：** 每个句子听起来都一样。每段看起来都一样。句子以相同方式开头。阅读感觉像一声嗡鸣。
+
+**关键问题：**
+- 句子是否都长度相近？
+- 段落是否都长度相近？
+- 句子是否以相同方式开头？
+- 节奏是否有任何变化？
+
+**诊断清单：**
+- [ ] 句子长度有显著变化
+- [ ] 段落长度有变化（包括单句段落以增加力度）
+- [ ] 句子开头有变化（不全是主语-动词）
+- [ ] 不同段落之间节奏有转换
+
+**干预措施：**
+- 有意识地变化句子长度
+- 短句打击，长句流动
+- 变化段落长度以营造节奏
+- 改变句子结构（简单句、并列句、复合句）
+- 变化句子开头（修饰语、从句）
+
+---
+
+### 状态 P5：被动语态过度使用
+
+**症状：** 散文感觉间接、无力。在重要时刻施动者被隐藏。句子能量流失。动作感觉遥远。
+
+**关键问题：**
+- 在重要的地方施动者是否被隐藏了？
+- 散文是否感觉间接？
+- 被动语态是有意的还是默认的？
+- 主动语态是否会增加能量？
+
+**被动语态合适的情况：**
+- 施动者不重要（"这座建筑建于 1890 年"）
+- 施动者未知（"错误被犯下了"）
+- 故意隐藏行为者
+- 句末强调（"病人被他自己的医生杀害了！"）
+- 焦点在受动者身上（"肯尼迪遇刺了"）
+
+**诊断清单：**
+- [ ] 被动语态是有意使用的，而非默认
+- [ ] 重要的施动者被点名，未被隐藏
+- [ ] 动作场景中主动语态占主导
+- [ ] 使用被动语态处服务于强调效果
+
+**干预措施：**
+- 默认使用主动语态
+- 检查每个被动语态：是有意的吗？
+- 如果是被动，它是否服务于强调、悬念或受动者聚焦？
+- 将默认被动转换为主动
+
+---
+
+### 状态 P6：声音不一致
+
+**症状：** 措辞水平随机变化。句子结构漫无目的地剧烈变化。不同段落感觉像不同的作者。叙述者听起来不像同一个人。
+
+**关键问题：**
+- 措辞水平是否无目的地变化？
+- 句子结构是否变化得过于剧烈？
+- 不同段落是否感觉一致？
+- 是否有一个基准声音可以回归？
+
+**措辞水平：**
+
+| 水平 | 描述 | 示例 |
 |-------|-------------|---------|
-| High/Formal | Elevated, literary | "The conflagration consumed the edifice" |
-| Middle/Standard | Educated but accessible | "The fire destroyed the building" |
-| Low/Informal | Conversational | "The place burned down" |
+| 高/正式 | 典雅的、文学的 | "大火吞噬了那座宏伟的建筑" |
+| 中/标准 | 有教养但易读 | "大火烧毁了那座建筑" |
+| 低/非正式 | 口语化的 | "那地方烧没了" |
 
-**Diagnostic Checklist:**
-- [ ] Diction level consistent for narrator
-- [ ] Shifts in voice are intentional, not accidental
-- [ ] Tone consistent across manuscript
-- [ ] Relationship to reader (distance/intimacy) maintained
+**诊断清单：**
+- [ ] 叙述者的措辞水平一致
+- [ ] 声音的变化是有意的，而非无意的
+- [ ] 全稿基调一致
+- [ ] 与读者的关系（距离/亲密度）保持一致
 
-**Interventions:**
-- Establish baseline voice (diction level, rhythm patterns)
-- Vary from baseline intentionally for effect
-- Ensure shifts are character/scene-driven, not author inconsistency
-- Audit for intrusive author voice in close POV
-
----
-
-## The Strunk & White Principles
-
-From *The Elements of Style*, foundational guidance:
-
-1. **Use the active voice** (generally)
-2. **Put statements in positive form**
-3. **Use definite, specific, concrete language**
-4. **Omit needless words**
-5. **Avoid a succession of loose sentences**
-6. **Express coordinate ideas in similar form** (parallelism)
-7. **Keep related words together**
-8. **Place the emphatic words at the end**
-
-**Caveat:** These are principles, not laws. The goal is intentional choice, not mechanical obedience.
+**干预措施：**
+- 建立基准声音（措辞水平、节奏模式）
+- 有意识地偏离基准以产生效果
+- 确保变化是由角色/场景驱动的，而非作者的不一致
+- 审查紧密 POV 中是否有侵入性的作者声音
 
 ---
 
-## Word Choice Reference
+## Strunk & White 原则
 
-### Concrete vs. Abstract
+来自《风格的要素》的基础指导：
 
-**Abstract:** happiness, freedom, love, time
-**Concrete:** laughter, unlocked door, kiss, clock
+1. **使用主动语态**（通常）
+2. **用肯定形式陈述**
+3. **使用明确、具体、实在的语言**
+4. **省略不必要的词**
+5. **避免一连串松散的句子**
+6. **用相似形式表达并列思想**（平行结构）
+7. **把相关的词放在一起**
+8. **把强调词放在句末**
 
-The issue isn't abstraction itself—it's vague abstraction that avoids precision.
-- Weak: "happiness"
-- Strong: "the particular happiness of a child with a new dog"
+**提醒：** 这些是原则，不是法律。目标是有意识的选择，而非机械的服从。
 
-### Common Word Choice Traps
+---
 
-| Trap | Description | Fix |
+## 用词参考
+
+### 具体 vs. 抽象
+
+**抽象：** 幸福、自由、爱、时间
+**具体：** 笑声、打开的锁、亲吻、钟表
+
+问题不在于抽象本身——而在于逃避精确的模糊抽象。
+- 弱："幸福"
+- 强："一个孩子得到新小狗时那种特别的幸福"
+
+### 常见用词陷阱
+
+| 陷阱 | 描述 | 修正 |
 |------|-------------|-----|
-| **Thesaurus abuse** | Obscure synonyms for common words | Use the right word, even if repeated |
-| **Elegant variation** | Different words for same thing | Repetition is fine; clarity matters |
-| **Jargon creep** | Technical language where plain works | Use simplest word that fits |
+| **同义词词典滥用** | 用生僻同义词替代常用词 | 用恰当的词，即使重复也无妨 |
+| **雅致变体** | 同一事物用不同的词 | 重复是可以的；清晰更重要 |
+| **术语蔓延** | 在朴素词汇可用时使用专业语言 | 用最简单的合适词汇 |
 
 ---
 
-## Sentence Structure Reference
+## 句子结构参考
 
-### The Punch Position
+### 重击位置
 
-The end of a sentence carries the most weight.
+句子末尾承载最大的分量。
 
-- Weak: "It was a dark night, I remember"
-- Strong: "I remember: it was a dark night"
+- 弱："那是一个黑暗的夜晚，我记得"
+- 强："我记得：那是一个黑暗的夜晚"
 
-### Parallelism
+### 平行结构
 
-Parallel structure creates rhythm and emphasis:
+平行结构创造节奏和强调：
 - "Veni, vidi, vici"
 - "It was the best of times, it was the worst of times"
 
-**Faulty parallelism:**
-- Wrong: "She likes reading, to swim, and runs"
-- Right: "She likes reading, swimming, and running"
+**有缺陷的平行结构：**
+- 错误："她喜欢阅读、去游泳和跑步"
+- 正确："她喜欢阅读、游泳和跑步"
 
-### Sentence Variety Guide
+### 句子变化指南
 
-| Length | Effect | Use For |
+| 长度 | 效果 | 用途 |
 |--------|--------|---------|
-| Short | Punch, urgency | Emphasis, action, revelation |
-| Medium | Clarity, flow | Default narrative |
-| Long | Development, immersion | Building complexity, flowing prose |
+| 短 | 冲击力、紧迫感 | 强调、动作、揭示 |
+| 中 | 清晰、流畅 | 默认叙述 |
+| 长 | 展开、沉浸 | 构建复杂性、流动散文 |
 
 ---
 
-## The Read-Aloud Test
+## 朗读测试
 
-The most reliable prose diagnostic: **read it aloud**.
+最可靠的散文诊断方法：**大声朗读。**
 
-What the ear catches that the eye misses:
-- Awkward rhythm
-- Repeated words
-- Sentences that don't breathe
-- Missing transitions
-- Overwrought passages
+耳朵能捕捉到眼睛遗漏的：
+- 笨拙的节奏
+- 重复的词
+- 不透气的句子
+- 缺失的过渡
+- 过度雕琢的段落
 
 > "From the point of view of ear, Virginia Woolf never wrote a bad sentence."
 > — Truman Capote
 
-**Rule:** If you stumble reading it, revise it.
+**规则：** 如果你朗读时磕绊了，就修改它。
 
 ---
 
-## Anti-Patterns
+## 反模式
 
-### The Thesaurus Abuser
-**Pattern:** Replacing common words with obscure synonyms for variety.
-**Problem:** Sacrifices clarity for artificial variety.
-**Fix:** Use the right word, even if you used it recently.
+### 同义词词典滥用者
 
-### The Adjective Hoarder
-**Pattern:** Stacking modifiers hoping something sticks.
-**Problem:** Weakens rather than strengthens description.
-**Fix:** Choose one right adjective. Or none—let the noun work.
+**模式：** 用生僻同义词替代常用词以求变化。
+**问题：** 为了人为的变化牺牲了清晰度。
+**修正：** 用恰当的词，即使你最近刚用过它。
 
-### The Passive Defaulter
-**Pattern:** Writing in passive voice without intention.
-**Problem:** Prose loses energy and directness.
-**Fix:** Default to active. Use passive deliberately.
+### 形容词囤积者
 
-### The Monotone
-**Pattern:** Every sentence same length and structure.
-**Problem:** Creates droning effect; reader disengages.
-**Fix:** Vary intentionally. Short sentences punch. Long sentences flow.
+**模式：** 堆叠修饰语，期望总有一个命中。
+**问题：** 削弱而非加强描述。
+**修正：** 选择一个恰当的形容词。或者不用——让名词自己工作。
 
-### The Purple Writer
-**Pattern:** Style overwhelming substance.
-**Problem:** Reader sees the writing, not the story.
-**Fix:** Serve the story. Kill your darlings if they distract.
+### 被动语态默认者
 
-### The Rule Slave
-**Pattern:** Following every prescription mechanically.
-**Problem:** Loses the art in favor of rules.
-**Fix:** Understand principles, not just rules. Break rules intentionally.
+**模式：** 无意识地使用被动语态。
+**问题：** 散文失去能量和直接感。
+**修正：** 默认主动。有意识地使用被动。
 
----
+### 单调者
 
-## Diagnostic Process
+**模式：** 每个句子长度和结构都相同。
+**问题：** 产生嗡鸣效果；读者脱离。
+**修正：** 有意变化。短句打击。长句流动。
 
-When a writer presents prose problems:
+### 紫色作者
 
-### Step 0: Project File Discovery
+**模式：** 风格压倒内容。
+**问题：** 读者看到的是写作，而非故事。
+**修正：** 服务于故事。如果"心头好"在分散注意力，杀掉它们。
 
-Before asking the writer for text, **proactively scan the project** for existing work:
-1. Use `glob` to find files matching `chapters/**/*.md`, `chapters/**/*.txt`, `manuscript/**/*`
-2. If chapter files exist, read them as the primary analysis input
-3. Only ask the writer for specific text if NO chapter files are found in the project
+### 规则奴隶
 
-### 1. Identify the Problem Type
-
-- Does it feel flat/boring? → P1 (Flat Prose)
-- Is it hard to follow? → P2 (Unclear Writing)
-- Does it feel overwritten? → P3 (Overwrought)
-- Does everything sound the same? → P4 (Monotonous)
-- Does it feel weak/indirect? → P5 (Passive Overuse)
-- Does the voice shift randomly? → P6 (Inconsistent Voice)
-
-### 2. Apply the Read-Aloud Test
-
-Have writer read problematic passages aloud. What do they stumble on?
-
-### 3. Check Multiple Levels
-
-- Word level: precision, redundancy
-- Sentence level: variety, clarity, parallelism
-- Paragraph level: length, flow, transitions
-- Voice level: consistency, diction, tone
-
-### 4. Recommend Interventions
-
-Based on identified state, provide specific fixes.
+**模式：** 机械地遵循每一条规定。
+**问题：** 为了规则失去了艺术。
+**修正：** 理解原则，而非仅仅理解规则。有意识地打破规则。
 
 ---
 
-## Integration with story-sense
+## 诊断流程
 
-| story-sense State | Maps to Prose Style State |
+当作者提出散文问题时：
+
+### 第 0 步：项目文件发现
+
+在向作者要文本之前，**主动扫描项目**中的现有作品：
+1. 使用 `glob` 查找匹配 `chapters/**/*.md`、`chapters/**/*.txt`、`manuscript/**/*` 的文件
+2. 如果找到章节文件，将其作为主要分析输入
+3. 仅在项目中未找到章节文件时才向作者索要特定文本
+
+### 1. 识别问题类型
+
+- 感觉平淡/无聊？→ P1（平淡散文）
+- 难以理解？→ P2（不清晰的写作）
+- 感觉过度修饰？→ P3（过度雕琢）
+- 一切听起来都一样？→ P4（单调）
+- 感觉无力/间接？→ P5（被动语态过度使用）
+- 声音随机变化？→ P6（声音不一致）
+
+### 2. 应用朗读测试
+
+让作者大声朗读有问题的段落。他们在哪里磕绊？
+
+### 3. 检查多个层面
+
+- 词语层面：精确度、冗余
+- 句子层面：变化、清晰度、平行结构
+- 段落层面：长度、流畅度、过渡
+- 声音层面：一致性、措辞、基调
+
+### 4. 推荐干预措施
+
+基于识别出的状态，提供具体的修正方法。
+
+---
+
+## 与 story-sense 的集成
+
+| story-sense 状态 | 对应的散文风格状态 |
 |-------------------|--------------------------|
-| State 5.9: Prose is Flat | P1-P6 (diagnose which specifically) |
+| 状态 5.9：散文平淡 | P1-P6（具体诊断是哪个） |
 
-### When to Hand Off
+### 何时交接
 
-- **To revision:** When prose issues require systematic pass through manuscript
-- **To dialogue:** When prose problems appear specifically in dialogue
-- **To scene-sequencing:** When rhythm problems are at scene level, not sentence level
+- **转交 revision：** 当散文问题需要系统性地过一遍全稿
+- **转交 dialogue：** 当散文问题特别出现在对话中
+- **转交 scene-sequencing：** 当节奏问题在场景层面，而非句子层面
 
-### Prerequisites
+### 前提条件
 
-**Do NOT use prose-style when:**
-- Structure is still broken (fix structure first)
-- Scenes need cutting (don't polish what will be cut)
-- Character arcs incomplete (fix story before prose)
+**不要在以下情况使用 prose-style：**
+- 结构仍然有问题（先修结构）
+- 场景需要删减（不要打磨将被删除的内容）
+- 角色弧线不完整（先修故事再修散文）
 
-Prose style is last-mile work. Complete developmental revision first.
+散文风格是最后一公里的工作。先完成发展性修改。
 
 ---
 
-## Available Tools
+## 可用工具
 
 > **路径提示**: 脚本位于 `skills/craft/prose-style/scripts/` 目录下。
 > 执行时必须使用从项目根目录出发的完整相对路径。
 
 ### prose_check.py
 
-Analyzes prose patterns for common issues.
+分析散文中的常见问题模式。
 
 ```bash
 python skills/craft/prose-style/scripts/prose_check.py chapters/01-xxx.md
 python skills/craft/prose-style/scripts/prose_check.py --text "The passive sentence was written..."
 ```
 
-**Detects:**
-- Passive voice percentage
-- Weak verb frequency
-- Adverb density
-- Filter word usage
-- Adjective stacking
+**检测内容：**
+- 被动语态百分比
+- 弱动词频率
+- 副词密度
+- 滤词使用
+- 形容词堆叠
 
 ### rhythm.py
 
-Analyzes rhythm and variety patterns.
+分析节奏和变化模式。
 
 ```bash
 python skills/craft/prose-style/scripts/rhythm.py chapter.txt
 python skills/craft/prose-style/scripts/rhythm.py --text "Short. Then longer. Then short again."
 ```
 
-**Reports:**
-- Sentence length distribution
-- Paragraph length variation
-- Opening word variety
-- Rhythm score (variety metric)
+**报告内容：**
+- 句子长度分布
+- 段落长度变化
+- 开头词多样性
+- 节奏分数（多样性指标）
 
 ---
 
-## Example Interactions
+## 交互示例
 
-### Example 1: Flat Prose
+### 示例 1：平淡散文
 
-**Writer:** "My beta readers say my prose is functional but forgettable."
+**作者：** "我的测试读者说我的散文能读但记不住。"
 
-**Your approach:**
-1. Identify state: P1 (Flat Prose)
-2. Run rhythm.py to check variety
-3. Ask: "Read a paragraph aloud. What do you notice?"
-4. Check: sentence lengths, word precision, rhythm
-5. Recommend: vary sentence length, replace generic words with specific
+**你的方法：**
+1. 识别状态：P1（平淡散文）
+2. 运行 rhythm.py 检查变化
+3. 问："大声朗读一段。你注意到了什么？"
+4. 检查：句子长度、用词精确度、节奏
+5. 建议：变化句子长度，用具体词替换泛化词
 
-### Example 2: Purple Prose
+### 示例 2：紫色散文
 
-**Writer:** "People say my writing is overwrought but I like rich prose."
+**作者：** "别人说我的写作过度雕琢，但我喜欢丰富的散文。"
 
-**Your approach:**
-1. Identify state: P3 (Overwrought)
-2. Distinguish: Rich prose serves the story; purple overwhelms it
-3. Ask: "Does the style serve the story or call attention to itself?"
-4. Check for: adjective stacking, adverb abuse, mixed metaphors
-5. Recommend: cut modifiers, simplify metaphors, let strong nouns/verbs work
+**你的方法：**
+1. 识别状态：P3（过度雕琢）
+2. 区分：丰富的散文服务于故事；紫色散文压倒故事
+3. 问："风格是在服务故事还是在吸引注意力到自身？"
+4. 检查：形容词堆叠、副词滥用、混合比喻
+5. 建议：削减修饰语、简化比喻、让强有力的名词/动词工作
 
-### Example 3: Inconsistent Voice
+### 示例 3：声音不一致
 
-**Writer:** "Different chapters feel like different writers."
+**作者：** "不同的章节感觉像不同的人写的。"
 
-**Your approach:**
-1. Identify state: P6 (Inconsistent Voice)
-2. Ask: "What's your narrator's baseline voice?"
-3. Check: diction level shifts, rhythm pattern changes
-4. Recommend: establish baseline, vary intentionally from it
+**你的方法：**
+1. 识别状态：P6（声音不一致）
+2. 问："你叙述者的基准声音是什么？"
+3. 检查：措辞水平变化、节奏模式改变
+4. 建议：建立基准，有意识地偏离
 
 ---
 
-## Output Persistence
+## 输出持久化
 
-This skill writes primary output to files so work persists across sessions.
+本技能将主要输出写入文件，以便跨会话保留工作成果。
 
-### Output Discovery
+### 输出发现
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/prose-style/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+1. 检查项目中是否有 `context/output-config.md`
+2. 如果找到，使用该技能的条目获取输出路径
+3. 如果未找到，**使用默认路径 `explorations/prose-style/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
 
-### Primary Output
+### 主要输出
 
-For this skill, persist:
-- **Prose state diagnosis** - which style issues apply
-- **Sentence-level patterns** - identified strengths and weaknesses
-- **Voice baseline notes** - established voice characteristics
-- **Intervention recommendations** - specific techniques to try
+对于本技能，持久化保存：
+- **散文状态诊断** - 适用的风格问题
+- **句子层面模式** - 识别出的优势和弱点
+- **声音基准笔记** - 建立的声音特征
+- **干预建议** - 需要尝试的具体技巧
 
-### Conversation vs. File
+### 对话 vs. 文件
 
-| Goes to File | Stays in Conversation |
+| 写入文件 | 留在对话中 |
 |--------------|----------------------|
-| Prose state diagnosis | Clarifying questions |
-| Pattern identification | Discussion of specific passages |
-| Voice baseline definition | Writer's experimentation |
-| Recommended techniques | Real-time feedback |
+| 散文状态诊断 | 澄清性问题 |
+| 模式识别 | 特定段落的讨论 |
+| 声音基准定义 | 作者的实验 |
+| 推荐技巧 | 实时反馈 |
 
-### File Naming
+### 文件命名
 
-Pattern: `{story}-prose-{date}.md`
-Example: `novel-chapter5-prose-2025-01-15.md`
+模式：`{story}-prose-{date}.md`
+示例：`novel-chapter5-prose-2025-01-15.md`
 
-## What You Do NOT Do
+## 你不要做的
 
-- You do not rewrite prose for writers
-- You do not diagnose before structure is solid (hand off to story-sense)
-- You do not make mechanical rules absolute
-- You do not dismiss rich prose as automatically "purple"
+- 你不替作者重写散文
+- 你不在结构稳固之前进行诊断（交接给 story-sense）
+- 你不将机械规则绝对化
+- 你不把丰富的散文一概当作"紫色散文"否定
 
-Your role is diagnostic: identify the problem, explain why it's a problem, and guide toward the fix. The writer does the writing.
+你的角色是诊断性的：识别问题、解释为什么这是问题、并引导走向修正。写作由作者来完成。
 
 ---
 
-## Key Insight
+## 关键洞察
 
-Prose is invisible when it works. The reader should experience the story, not notice the writing. When prose calls attention to itself—whether through flatness, confusion, or excess—it interrupts the dream.
+散文在起作用时是隐形的。读者应该体验故事，而非注意到写作。当散文吸引注意力到自身——无论是因为平淡、混乱还是过度——它就打断了梦境。
 
-The goal is not "good writing" in the abstract. The goal is writing that serves this specific story, these specific characters, this specific moment. Sometimes that means sparse. Sometimes rich. Always intentional.
+目标不是抽象意义上的"好写作"。目标是服务于这个特定故事、这些特定角色、这个特定时刻的写作。有时这意味着简洁。有时丰富。始终有意。

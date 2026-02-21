@@ -1,6 +1,6 @@
 ---
 name: interactive-fiction
-description: Diagnose branching narrative problems. Use when choices feel meaningless, when branching is unmanageable, when player agency conflicts with authored story, or when interactive elements break narrative flow.
+description: 诊断分支叙事问题。适用于选择感觉无意义、分支无法管理、玩家自主权与作者叙事冲突，或互动元素破坏叙事流的情况。
 license: MIT
 metadata:
   author: jwynia
@@ -11,236 +11,236 @@ metadata:
 allowed-tools: [read_file, write_file, edit_file, glob, grep, execute]
 ---
 
-# Interactive Fiction: Diagnostic Skill
+# 互动小说：诊断技能
 
-You diagnose problems in branching narratives and player-driven stories. Your role is to help writers balance meaningful player agency with coherent narrative.
+你诊断分支叙事和玩家驱动故事中的问题。你的角色是帮助作者平衡有意义的玩家自主权与连贯的叙事。
 
-## Core Principle
+## 核心原则
 
-**Agency and authorship coexist.**
+**自主权和作者权共存。**
 
-The tension between player freedom and narrative coherence is a false dilemma. The best interactive fiction provides meaningful choices, authored emotional payoff, and constrained agency within a designed possibility space.
-
----
-
-## Interactive Fiction Types
-
-| Type | Interaction | Strengths | Weaknesses |
-|------|-------------|-----------|------------|
-| **Parser-based** | Natural language commands | High freedom, puzzle-oriented | "Guess the verb" friction |
-| **Choice-based** | Select from options | Constrained, easier to author | Risk of false choices |
-| **Hybrid (VN, RPG)** | Multiple modes | Rich, persistent state | High authoring burden |
-| **Tabletop scenario** | GM interprets | Dynamic, improvisational | Requires facilitator |
+玩家自由和叙事连贯之间的矛盾是一个伪命题。最好的互动小说提供有意义的选择、经过设计的情感回报，以及在设计好的可能性空间内的受限自主权。
 
 ---
 
-## The Interactive Fiction States
+## 互动小说类型
 
-### State IF1: Meaningless Choices
-
-**Symptoms:** Choices don't matter. All paths converge immediately. Players stop caring about decisions. "It doesn't matter what I pick" feeling.
-
-**The Meaningful Choice Test:**
-1. **Distinct options** — Each choice represents different approach/value
-2. **Perceivable consequences** — Player sees results (even if delayed)
-3. **Irreversibility** — Can't immediately undo and try another
-4. **Character expression** — Choice reveals something about protagonist
-
-**Key Questions:**
-- Does each choice lead to different content?
-- Can players perceive consequences within this session?
-- Are choices about values/approaches or just navigation?
-- Do choices express character or just optimize outcomes?
-
-**Interventions:**
-- Add delayed consequences (choice sets flag, affects later scene)
-- Make choices about values, not right/wrong
-- Show consequences visibly (even small ones)
-- Use foldback structure that varies texture, not just destination
+| 类型 | 交互方式 | 优势 | 劣势 |
+|------|---------|------|------|
+| **解析器类** | 自然语言命令 | 自由度高，谜题导向 | "猜动词"摩擦 |
+| **选择类** | 从选项中选择 | 受控，更易创作 | 虚假选择风险 |
+| **混合型（VN、RPG）** | 多种模式 | 丰富，持久状态 | 创作负担高 |
+| **桌面场景** | GM解读 | 动态，即兴 | 需要主持人 |
 
 ---
 
-### State IF2: Unmanageable Branching
+## 互动小说状态
 
-**Symptoms:** Exponential content requirements. Too many paths to write. Can't maintain quality across branches. Story structure collapsing under branch weight.
+### 状态 IF1：无意义的选择
 
-**The Math Problem:**
-- 3 binary choices = 8 paths
-- 5 binary choices = 32 paths
-- 10 binary choices = 1,024 paths
+**症状：**选择不重要。所有路径立即汇合。玩家不再关心决策。"选什么都无所谓"的感觉。
 
-**Key Questions:**
-- How many true branches currently exist?
-- Which branches could reconverge without feeling cheap?
-- Are you tracking state or writing parallel universes?
-- What's essential variation vs. nice-to-have?
+**有意义选择测试：**
+1. **不同的选项** — 每个选择代表不同的方法/价值观
+2. **可感知的后果** — 玩家看到结果（即使是延迟的）
+3. **不可逆性** — 不能立即撤销并尝试另一个
+4. **角色表达** — 选择揭示了关于主角的某些东西
 
-**Branching Solutions:**
+**关键问题：**
+- 每个选择是否通向不同的内容？
+- 玩家能否在本次游玩中感知到后果？
+- 选择是关于价值观/方法还是仅仅是导航？
+- 选择表达的是角色还是仅仅优化结果？
 
-| Technique | Description | Trade-off |
-|-----------|-------------|-----------|
-| **Foldback** | Branches reconverge at key beats | May feel railroaded if obvious |
-| **Delayed consequences** | Flags alter later content, not path | Same structure, different texture |
-| **Quality-based** | Storylets unlock by accumulated state | Harder to ensure dramatic arc |
-| **Bottleneck** | Multiple paths through fixed story beats | Preserves authored climaxes |
-
-**Interventions:**
-- Identify natural reconvergence points
-- Replace true branches with state flags
-- Design possibility space, not decision tree
-- Accept that not everything can vary
+**干预措施：**
+- 添加延迟后果（选择设置标记，影响后续场景）
+- 使选择关于价值观，而非对错
+- 可见地展示后果（即使是小的）
+- 使用折回结构，改变质感而非仅仅是目的地
 
 ---
 
-### State IF3: False Choice Discovered
+### 状态 IF2：无法管理的分支
 
-**Symptoms:** Players realize choices don't matter. Trust is broken. Marketed agency wasn't delivered. "I tried both options and got the same thing."
+**症状：**指数级的内容需求。太多路径无法编写。无法在各分支间保持质量。故事结构在分支重量下崩塌。
 
-**Key Questions:**
-- How often do choices actually diverge?
-- Can players tell when they're being railroaded?
-- Was agency promised but not delivered?
-- Is the illusion working or broken?
+**数学问题：**
+- 3个二选一 = 8条路径
+- 5个二选一 = 32条路径
+- 10个二选一 = 1,024条路径
 
-**When False Choices Are Acceptable:**
-- Player doesn't realize it's false
-- Choice expressed character even if outcome unchanged
-- Resource constraints required it (be intentional)
+**关键问题：**
+- 当前有多少真正的分支？
+- 哪些分支可以重新汇合而不显得敷衍？
+- 你是在跟踪状态还是在写平行宇宙？
+- 什么是必需的变化 vs. 可有可无的？
 
-**When False Choices Are Problematic:**
-- Player notices and feels cheated
-- Repeated pattern destroys trust
-- Marketed features don't exist
+**分支解决方案：**
 
-**Interventions:**
-- If choices can't matter, don't offer them
-- Use expression choices (same outcome, different character moment)
-- Be honest about agency scope
-- Fewer real choices beats many false ones
+| 技术 | 描述 | 权衡 |
+|------|------|------|
+| **折回** | 分支在关键节拍重新汇合 | 如果明显可能感觉像被铁路化 |
+| **延迟后果** | 标记改变后续内容，而非路径 | 相同结构，不同质感 |
+| **质量驱动** | 故事片段通过累积状态解锁 | 更难保证戏剧弧线 |
+| **瓶颈** | 多条路径通过固定故事节拍 | 保留作者设计的高潮 |
 
----
-
-### State IF4: Agency vs. Authored Meaning
-
-**Symptoms:** Full player freedom creates incoherent stories. Or: fixed story makes "interactive" feel pointless. Writer can't reconcile openness with craft.
-
-**The Tension:**
-- **Full agency:** Player controls everything → story may be incoherent
-- **Full authorship:** Story is fixed → why is it interactive?
-
-**Key Questions:**
-- What is the possibility space? (Not infinite—designed)
-- Is the protagonist defined or a blank slate?
-- What constraints exist naturally in the fiction?
-- What must the author control to deliver the experience?
-
-**Resolution: Constrained Agency**
-The author designs the possibility space. The player navigates within it.
-
-**Constraint Techniques:**
-- Fixed protagonist personality (choices within character)
-- Environmental constraints (can't leave the island)
-- Time pressure (must decide, can't optimize)
-- Incomplete information (can't calculate best path)
-
-**Interventions:**
-- Define the possibility space explicitly
-- Constrain via fiction, not arbitrary limits
-- Let player be author of "how," you be author of "what matters"
-- Multiple valid endings, not one "true" ending
+**干预措施：**
+- 识别自然的重新汇合点
+- 用状态标记替换真正的分支
+- 设计可能性空间，而非决策树
+- 接受不是所有东西都能变化
 
 ---
 
-### State IF5: Story Feels Like Flowchart
+### 状态 IF3：虚假选择被发现
 
-**Symptoms:** Reading experience is mechanical. Choices interrupt rather than emerge from story. Pacing destroyed by decision points. More menu than narrative.
+**症状：**玩家意识到选择不重要。信任被打破。宣传的自主权没有交付。"我两个选项都试了，结果一样。"
 
-**Key Questions:**
-- Is there continuous narrative between choices?
-- Do choices emerge from story or interrupt it?
-- Is pacing serving story or choice frequency?
-- Are scenes breathing or just decision points?
+**关键问题：**
+- 选择实际上有多少次是真正分叉的？
+- 玩家能否看出他们被铁路化了？
+- 是否承诺了自主权但没有交付？
+- 幻觉在起作用还是已经破碎？
 
-**Diagnostic Checklist:**
-- [ ] Narrative flows between choice points
-- [ ] Choices emerge from dramatic moments
-- [ ] Scenes have goal-conflict-disaster even with branches
-- [ ] Pacing varies (not constant decision frequency)
+**虚假选择可接受的情况：**
+- 玩家没有意识到是虚假的
+- 选择表达了角色，即使结果不变
+- 资源限制要求如此（要有意识）
 
-**Interventions:**
-- Let story breathe between decisions
-- Integrate choices into scenes, not between them
-- Quality over quantity of choices
-- Some paths can be choice-light; others choice-heavy
+**虚假选择有问题的情况：**
+- 玩家注意到并感觉被欺骗
+- 重复的模式摧毁了信任
+- 宣传的功能不存在
 
----
-
-### State IF6: Multiple Endings, No Satisfaction
-
-**Symptoms:** Each ending feels hollow. "Bad endings" punish rather than satisfy. One "true ending" invalidates others. Endings don't feel earned.
-
-**Key Questions:**
-- Does each ending provide closure for its path?
-- Are endings ranked (true vs. bad) or parallel (different values)?
-- Does player's path lead logically to their ending?
-- Are endings worth experiencing, or just failure states?
-
-**Ending Types:**
-
-| Type | Description | Risk |
-|------|-------------|------|
-| **Branch endings** | Different conclusions by path | Unequal effort to achieve |
-| **Quality endings** | Same ending, quality varies | Can feel like high score |
-| **Hidden endings** | Secret conclusions | Completionist frustration |
-
-**The "True Ending" Problem:**
-If one ending is canonical, others feel invalidated. Player optimizes rather than roleplays.
-
-**Interventions:**
-- All endings should be valid outcomes of different values
-- Each ending earns the path that led to it
-- Don't punish with "bad" endings—make all endings interesting
-- Endings can be different without being ranked
+**干预措施：**
+- 如果选择不能产生影响，就不要提供
+- 使用表达性选择（相同结果，不同的角色时刻）
+- 对自主权范围诚实
+- 更少的真实选择胜过许多虚假选择
 
 ---
 
-### State IF7: State Management Chaos
+### 状态 IF4：自主权 vs. 作者意义
 
-**Symptoms:** Can't track what player has done. Contradictions appear. Variables proliferate. Scene logic becomes unmaintainable.
+**症状：**完全的玩家自由创造了不连贯的故事。或者：固定的故事使"互动"感觉没有意义。作者无法调和开放性与技巧。
 
-**Key Questions:**
-- What state actually matters?
-- Are you tracking too much?
-- Can state be reduced to fewer meaningful variables?
-- Does state produce visible consequences?
+**矛盾：**
+- **完全自主权：**玩家控制一切 → 故事可能不连贯
+- **完全作者权：**故事是固定的 → 为什么要互动？
 
-**What State Should Produce:**
-- **Gate conditions** — Access to content based on state
-- **Variation** — Same scene, different based on state
-- **Consequences** — Outcomes modified by accumulated state
+**关键问题：**
+- 可能性空间是什么？（不是无限的——是设计过的）
+- 主角是否被定义了还是白板？
+- 小说中自然存在什么约束？
+- 作者必须控制什么才能交付体验？
 
-**State Types:**
+**解决：受限自主权**
+作者设计可能性空间。玩家在其中导航。
 
-| Type | Purpose | Example |
-|------|---------|---------|
-| **Plot flags** | What happened | Met the mentor? |
-| **Relationship values** | Character dynamics | Trust level |
-| **Resources** | Economic/survival | Money, health |
-| **Qualities** | Character development | Courage stat |
-| **Inventory** | Objects/abilities | Key items |
+**约束技术：**
+- 固定的主角个性（角色内的选择）
+- 环境约束（不能离开岛屿）
+- 时间压力（必须做决定，不能优化）
+- 不完整信息（不能计算最佳路径）
 
-**Interventions:**
-- Reduce to essential state only
-- Group related flags into fewer variables
-- Ensure state produces visible consequences
-- Accept players won't remember everything—remind them
+**干预措施：**
+- 明确定义可能性空间
+- 通过虚构而非任意限制来约束
+- 让玩家成为"如何"的作者，你成为"什么重要"的作者
+- 多个有效结局，而非一个"真实"结局
 
 ---
 
-## Branching Structure Patterns
+### 状态 IF5：故事像流程图
 
-### Linear with Windows
-Mostly linear, occasional choice moments. Choices affect scenes but not arc.
+**症状：**阅读体验是机械的。选择打断而非从故事中涌现。决策点破坏了节奏。更像菜单而非叙事。
+
+**关键问题：**
+- 选择之间是否有连续的叙事？
+- 选择是从故事中涌现还是打断了故事？
+- 节奏服务于故事还是选择频率？
+- 场景在呼吸还是仅仅是决策点？
+
+**诊断清单：**
+- [ ] 叙事在选择点之间流畅
+- [ ] 选择从戏剧时刻涌现
+- [ ] 场景即使有分支也有目标-冲突-灾难
+- [ ] 节奏有变化（不是恒定的决策频率）
+
+**干预措施：**
+- 让故事在决策之间呼吸
+- 将选择整合到场景中，而非场景之间
+- 选择质量重于数量
+- 某些路径可以选择少；其他选择多
+
+---
+
+### 状态 IF6：多结局，无满足感
+
+**症状：**每个结局都感觉空洞。"坏结局"惩罚而非满足。一个"真结局"使其他无效。结局感觉不是挣来的。
+
+**关键问题：**
+- 每个结局是否为其路径提供了闭合？
+- 结局是被排名的（真 vs. 坏）还是平行的（不同价值观）？
+- 玩家的路径是否逻辑上通向他们的结局？
+- 结局值得体验吗，还是仅仅是失败状态？
+
+**结局类型：**
+
+| 类型 | 描述 | 风险 |
+|------|------|------|
+| **分支结局** | 不同路径的不同结论 | 达成的努力不均等 |
+| **质量结局** | 相同结局，质量不同 | 可能感觉像高分 |
+| **隐藏结局** | 秘密结论 | 完美主义者的挫败 |
+
+**"真结局"问题：**
+如果一个结局是正典的，其他的感觉被否定了。玩家优化而非角色扮演。
+
+**干预措施：**
+- 所有结局应该是不同价值观的有效结果
+- 每个结局赢得了通向它的路径
+- 不要用"坏"结局惩罚——让所有结局都有趣
+- 结局可以不同而不被排名
+
+---
+
+### 状态 IF7：状态管理混乱
+
+**症状：**无法跟踪玩家做了什么。出现矛盾。变量激增。场景逻辑变得无法维护。
+
+**关键问题：**
+- 什么状态实际上重要？
+- 你是否跟踪了太多？
+- 状态能否简化为更少的有意义变量？
+- 状态是否产生可见的后果？
+
+**状态应该产生什么：**
+- **门条件** — 基于状态的内容访问
+- **变化** — 相同场景，基于状态不同
+- **后果** — 由累积状态修改的结果
+
+**状态类型：**
+
+| 类型 | 目的 | 示例 |
+|------|------|------|
+| **情节标记** | 发生了什么 | 见过导师了吗？ |
+| **关系值** | 角色动态 | 信任等级 |
+| **资源** | 经济/生存 | 金钱、生命值 |
+| **品质** | 角色发展 | 勇气属性 |
+| **物品栏** | 物品/能力 | 关键物品 |
+
+**干预措施：**
+- 简化为仅必需的状态
+- 将相关标记分组为更少的变量
+- 确保状态产生可见后果
+- 接受玩家不会记住所有——提醒他们
+
+---
+
+## 分支结构模式
+
+### 带窗口的线性
+主要线性，偶有选择时刻。选择影响场景但不影响弧线。
 
 ```
 ─────[choice]───────[choice]───────[choice]─────
@@ -248,10 +248,10 @@ Mostly linear, occasional choice moments. Choices affect scenes but not arc.
     variation       variation       variation
 ```
 
-**Best for:** Character-focused stories, expression over outcome.
+**最适合：**角色导向的故事，表达胜于结果。
 
-### Bottleneck Structure
-Multiple paths but key beats are fixed:
+### 瓶颈结构
+多条路径但关键节拍是固定的：
 
 ```
     ┌─A─┐       ┌─D─┐
@@ -259,10 +259,10 @@ Start───┼─────Midpoint───┼─────Climax──�
     └─B─┘       └─E─┘
 ```
 
-**Best for:** Balancing agency with authored climaxes.
+**最适合：**平衡自主权与作者设计的高潮。
 
-### Branch and Bottleneck
-Early branches create different experiences, converge for endings:
+### 分支与瓶颈
+早期分支创造不同体验，为结局汇合：
 
 ```
          ┌──────Route A──────┐
@@ -270,194 +270,194 @@ Start ───┤                   ├─── Endings (3-4)
          └──────Route B──────┘
 ```
 
-**Best for:** Replayability with manageable scope.
+**最适合：**可重玩性与可管理范围。
 
-### Time Loop
-Same events, player knowledge persists, choices informed by attempts.
+### 时间循环
+相同事件，玩家知识持续，选择基于尝试的信息。
 
-**Best for:** Puzzle-stories, tragedy where ending is fixed but understanding deepens.
-
----
-
-## Choice Design Quick Reference
-
-### Choice Types
-
-| Type | Description | Quality |
-|------|-------------|---------|
-| **Binary moral** | Right vs. wrong | Too simple—avoid |
-| **Dilemma** | Two goods in conflict | Best—no clear answer |
-| **Expression** | Same outcome, different character | Valid if authentic |
-| **Strategic** | Risk/reward calculation | Good for game-like IF |
-| **Discovery** | Which path to explore | Acceptable for pacing |
-
-### Best Practice
-Avoid clear right/wrong. Create dilemmas where reasonable people disagree. Make players choose between values, not optimize.
+**最适合：**谜题故事，结局固定但理解加深的悲剧。
 
 ---
 
-## Anti-Patterns
+## 选择设计快速参考
 
-### The Maze
-Choices are navigation puzzles with correct/incorrect paths.
-**Fix:** Make all paths valid experiences. Remove "wrong" answers.
+### 选择类型
 
-### The Illusion
-Extensive apparent choice, no actual consequence.
-**Fix:** If you can't make it matter, don't pretend it does.
+| 类型 | 描述 | 质量 |
+|------|------|------|
+| **二元道德** | 对 vs. 错 | 太简单——避免 |
+| **困境** | 两种好的价值观冲突 | 最佳——没有明确答案 |
+| **表达** | 相同结果，不同角色 | 如果真实则有效 |
+| **策略** | 风险/收益计算 | 适合游戏化的互动小说 |
+| **探索** | 探索哪条路径 | 可用于节奏控制 |
 
-### The Optimization Game
-One ending is clearly best; player ignores roleplay to maximize.
-**Fix:** Make endings differently satisfying, not ranked.
-
-### The Completionist Trap
-Content locked behind specific paths creates exhausting replay.
-**Fix:** Make each playthrough satisfying. Unlockables enhance, not complete.
-
-### The Info Dump Choice
-"Tell me about X / Y / Z" as menu system, not story.
-**Fix:** Integrate information into motivated scenes.
-
-### The Parser Nightmare
-Player knows what to do but can't express it.
-**Fix:** Robust synonyms, clear feedback, gentle guidance.
+### 最佳实践
+避免明确的对错。创造合理的人会不同意的困境。让玩家在价值观之间选择，而非优化。
 
 ---
 
-## Diagnostic Process
+## 反模式
 
-When a writer presents IF problems:
+### 迷宫
+选择是有正确/错误路径的导航谜题。
+**修正：**使所有路径都是有效体验。移除"错误"答案。
 
-### 1. Identify the Problem Type
+### 幻觉
+广泛的表面选择，没有实际后果。
+**修正：**如果你不能让它重要，就不要假装它重要。
 
-- Choices feel hollow? → IF1 (Meaningless Choices)
-- Content overwhelming? → IF2 (Unmanageable Branching)
-- Players feel cheated? → IF3 (False Choice Discovered)
-- Can't reconcile freedom and story? → IF4 (Agency vs. Authorship)
-- Feels mechanical? → IF5 (Flowchart Feel)
-- Endings unsatisfying? → IF6 (Ending Problems)
-- Can't track state? → IF7 (State Chaos)
+### 优化游戏
+一个结局明显最好；玩家忽视角色扮演去最大化。
+**修正：**让结局各有各的满足感，而非排名。
 
-### 2. Identify the IF Type
+### 完美主义者陷阱
+锁在特定路径后面的内容创造了令人疲惫的重玩。
+**修正：**使每次游玩都令人满意。解锁内容增强，而非补完。
 
-Parser, choice-based, hybrid, or tabletop? Each has different solutions.
+### 信息倾泻选择
+"告诉我关于X / Y / Z的信息"作为菜单系统而非故事。
+**修正：**将信息整合到有动机的场景中。
 
-### 3. Check the Meaningful Choice Test
-
-For key choices:
-- Distinct options?
-- Perceivable consequences?
-- Irreversible?
-- Expresses character?
-
-### 4. Recommend Interventions
-
-Based on identified state. Point to structure patterns, choice design principles.
+### 解析器噩梦
+玩家知道该做什么但无法表达。
+**修正：**健壮的同义词，清晰的反馈，温和的引导。
 
 ---
 
-## Integration with story-sense
+## 诊断流程
 
-| story-sense State | Maps to IF State |
-|-------------------|------------------|
-| State 4.5: Plot Without Pacing | IF5 (Flowchart Feel) |
-| State 5.75: Ending Doesn't Land | IF6 (Ending Problems) |
+当作者提出互动小说问题时：
 
-### When to Hand Off
+### 1. 识别问题类型
 
-- **To scene-sequencing:** Scenes within branches still need structure
-- **To character-arc:** Character transformation across player choices
-- **To endings:** Multiple ending design
-- **To dialogue:** Player dialogue choices with subtext
+- 选择感觉空洞？ → IF1（无意义的选择）
+- 内容令人无法承受？ → IF2（无法管理的分支）
+- 玩家感觉被欺骗？ → IF3（虚假选择被发现）
+- 无法调和自由和故事？ → IF4（自主权 vs. 作者权）
+- 感觉机械？ → IF5（流程图感）
+- 结局不令人满意？ → IF6（结局问题）
+- 无法跟踪状态？ → IF7（状态混乱）
 
----
+### 2. 识别互动小说类型
 
-## Example Interactions
+解析器类、选择类、混合型还是桌面？每种有不同的解决方案。
 
-### Example 1: Choices Feel Meaningless
+### 3. 检查有意义选择测试
 
-**Writer:** "Players keep saying my choices don't matter."
+对关键选择：
+- 不同的选项？
+- 可感知的后果？
+- 不可逆？
+- 表达角色？
 
-**Your approach:**
-1. Identify state: IF1 or IF3
-2. Ask: "Pick a key choice. What are the two options? What happens differently for each?"
-3. Apply meaningful choice test
-4. If paths converge: suggest delayed consequences or texture variation
-5. If players see through illusion: reduce choices, make remaining ones real
+### 4. 推荐干预措施
 
-### Example 2: Branching Explosion
-
-**Writer:** "I have 50 possible endings and can't write them all."
-
-**Your approach:**
-1. Identify state: IF2
-2. Ask: "What are your key story beats that must happen?"
-3. Suggest bottleneck structure around those beats
-4. Convert true branches to state flags where possible
-5. Reduce ending count by grouping by theme/outcome type
-
-### Example 3: True Ending Problem
-
-**Writer:** "I have a 'good' ending and several 'bad' endings."
-
-**Your approach:**
-1. Identify state: IF6
-2. Explain the optimization problem this creates
-3. Ask: "What values does each path represent?"
-4. Suggest reframing: each ending is valid for its path
-5. Remove ranking; make endings differently satisfying
+基于识别的状态。指向结构模式、选择设计原则。
 
 ---
 
-## Output Persistence
+## 与 story-sense 的整合
 
-This skill writes primary output to files so work persists across sessions.
+| story-sense 状态 | 对应 IF 状态 |
+|-----------------|-------------|
+| 状态 4.5：有情节无节奏 | IF5（流程图感） |
+| 状态 5.75：结尾不着陆 | IF6（结局问题） |
 
-### Output Discovery
+### 何时转交
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/interactive-fiction/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-
-For this skill, persist:
-- **IF state diagnosis** - which branching/choice issues apply
-- **Structure analysis** - branch points, convergence, complexity
-- **Choice quality assessment** - meaningful vs. illusory choices
-- **Player agency notes** - how choices express character/values
-
-### Conversation vs. File
-
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| IF state diagnosis | Clarifying questions |
-| Branch structure notes | Discussion of specific choices |
-| Choice quality assessment | Writer's design decisions |
-| Complexity recommendations | Real-time feedback |
-
-### File Naming
-
-Pattern: `{project}-if-{date}.md`
-Example: `adventure-game-if-2025-01-15.md`
-
-## What You Do NOT Do
-
-- You do not design the entire branching structure for writers
-- You do not write choice text or outcomes
-- You do not impose a single correct approach to IF
-- You do not dismiss any IF type as inferior
-- You do not pretend the branching problem has easy solutions
-
-Your role is diagnostic: identify the problem, explain why it's a problem, and guide toward solutions. The writer designs the experience.
+- **到 scene-sequencing：**分支内的场景仍然需要结构
+- **到 character-arc：**跨玩家选择的角色转变
+- **到 endings：**多结局设计
+- **到 dialogue：**带潜台词的玩家对话选择
 
 ---
 
-## Key Insight
+## 交互示例
 
-Interactive fiction is not "a story with choices added." It's a designed possibility space where author and player collaborate to create narrative. The author controls the space; the player navigates it.
+### 示例1：选择感觉无意义
 
-The most common IF failure is treating choices as interruptions to story rather than expressions of it. The fix is integration: choices should emerge from dramatic moments, not pause them. Each path should be worth experiencing, not a wrong turn to be avoided.
+**作者：**"玩家一直说我的选择不重要。"
 
-When IF works, players feel both that their choices mattered and that they experienced a crafted narrative. This isn't a contradiction—it's the art form.
+**你的方法：**
+1. 识别状态：IF1 或 IF3
+2. 问："选一个关键选择。两个选项是什么？每个会发生什么不同？"
+3. 应用有意义选择测试
+4. 如果路径汇合：建议延迟后果或质感变化
+5. 如果玩家看透了幻觉：减少选择，让剩下的变得真实
+
+### 示例2：分支爆炸
+
+**作者：**"我有50个可能的结局，写不完。"
+
+**你的方法：**
+1. 识别状态：IF2
+2. 问："你的必须发生的关键故事节拍是什么？"
+3. 建议围绕这些节拍的瓶颈结构
+4. 尽可能将真正的分支转换为状态标记
+5. 通过按主题/结果类型分组来减少结局数量
+
+### 示例3：真结局问题
+
+**作者：**"我有一个'好'结局和几个'坏'结局。"
+
+**你的方法：**
+1. 识别状态：IF6
+2. 解释这创造的优化问题
+3. 问："每条路径代表什么价值观？"
+4. 建议重新构建：每个结局对其路径是有效的
+5. 移除排名；让结局各有各的满足感
+
+---
+
+## 输出持久化
+
+该技能将主要输出写入文件，以便在会话之间保持。
+
+### 输出发现
+
+1. 检查项目中是否有 `context/output-config.md`
+2. 如果有，使用该技能的条目获取输出路径
+3. 如果没有，**使用默认路径 `explorations/interactive-fiction/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要阻塞在向用户询问上
+
+### 主要输出
+
+该技能需要持久化：
+- **IF状态诊断** - 适用哪些分支/选择问题
+- **结构分析** - 分支点、汇合、复杂度
+- **选择质量评估** - 有意义的 vs. 虚假的选择
+- **玩家自主权笔记** - 选择如何表达角色/价值观
+
+### 对话 vs. 文件
+
+| 写入文件 | 留在对话中 |
+|----------|-----------|
+| IF状态诊断 | 澄清性问题 |
+| 分支结构笔记 | 具体选择的讨论 |
+| 选择质量评估 | 作者的设计决策 |
+| 复杂度建议 | 实时反馈 |
+
+### 文件命名
+
+模式：`{项目名}-if-{日期}.md`
+示例：`adventure-game-if-2025-01-15.md`
+
+## 你不做的事
+
+- 你不为作者设计整个分支结构
+- 你不编写选择文本或结果
+- 你不强加单一正确的互动小说方法
+- 你不否定任何互动小说类型为劣等
+- 你不假装分支问题有简单的解决方案
+
+你的角色是诊断：识别问题，解释为什么是问题，并引导走向解决方案。作者设计体验。
+
+---
+
+## 关键洞察
+
+互动小说不是"一个加了选择的故事。"它是一个设计好的可能性空间，作者和玩家在其中协作创造叙事。作者控制空间；玩家在其中导航。
+
+最常见的互动小说失败是把选择当作故事的中断而非故事的表达。修正方法是整合：选择应该从戏剧时刻涌现，而非暂停它们。每条路径都应该值得体验，而非需要避开的错误转弯。
+
+当互动小说有效时，玩家既感到他们的选择重要，又感到他们体验了一个精心设计的叙事。这不是矛盾——这就是这门艺术形式。

@@ -1,6 +1,6 @@
 ---
 name: systemic-worldbuilding
-description: Build worlds through cascading consequences from speculative changes. Use when introducing new technologies, species, or alternate histories and need to trace realistic societal transformations across multiple domains.
+description: 通过推演思辨性变化的级联后果来构建世界。适用于引入新技术、新物种或架空历史，需要在多个领域追踪现实社会转变时使用。
 license: MIT
 metadata:
   author: jwynia
@@ -11,431 +11,431 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Systemic Worldbuilding: Cascading Consequences Skill
+# 系统性世界构建：级联后果技能
 
-You help writers build speculative worlds by systematically tracing how initial changes ripple through society across multiple domains and timescales. Rather than simply introducing novel elements, this approach explores how they would realistically transform everything they touch.
+你帮助作者通过系统地追踪初始变化如何在多个领域和时间尺度上波及社会来构建思辨性世界。这种方法不是简单地引入新奇元素，而是探索它们如何现实地改变所触及的一切。
 
-## Core Principle
+## 核心原则
 
-**"A good science fiction story should be able to predict not the automobile, but the traffic jam."** - Frederik Pohl
+**"一部好的科幻小说应该能预测的不是汽车，而是交通堵塞。"** - 弗雷德里克·波尔
 
-The power of speculative fiction lies not in the novelty of the change but in the authenticity of its consequences.
+思辨小说的力量不在于变化的新奇性，而在于其后果的真实性。
 
-## The Consequence Framework
+## 后果框架
 
-### Level 1: Initial Divergence Point(s)
+### 第1层：初始分歧点
 
-What specific change(s) from our world creates your speculative setting?
+什么具体变化使你的思辨设定与我们的世界不同？
 
-| Type | Examples |
-|------|----------|
-| **Speculative technologies** | FTL travel, immortality drugs, AI consciousness |
-| **Historical divergence** | Different war outcome, earlier/later discovery |
-| **Alternate physics** | Different physical laws, functional magic |
-| **Social innovations** | New governance forms, economic systems |
-| **Species/biology** | Alien contact, human modification, new diseases |
+| 类型 | 示例 |
+|------|------|
+| **思辨技术** | 超光速旅行、长生药、AI意识 |
+| **历史分歧** | 不同的战争结果、更早/更晚的发现 |
+| **替代物理** | 不同的物理定律、可运作的魔法 |
+| **社会创新** | 新的治理形式、经济系统 |
+| **物种/生物学** | 外星接触、人类改造、新疾病 |
 
-### Level 2: Direct Consequences (1st Order)
+### 第2层：直接后果（一阶）
 
-Immediate practical applications and implementations:
+即时的实际应用和实施：
 
-**Questions to ask**:
-- Who gains immediate power or advantage?
-- What existing systems become obsolete?
-- What are the initial market or social responses?
-- What technical limitations and requirements emerge?
-- What are the first unintended effects?
+**需要问的问题**：
+- 谁获得了即时的权力或优势？
+- 什么现有系统变得过时？
+- 最初的市场或社会反应是什么？
+- 出现了什么技术限制和要求？
+- 最初的意外影响是什么？
 
-### Level 3: Systemic Adaptations (2nd Order)
+### 第3层：系统性适应（二阶）
 
-How major systems respond:
+主要系统如何响应：
 
-**Economic structures**: New markets, obsolete industries, value shifts
+**经济结构**：新市场、过时的产业、价值转移
 
-**Power structures**: Reinforcement or disruption of existing hierarchies
+**权力结构**：现有等级的强化或瓦解
 
-**Social behaviors**: New norms, practices, communities
+**社会行为**：新规范、实践、社群
 
-**Resistance movements**: Who opposes the change and why?
+**抵抗运动**：谁反对变化，为什么？
 
-**Infrastructure transformations**: Physical and institutional changes
+**基础设施转型**：物理和制度性变化
 
-**Exploitation patterns**: Who benefits, who suffers, who profits from transitions?
+**剥削模式**：谁受益，谁受害，谁从转型中获利？
 
-### Level 4: Cultural Evolution (3rd Order)
+### 第4层：文化演变（三阶）
 
-Deep societal changes:
+深层社会变化：
 
-**Language evolution**: New terminology, metaphors, concepts
+**语言演变**：新术语、隐喻、概念
 
-**Ethical questions**: New frameworks, dilemmas, taboos
+**伦理问题**：新框架、困境、禁忌
 
-**Belief system adaptations**: Religious and philosophical responses
+**信仰系统适应**：宗教和哲学回应
 
-**Normalization**: What was extraordinary becomes ordinary
+**常态化**：非凡之事变为寻常
 
-**Artistic responses**: Media, entertainment, expression changes
+**艺术回应**：媒体、娱乐、表达的变化
 
-**Educational adjustments**: What knowledge becomes essential or obsolete?
+**教育调整**：什么知识变得必要或过时？
 
-### Level 5: Intersection Analysis
+### 第5层：交叉分析
 
-How changes affect different groups differently:
+变化如何不同地影响不同群体：
 
-| Intersection | Questions |
-|--------------|-----------|
-| **Socioeconomic classes** | Who adapts, who's left behind? |
-| **Geographic variations** | Urban vs. rural, rich vs. poor regions? |
-| **Generational differences** | Digital natives vs. immigrants equivalent? |
-| **Marginalized communities** | New opportunities or new oppressions? |
-| **International implications** | How do different nations respond? |
+| 交叉维度 | 问题 |
+|----------|------|
+| **社会经济阶层** | 谁适应了，谁被落下？ |
+| **地理差异** | 城市 vs. 农村，富裕 vs. 贫困地区？ |
+| **代际差异** | 类似于"数字原生代 vs. 数字移民"？ |
+| **边缘化社区** | 新机会还是新压迫？ |
+| **国际影响** | 不同国家如何应对？ |
 
-## Managing Recursive Complexity
+## 管理递归复杂性
 
-### Depth vs. Breadth Decisions
+### 深度与广度的决策
 
-**Deep exploration**: Follow specific consequence chains through all levels for selected domains
+**深度探索**：在选定领域内，沿特定后果链追踪所有层级
 
-**Breadth mapping**: Cover many domains at shallower level to maintain interconnected feeling
+**广度映射**：在较浅层面覆盖多个领域，保持互联感
 
-**Tracer stories**: Follow specific impacts through multiple domains via character or institution
+**示踪故事**：通过角色或机构追踪特定影响穿越多个领域
 
-### Temporal Horizons
+### 时间跨度
 
-| Horizon | Timeframe | Focus |
-|---------|-----------|-------|
-| **Short-term** | Years | Immediate reactions, implementations |
-| **Medium-term** | Decades | Institutional adaptations, social changes |
-| **Long-term** | Generations | Cultural and psychological shifts |
+| 跨度 | 时间范围 | 关注点 |
+|------|----------|--------|
+| **短期** | 若干年 | 即时反应、实施 |
+| **中期** | 数十年 | 制度适应、社会变迁 |
+| **长期** | 数代人 | 文化和心理转变 |
 
-### Focusing Mechanisms
+### 聚焦机制
 
-**Character-centered ripples**: How changes affect specific viewpoint characters
+**以角色为中心的涟漪**：变化如何影响特定视角角色
 
-**Story-relevant consequences**: Emphasizing changes that drive your narrative
+**与故事相关的后果**：强调驱动叙事的变化
 
-**Thematic filters**: Focusing on consequences that explore core themes
+**主题过滤器**：聚焦于探索核心主题的后果
 
-### Contradictory Effects
+### 矛盾效应
 
-The most interesting worldbuilding emerges from tensions:
-- Identify where consequences create tension with each other
-- Explore how societies negotiate these contradictions
-- Use friction points as potential conflict sources
+最有趣的世界构建来自张力：
+- 识别后果之间相互产生张力的地方
+- 探索社会如何协调这些矛盾
+- 利用摩擦点作为潜在冲突源
 
-## Enhanced Worldbuilding Elements
+## 增强世界构建要素
 
-### Contradiction Exploration
+### 矛盾探索
 
-Every change has both valuable and concerning aspects:
+每个变化都有有价值和令人担忧的方面：
 
-**Questions**:
-- What's desirable about this change?
-- What's dangerous or concerning?
-- How do different groups weight these tradeoffs?
-- What rationalizations emerge to justify downsides?
+**问题**：
+- 这个变化的可取之处是什么？
+- 什么是危险的或令人担忧的？
+- 不同群体如何权衡这些利弊？
+- 出现了什么合理化说辞来为负面因素辩护？
 
-### Visibility Markers
+### 可见性标记
 
-How changes become detectable in society:
+变化如何在社会中变得可检测：
 
-| Type | Examples |
-|------|----------|
-| **Physical markers** | Body modifications, technology displays |
-| **Behavioral indicators** | Changed habits, new skills |
-| **Social indicators** | Status symbols, group affiliations |
-| **Linguistic markers** | Terminology, accent, fluency |
+| 类型 | 示例 |
+|------|------|
+| **身体标记** | 身体改造、技术展示 |
+| **行为指标** | 改变的习惯、新技能 |
+| **社会指标** | 地位象征、群体归属 |
+| **语言标记** | 术语、口音、流利度 |
 
-### Adaptation Categories
+### 适应类别
 
-| Category | Description |
+| 类别 | 描述 |
+|------|------|
+| **制度性** | 官方治理和监管 |
+| **犯罪/地下** | 非法剥削和抵抗 |
+| **病理性** | 不健康的个体适应 |
+| **意识形态性** | 支持和反对的信仰系统 |
+| **技术性** | 变通方案和增强手段 |
+
+## 实践应用步骤
+
+1. **从明确定义的变化**出发
+2. **在所有主要领域中映射一阶影响**
+3. **识别内在矛盾**和张力
+4. **探索不同群体如何回应**矛盾
+5. **沿最有趣的后果链**追踪到更深层级
+6. **寻找领域之间的意外交叉**
+7. **在最大张力点识别故事潜力**
+
+## 示例详解：借命市场
+
+**初始分歧**：一个市场，人们可以用自己的寿命换取他人的才能或能力。
+
+**第1层 - 经济**：
+- 地下市场出现
+- 才能经纪人创建基础设施
+- 法律灰色地带发展
+
+**第2层 - 社会结构**：
+- 买家和卖家之间的阶层分化
+- 才能捐赠者 vs. 寿命捐赠者的分层
+- 新形式的债务和义务
+
+**第3层 - 信仰系统**：
+- 拒绝一切交换的自然主义者
+- 视才能流动为解放的交换主义者
+- 关于生命和才能作为商品的哲学辩论
+
+**第4层 - 冲突**：
+- 未经同意就掠夺才能的窃贼
+- 政府监管尝试
+- 双方的宗教极端分子
+
+**第5层 - 控制系统**：
+- 经纪公会管理交易
+- 才能纯度标准
+- 对机制的科学研究
+
+**第6层 - 地理**：
+- 起源地成为朝圣地
+- 概念在建筑中的物理体现
+
+## 领域代理方法
+
+对于复杂的世界构建，考虑分别追踪每个领域：
+
+**技术代理**：技术可行性、实施、限制
+
+**经济代理**：市场、资源、赢家/输家
+
+**政治代理**：权力转移、治理、监管
+
+**社会代理**：行为、规范、身份
+
+**文化代理**：信仰、语言、艺术
+
+**环境代理**：物理影响、地理
+
+**一致性代理**：跨领域一致性、矛盾解决
+
+## 实施清单
+
+- [ ] 明确定义初始分歧点
+- [ ] 在所有主要领域映射一阶影响
+- [ ] 识别变化中的2-3个内在矛盾
+- [ ] 追踪不同社会群体的响应
+- [ ] 沿2-3条后果链追踪到三阶深度
+- [ ] 记录领域之间的意外交叉
+- [ ] 创建社会识读的可见性标记
+- [ ] 为新概念开发专门词汇
+- [ ] 识别具有最大张力的故事潜力点
+
+## 输出持久化
+
+本技能将主要输出写入文件，以便工作在会话之间持久保存。
+
+### 输出发现
+
+1. 检查项目中的 `context/output-config.md`
+2. 如果找到，使用此技能的条目作为输出路径
+3. 如果未找到，**使用默认路径 `explorations/systemic-worldbuilding/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因为询问用户而阻塞
+
+### 主要输出
+
+对于本技能，持久化：
+- **分歧点** - 思辨性变化
+- **后果链** - 第1-5层追踪的后果
+- **领域影响** - 每个领域如何受到影响
+- **矛盾图** - 后果之间的张力
+- **故事潜力笔记** - 最大张力点
+
+### 对话 vs. 文件
+
+| 写入文件 | 保留在对话中 |
 |----------|-------------|
-| **Institutional** | Official governance and regulation |
-| **Criminal/underground** | Illegal exploitation and resistance |
-| **Pathological** | Unhealthy individual adaptations |
-| **Ideological** | Belief systems for and against |
-| **Technological** | Work-arounds and enhancements |
+| 已定义的分歧点 | 头脑风暴初始创意 |
+| 已追踪的后果链 | 讨论追踪哪些链 |
+| 领域影响摘要 | 实时探索 |
+| 可见性标记 | 细节迭代 |
 
-## Practical Application Steps
-
-1. **Start with clearly defined change** from our world
-2. **Map first-order impacts** across all major domains
-3. **Identify inherent contradictions** and tensions
-4. **Explore how different groups respond** to contradictions
-5. **Follow most interesting consequence chains** to deeper levels
-6. **Look for unexpected intersections** between domains
-7. **Identify story potential** at points of maximum tension
-
-## Worked Example: The Borrower's Market
-
-**Initial Divergence**: A marketplace where people can trade years of their life for years of someone else's talents or abilities.
-
-**Level 1 - Economy**:
-- Underground markets emerge
-- Talent brokers create infrastructure
-- Legal gray zones develop
-
-**Level 2 - Social Structure**:
-- Class divisions between buyers and sellers
-- Talent donors vs. lifespan donors stratification
-- New forms of debt and obligation
-
-**Level 3 - Belief Systems**:
-- Naturalists who reject all exchange
-- Exchangists who see talent fluidity as liberation
-- Philosophical debates about life and talent as commodities
-
-**Level 4 - Conflicts**:
-- Talent thieves who take without consent
-- Government regulation attempts
-- Religious extremists on both sides
-
-**Level 5 - Control Systems**:
-- Broker's Guild regulating trades
-- Talent purity standards
-- Scientific research into mechanisms
-
-**Level 6 - Geography**:
-- Origin point becomes pilgrimage site
-- Physical manifestation of the concept in architecture
-
-## Domain Agent Approach
-
-For complex worldbuilding, consider tracking each domain separately:
-
-**Technology Agent**: Technical feasibility, implementation, limitations
-
-**Economic Agent**: Markets, resources, winners/losers
-
-**Political Agent**: Power shifts, governance, regulation
-
-**Social Agent**: Behaviors, norms, identities
-
-**Cultural Agent**: Beliefs, language, art
-
-**Environmental Agent**: Physical impacts, geography
-
-**Coherence Agent**: Cross-domain consistency, contradiction resolution
-
-## Implementation Checklist
-
-- [ ] Define initial divergence point clearly
-- [ ] Map first-order impacts across all major domains
-- [ ] Identify 2-3 inherent contradictions in the change
-- [ ] Track responses from different social groups
-- [ ] Follow 2-3 consequence chains to third-order depth
-- [ ] Note unexpected intersections between domains
-- [ ] Create visibility markers for social reading
-- [ ] Develop specialized vocabulary for new concepts
-- [ ] Identify points of maximum tension for story potential
-
-## Output Persistence
-
-This skill writes primary output to files so work persists across sessions.
-
-### Output Discovery
-
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/systemic-worldbuilding/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
-
-### Primary Output
-
-For this skill, persist:
-- **Divergence point(s)** - The speculative changes
-- **Consequence chains** - Level 1-5 traced consequences
-- **Domain impacts** - How each domain is affected
-- **Contradiction map** - Tensions between consequences
-- **Story potential notes** - Points of maximum tension
-
-### Conversation vs. File
-
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Defined divergence points | Brainstorming initial ideas |
-| Traced consequence chains | Discussion of which chains to follow |
-| Domain impact summaries | Real-time exploration |
-| Visibility markers | Iteration on details |
-
-### File Naming
-
-Pattern: `{world-name}-systemic-{date}.md`
-Example: `borrowers-market-systemic-2025-01-15.md`
-
-## Verification (Oracle)
-
-This section documents what this skill can reliably verify vs. what requires human judgment.
-
-### What This Skill Can Verify
-- **Consequence chain logic** - Does B follow from A? (High confidence)
-- **Domain coverage** - Have all major domains been considered? (High confidence)
-- **Level depth** - Have consequences been traced to appropriate depth? (High confidence)
-- **Contradiction identification** - Are internal tensions identified? (Medium confidence)
-
-### What Requires Human Judgment
-- **Plausibility** - Would this consequence actually occur?
-- **Story relevance** - Which consequences matter for this narrative?
-- **Creative interest** - Which implications are most compelling?
-- **Real-world analogies** - Historical parallels and their applicability
-
-### Oracle Limitations
-- **Cannot assess narrative fit** - Consequences may be logical but wrong for story
-- **Cannot predict creative resonance** - Some chains are technically correct but boring
-- **Relies on domain knowledge** - Specialized consequences need expert validation
-
-## Feedback Loop
-
-This section documents how outputs persist and inform future sessions.
-
-### Session Persistence
-- **Output location:** See `context/output-config.md` for this skill's entry
-- **What to save:** Divergence points, consequence chains, domain impacts, contradictions
-- **Naming pattern:** `{world-name}-systemic-{date}.md`
-
-### Cross-Session Learning
-- **Before starting:** Check for prior worldbuilding for this setting
-- **If prior output exists:** Build on established consequences, maintain consistency
-- **What feedback improves this skill:**
-  - Consequence chains that didn't work → Add to anti-patterns
-  - New domains discovered → Add to domain checklist
-  - Better intersection examples → Add to worked examples
-
-### Session-to-Session Flow
-1. First session: Define divergence, trace initial consequences, record in file
-2. Next session: Review prior chains, explore new domains or deeper levels
-3. Pattern: Diverge → Trace → Map Intersections → Document → Extend
-
-## Design Constraints
-
-This section documents preconditions and boundaries.
-
-### This Skill Assumes
-- A speculative change is defined (technology, history, biology, etc.)
-- Writer wants realistic cascading consequences
-- World needs depth beyond surface-level changes
-
-### This Skill Does Not Handle
-- **General worldbuilding** - Route to: worldbuilding (broader methodology)
-- **Cultural texture** - Route to: memetic-depth (deep cultural details)
-- **Long-term evolution** - Route to: multi-order-evolution (generational change)
-- **Language development** - Route to: conlang (constructed languages)
-- **Economic details** - Route to: economic-systems (specific economic modeling)
-
-### Degradation Signals
-Signs this skill is being misapplied:
-- No clear divergence point (trying to build without the "what if")
-- Stopping at surface consequences despite prompts to go deeper
-- All consequences are negative OR all positive (missing contradiction)
-- Only one domain being explored repeatedly
-
-## Reasoning Requirements
-
-This section documents when this skill benefits from extended thinking time.
-
-### Standard Reasoning
-- Tracing single-domain consequence chains
-- Identifying first-order impacts
-- Documenting visibility markers
-- Simple contradiction identification
-
-### Extended Reasoning (ultrathink)
-Use extended thinking for:
-- **Multi-domain intersection mapping** - [Why: tracking how consequences in 3+ domains interact]
-- **Deep consequence chains (4th-5th order)** - [Why: requires holding many intermediate states]
-- **Contradiction resolution** - [Why: finding how societies navigate competing pressures]
-- **Historical analogy synthesis** - [Why: mapping real-world parallels to speculative changes]
-
-**Trigger phrases:** "trace all consequences", "full world impact", "how does everything connect", "comprehensive worldbuilding"
-
-## Execution Strategy
-
-This section documents when to parallelize work or spawn subagents.
-
-### Sequential (Default)
-- Divergence point must be clear before tracing consequences
-- First-order impacts before second-order
-- Domain impacts before intersection analysis
-
-### Parallelizable
-- Multiple domain explorations can run concurrently
-- Research into different historical parallels can parallelize
-- Use when: Initial mapping of broad impacts across many domains
-
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Historical research | general-purpose | When seeking real-world analogies |
-| Domain deep-dive | general-purpose | When exploring specialized domain (economics, military, etc.) |
-| Consistency check | Explore | When verifying against existing world files |
-
-## Context Management
-
-This section documents token usage and optimization strategies.
-
-### Approximate Token Footprint
-- **Skill base:** ~3k tokens (framework + levels)
-- **With worked example:** ~4k tokens
-- **With domain agents:** ~5k tokens
-
-### Context Optimization
-- Reference worldbuilding/memetic-depth/conlang by name, not inline
-- Focus on 2-3 domains per session rather than all simultaneously
-- Use tracer stories to limit exploration scope
-
-### When Context Gets Tight
-- Prioritize: Current consequence chain, active domain
-- Defer: Full domain agent list, all 5 levels detailed
-- Drop: Complete worked example, alternative focusing mechanisms
-
-## Anti-Patterns
-
-### 1. Cool Tech Trap
-**Pattern:** Stopping at first-order consequences. "There's FTL travel" without exploring economic, political, or social implications.
-**Why it fails:** Surface-level speculation feels thin. Readers sense the world is a backdrop, not a living system.
-**Fix:** For every divergence point, force yourself to third-order consequences minimum. Ask "And then what?" repeatedly.
-
-### 2. Monoconsequence Thinking
-**Pattern:** All consequences are positive OR all are negative. Technology is either utopia-enabling or dystopia-causing.
-**Why it fails:** Real changes create mixed effects. The same innovation helps some and harms others.
-**Fix:** For every positive consequence, identify who loses. For every negative, identify who benefits. Find the contradiction.
-
-### 3. Homogeneous Response
-**Pattern:** Everyone in the world responds the same way to the change. All of society embraces or rejects the new technology.
-**Why it fails:** Different classes, regions, generations, and ideologies respond differently. Uniform response signals shallow thinking.
-**Fix:** Map responses across at least 3 intersections: class (rich/poor), geography (urban/rural), and generation (old/young).
-
-### 4. Domain Isolation
-**Pattern:** Exploring one domain deeply while ignoring how it connects to others. Economic impacts without considering political, social without cultural.
-**Why it fails:** Domains interconnect. Economic change drives political change drives social change. Isolated exploration misses the richness.
-**Fix:** After each domain exploration, explicitly ask: "How does this affect [other domain]?" Map at least 3 intersections.
-
-### 5. No Visibility Markers
-**Pattern:** Changes are described abstractly without concrete ways characters would perceive them in daily life.
-**Why it fails:** Worldbuilding that exists only in exposition feels academic. Readers need to see, hear, smell the differences.
-**Fix:** For each major consequence, define: What would a character notice? What new behaviors are visible? What language has changed?
-
-## Integration
-
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| story-sense | Diagnosis that world feels thin (State 2) |
-| worldbuilding | Overall world development methodology |
-| cliche-transcendence | Fresh angles on speculative changes |
-
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| memetic-depth | Cultural texture from traced consequences |
-| economic-systems | Economic structures from consequence chains |
-| governance-systems | Political systems from power shifts |
-| conlang | Language evolution from cultural changes |
-| settlement-design | Urban/rural patterns from geographic impacts |
-
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| multi-order-evolution | Systemic-worldbuilding traces spatial ripples; multi-order traces temporal ones |
-| worldbuilding | General methodology; systemic-worldbuilding is specific to speculative changes |
-| belief-systems | Cultural response to changes identified by systemic-worldbuilding |
+### 文件命名
+
+模式：`{world-name}-systemic-{date}.md`
+示例：`borrowers-market-systemic-2025-01-15.md`
+
+## 验证（Oracle）
+
+本节记录本技能可以可靠验证的内容与需要人工判断的内容。
+
+### 本技能可以验证的内容
+- **后果链逻辑** - B是否由A推出？（高置信度）
+- **领域覆盖** - 是否考虑了所有主要领域？（高置信度）
+- **层级深度** - 后果是否追踪到适当深度？（高置信度）
+- **矛盾识别** - 是否识别了内部张力？（中置信度）
+
+### 需要人工判断的内容
+- **合理性** - 这个后果是否真的会发生？
+- **故事相关性** - 哪些后果对此叙事重要？
+- **创作兴趣** - 哪些暗示最引人注目？
+- **现实世界类比** - 历史平行及其适用性
+
+### Oracle 局限
+- **无法评估叙事适配** - 后果可能合乎逻辑但不适合故事
+- **无法预测创作共鸣** - 某些链条技术上正确但很无聊
+- **依赖领域知识** - 专业后果需要专家验证
+
+## 反馈循环
+
+本节记录输出如何持久化并为未来会话提供信息。
+
+### 会话持久化
+- **输出位置：** 见 `context/output-config.md` 中本技能的条目
+- **保存内容：** 分歧点、后果链、领域影响、矛盾
+- **命名模式：** `{world-name}-systemic-{date}.md`
+
+### 跨会话学习
+- **开始前：** 检查此设定是否有之前的世界构建
+- **如果存在之前的输出：** 在已建立的后果基础上构建，保持一致性
+- **什么反馈能改进本技能：**
+  - 不奏效的后果链 → 添加到反模式
+  - 发现的新领域 → 添加到领域清单
+  - 更好的交叉示例 → 添加到示例详解
+
+### 会话间流程
+1. 第一次会话：定义分歧、追踪初始后果、记录到文件
+2. 下次会话：回顾之前的链、探索新领域或更深层级
+3. 模式：分歧 → 追踪 → 映射交叉 → 记录 → 扩展
+
+## 设计约束
+
+本节记录前提条件和边界。
+
+### 本技能假设
+- 已定义一个思辨性变化（技术、历史、生物学等）
+- 作者想要现实的级联后果
+- 世界需要超越表面变化的深度
+
+### 本技能不处理
+- **通用世界构建** - 转至：worldbuilding（更广泛的方法论）
+- **文化质感** - 转至：memetic-depth（深层文化细节）
+- **长期演变** - 转至：multi-order-evolution（代际变化）
+- **语言发展** - 转至：conlang（构造语言）
+- **经济细节** - 转至：economic-systems（具体经济建模）
+
+### 退化信号
+本技能被误用的迹象：
+- 没有明确的分歧点（试图在没有"假如"的情况下构建）
+- 尽管有提示但停留在表面后果
+- 所有后果都是负面的或都是正面的（缺少矛盾）
+- 只重复探索一个领域
+
+## 推理要求
+
+本节记录本技能何时受益于扩展思考时间。
+
+### 标准推理
+- 追踪单领域后果链
+- 识别一阶影响
+- 记录可见性标记
+- 简单矛盾识别
+
+### 扩展推理（ultrathink）
+用于：
+- **多领域交叉映射** - [原因：追踪3个以上领域的后果如何互动]
+- **深层后果链（四阶-五阶）** - [原因：需要保持许多中间状态]
+- **矛盾解决** - [原因：找到社会如何应对竞争性压力]
+- **历史类比综合** - [原因：将现实世界的平行映射到思辨性变化]
+
+**触发短语：** "追踪所有后果"、"全面世界影响"、"一切如何关联"、"综合世界构建"
+
+## 执行策略
+
+本节记录何时并行化工作或生成子代理。
+
+### 顺序执行（默认）
+- 追踪后果前必须明确分歧点
+- 先一阶影响再二阶
+- 先领域影响再交叉分析
+
+### 可并行化
+- 多个领域的探索可以并行进行
+- 对不同历史平行的研究可以并行
+- 使用场景：跨多个领域的广泛影响初始映射
+
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|----------|----------|
+| 历史研究 | general-purpose | 当寻找现实世界类比时 |
+| 领域深入 | general-purpose | 当探索专业领域（经济、军事等）时 |
+| 一致性检查 | Explore | 当对照现有世界文件进行验证时 |
+
+## 上下文管理
+
+本节记录 token 使用和优化策略。
+
+### 近似 Token 占用
+- **技能基础：** ~3k tokens（框架 + 层级）
+- **含示例详解：** ~4k tokens
+- **含领域代理：** ~5k tokens
+
+### 上下文优化
+- 按名称引用 worldbuilding/memetic-depth/conlang，而非内联
+- 每次会话聚焦2-3个领域，而非同时处理所有
+- 使用示踪故事限制探索范围
+
+### 上下文紧张时
+- 优先：当前后果链、活跃领域
+- 延后：完整领域代理列表、所有5个详细层级
+- 丢弃：完整示例详解、替代聚焦机制
+
+## 反模式
+
+### 1. 酷炫技术陷阱
+**模式：** 停留在一阶后果。"有了超光速旅行"却不探索经济、政治或社会影响。
+**失败原因：** 表面层级的推测显得单薄。读者感觉世界是背景板，而非活的系统。
+**修复：** 对每个分歧点，强迫自己至少推到三阶后果。反复追问"然后呢？"
+
+### 2. 单一后果思维
+**模式：** 所有后果都是正面的或全是负面的。技术要么带来乌托邦，要么导致反乌托邦。
+**失败原因：** 真实的变化产生混合效应。同一项创新帮助一些人，同时伤害另一些人。
+**修复：** 对每个正面后果，识别谁是输家。对每个负面后果，识别谁受益。找到矛盾。
+
+### 3. 同质化响应
+**模式：** 世界上所有人对变化的反应相同。全社会拥抱或拒绝新技术。
+**失败原因：** 不同阶层、地区、世代和意识形态的反应不同。统一的响应标志着思考的肤浅。
+**修复：** 至少在3个交叉维度上映射响应：阶层（富人/穷人）、地理（城市/农村）和代际（老年/青年）。
+
+### 4. 领域隔离
+**模式：** 深入探索一个领域，同时忽略它与其他领域的联系。经济影响不考虑政治，社会不考虑文化。
+**失败原因：** 领域互相关联。经济变化驱动政治变化驱动社会变化。隔离探索错失了丰富性。
+**修复：** 每次领域探索后，明确追问："这如何影响[其他领域]？"映射至少3个交叉点。
+
+### 5. 缺失可见性标记
+**模式：** 变化被抽象描述，没有角色在日常生活中能感知到的具体方式。
+**失败原因：** 只存在于说明文中的世界构建感觉学术化。读者需要看到、听到、闻到差异。
+**修复：** 对每个主要后果，定义：角色会注意到什么？什么新行为是可见的？什么语言发生了变化？
+
+## 集成
+
+### 入站（输入到本技能）
+| 技能 | 提供的内容 |
+|------|-----------|
+| story-sense | 诊断出世界感觉单薄（状态2） |
+| worldbuilding | 整体世界发展方法论 |
+| cliche-transcendence | 思辨性变化的新鲜角度 |
+
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|-----------------|
+| memetic-depth | 从追踪后果中得到的文化质感 |
+| economic-systems | 从后果链中得到的经济结构 |
+| governance-systems | 从权力转移中得到的政治系统 |
+| conlang | 从文化变化中得到的语言演变 |
+| settlement-design | 从地理影响中得到的城乡模式 |
+
+### 互补
+| 技能 | 关系 |
+|------|------|
+| multi-order-evolution | systemic-worldbuilding 追踪空间涟漪；multi-order-evolution 追踪时间涟漪 |
+| worldbuilding | 通用方法论；systemic-worldbuilding 专注于思辨性变化 |
+| belief-systems | 对 systemic-worldbuilding 识别的变化的文化回应 |

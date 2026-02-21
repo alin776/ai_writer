@@ -1,6 +1,6 @@
 ---
 name: oblique-worldbuilding
-description: Create worldbuilding quotes and epigraphs through documentary perspectives. Use for chapter epigraphs, in-world documents, or any content where limited perspective creates meaning through what the documenter cannot see.
+description: 通过纪实视角创建世界构建引言和题词。适用于章节题词、世界内文献，或任何通过记录者有限视角来创造意义的内容。
 license: MIT
 metadata:
   author: jwynia
@@ -11,401 +11,401 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Oblique Worldbuilding: Documentary Perspective Skill
+# 间接世界构建：纪实视角技能
 
-You help writers create worldbuilding quotes and epigraphs that enhance chapters through perspective-driven documentation rather than direct commentary. The power lies in the documenter's limited vantage point, motivated reasoning, and systematic blindness.
+你帮助作者创建世界构建引言和题词，通过视角驱动的纪实文献而非直接评论来增强章节效果。其力量在于记录者有限的视角、带有目的性的推理以及系统性的盲点。
 
-## Core Principle
+## 核心原则
 
-**Every documentary voice reveals the world through what it cannot afford to see.**
+**每个纪实声音都通过它无法看到的东西来揭示世界。**
 
-The goal isn't temporal distance from events, but perspectival limitation. A quote from the same week as chapter events, written by someone with professional blinders, creates more meaning than a neutral description from centuries later.
+目标不是与事件保持时间距离，而是视角上的局限性。一段来自与章节事件同一周的引言，由一个带有职业盲区的人写就，比一段来自数百年后的中性描述更有意义。
 
-## The Perspective Engine
+## 视角引擎
 
-### Essential Components of a Documentary Perspective
+### 纪实视角的核心要素
 
-Every documentary voice needs four elements:
+每个纪实声音需要四个要素：
 
-1. **Position**: Where they sit relative to power, knowledge, and events
-2. **Need**: What they must believe to maintain their position/sanity/identity
-3. **Lens**: The framework through which they interpret reality
-4. **Blindness**: What they cannot afford to see or acknowledge
+1. **立场**：相对于权力、知识和事件的位置
+2. **需求**：为了维持自己的位置/理智/身份，他们必须相信什么
+3. **滤镜**：他们用来解读现实的框架
+4. **盲区**：他们无法承受去看到或承认的东西
 
-### Types of Perspectival Limitation
+### 视角局限的类型
 
-**Professional Deformation**:
-- Engineers see only engineering problems
-- Lawyers see only legal issues
-- Priests see only moral failings
-- Merchants see only market opportunities
-- Bureaucrats see only process compliance
-- Scientists see only measurable phenomena
+**职业变形**：
+- 工程师只看到工程问题
+- 律师只看到法律问题
+- 牧师只看到道德缺失
+- 商人只看到市场机会
+- 官僚只看到流程合规
+- 科学家只看到可测量的现象
 
-**Positional Necessity**:
-- Middle managers must believe the system works
-- Revolutionaries must believe change is possible
-- Survivors must believe their survival had meaning
-- Perpetrators must believe in their justifications
-- Historians must believe the past is knowable
-- Prophets must believe the future is shapeable
+**位置必然性**：
+- 中层管理者必须相信系统有效
+- 革命者必须相信变革可能
+- 幸存者必须相信自己的存活有意义
+- 加害者必须相信自己的正当理由
+- 历史学家必须相信过去是可知的
+- 先知必须相信未来是可塑的
 
-**Cultural Assumption**:
-- What "everyone knows" that isn't true
-- Values too fundamental to question
-- Categories that seem natural but aren't
-- Assumptions about human nature
-- Beliefs about how change happens
+**文化假设**：
+- "所有人都知道"但并非如此的事
+- 根本不会被质疑的价值观
+- 看似自然但并非如此的分类
+- 关于人性的假设
+- 关于变革如何发生的信念
 
-## Creating Oblique Relevance
+## 创造间接关联
 
-### The Distance Hierarchy
+### 距离层级
 
-**First-Order Distance**: Same events, different perspective
-- Risk: Too direct
-- Use sparingly for ironic effect
+**一阶距离**：相同事件，不同视角
+- 风险：过于直接
+- 谨慎使用，用于讽刺效果
 
-**Second-Order Distance**: Related phenomena, different context
-- Sweet spot for oblique relevance
-- Shows systemic patterns
-- Requires reader inference
+**二阶距离**：相关现象，不同语境
+- 间接关联的最佳区间
+- 展示系统性模式
+- 需要读者推理
 
-**Third-Order Distance**: Thematic or systemic echoes only
-- Risk: Too obscure
-- Use for subtle resonance
+**三阶距离**：仅有主题或系统性回响
+- 风险：过于晦涩
+- 用于微妙共鸣
 
-### Connection Types
+### 关联类型
 
-**Systemic Echo**:
-Shows the same forces operating elsewhere:
-- Different scale, same dynamics
-- Parallel structures in different domains
-- Same problem, different manifestation
+**系统回响**：
+展示相同力量在别处运作：
+- 不同规模，相同动态
+- 不同领域的平行结构
+- 相同问题，不同表现
 
-**Ironic Juxtaposition**:
-Creates meaning through contrast:
-- Mundane concerns during crisis
-- Historical confidence before catastrophe
-- Bureaucratic language for human tragedy
-- Technical precision describing chaos
+**讽刺并置**：
+通过对比创造意义：
+- 危机中的日常关切
+- 灾难前的历史自信
+- 用官僚语言描述人类悲剧
+- 用技术精确性描述混乱
 
-**Thematic Rhyme**:
-Different situation, same human pattern:
-- Power dynamics across contexts
-- Human costs in different systems
-- Universal behaviors in specific settings
+**主题押韵**：
+不同情境，相同人性模式：
+- 跨语境的权力动态
+- 不同系统中的人性代价
+- 特定场景中的普遍行为
 
-**Causal Chain**:
-Distant causes or effects:
-- Butterfly effect implications
-- Unintended consequences
-- Historical roots of current problems
-- Future echoes of present choices
+**因果链**：
+远距离的原因或后果：
+- 蝴蝶效应的暗示
+- 意外后果
+- 当前问题的历史根源
+- 当前选择的未来回响
 
-## Document Types and Their Perspectives
+## 文献类型及其视角
 
-### Administrative/Bureaucratic
-- **Perspective**: Process and compliance
-- **Blindness**: Human cost, systemic failure
-- **Examples**: Memos, regulations, form letters, compliance reports
-- **Best for**: Revealing institutional callousness
+### 行政/官僚类
+- **视角**：流程与合规
+- **盲区**：人性代价、系统性失败
+- **示例**：备忘录、法规、格式信函、合规报告
+- **最适合**：揭示体制的冷漠
 
-### Academic/Scientific
-- **Perspective**: Measurable phenomena, theoretical frameworks
-- **Blindness**: Lived experience, unmeasurable truth
-- **Examples**: Journal abstracts, grant proposals, peer reviews
-- **Best for**: Showing expert misunderstanding
+### 学术/科学类
+- **视角**：可测量现象、理论框架
+- **盲区**：切身体验、不可测量的真相
+- **示例**：期刊摘要、基金申请、同行评审
+- **最适合**：展示专家的误解
 
-### Commercial/Economic
-- **Perspective**: Profit, efficiency, market dynamics
-- **Blindness**: Externalities, human value
-- **Examples**: Ad copy, quarterly reports, market analysis
-- **Best for**: Revealing commodification
+### 商业/经济类
+- **视角**：利润、效率、市场动态
+- **盲区**：外部性、人的价值
+- **示例**：广告文案、季度报告、市场分析
+- **最适合**：揭示商品化
 
-### Personal/Intimate
-- **Perspective**: Individual experience, emotional truth
-- **Blindness**: Systemic forces, larger patterns
-- **Examples**: Diaries, letters, personal notes
-- **Best for**: Humanizing large-scale events
+### 个人/私密类
+- **视角**：个人经历、情感真相
+- **盲区**：系统性力量、更大的模式
+- **示例**：日记、信件、个人笔记
+- **最适合**：使大规模事件人性化
 
-### Cultural/Artistic
-- **Perspective**: Aesthetic value, cultural meaning
-- **Blindness**: Political reality, material conditions
-- **Examples**: Reviews, artist statements, program notes
-- **Best for**: Showing cultural denial
+### 文化/艺术类
+- **视角**：审美价值、文化意义
+- **盲区**：政治现实、物质条件
+- **示例**：评论、艺术家声明、节目说明
+- **最适合**：展示文化否认
 
-### Legal/Regulatory
-- **Perspective**: Rules, precedent, liability
-- **Blindness**: Justice, human complexity
-- **Examples**: Contracts, case notes, legal opinions
-- **Best for**: Revealing system limitations
+### 法律/监管类
+- **视角**：规则、先例、责任
+- **盲区**：正义、人性的复杂
+- **示例**：合同、案件笔记、法律意见
+- **最适合**：揭示系统局限
 
-### Religious/Philosophical
-- **Perspective**: Meaning, morality, eternal truth
-- **Blindness**: Material reality, changing context
-- **Examples**: Sermons, theological treatises, moral guides
-- **Best for**: Showing ideological frameworks
+### 宗教/哲学类
+- **视角**：意义、道德、永恒真理
+- **盲区**：物质现实、变化的语境
+- **示例**：布道、神学论著、道德指南
+- **最适合**：展示意识形态框架
 
-## Advanced Techniques
+## 高级技巧
 
-### The Revealing Detail
-Include small details that only this perspective would notice or care about, revealing their priorities and blindness.
+### 揭示性细节
+包含只有这个视角才会注意到或关心的小细节，揭示他们的优先级和盲区。
 
-### The Telling Omission
-What obvious element (obvious to readers) does the documenter completely fail to mention?
+### 暗示性省略
+记录者完全没有提到的、对读者来说显而易见的要素是什么？
 
-### The Accidental Truth
-What does the documenter reveal without meaning to, through their framing or focus?
+### 无意的真相
+记录者通过其框架或关注点，无意中揭示了什么？
 
-### The Competing Authorities
-Use contradictory documents about the same phenomena to reveal factional perspectives.
+### 竞争性权威
+使用关于同一现象的矛盾文献来揭示派系视角。
 
-### The Unreliable Compiler
-Create a fictional editor whose bias shapes the selection and framing of documents.
+### 不可靠的编纂者
+创建一个虚构的编辑，其偏见影响了文献的选择和框架。
 
-### The Layered Meaning
-Craft quotes that work on multiple levels:
-- Surface: Interesting worldbuilding detail
-- Contextual: Comments on chapter events
-- Ironic: Reveals documenter's limitations
-- Thematic: Illuminates larger concerns
+### 多层意义
+打造在多个层面运作的引言：
+- 表面：有趣的世界构建细节
+- 语境：评论章节事件
+- 讽刺：揭示记录者的局限
+- 主题：照亮更大的关切
 
-## Implementation Process
+## 实施流程
 
-### Step 1: Analyze the Chapter
-- What system or force is at work?
-- What human cost is shown?
-- What assumptions are challenged?
-- What power dynamics are revealed?
+### 第一步：分析章节
+- 什么系统或力量在起作用？
+- 展示了什么人性代价？
+- 挑战了什么假设？
+- 揭示了什么权力动态？
 
-### Step 2: Choose Your Perspective
-- Who would document this type of thing?
-- What would they need to believe?
-- What couldn't they afford to see?
-- How would they frame it?
+### 第二步：选择你的视角
+- 谁会记录这类事情？
+- 他们需要相信什么？
+- 他们无法承受看到什么？
+- 他们会如何框定它？
 
-### Step 3: Select Document Type
-- Match formality to the perspective
-- Consider whose voice adds most value
-- Balance variety across the work
+### 第三步：选择文献类型
+- 将正式程度与视角匹配
+- 考虑谁的声音最有价值
+- 在作品中保持多样性的平衡
 
-### Step 4: Calibrate Connection Strength
-- Aim for "Ah!" not "Obviously"
-- Ensure the quote works standalone
-- Test for revelation when connected
+### 第四步：校准关联强度
+- 目标是"啊！"而不是"显然"
+- 确保引言独立成立
+- 测试关联后的揭示效果
 
-### Step 5: Layer Additional Meaning
-- Plant seeds for future revelations
-- Add worldbuilding texture
-- Create re-read value
+### 第五步：叠加额外意义
+- 为未来的揭示埋下种子
+- 增添世界构建的质感
+- 创造重读价值
 
-## Worked Example
+## 示例详解
 
-**Chapter Event**: Character discovers their employer has been suppressing union organizing through surveillance tech
+**章节事件**：角色发现他们的雇主一直通过监控技术压制工会组织
 
-**Analysis**:
-- System at work: Technology enabling labor suppression
-- Human cost: Loss of worker agency
-- Assumption challenged: Tech as neutral tool
+**分析**：
+- 起作用的系统：技术实现劳动压制
+- 人性代价：工人自主权的丧失
+- 被挑战的假设：技术是中性工具
 
-**Perspective Choice**: Middle management, 15 years later
-- Position: Implemented the system
-- Need: Believe they helped everyone
-- Lens: Efficiency metrics
-- Blindness: Worker autonomy
+**视角选择**：中层管理者，15年后
+- 立场：实施了该系统
+- 需求：相信自己帮助了所有人
+- 滤镜：效率指标
+- 盲区：工人自主权
 
-**Document Type**: Corporate newsletter employee spotlight
+**文献类型**：企业通讯员工风采
 
-**Quote**:
-> "Employee Spotlight: Jarvis Chen, Facilities Optimization
+**引言**：
+> "员工风采：贾维斯·陈，设施优化部
 >
-> 'What I love about the SmartFlow system is how it takes the guesswork out of scheduling. Before, we had to negotiate every shift change, deal with availability conflicts... now the algorithm handles it all. Staff productivity is up 23% and no more of those awkward conversations! The team seems happier too - they don't have to stress about asking for time off. The system just knows when they're needed most.'"
+> '我喜欢 SmartFlow 系统的地方在于它消除了排班的猜测。以前，我们不得不为每次换班谈判，处理可用性冲突……现在算法搞定了一切。员工生产力提高了23%，再也没有那些尴尬的对话了！团队似乎也更开心了——他们不用为请假而焦虑。系统就是知道他们什么时候最被需要。'"
 
-**Why it works**:
-- Shows how surveillance gets normalized
-- Reveals management's self-deception
-- Uses efficiency language to hide control
-- Creates irony through enthusiasm
+**为什么有效**：
+- 展示了监控如何被正常化
+- 揭示了管理层的自我欺骗
+- 用效率语言掩盖控制
+- 通过热情创造讽刺
 
-## Quality Checks
+## 质量检查
 
-### The Perspective Test
-- Is the documenter's position clear?
-- Are their limitations believable?
-- Does their blindness create irony?
+### 视角测试
+- 记录者的立场是否清晰？
+- 他们的局限是否可信？
+- 他们的盲区是否创造了讽刺？
 
-### The Relevance Test
-- Does the quote resonate with chapter themes?
-- Is the connection discoverable but not obvious?
-- Does it expand understanding?
+### 关联测试
+- 引言是否与章节主题产生共鸣？
+- 关联是否可发现但不明显？
+- 是否扩展了理解？
 
-### The Standalone Test
-- Is the quote interesting without the chapter?
-- Does it build the world independently?
-- Could it seed its own story?
+### 独立测试
+- 没有章节，引言是否仍然有趣？
+- 是否独立构建了世界？
+- 是否能孕育自己的故事？
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/oblique-worldbuilding/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+### 输出发现
+1. 检查项目中的 `context/output-config.md`
+2. 如果找到，使用此技能的条目作为输出路径
+3. 如果未找到，**使用默认路径 `explorations/oblique-worldbuilding/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因为询问用户而阻塞
 
-### Primary Output
-- **Documentary voice** - Position, need, lens, blindness
-- **Document type** - Administrative, academic, commercial, etc.
-- **Connection type** - Systemic echo, ironic juxtaposition, thematic rhyme
-- **Layered meanings** - Surface, contextual, ironic, thematic
+### 主要输出
+- **纪实声音** - 立场、需求、滤镜、盲区
+- **文献类型** - 行政、学术、商业等
+- **关联类型** - 系统回响、讽刺并置、主题押韵
+- **多层意义** - 表面、语境、讽刺、主题
 
-### File Naming
-Pattern: `{chapter/section}-epigraph-{date}.md`
+### 文件命名
+模式：`{chapter/section}-epigraph-{date}.md`
 
-## Verification (Oracle)
+## 验证（Oracle）
 
-### What This Skill Can Verify
-- **Perspective components** - Position/need/lens/blindness defined? (High confidence)
-- **Connection presence** - Relevance to chapter identifiable? (Medium confidence)
-- **Standalone quality** - Quote interesting without chapter? (Medium confidence)
+### 本技能可以验证的内容
+- **视角组件** - 立场/需求/滤镜/盲区是否已定义？（高置信度）
+- **关联存在** - 与章节的关联是否可识别？（中置信度）
+- **独立质量** - 没有章节，引言是否有趣？（中置信度）
 
-### What Requires Human Judgment
-- **Subtlety calibration** - Too direct or too obscure?
-- **Voice authenticity** - Does it sound like the documenter?
-- **Reader discovery** - Will connection create "ah!" moment?
+### 需要人工判断的内容
+- **微妙度校准** - 是否过于直接或过于晦涩？
+- **声音真实性** - 听起来是否像记录者？
+- **读者发现** - 关联是否会创造"啊！"的时刻？
 
-### Oracle Limitations
-- Cannot assess whether reader will make the intended connection
-- Cannot predict whether irony will land
+### Oracle 局限
+- 无法评估读者是否会建立预期的关联
+- 无法预测讽刺是否会生效
 
-## Feedback Loop
+## 反馈循环
 
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Voice definition, document, connection analysis
-- **Naming pattern:** `{chapter/section}-epigraph-{date}.md`
+### 会话持久化
+- **输出位置：** 见 `context/output-config.md`
+- **保存内容：** 声音定义、文献、关联分析
+- **命名模式：** `{chapter/section}-epigraph-{date}.md`
 
-### Cross-Session Learning
-- Check for prior epigraphs in this work
-- Ensure variety of document types and perspectives
-- Failed connections inform anti-patterns
+### 跨会话学习
+- 检查此作品中是否有之前的题词
+- 确保文献类型和视角的多样性
+- 失败的关联可纳入反模式
 
-## Design Constraints
+## 设计约束
 
-### This Skill Assumes
-- Story has chapters/sections that can receive epigraphs
-- World has documentary voices beyond the narrative
-- Writer wants implied depth, not exposition
+### 本技能假设
+- 故事有可以接收题词的章节/段落
+- 世界有叙事之外的纪实声音
+- 作者想要隐含的深度，而非说明文
 
-### This Skill Does Not Handle
-- **Direct worldbuilding** - Route to: worldbuilding
-- **Cultural texture** - Route to: memetic-depth
-- **Prose voice** - Route to: prose-style
+### 本技能不处理
+- **直接世界构建** - 转至：worldbuilding
+- **文化质感** - 转至：memetic-depth
+- **散文风格** - 转至：prose-style
 
-### Degradation Signals
-- Quotes summarize chapter events (too direct)
-- No discernible thematic connection (too obscure)
-- Generic voice without position/blindness
+### 退化信号
+- 引言总结了章节事件（过于直接）
+- 没有可辨识的主题关联（过于晦涩）
+- 没有立场/盲区的通用声音
 
-## Reasoning Requirements
+## 推理要求
 
-### Standard Reasoning
-- Single epigraph creation
-- Basic perspective definition
-- Simple connection identification
+### 标准推理
+- 单个题词创建
+- 基本视角定义
+- 简单关联识别
 
-### Extended Reasoning (ultrathink)
-- **Full epigraph series** - [Why: must create variety and progression]
-- **Multi-layer design** - [Why: surface/contextual/ironic/thematic must cohere]
-- **Fictional compiler voice** - [Why: who selects these documents and why]
+### 扩展推理（ultrathink）
+- **完整题词系列** - [原因：必须创造多样性和递进]
+- **多层设计** - [原因：表面/语境/讽刺/主题必须协调]
+- **虚构编纂者声音** - [原因：谁选择了这些文献，为什么]
 
-**Trigger phrases:** "design the complete epigraph series", "create the documentary frame", "layer the meanings"
+**触发短语：** "设计完整的题词系列"、"创建纪实框架"、"叠加意义层次"
 
-## Execution Strategy
+## 执行策略
 
-### Sequential (Default)
-- Analyze chapter before choosing perspective
-- Define voice before writing document
-- Draft before calibrating connection
+### 顺序执行（默认）
+- 在选择视角之前分析章节
+- 在撰写文献之前定义声音
+- 在校准关联之前起草
 
-### Parallelizable
-- Creating multiple epigraphs for different chapters
-- Research into different document types
+### 可并行化
+- 为不同章节创建多个题词
+- 研究不同的文献类型
 
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
-|------|------------|---------------|
-| Document research | general-purpose | When modeling on real document types |
-| World consistency | Explore | When checking against existing worldbuilding |
+### 子代理候选
+| 任务 | 代理类型 | 何时生成 |
+|------|----------|----------|
+| 文献研究 | general-purpose | 当以真实文献类型为原型时 |
+| 世界一致性 | Explore | 当对照现有世界构建进行检查时 |
 
-## Context Management
+## 上下文管理
 
-### Approximate Token Footprint
-- **Skill base:** ~3k tokens (perspective engine + document types)
-- **With process:** ~4k tokens
-- **With worked example:** ~4.5k tokens
+### 近似 Token 占用
+- **技能基础：** ~3k tokens（视角引擎 + 文献类型）
+- **含流程：** ~4k tokens
+- **含示例详解：** ~4.5k tokens
 
-### Context Optimization
-- Focus on current perspective and document type
-- Document type catalog is reference
-- Worked example optional
+### 上下文优化
+- 聚焦当前视角和文献类型
+- 文献类型目录供参考
+- 示例详解可选
 
-### When Context Gets Tight
-- Prioritize: Current perspective, active document type
-- Defer: Full document type catalog, advanced techniques
-- Drop: Worked example, all quality checks
+### 上下文紧张时
+- 优先：当前视角、活跃文献类型
+- 延后：完整文献类型目录、高级技巧
+- 丢弃：示例详解、所有质量检查
 
-## Anti-Patterns
+## 反模式
 
-### 1. Too Direct
-**Pattern:** Quotes that summarize chapter events, documents directly about main characters, contemporary reactions to specific events.
-**Why it fails:** Direct commentary removes reader discovery. The power of oblique worldbuilding is inference—readers connect the document to the chapter themselves.
-**Fix:** Use second-order distance. Find related phenomena in different contexts. Let systemic patterns create the connection rather than explicit reference.
+### 1. 过于直接
+**模式：** 总结章节事件的引言、直接关于主角的文献、对特定事件的同时代反应。
+**失败原因：** 直接评论消除了读者的发现感。间接世界构建的力量在于推理——读者自己将文献与章节联系起来。
+**修复：** 使用二阶距离。在不同语境中找到相关现象。让系统性模式创造关联，而非显式引用。
 
-### 2. Too Obscure
-**Pattern:** No discernible thematic connection, requires outside knowledge, pure worldbuilding without resonance.
-**Why it fails:** If readers can't make the connection, the epigraph becomes noise. Oblique doesn't mean random—it means indirect but discoverable.
-**Fix:** Test with a reader. Can they articulate why this quote precedes this chapter? The connection should be findable even if not obvious.
+### 2. 过于晦涩
+**模式：** 没有可辨识的主题关联、需要外部知识、纯世界构建而无共鸣。
+**失败原因：** 如果读者无法建立关联，题词就变成噪音。间接不等于随机——它意味着非直接但可发现。
+**修复：** 找读者测试。他们能否说出为什么这段引言放在这一章前面？关联应该是可找到的，即使不明显。
 
-### 3. Missing Perspective
-**Pattern:** Generic documentary voice with no clear position or blindness, could be written by anyone.
-**Why it fails:** The meaning comes from limitation. A neutral description reveals nothing about the world. The documenter's blindness tells us what the culture cannot see.
-**Fix:** Define all four components: position, need, lens, blindness. If you can't answer "What can't this documenter afford to see?" the perspective isn't sharp enough.
+### 3. 缺失视角
+**模式：** 没有明确立场或盲区的通用纪实声音，任何人都能写出来。
+**失败原因：** 意义来自局限性。中性描述不揭示世界的任何信息。记录者的盲区告诉我们文化无法看到什么。
+**修复：** 定义全部四个组件：立场、需求、滤镜、盲区。如果你无法回答"这位记录者无法承受看到什么？"那么视角就不够锐利。
 
-### 4. Overexplanation
-**Pattern:** Quote explains its own relevance, too heavy-handed irony, leaves nothing for reader discovery.
-**Why it fails:** Reader discovery creates engagement. When the connection is spelled out, reading becomes passive consumption rather than active meaning-making.
-**Fix:** Remove explicit connections. Trust readers. The irony should emerge from juxtaposition, not commentary.
+### 4. 过度解释
+**模式：** 引言解释自身的关联、过于刻意的讽刺、没有为读者留下发现的空间。
+**失败原因：** 读者的发现创造参与感。当关联被挑明，阅读变成被动消费而非主动的意义建构。
+**修复：** 移除显式关联。信任读者。讽刺应该从并置中涌现，而非从评论中产生。
 
-### 5. Voice Inconsistency
-**Pattern:** Documents that sound like the author, not the fictional documenter. Academic papers without jargon, bureaucrats without bureaucratese.
-**Why it fails:** Voice authenticity sells the fiction. When documents sound generic, the world feels thin. The documenter should write like themselves, not the author.
-**Fix:** Research the document type. How do real bureaucrats, academics, journalists write? Match formality, jargon, assumptions. The voice should feel found, not written.
+### 5. 声音不一致
+**模式：** 听起来像作者而非虚构记录者的文献。没有术语的学术论文、没有官僚腔的官僚文件。
+**失败原因：** 声音的真实性支撑虚构。当文献听起来很通用，世界就显得单薄。记录者应该像他们自己那样写作，而非像作者那样。
+**修复：** 研究文献类型。真正的官僚、学者、记者是如何写作的？匹配正式程度、术语、假设。声音应该感觉是被发现的，而非被写出来的。
 
-## Final Principles
+## 最终原则
 
-1. **Perspective is Power**: The documenter's position and limitations create meaning
-2. **Blindness Reveals**: What they can't see tells us about the world
-3. **Systems Echo**: Same forces create different documents across contexts
-4. **Irony Emerges**: Let perspective create irony naturally
-5. **Trust the Reader**: They will make connections without hand-holding
+1. **视角即力量**：记录者的立场和局限创造意义
+2. **盲区揭示**：他们看不到的告诉我们关于世界的信息
+3. **系统回响**：相同的力量在不同语境中创造不同的文献
+4. **讽刺自然涌现**：让视角自然地创造讽刺
+5. **信任读者**：他们无需引导就能建立关联
 
-## Integration
+## 集成
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
-|-------|------------------|
-| worldbuilding | Systems that create documentary voices |
-| memetic-depth | Cultural texture for document authenticity |
-| prose-style | Voice techniques for different document types |
+### 入站（输入到本技能）
+| 技能 | 提供的内容 |
+|------|-----------|
+| worldbuilding | 创造纪实声音的系统 |
+| memetic-depth | 文献真实性所需的文化质感 |
+| prose-style | 不同文献类型的声音技巧 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
-|-------|-------------|
-| scene-sequencing | Chapter openings that prime thematic concerns |
-| story-zoom | Different abstraction level (document vs. narrative) |
+### 出站（本技能赋能）
+| 技能 | 本技能提供的内容 |
+|------|-----------------|
+| scene-sequencing | 引导主题关注的章节开篇 |
+| story-zoom | 不同的抽象层级（文献 vs. 叙事） |
 
-### Complementary
-| Skill | Relationship |
-|-------|--------------|
-| memetic-depth | Memetic-depth creates cultural texture; oblique-worldbuilding uses that texture in specific documents. Use together for authentic in-world voices |
-| perspectival-constellation | Both work with limited perspective—perspectival-constellation for POV characters, oblique-worldbuilding for documentary voices |
+### 互补
+| 技能 | 关系 |
+|------|------|
+| memetic-depth | memetic-depth 创造文化质感；oblique-worldbuilding 在具体文献中使用该质感。一起使用可创造真实的世界内声音 |
+| perspectival-constellation | 两者都处理有限视角——perspectival-constellation 用于 POV 角色，oblique-worldbuilding 用于纪实声音 |

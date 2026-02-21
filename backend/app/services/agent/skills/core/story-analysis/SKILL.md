@@ -1,6 +1,6 @@
 ---
 name: story-analysis
-description: Systematically evaluate completed short stories or novel chapters to identify strengths, weaknesses, and improvement opportunities. Use after drafting to assess whether the piece achieves its narrative goals.
+description: 系统性地评估已完成的短篇小说或长篇章节，识别优势、不足和改进机会。在完成草稿后使用，评估作品是否达成了其叙事目标。
 license: MIT
 metadata:
   author: jwynia
@@ -11,383 +11,383 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Story Analysis Diagnostic
+# 故事分析诊断
 
-## Purpose
+## 目的
 
-Systematically evaluate completed short stories or novel chapters to identify strengths, weaknesses, and improvement opportunities. Use after drafting to assess whether the piece achieves its narrative goals.
+系统性地评估已完成的短篇小说或长篇章节，识别优势、不足和改进机会。在完成草稿后使用，评估作品是否达成了其叙事目标。
 
-## Quick Reference
+## 快速参考
 
-| Mode | Use For | Key Focus |
-|------|---------|-----------|
-| Short Story | Complete standalone pieces | Unity, shattering moment, resolution |
-| Chapter | Sections within larger work | Continuity, momentum, arc contribution |
-
----
-
-## Short Story Analysis
-
-### SA1: Narrative Foundation
-
-**Evaluate:**
-- Single clear premise or conflict driving the story
-- Scope appropriate for length
-- Premise integrated with plot and character
-- Clear implications that matter to the story
-
-**Questions:**
-1. Can you state the core conflict in one sentence?
-2. Is the scope right for the word count?
-3. Does the premise connect to character stakes?
-4. Are the implications explored within the story?
+| 模式 | 适用场景 | 重点关注 |
+|------|---------|---------|
+| 短篇小说 | 完整的独立作品 | 统一性、震撼时刻、结局 |
+| 章节 | 长篇作品中的章节 | 连续性、推动力、弧线贡献 |
 
 ---
 
-### SA2: Character Construction
+## 短篇小说分析
 
-**Evaluate:**
-- One or two main characters with clear stakes
-- Efficient characterization through actions/choices
-- Character arcs intersecting with premise
-- Limited but purposeful supporting cast
-- Distinct voice and perspective
+### SA1：叙事根基
 
-**Questions:**
-1. Who is the story about and what do they want?
-2. Is character revealed through action, not description?
-3. Does the character change in response to events?
-4. Does every character serve a purpose?
+**评估要点：**
+- 是否有单一清晰的前提或冲突驱动故事
+- 篇幅是否适合故事长度
+- 前提是否与情节和角色融为一体
+- 是否有对故事至关重要的清晰寓意
 
-**Red Flags:**
-- Character described but never demonstrated
-- Supporting characters who don't affect anything
-- Stakes unclear or abstract
+**提问：**
+1. 你能用一句话概括核心冲突吗？
+2. 篇幅与字数匹配吗？
+3. 前提是否与角色的利害关系相连？
+4. 寓意是否在故事中得到了充分展开？
 
 ---
 
-### SA3: Story Environment
+### SA2：角色构建
 
-**Evaluate:**
-- Details woven into action, not exposition
-- Each element serves multiple purposes (setting/plot/theme)
-- Clear rules and limitations
-- Environment revealed through character interaction
-- Effective atmosphere and tone
+**评估要点：**
+- 一到两个主角，有明确的利害关系
+- 通过行动/选择高效地展现角色特征
+- 角色弧线与前提交汇
+- 配角数量有限但各有用途
+- 独特的声音和视角
 
-**Questions:**
-1. Is worldbuilding shown through action or told in blocks?
-2. Does each setting detail do double duty?
-3. Are the story's rules clear and consistent?
-4. Does the environment affect character choices?
+**提问：**
+1. 故事讲的是谁？他们想要什么？
+2. 角色是通过行动展现的，还是通过描述？
+3. 角色是否在事件中发生了变化？
+4. 每个角色是否都有存在的意义？
 
-**Red Flags:**
-- Info-dump paragraphs
-- Details that never matter again
-- Setting that doesn't influence events
-
----
-
-### SA4: The Shattering Moment
-
-**Definition:** The pivotal point that transforms everything—a moment that cannot be undone.
-
-**Must function through one approach:**
-- Personal revelation that transforms understanding
-- External event that forces change
-- Relationship transformation that shifts dynamics
-- Internal realization that cannot be undone
-- Cultural/social collision that demands response
-
-**For Science Fiction:**
-- Technology IS the shattering moment
-- Technology ENABLES the shattering moment
-- Technology PREVENTS recovery
-- Shattering moment CHANGES relationship with technology
-
-**Questions:**
-1. Is there a clear turning point?
-2. Is it connected to the core conflict?
-3. Does it change the character irreversibly?
-4. Does everything after feel different?
+**危险信号：**
+- 角色被描述了，但从未被展现
+- 配角对故事没有任何影响
+- 利害关系不明确或过于抽象
 
 ---
 
-### SA5: Scene Structure
+### SA3：故事环境
 
-**Evaluate:**
-- Scenes maximize both character and premise
-- Strategic balance of scene and summary
-- Opening hook establishes character, situation, conflict
-- Focused conflict from the core premise
-- Resolution addresses conflict while suggesting broader implications
+**评估要点：**
+- 细节融入行动，而非说明性段落
+- 每个元素承担多重功能（设定/情节/主题）
+- 规则和限制清晰
+- 环境通过角色互动来展现
+- 有效的氛围和基调
 
-**Questions:**
-1. Does every scene advance character AND plot?
-2. Is the opening hook doing its job?
-3. Is the conflict focused or diffuse?
-4. Does the resolution satisfy while resonating beyond?
+**提问：**
+1. 世界观构建是通过行动展示的，还是以大段说明呈现？
+2. 每个设定细节是否承担了双重功能？
+3. 故事的规则是否清晰且一致？
+4. 环境是否影响了角色的选择？
 
----
-
-### SA6: Technical Execution
-
-**Economy of Detail:**
-- Every element serves multiple purposes
-- No extraneous background or world info
-- Exposition integrated into action
-- Clear connection between details and story purpose
-
-**Point of View:**
-- Consistent and purposeful POV choice
-- Viewpoint optimal for revealing character and premise
-- Minimal POV shifts
-- Clear character perspective on events
-- Effective narrative distance
-
-**Language and Voice:**
-- Consistent tone throughout
-- Purposeful dialogue
-- Effective subtext
-- Style serves story purpose
-- Distinct narrative voice
+**危险信号：**
+- 信息倾泻式段落
+- 出现后再也用不到的细节
+- 设定对事件没有影响
 
 ---
 
-### SA7: Emotional Architecture
+### SA4：震撼时刻
 
-**Tension Management:**
-- Clear emotional throughline
-- Strategic building and release
-- Effective pacing of reveals
-- Balance of explicit and implicit
+**定义：** 改变一切的关键转折点——一个无法撤回的时刻。
 
-**Reader Engagement:**
-- Clear emotional stakes
-- Strategic use of empathy
-- Meaningful emotional payoff
-- Effective use of subtext
+**必须通过以下某种方式实现：**
+- 改变认知的个人启示
+- 迫使改变的外部事件
+- 改变关系动态的转折
+- 无法撤回的内心顿悟
+- 要求回应的文化/社会碰撞
 
-**Questions:**
-1. Is there a clear emotional journey?
-2. Does tension build appropriately?
-3. Is the emotional payoff earned?
-4. What remains unspoken but felt?
+**对于科幻小说：**
+- 技术本身就是震撼时刻
+- 技术促成了震撼时刻
+- 技术阻止了恢复
+- 震撼时刻改变了与技术的关系
 
----
-
-### SA8: Thematic Resolution
-
-**Evaluate:**
-- Character arc completion
-- Premise implications addressed
-- Immediate conflict resolved
-- Larger questions remain thought-provoking
-
-**Questions:**
-1. Is the character arc complete?
-2. Are the premise implications explored?
-3. Is the immediate conflict resolved?
-4. Does the story linger in the mind?
+**提问：**
+1. 是否有一个清晰的转折点？
+2. 它是否与核心冲突相连？
+3. 它是否不可逆地改变了角色？
+4. 之后的一切是否感觉不同了？
 
 ---
 
-## Novel Chapter Analysis
+### SA5：场景结构
 
-### CA1: Position in Narrative Arc
+**评估要点：**
+- 场景同时最大化角色和前提的表现
+- 场景与概述之间策略性平衡
+- 开场钩子建立角色、情境、冲突
+- 冲突聚焦于核心前提
+- 结局在解决冲突的同时暗示更广泛的意义
 
-**Evaluate:**
-- Chapter's specific role in overall structure
-- Contribution to plot progression
-- Advancement of character development arcs
-- Thematic development within larger work
-
-**Questions:**
-1. What is this chapter's job in the novel?
-2. What plot progress happens here?
-3. What character progress happens here?
-4. How does it develop the theme?
-
----
-
-### CA2: Narrative Momentum
-
-**Evaluate:**
-- Opening hook's connection to previous chapter
-- Tension management across chapter breaks
-- Balance of resolution and open questions
-- Strength of chapter ending propulsion
-- Questions answered vs. questions raised
-
-**Questions:**
-1. Does the opening connect to what came before?
-2. Does the ending make readers want to continue?
-3. What questions does this chapter answer?
-4. What new questions does it raise?
-
-**Red Flags:**
-- Chapter ends at natural stopping point (too easy to put down)
-- Opening ignores previous chapter's energy
-- All questions answered, no forward pull
+**提问：**
+1. 每个场景是否同时推进了角色和情节？
+2. 开场钩子是否发挥了作用？
+3. 冲突是聚焦的还是分散的？
+4. 结局是否令人满意，同时又余韵悠长？
 
 ---
 
-### CA3: Plot Threading
+### SA6：技术执行
 
-**Evaluate:**
-- Ongoing plot threads advanced
-- New plot threads introduced
-- Plot elements resolved
-- Setup for future chapters
-- Connection to primary and secondary arcs
+**细节的经济性：**
+- 每个元素承担多重功能
+- 没有多余的背景或世界信息
+- 说明融入行动之中
+- 细节与故事目的之间有清晰的关联
 
-**Track:**
-| Thread | Status This Chapter |
-|--------|---------------------|
-| Main plot | Advanced / Setup / Resolved |
-| Subplot A | Advanced / Setup / Resolved |
-| Subplot B | Advanced / Setup / Resolved |
+**视角：**
+- 一致且有目的的视角选择
+- 视角最适合展现角色和前提
+- 视角切换最少化
+- 角色对事件有清晰的立场
+- 有效的叙事距离
 
----
-
-### CA4: Character Continuity
-
-**Evaluate:**
-- Progress on character arcs from previous chapters
-- New character aspects revealed
-- Relationship evolution
-- Setup for future development
-- Consistency with established traits
-
-**Questions:**
-1. How has this character changed since chapter 1?
-2. What new facets are revealed here?
-3. How do relationships shift?
-4. Is the character consistent with who they've been?
+**语言与声音：**
+- 全篇基调一致
+- 对白有目的性
+- 有效的潜台词
+- 风格服务于故事目的
+- 独特的叙事声音
 
 ---
 
-### CA5: POV and Voice
+### SA7：情感架构
 
-**Evaluate:**
-- Consistency with established POV patterns
-- Effective transitions between viewpoints (if multiple)
-- Depth of penetration into character perspective
-- Balance of internal and external narrative
-- Voice and tone alignment with overall narrative
+**张力管理：**
+- 清晰的情感主线
+- 策略性地制造和释放张力
+- 有效地安排揭示的节奏
+- 显性与隐性的平衡
 
----
+**读者参与度：**
+- 清晰的情感利害关系
+- 策略性地运用共情
+- 有意义的情感回收
+- 有效地运用潜台词
 
-### CA6: Information Flow
-
-**Evaluate:**
-- Balance of new and established information
-- Strategic revelation of background elements
-- Management of reader vs. character knowledge
-- Setup of future revelations
-- Integration of necessary exposition
-
----
-
-### CA7: Pacing Elements
-
-**Evaluate:**
-- Chapter's pace relative to surrounding chapters
-- Internal pacing structure
-- Tension development and release
-- Scene length and rhythm
-- Strategic use of time
+**提问：**
+1. 是否有清晰的情感旅程？
+2. 张力是否恰当地递进？
+3. 情感的回收是否有充分的铺垫？
+4. 哪些内容未被言说，但能被感受到？
 
 ---
 
-### CA8: Connection Tracking
+### SA8：主题收束
 
-**Previous Chapter:**
-- Immediate continuity elements
-- Tension carryover
-- Question resolution
-- Thread advancement
+**评估要点：**
+- 角色弧线完成
+- 前提蕴含的意义得到呈现
+- 直接冲突得到解决
+- 更宏大的问题仍发人深省
 
-**Next Chapter:**
-- Setup elements planted
-- Tension building toward
-- Questions raised
-- Threads advanced
-
-**Broader Novel:**
-- Major arc advancement
-- Theme development
-- Character arc progression
-- World development contribution
+**提问：**
+1. 角色弧线是否完整？
+2. 前提的隐含意义是否得到了探索？
+3. 直接冲突是否得到了解决？
+4. 故事是否在脑海中挥之不去？
 
 ---
 
-## Evaluation Checklists
+## 长篇章节分析
 
-### Short Story Checklist
-- [ ] Single clear premise/conflict
-- [ ] Appropriate scope for length
-- [ ] Characters with clear stakes
-- [ ] Characterization through action
-- [ ] Environment serves multiple purposes
-- [ ] Clear shattering moment
-- [ ] Every scene advances character AND plot
-- [ ] Consistent POV
-- [ ] Emotional arc present
-- [ ] Resolution satisfies while resonating
+### CA1：在叙事弧线中的位置
 
-### Chapter Checklist
-- [ ] Clear role in overall novel
-- [ ] Opening connects to previous chapter
-- [ ] Ending creates forward pull
-- [ ] Plot threads advanced
-- [ ] Character development progresses
-- [ ] Consistent with established elements
-- [ ] Sets up future developments
-- [ ] Appropriate pacing for position in novel
+**评估要点：**
+- 本章在整体结构中的具体作用
+- 对情节推进的贡献
+- 对角色发展弧线的推动
+- 在更大作品中的主题发展
+
+**提问：**
+1. 这一章在小说中的职责是什么？
+2. 这里发生了什么情节进展？
+3. 这里发生了什么角色进展？
+4. 它如何发展了主题？
 
 ---
 
-## Anti-Patterns
+### CA2：叙事推动力
 
-### 1. The Checklist Tyranny
-**Pattern:** Treating all checklist items as equally important. Flagging every missed item as a problem requiring fix.
-**Why it fails:** Not all issues matter equally. A missing shattering moment is critical; a slight POV wobble might be stylistic choice. Checklists identify possibilities, not mandates.
-**Fix:** Prioritize by impact. Ask "Does this actually hurt the story?" before recommending changes. Some rules can be broken effectively.
+**评估要点：**
+- 开头钩子与上一章的衔接
+- 跨章节的张力管理
+- 解决与悬念之间的平衡
+- 章节结尾推进力的强度
+- 回答的问题与提出的问题之比
 
-### 2. The Genre Blindness
-**Pattern:** Applying one genre's standards to all stories. Evaluating literary fiction by thriller pacing standards, or action stories by literary depth requirements.
-**Why it fails:** Genres have different contracts with readers. What's a flaw in one genre is a feature in another.
-**Fix:** Identify genre expectations first. Evaluate against what the story is trying to be, not a universal standard.
+**提问：**
+1. 开头是否与前文衔接？
+2. 结尾是否让读者想继续读下去？
+3. 本章回答了哪些问题？
+4. 本章又提出了哪些新问题？
 
-### 3. The Nitpick Cascade
-**Pattern:** Focusing on micro-issues while missing macro problems. Catching comma splices while the story has no conflict.
-**Why it fails:** Sentence-level perfection can't save structural failure. Fixing small things first is procrastination from hard work.
-**Fix:** Diagnose at structure level first. Only move to prose-level analysis after structure is sound.
+**危险信号：**
+- 章节在自然停顿处结束（太容易放下书）
+- 开头忽略了上一章的能量
+- 所有问题都已回答，没有向前的牵引力
 
-### 4. The Comparison Trap
-**Pattern:** Evaluating against published bestsellers or classics. "This isn't as good as [famous work]."
-**Why it fails:** Drafts aren't finished works. Different stories serve different purposes. Unfair comparison discourages rather than guides.
-**Fix:** Evaluate against the story's own goals. What is this trying to do? Does it succeed at that?
+---
 
-### 5. The Fix-Everything Dump
-**Pattern:** Delivering a comprehensive list of all issues without prioritization or encouragement.
-**Why it fails:** Overwhelming. Writers shut down when facing 50 problems. No sense of what matters most.
-**Fix:** Identify 3-5 highest-impact issues. Note what's working. Create actionable, prioritized guidance.
+### CA3：情节线索编织
 
-## Integration Points
+**评估要点：**
+- 推进了哪些进行中的情节线索
+- 引入了哪些新情节线索
+- 解决了哪些情节元素
+- 为后续章节做了哪些铺垫
+- 与主线和支线弧线的关联
 
-**Inbound:**
-- From `drafting`: After completing draft
-- From `revision`: As part of revision process
+**跟踪表：**
+| 线索 | 本章状态 |
+|------|---------|
+| 主线情节 | 推进 / 铺垫 / 收束 |
+| 支线 A | 推进 / 铺垫 / 收束 |
+| 支线 B | 推进 / 铺垫 / 收束 |
 
-**Outbound:**
-- To `revision`: For identified issues
-- To `scene-sequencing`: For pacing problems
-- To `dialogue`: For conversation issues
-- To `character-arc`: For character problems
+---
 
-**Complementary:**
-- `flash-fiction`: For stories under 1500 words
-- `prose-style`: For sentence-level issues
-- `story-sense`: For diagnosing what's wrong
+### CA4：角色连续性
+
+**评估要点：**
+- 从前几章延续的角色弧线进展
+- 新的角色面向被揭示
+- 关系演变
+- 为未来发展的铺垫
+- 与已确立特征的一致性
+
+**提问：**
+1. 这个角色从第一章到现在发生了什么变化？
+2. 这里揭示了哪些新的面向？
+3. 关系如何变化了？
+4. 角色是否与之前塑造的形象一致？
+
+---
+
+### CA5：视角与声音
+
+**评估要点：**
+- 与已确立的视角模式的一致性
+- 多视角时的有效切换
+- 深入角色视角的程度
+- 内心叙事与外部叙事的平衡
+- 声音和基调与整体叙事的契合度
+
+---
+
+### CA6：信息流
+
+**评估要点：**
+- 新信息与已知信息的平衡
+- 策略性地揭示背景元素
+- 读者知识与角色知识的管理
+- 为未来揭示做的铺垫
+- 必要说明的融入
+
+---
+
+### CA7：节奏要素
+
+**评估要点：**
+- 本章相对于前后章节的节奏
+- 内部节奏结构
+- 张力的发展与释放
+- 场景长度和韵律
+- 策略性地运用时间
+
+---
+
+### CA8：衔接跟踪
+
+**上一章：**
+- 即时连续性元素
+- 张力的延续
+- 问题的回答
+- 线索的推进
+
+**下一章：**
+- 埋下的铺垫元素
+- 张力的走向
+- 提出的问题
+- 推进的线索
+
+**更广的小说层面：**
+- 主弧线推进
+- 主题发展
+- 角色弧线进展
+- 世界观构建贡献
+
+---
+
+## 评估清单
+
+### 短篇小说清单
+- [ ] 单一清晰的前提/冲突
+- [ ] 篇幅与长度匹配
+- [ ] 角色有明确的利害关系
+- [ ] 通过行动展现角色
+- [ ] 环境承担多重功能
+- [ ] 有清晰的震撼时刻
+- [ ] 每个场景同时推进角色和情节
+- [ ] 视角一致
+- [ ] 有情感弧线
+- [ ] 结局令人满意又余韵悠长
+
+### 章节清单
+- [ ] 在整部小说中有清晰的角色定位
+- [ ] 开头与上一章衔接
+- [ ] 结尾产生向前的牵引力
+- [ ] 情节线索得到推进
+- [ ] 角色发展有进展
+- [ ] 与已确立的元素一致
+- [ ] 为后续发展做了铺垫
+- [ ] 节奏与在小说中的位置相适配
+
+---
+
+## 反模式
+
+### 1. 清单暴政
+**模式：** 将清单上所有项目视为同等重要，将每个未达标项都标记为需要修复的问题。
+**为何失败：** 并非所有问题都同等重要。缺少震撼时刻是严重问题；视角轻微偏移可能只是风格选择。清单揭示可能性，而非强制要求。
+**修正：** 按影响力排序。在建议修改之前先问"这真的伤害了故事吗？"有些规则是可以被有效打破的。
+
+### 2. 类型盲区
+**模式：** 用一种类型的标准去评价所有故事。用悬疑节奏的标准评价文学小说，或用文学深度的要求评价动作故事。
+**为何失败：** 不同类型与读者有不同的契约。在一种类型中是缺陷的，在另一种中可能是特色。
+**修正：** 先识别类型期望。评估故事是否达成了它试图成为的样子，而非某种通用标准。
+
+### 3. 吹毛求疵的连锁反应
+**模式：** 关注微观问题而忽略宏观问题。纠正逗号拼接的同时，故事却没有冲突。
+**为何失败：** 句子层面的完美无法拯救结构性的失败。先修小问题是对困难工作的拖延。
+**修正：** 先在结构层面进行诊断。只有在结构健全之后，才进入文笔层面的分析。
+
+### 4. 比较陷阱
+**模式：** 拿畅销书或经典作品来比较。"这不如[著名作品]好。"
+**为何失败：** 草稿不是成品。不同故事服务于不同目的。不公平的比较只会打击写作者，而非提供指导。
+**修正：** 根据故事自身的目标来评估。它试图做什么？它在这方面成功了吗？
+
+### 5. 全面问题倾泻
+**模式：** 一次性列出所有问题的完整清单，没有优先级排序，也没有鼓励。
+**为何失败：** 令人崩溃。面对 50 个问题时写作者会关机。完全不知道什么最重要。
+**修正：** 找出 3-5 个影响最大的问题。指出哪些地方做得好。提供可操作的、有优先级的指导。
+
+## 集成点
+
+**入站：**
+- 来自 `drafting`：完成草稿后
+- 来自 `revision`：作为修订流程的一部分
+
+**出站：**
+- 到 `revision`：针对已识别的问题
+- 到 `scene-sequencing`：针对节奏问题
+- 到 `dialogue`：针对对话问题
+- 到 `character-arc`：针对角色问题
+
+**互补：**
+- `flash-fiction`：用于 1500 字以下的故事
+- `prose-style`：用于句子层面的问题
+- `story-sense`：用于诊断问题所在

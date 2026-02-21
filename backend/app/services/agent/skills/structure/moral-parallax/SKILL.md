@@ -1,6 +1,6 @@
 ---
 name: moral-parallax
-description: Generate speculative fiction stories about systemic exploitation by collapsing comfortable moral distances. Use when exploring how privilege and harm are connected, when writing about systems that export consequences, or when you want stories where innocence becomes impossible.
+description: 通过消除舒适的道德距离来生成关于系统性剥削的推想小说。适用于探索特权与伤害之间的联系、书写输出后果的系统、或希望创作中无人能保持无辜的故事。
 license: MIT
 metadata:
   author: jwynia
@@ -11,346 +11,346 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search]
 ---
 
-# Moral Parallax: Story Generation Skill
+# 道德视差：故事生成技能
 
-You help writers create speculative fiction that reveals systemic exploitation by collapsing the comfortable distances between actions and consequences. Your role is to design systems where what was hidden becomes visible, what was distant becomes proximate, and what was comfortable becomes unbearable.
+你帮助作者创作推想小说，通过消除行为与后果之间的舒适距离来揭示系统性剥削。你的角色是设计这样的系统——让被隐藏的变得可见，让遥远的变得切近，让舒适的变得不可忍受。
 
-## Core Principle
+## 核心原则
 
-**Moral Parallax**: The phenomenon where the same action appears fundamentally different depending on your proximity to its consequences. Like astronomical parallax reveals distance through shifted perspective, moral parallax reveals the true architecture of harm through the distance between action and consequence.
+**道德视差**：同一行为因你与其后果的距离不同而显得截然不同的现象。如同天文视差通过视角偏移揭示距离，道德视差通过行为与后果之间的距离揭示伤害的真实架构。
 
-In speculative fiction, we literalize this phenomenon. The magical/technological element is just a lens that brings the parallax into focus.
+在推想小说中，我们将这一现象具象化。魔法/科技元素只是一个让视差聚焦的透镜。
 
-## The Five Distances
+## 五种距离
 
-Every moral parallax story collapses one or more of these comfortable distances:
+每个道德视差故事都消除了以下一种或多种舒适距离：
 
-| Distance Type | Comfortable Fiction | Collapse Mechanism | Story Engine |
+| 距离类型 | 舒适的虚构 | 消除机制 | 故事引擎 |
 |---------------|--------------------|--------------------|--------------|
-| **Temporal** | "Future people will figure it out" | Future arrives early; past haunts present | Discovering you've already destroyed your own future |
-| **Spatial** | "It's happening somewhere else" | "There" becomes "here" | Your safe zone was built on others' sacrifice zones |
-| **Social** | "They're not like us" | "They" were always "us" in disguise | The other was your brother all along |
-| **Causal** | "I didn't cause that" | Causal chains revealed as direct | Your innocuous action was the trigger |
-| **Informational** | "If I don't know, I'm not responsible" | Ignorance revealed as willful | You always knew but chose not to see |
+| **时间距离** | "未来的人会解决的" | 未来提前到来；过去纠缠现在 | 发现你已经亲手摧毁了自己的未来 |
+| **空间距离** | "那是在别处发生的" | "那里"变成"这里" | 你的安全区建立在他人的牺牲区之上 |
+| **社会距离** | "他们和我们不一样" | "他们"其实一直是伪装的"我们" | 那个他者原来是你的兄弟 |
+| **因果距离** | "那不是我造成的" | 因果链被揭示为直接关联 | 你无害的行为其实是触发器 |
+| **信息距离** | "如果我不知道，我就没有责任" | 无知被揭示为刻意选择 | 你一直都知道，只是选择了视而不见 |
 
-## The Four Engine Patterns
+## 四种引擎模式
 
-### Pattern 1: The Exchange Engine
-**Mechanism**: Every benefit has a cost paid at distance
+### 模式 1：交换引擎
+**机制**：每一份好处都有在远处被支付的代价
 
-- Cost manifests where you can't see it
-- System designed to maximize distance between benefit and cost
-- Discovery reveals the hidden geography of harm
+- 代价显现在你看不到的地方
+- 系统被设计来最大化好处与代价之间的距离
+- 发现揭示了伤害的隐藏地理
 
-**Examples**: The key that locks distant doors. Happiness borrowed from future self. Healing that transfers wounds to strangers.
+**示例**：锁住远方门的钥匙。从未来的自己借来的幸福。将伤口转移给陌生人的治愈。
 
-### Pattern 2: The Accumulation Engine
-**Mechanism**: Individual actions seem harmless but collectively destroy
+### 模式 2：累积引擎
+**机制**：个体行为看似无害，但集体效果是毁灭性的
 
-- Each person only sees their small contribution
-- Collective harm invisible to individuals
-- Pattern recognition reveals systemic damage
+- 每个人只看到自己的微小贡献
+- 集体伤害对个人不可见
+- 模式识别揭示了系统性损害
 
-**Examples**: Each lie adds weight to shared atmosphere. Individual forgetting crowds collective memory. Personal success erodes community resources.
+**示例**：每个谎言都在给共享的大气增加重量。个人的遗忘挤压着集体记忆。个人的成功侵蚀着社区资源。
 
-### Pattern 3: The Cascade Engine
-**Mechanism**: Actions trigger chains that spiral beyond perception
+### 模式 3：级联引擎
+**机制**：行为触发超出感知范围的连锁反应
 
-- Initial action seems contained
-- Consequences propagate through hidden networks
-- Revelation traces cascade back to origin
+- 初始行为看似可控
+- 后果通过隐藏网络传播
+- 揭示将级联追溯回起源
 
-**Examples**: Confession plague spreading through social networks. Emotional freezing affecting relationship chains. Time-delayed consequences arriving generations later.
+**示例**：通过社交网络传播的忏悔瘟疫。影响关系链的情感冻结。延迟数代才到达的后果。
 
-### Pattern 4: The Inheritance Engine
-**Mechanism**: Past actions by proximity ancestors determine present reality
+### 模式 4：遗产引擎
+**机制**：近亲先辈的过去行为决定了当下的现实
 
-- Previous generation acted with distance-blindness
-- Current generation inherits both tools and consequences
-- Discovery reveals complicity through bloodline/position
+- 上一代人带着距离盲目行事
+- 当代人同时继承了工具和后果
+- 发现揭示了通过血脉/地位产生的共谋
 
-**Examples**: Grandmother's key and its accumulated locks. Genetic debt passing through families. Institutional positions carrying historical crimes.
+**示例**：祖母的钥匙及其累积的锁。通过家族传递的基因债务。承载历史罪行的机构职位。
 
-## The Revelation Arc
+## 揭示弧线
 
-### Act 1: Comfortable Distance
-- Protagonist operates within normal moral proximity
-- Uses system without seeing full consequences
-- Believes the comfortable fiction
-- Small irregularities appear at periphery
+### 第一幕：舒适的距离
+- 主角在正常的道德距离内行事
+- 使用系统但看不到全部后果
+- 相信那个舒适的虚构
+- 小的异常出现在视野边缘
 
-### Act 2A: First Parallax Shift
-- Initial discovery that distance isn't what it seemed
-- Victim has unexpected proximity connection
-- Pattern emerges suggesting systematic exploitation
-- Protagonist realizes they're already implicated
+### 第二幕 A：首次视差偏移
+- 初步发现距离并非如其所表现
+- 受害者与主角有意想不到的近距离关联
+- 出现暗示系统性剥削的模式
+- 主角意识到自己已经牵涉其中
 
-### Act 2B: The Distance Collapse
-- Investigation reveals proximity was always illusion
-- "Distant others" were actually "hidden neighbors"
-- Past actions created present crisis
-- Every escape route leads deeper into complicity
+### 第二幕 B：距离坍塌
+- 调查揭示近距离一直只是幻觉
+- "遥远的他者"实际上是"隐藏的邻居"
+- 过去的行为制造了当前的危机
+- 每条逃路都通向更深的共谋
 
-### Act 3: Navigate Without Distance
-- Can't restore comfortable distance
-- Must act knowing full proximity of consequences
-- Choose between different proximity violations
-- Accept position as both victim and perpetrator
+### 第三幕：在没有距离的情况下行动
+- 无法恢复舒适的距离
+- 必须在充分知晓后果切近性的情况下行动
+- 在不同的近距离违背之间做出选择
+- 接受自己既是受害者又是施害者的位置
 
-## Diagnostic Questions
+## 诊断问题
 
-When developing a moral parallax story, ask:
+在开发道德视差故事时，请问：
 
-1. **What comfortable distance does your world maintain?**
-2. **Who benefits from maintaining that distance?**
-3. **Who pays the cost of that distance?**
-4. **What would collapse the distance?**
-5. **How would characters navigate without distance?**
-6. **What systems would emerge to manage visible proximity?**
-7. **How do people live knowing the true proximity of harm?**
+1. **你的世界维持着怎样的舒适距离？**
+2. **谁从维持这种距离中受益？**
+3. **谁在为这种距离付出代价？**
+4. **什么会消除这种距离？**
+5. **角色在没有距离的情况下会如何行动？**
+6. **什么系统会出现来管理可见的近距离？**
+7. **人们在知道伤害的真实切近性后如何生活？**
 
-## Design Process
+## 设计流程
 
-### Step 1: Choose Your Distance Type
-Which comfortable distance will you collapse?
-- Temporal: "It's in the future/past"
-- Spatial: "It's happening elsewhere"
-- Social: "It's happening to others"
-- Causal: "I'm not directly responsible"
-- Informational: "I don't/can't know"
+### 步骤 1：选择你的距离类型
+你将消除哪种舒适距离？
+- 时间距离："那是在未来/过去"
+- 空间距离："那发生在别处"
+- 社会距离："那发生在别人身上"
+- 因果距离："我没有直接责任"
+- 信息距离："我不知道/无法知道"
 
-### Step 2: Design the Comfort Mechanism
-How does the system maintain distance?
-- Physical separation
-- Time delays
-- Social barriers
-- Causal complexity
-- Information occlusion
+### 步骤 2：设计舒适机制
+系统如何维持距离？
+- 物理隔离
+- 时间延迟
+- 社会壁垒
+- 因果复杂性
+- 信息遮蔽
 
-### Step 3: Create the Parallax Event
-What reveals the true proximity?
-- Personal consequence arrives
-- Pattern becomes visible
-- Investigation reveals connection
-- Inheritance includes revelation
-- System breakdown exposes machinery
+### 步骤 3：创建视差事件
+什么揭示了真实的切近性？
+- 个人后果降临
+- 模式变得可见
+- 调查揭示关联
+- 遗产包含了真相
+- 系统崩溃暴露了机制
 
-### Step 4: Map the Proximity Collapse
-How does distance implode?
-- **Linear**: Steady approach of consequences
-- **Sudden**: Instant revelation of proximity
-- **Recursive**: Each discovery creates new collapse
-- **Viral**: Proximity awareness spreads like infection
-- **Retroactive**: Past is rewritten by proximity knowledge
+### 步骤 4：映射距离坍塌
+距离如何坍缩？
+- **线性**：后果稳步逼近
+- **突发**：瞬间揭示切近性
+- **递归**：每次发现产生新的坍塌
+- **病毒式**：切近性意识像感染一样传播
+- **追溯**：过去因切近性知识而被重写
 
-### Step 5: Design the Navigation Challenge
-What choices exist without distance?
-- Sacrifice inner circle for outer
-- Accept complicity to minimize harm
-- Destroy system at personal cost
-- Maintain system with full knowledge
-- Find least-harmful path through
+### 步骤 5：设计行动挑战
+在没有距离的情况下存在哪些选择？
+- 牺牲内圈换取外圈
+- 接受共谋以最小化伤害
+- 以个人代价摧毁系统
+- 在完全知情的情况下维持系统
+- 寻找伤害最小的路径
 
-## Genre Applications
+## 类型应用
 
-### Urban Fantasy: The Debt Districts
-City neighborhoods absorb different types of metaphysical debt. Financial excess creates poverty zones. Joy creates depression sectors. Protagonist discovers their safe neighborhood exists because another district absorbs their community's violence.
+### 都市奇幻：债务区域
+城市各社区吸收不同类型的形而上债务。过度的财富创造出贫困区。快乐创造出抑郁区。主角发现自己安全的社区之所以存在，是因为另一个区域吸收了他们社区的暴力。
 
-### Science Fiction: The Light-Speed Crisis
-FTL travel works by stealing time from specific locations. Every jump ages certain planets rapidly. Returning home, protagonist finds their world aged centuries—their escapes caused the crisis they fled.
+### 科幻：光速危机
+超光速旅行通过从特定地点偷取时间来运作。每次跳跃都会使某些行星加速老化。主角返乡时发现自己的世界已经老化了几个世纪——他们的逃离正是造成他们所逃避之危机的原因。
 
-### Horror: The Trauma Inheritance
-Unprocessed trauma literally passes to nearest emotional connection when someone dies. Protagonist's increasing mental illness traced to great-grandmother's war experiences, compounding through generations.
+### 恐怖：创伤遗传
+未处理的创伤在某人死亡时会真实地传递给最近的情感联系者。主角日益严重的精神疾病被追溯到曾祖母的战争经历，通过几代人不断叠加。
 
-### Contemporary Fantasy: The Attention Economy
-Human attention becomes finite and tradeable. Looking at something drains it. Being ignored allows growth. Social media influencer discovers success literally blinds followers to their own lives.
+### 当代奇幻：注意力经济
+人类注意力变得有限且可交易。注视某物会耗损它。被忽视则允许生长。社交媒体网红发现自己的成功真实地使粉丝对自身生活视而不见。
 
-## Implementation Checklist
+## 实施清单
 
-- [ ] Distance Type selected
-- [ ] Comfort Mechanism designed
-- [ ] Parallax Event planned
-- [ ] Collapse Pattern mapped
-- [ ] Navigation Challenge created
-- [ ] Systemic Revelation built (personal reveals societal)
-- [ ] Complicity established (protagonist already involved)
-- [ ] Exit Routes blocked (can't just leave)
-- [ ] Partial Resolution allowed (pyrrhic victory possible)
-- [ ] Truth Burden assigned (knowledge they must carry forward)
+- [ ] 已选择距离类型
+- [ ] 已设计舒适机制
+- [ ] 已规划视差事件
+- [ ] 已映射坍塌模式
+- [ ] 已创建行动挑战
+- [ ] 已构建系统性揭示（个人揭示社会性）
+- [ ] 已确立共谋（主角已经牵涉其中）
+- [ ] 已封堵逃路（不能一走了之）
+- [ ] 允许部分解决（惨胜是可能的）
+- [ ] 已分配真相负担（他们必须继续承载的知识）
 
-## Why This Framework Works
+## 为什么这个框架有效
 
-Stories using moral parallax:
+使用道德视差的故事：
 
-1. **Feel true** — We live in systems that export harm
-2. **Resist simplification** — No clean moral position exists
-3. **Create complicity** — Readers recognize themselves
-4. **Reveal systems** — Personal stories illuminate structural oppression
-5. **Prevent heroes** — Everyone is compromised by proximity
+1. **感觉真实** — 我们生活在输出伤害的系统中
+2. **抵抗简化** — 不存在干净的道德立场
+3. **创造共谋感** — 读者在其中认出自己
+4. **揭示系统** — 个人故事照亮结构性压迫
+5. **阻止英雄化** — 每个人都因切近性而妥协
 
-## The Ultimate Question
+## 终极问题
 
-**What happens when you can no longer pretend the distance exists?**
+**当你再也无法假装距离存在时，会发生什么？**
 
-The power of moral parallax is that it makes innocence impossible. Once distance collapses, characters cannot return to ignorance. They must continue existing within systems they now understand, making choices they know cause harm, navigating with full knowledge of their complicity.
+道德视差的力量在于它使无辜成为不可能。一旦距离坍塌，角色无法回到无知。他们必须继续存在于他们现已理解的系统中，做出他们知道会造成伤害的选择，在完全知晓自身共谋的情况下行动。
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/moral-parallax/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+### 输出发现
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果找到，使用本技能对应的输出路径
+3. 如果未找到，**使用默认路径 `explorations/moral-parallax/`**，并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
 
-### Primary Output
-- **Distance type** - Which comfortable distance collapses
-- **Engine pattern** - Exchange, Accumulation, Cascade, or Inheritance
-- **Comfort mechanism** - How system maintains distance
-- **Parallax event** - What reveals true proximity
-- **Navigation challenge** - Choices without distance
+### 主要输出
+- **距离类型** - 哪种舒适距离被消除
+- **引擎模式** - 交换、累积、级联或遗产
+- **舒适机制** - 系统如何维持距离
+- **视差事件** - 什么揭示了真实的切近性
+- **行动挑战** - 没有距离时的选择
 
-### File Naming
-Pattern: `{story-concept}-parallax-{date}.md`
+### 文件命名
+模式：`{story-concept}-parallax-{date}.md`
 
-## Verification (Oracle)
+## 验证（Oracle）
 
-### What This Skill Can Verify
-- **Distance type selected** - Clear choice from five types? (High confidence)
-- **Engine pattern present** - One of four patterns applied? (High confidence)
-- **Complicity established** - Protagonist already involved? (Medium confidence)
+### 本技能可以验证的内容
+- **已选择距离类型** - 从五种类型中做出了清晰选择？（高置信度）
+- **引擎模式存在** - 四种模式中的一种已被应用？（高置信度）
+- **共谋已确立** - 主角已经牵涉其中？（中等置信度）
 
-### What Requires Human Judgment
-- **Moral weight** - Does collapse feel significant?
-- **Protagonist complicity** - Is involvement believable?
-- **Resolution appropriateness** - Is navigation challenge fair?
+### 需要人类判断的内容
+- **道德分量** - 坍塌是否感觉有分量？
+- **主角共谋** - 参与是否可信？
+- **解决适当性** - 行动挑战是否公平？
 
-### Oracle Limitations
-- Cannot assess whether moral distance feels real to readers
-- Cannot predict emotional impact of collapse
+### Oracle 局限性
+- 无法评估道德距离对读者是否感觉真实
+- 无法预测坍塌的情感冲击
 
-## Feedback Loop
+## 反馈循环
 
-### Session Persistence
-- **Output location:** See `context/output-config.md`
-- **What to save:** Distance, engine, mechanism, event, challenge
-- **Naming pattern:** `{story-concept}-parallax-{date}.md`
+### 会话持久化
+- **输出位置：** 参见 `context/output-config.md`
+- **保存内容：** 距离、引擎、机制、事件、挑战
+- **命名模式：** `{story-concept}-parallax-{date}.md`
 
-### Cross-Session Learning
-- Check for prior moral parallax work in this setting
-- Ensure systemic consistency
-- Failed collapse structures inform anti-patterns
+### 跨会话学习
+- 检查该设定中是否有先前的道德视差工作
+- 确保系统一致性
+- 失败的坍塌结构纳入反模式
 
-## Design Constraints
+## 设计约束
 
-### This Skill Assumes
-- System maintains comfortable distance between action and consequence
-- Protagonist benefits from the system (is complicit)
-- Clean resolution is not possible
+### 本技能假设
+- 系统在行为与后果之间维持着舒适距离
+- 主角从系统中受益（是共谋者）
+- 不可能有干净的解决方案
 
-### This Skill Does Not Handle
-- **Hero narratives** - Route to: character-arc (for clear victory arcs)
-- **System worldbuilding** - Route to: governance-systems or economic-systems
-- **Individual positions** - Route to: positional-revelation
+### 本技能不处理
+- **英雄叙事** - 路由至：character-arc（用于清晰的胜利弧线）
+- **系统世界构建** - 路由至：governance-systems 或 economic-systems
+- **个人立场** - 路由至：positional-revelation
 
-### Degradation Signals
-- Simple good vs. evil revealed (morality play)
-- Clean resolution available (wish fulfillment)
-- Protagonist uniquely ethical (hero narrative)
+### 退化信号
+- 揭示出简单的善恶对立（道德剧）
+- 存在干净的解决方案（愿望实现）
+- 主角具有独特的道德优越性（英雄叙事）
 
-## Reasoning Requirements
+## 推理要求
 
-### Standard Reasoning
-- Single distance type selection
-- Basic engine pattern application
-- Simple collapse structure
+### 标准推理
+- 单一距离类型选择
+- 基本引擎模式应用
+- 简单坍塌结构
 
-### Extended Reasoning (ultrathink)
-- **Multi-distance collapse** - [Why: layering multiple distances]
-- **Full arc design** - [Why: revelation through navigation must cohere]
-- **System integration** - [Why: distance mechanism must fit world]
+### 扩展推理（ultrathink）
+- **多距离坍塌** - [原因：叠加多种距离]
+- **完整弧线设计** - [原因：揭示到行动必须连贯]
+- **系统整合** - [原因：距离机制必须契合世界]
 
-**Trigger phrases:** "design the complete collapse", "layer multiple distances", "build the system"
+**触发短语：** "设计完整的坍塌"、"叠加多种距离"、"构建系统"
 
-## Execution Strategy
+## 执行策略
 
-### Sequential (Default)
-- Distance type before engine pattern
-- Engine before comfort mechanism
-- Mechanism before parallax event
-- Event before navigation challenge
+### 顺序执行（默认）
+- 先确定距离类型，再确定引擎模式
+- 先确定引擎，再设计舒适机制
+- 先确定机制，再设计视差事件
+- 先确定事件，再设计行动挑战
 
-### Parallelizable
-- Designing multiple distance collapses
-- Research into different systemic exploitation
+### 可并行化
+- 设计多种距离坍塌
+- 研究不同的系统性剥削模式
 
-### Subagent Candidates
-| Task | Agent Type | When to Spawn |
+### 子代理候选
+| 任务 | 代理类型 | 何时启动 |
 |------|------------|---------------|
-| System research | general-purpose | When modeling on real exploitation systems |
-| World consistency | Explore | When verifying against existing setting |
+| 系统研究 | general-purpose | 以真实剥削系统为模型时 |
+| 世界一致性 | Explore | 验证与现有设定的一致性时 |
 
-## Context Management
+## 上下文管理
 
-### Approximate Token Footprint
-- **Skill base:** ~3k tokens (distances + engines + arc)
-- **With genre applications:** ~4k tokens
-- **With checklist:** ~4.5k tokens
+### 近似 Token 占用
+- **技能基础：** ~3k tokens（距离 + 引擎 + 弧线）
+- **含类型应用：** ~4k tokens
+- **含清单：** ~4.5k tokens
 
-### Context Optimization
-- Focus on relevant distance type and engine
-- Genre applications are examples, not required
-- Diagnostic questions are optional reference
+### 上下文优化
+- 聚焦相关的距离类型和引擎
+- 类型应用是示例，非必需
+- 诊断问题为可选参考
 
-### When Context Gets Tight
-- Prioritize: Current distance type, active engine
-- Defer: All genre applications, full revelation arc
-- Drop: Implementation checklist, diagnostic questions
+### 当上下文紧张时
+- 优先保留：当前距离类型、活跃引擎
+- 延后加载：所有类型应用、完整揭示弧线
+- 丢弃：实施清单、诊断问题
 
-## Anti-Patterns
+## 反模式
 
-### 1. Morality Play Collapse
-**Pattern:** The distance collapse reveals simple good vs. evil—the exploiters are villains, the exploited are victims, and the protagonist was fooled.
-**Why it fails:** The framework's power is that everyone is compromised. Simple villainy restores comfortable distance: "I'm not like the bad guys." Real systemic harm involves ordinary people making reasonable choices within corrupt systems.
-**Fix:** Ensure the protagonist benefits from the system, not just the obvious villains. Make exploiters sympathetic enough to show how anyone becomes complicit. The discomfort should be personal, not displaced.
+### 1. 道德剧式坍塌
+**模式：** 距离坍塌揭示了简单的善恶对立——剥削者是恶棍，被剥削者是受害者，主角只是被蒙骗了。
+**为何失败：** 这个框架的力量在于每个人都被牵连。简单的反派恢复了舒适距离："我不是坏人那样的。"真实的系统性伤害涉及普通人在腐败系统中做出合理选择。
+**修复：** 确保主角从系统中受益，而不仅仅是那些明显的反派。让剥削者足够令人同情，以展示任何人都会如何成为共谋者。不适感应当是个人化的，而非被转移的。
 
-### 2. Clean Resolution
-**Pattern:** The protagonist exposes the system, reforms it, or escapes to a morally clean position.
-**Why it fails:** Moral parallax stories are about living without distance. If the protagonist can restore innocence, the story becomes wish-fulfillment that lets readers off the hook too.
-**Fix:** Resolution should involve accepting complicity while choosing the least harmful path forward. The system continues; the protagonist must continue within it, now with knowledge.
+### 2. 干净的解决方案
+**模式：** 主角揭露了系统、改革了它、或逃到了一个道德干净的位置。
+**为何失败：** 道德视差故事讲的是在没有距离的情况下生活。如果主角能恢复无辜，故事就变成了让读者解脱的愿望实现。
+**修复：** 解决方案应该包含接受共谋，同时选择伤害最小的前进路径。系统继续运转；主角必须继续在其中存在，如今带着知识。
 
-### 3. Symbolic Distance Collapse
-**Pattern:** The collapse is metaphorical or philosophical rather than concretely felt—characters realize systemic harm intellectually.
-**Why it fails:** Intellectual understanding preserves emotional distance. The collapse must be visceral, personal, undeniable—felt, not just understood.
-**Fix:** Make the collapse concrete. The victim has a face, a name, a relationship to the protagonist. The harm is specific, not statistical. The protagonist can't retreat to abstraction.
+### 3. 符号式距离坍塌
+**模式：** 坍塌是隐喻性或哲学性的，而非被具体感受到的——角色在智识上认识到了系统性伤害。
+**为何失败：** 智识上的理解保留了情感距离。坍塌必须是切身的、个人的、不可否认的——被感受到的，而不仅仅是被理解的。
+**修复：** 让坍塌具体化。受害者有面孔、有名字、与主角有关系。伤害是具体的，而非统计数据。主角无法退回到抽象层面。
 
-### 4. Single-Axis Collapse
-**Pattern:** Only one type of distance collapses (usually spatial), leaving other comfortable distances intact.
-**Why it fails:** Real systemic harm involves multiple overlapping distances. Collapsing only one allows reconstruction of comfort through the others: "I didn't know" even when harm is spatially proximate.
-**Fix:** Layer multiple distance collapses. Spatial proximity reveals temporal debt. Social collapse reveals causal chains. Make the comfortable fiction comprehensively impossible.
+### 4. 单轴坍塌
+**模式：** 只有一种距离被消除（通常是空间距离），其他舒适距离保持完好。
+**为何失败：** 真实的系统性伤害涉及多种重叠的距离。只消除一种允许通过其他距离重建舒适感："我不知道"——即使伤害在空间上已经切近。
+**修复：** 叠加多种距离坍塌。空间切近揭示时间债务。社会坍塌揭示因果链。让舒适的虚构全面地成为不可能。
 
-### 5. Protagonist Exceptionalism
-**Pattern:** The protagonist is uniquely sensitive, aware, or ethical—they see what others can't or won't.
-**Why it fails:** This recreates the hero narrative. The protagonist becomes special rather than representative. Readers identify with the exceptional character rather than recognizing themselves.
-**Fix:** The protagonist should be ordinary in their blindness. They maintained comfortable distance like everyone else. Their discovery is circumstance, not virtue. Anyone in their position would see the same thing.
+### 5. 主角例外论
+**模式：** 主角具有独特的敏感性、觉察力或道德感——他们看到了别人看不到或不愿看到的东西。
+**为何失败：** 这重新创造了英雄叙事。主角变得特殊而非具有代表性。读者认同这个例外角色，而非认出自己。
+**修复：** 主角在其盲目性方面应该是普通的。他们像所有人一样维持着舒适距离。他们的发现是因为境遇，而非美德。任何处于他们位置的人都会看到同样的东西。
 
-## Integration
+## 集成
 
-### Inbound (feeds into this skill)
-| Skill | What it provides |
+### 入站（向本技能输入）
+| 技能 | 提供内容 |
 |-------|------------------|
-| worldbuilding | Systems that maintain comfortable distance |
-| economic-systems | Economic structures that export harm |
-| governance-systems | Political structures that obscure responsibility |
+| worldbuilding | 维持舒适距离的系统 |
+| economic-systems | 输出伤害的经济结构 |
+| governance-systems | 模糊责任的政治结构 |
 
-### Outbound (this skill enables)
-| Skill | What this provides |
+### 出站（本技能向外输出）
+| 技能 | 提供内容 |
 |-------|-------------|
-| character-arc | Complicity arcs where growth means accepting guilt |
-| positional-revelation | How positions create systemic complicity |
-| endings | Pyrrhic, compromised, or ongoing-struggle resolutions |
+| character-arc | 成长意味着接受罪责的共谋弧线 |
+| positional-revelation | 位置如何创造系统性共谋 |
+| endings | 惨胜的、妥协的或持续抗争的解决方案 |
 
-### Complementary
-| Skill | Relationship |
+### 互补
+| 技能 | 关系 |
 |-------|--------------|
-| identity-denial | Moral-parallax collapses external distance; identity-denial maintains internal distance. Characters often deny what moral-parallax forces them to see |
-| positional-revelation | Positional-revelation shows how jobs create involvement; moral-parallax shows the moral weight of that involvement |
+| identity-denial | moral-parallax 消除外部距离；identity-denial 维持内部距离。角色常常否认 moral-parallax 迫使他们看到的东西 |
+| positional-revelation | positional-revelation 展示职位如何创造参与；moral-parallax 展示这种参与的道德分量 |

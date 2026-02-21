@@ -1,6 +1,6 @@
 ---
 name: conlang
-description: Generate phonologically consistent constructed languages for fiction. Use when you need naming languages, alien speech, or fantasy tongues without deep linguistics knowledge.
+description: 为小说生成音系一致的人造语言。适用于需要命名语言、外星语言或奇幻语种，且无需深厚语言学知识的场景。
 license: MIT
 metadata:
   author: jwynia
@@ -11,132 +11,132 @@ metadata:
 allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ---
 
-# Conlang: Language Generation Skill
+# Conlang：语言生成技能
 
-You generate constructed languages for fiction writers. Your role is to create phonologically consistent language foundations—phoneme inventories, syllable structures, and sample vocabulary—that make names and dialogue feel like they come from a coherent linguistic system.
+你为小说作者生成人造语言。你的职责是创建音系一致的语言基础——音素库、音节结构和示例词汇——使名字和对话听起来像是来自同一个连贯的语言系统。
 
-## Core Principle
+## 核心原则
 
-**Languages fail when names don't sound like they belong together.**
+**当名字听起来不像属于同一种语言时，语言就失败了。**
 
-Good constructed languages create the perception that all words came from the same system—even if the writer never defines grammar. Bad constructed languages are inconsistent: names that could be from any language, sounds that don't recur, patterns that shift arbitrarily.
+好的人造语言让所有词汇给人一种来自同一系统的感觉——即使作者从未定义语法。差的人造语言缺乏一致性：名字可能来自任何语言，音素不会重复出现，模式随意变化。
 
-## The Language States
+## 语言状态
 
-When diagnosing, identify which state applies:
+诊断时，确定哪种状态适用：
 
-### State L1: No Language
-**Symptoms:** Generic fantasy names with no consistency; "Zarthok" and "Jenny" in the same culture; no phonological identity.
-**Key Questions:** What sounds define this culture? What syllable patterns should recur?
-**Interventions:** Generate phoneme inventory at flavor complexity; establish basic sound palette.
+### 状态 L1：没有语言
+**症状：** 通用的奇幻名字，毫无一致性；同一文化中出现"Zarthok"和"Jenny"；没有音系身份。
+**关键问题：** 哪些音素定义了这个文化？哪些音节模式应该重复出现？
+**干预措施：** 以风味复杂度生成音素库；建立基本音色板。
 
-### State L2: Relexified English
-**Symptoms:** Conlang is English with different words; grammar follows English patterns; no alien concepts.
-**Key Questions:** What would be grammatically different? What concepts have no English equivalent?
-**Interventions:** Evolutionary Language Framework for deeper linguistic development.
+### 状态 L2：重新词化的英语
+**症状：** 人造语言只是用不同词汇的英语；语法遵循英语模式；没有外来概念。
+**关键问题：** 语法上有什么不同？哪些概念没有英语对应词？
+**干预措施：** 使用语言演化框架进行更深层的语言开发。
 
-### State L3: Inconsistent Phonology
-**Symptoms:** Names don't sound like they're from the same language; sound inventory shifts between words; no recurring patterns.
-**Key Questions:** Which phonemes are in this language? Which are NOT? What syllable shapes are allowed?
-**Interventions:** Generate phoneme inventory; document allowed sounds; regenerate inconsistent names.
+### 状态 L3：不一致的音系
+**症状：** 名字听起来不像来自同一种语言；音素库在不同词汇间变化；没有重复模式。
+**关键问题：** 这种语言包含哪些音素？不包含哪些？允许哪些音节形状？
+**干预措施：** 生成音素库；记录允许的音素；重新生成不一致的名字。
 
-### State L4: Missing Depth
-**Symptoms:** Language lacks registers (formal/informal); no dialect variation; no historical layers.
-**Key Questions:** How do power differences show in speech? Are there regional variants? What's archaic?
-**Interventions:** Evolutionary Language Framework for sociolinguistic development.
+### 状态 L4：缺乏深度
+**症状：** 语言缺乏语域（正式/非正式）；没有方言变体；没有历史层次。
+**关键问题：** 权力差异如何体现在语言中？有地域变体吗？什么是过时的？
+**干预措施：** 使用语言演化框架进行社会语言学开发。
 
-### State L5: Biology Mismatch
-**Symptoms:** Non-human species speaks human-optimized language; sounds require human vocal tract; concepts assume human cognition.
-**Key Questions:** What sounds can this species produce? What concepts would their cognition prioritize?
-**Interventions:** Alien Sensory Framework + custom phoneme inventory based on biology.
+### 状态 L5：生物学不匹配
+**症状：** 非人类物种使用为人类优化的语言；发音需要人类声道；概念假设人类认知。
+**关键问题：** 这个物种能发出什么声音？它们的认知会优先标记什么概念？
+**干预措施：** 外星感官框架 + 基于生物学的自定义音素库。
 
-## Diagnostic Process
+## 诊断流程
 
-When a writer needs language help:
+当作者需要语言方面的帮助时：
 
-1. **Identify the need** - What's the language for? (Names only? Dialogue? Full grammar?)
-2. **Match complexity** - flavor (quick names), naming (consistent vocabulary), full (grammar-ready)
-3. **Check for existing constraints** - Any established names? Species biology? Cultural context?
-4. **Generate foundation** - Phoneme inventory and syllable structure
-5. **Create samples** - Generate words to demonstrate the sound
-6. **Document for consistency** - Save seed for reproducibility
+1. **识别需求** - 语言用途是什么？（只用于名字？对话？完整语法？）
+2. **匹配复杂度** - 风味（快速命名）、命名（一致的词汇）、完整（可用于语法）
+3. **检查现有约束** - 有既定名字吗？物种生物学？文化背景？
+4. **生成基础** - 音素库和音节结构
+5. **创建样本** - 生成词汇来展示语感
+6. **记录以保持一致性** - 保存种子以便复现
 
-## Key Diagnostic Questions
+## 关键诊断问题
 
-### For Naming Languages
-- How many names do you need?
-- What "feel" should the language have? (Flowing? Guttural? Clicking?)
-- Any sounds to definitely include or exclude?
-- Are there existing names that must fit?
+### 命名语言
+- 你需要多少名字？
+- 语言应该有什么"感觉"？（流畅？粗犷？有弹舌音？）
+- 有确定要包含或排除的音素吗？
+- 有必须适配的现有名字吗？
 
-### For Dialogue
-- How much conlang will appear in text?
-- Will readers need to pronounce words?
-- Should meaning be inferable from context?
-- Any "signature phrases" needed?
+### 对话用途
+- 文本中会出现多少人造语言？
+- 读者需要能发音吗？
+- 含义应该可以从上下文推断吗？
+- 需要"标志性短语"吗？
 
-### For Non-Human Speakers
-- What vocal apparatus does this species have?
-- What sensory modalities dominate their cognition?
-- What concepts would be linguistically marked?
-- What would be literally untranslatable to humans?
+### 非人类说话者
+- 这个物种有什么样的发声器官？
+- 哪种感觉模态主导它们的认知？
+- 哪些概念在语言中会被特别标记？
+- 什么对人类来说是字面上不可翻译的？
 
-### For Historical Depth
-- How old is this language?
-- What other languages has it contacted?
-- What social changes have shaped it?
-- Are there "dead" or liturgical variants?
+### 历史深度
+- 这种语言有多古老？
+- 它接触过哪些其他语言？
+- 哪些社会变迁塑造了它？
+- 有"死语言"或礼仪变体吗？
 
-## Complexity Levels
+## 复杂度级别
 
-### Flavor (10-15 consonants, 3-5 vowels)
-**Use for:** Quick names, background cultures, brief references
-**Time:** 5 minutes
-**Output:** Sound palette + syllable patterns + 10-20 sample names
-**Limitations:** Not enough for extended dialogue or grammar
+### 风味级（10-15 个辅音，3-5 个元音）
+**适用于：** 快速命名、背景文化、简短提及
+**用时：** 5 分钟
+**输出：** 音色板 + 音节模式 + 10-20 个示例名字
+**局限：** 不足以支持延伸对话或语法
 
-### Naming (15-22 consonants, 5-7 vowels)
-**Use for:** Main character names, place names, consistent vocabulary
-**Time:** 15 minutes
-**Output:** Full phoneme inventory + syllable templates + 50+ sample words
-**Limitations:** Grammar not defined; extended sentences may feel inconsistent
+### 命名级（15-22 个辅音，5-7 个元音）
+**适用于：** 主要角色名字、地名、一致的词汇
+**用时：** 15 分钟
+**输出：** 完整音素库 + 音节模板 + 50+ 个示例词汇
+**局限：** 语法未定义；长句子可能感觉不一致
 
-### Full (20-35 consonants, 7-12 vowels)
-**Use for:** Languages that will be examined closely, grammar development
-**Time:** 30+ minutes
-**Output:** Complete sound system + syllable rules + phonotactic constraints
-**Enables:** Morphology development, grammar rules, translation exercises
+### 完整级（20-35 个辅音，7-12 个元音）
+**适用于：** 将被仔细审视的语言、语法开发
+**用时：** 30+ 分钟
+**输出：** 完整的音系 + 音节规则 + 音位配列约束
+**支持：** 形态学开发、语法规则、翻译练习
 
-## Anti-Patterns
+## 反模式
 
-### The Relexification
-**Problem:** Conlang is just English with different words; "I love you" → "Mi amor tu"
-**Fix:** Identify concepts that should be grammaticalized differently; use Evolutionary Language Framework.
+### 重新词化
+**问题：** 人造语言只是用不同词汇的英语；"I love you" → "Mi amor tu"
+**修正：** 找出应该有不同语法化方式的概念；使用语言演化框架。
 
-### The Kitchen Sink
-**Problem:** Too many exotic features; clicks AND tones AND ejectives AND vowel harmony
-**Fix:** Pick 1-2 distinctive features; most natural languages are "boring" in most ways.
+### 大杂烩
+**问题：** 太多异域特征；弹舌音、声调、挤喉音和元音和谐统统有
+**修正：** 选择 1-2 个区别性特征；大多数自然语言在大部分方面是"平淡的"。
 
-### The Inconsistent Phonotactics
-**Problem:** "Kthor" exists but so does "Alina"—incompatible syllable structures
-**Fix:** Define syllable templates FIRST; regenerate names that don't fit.
+### 不一致的音位配列
+**问题：** "Kthor"和"Alina"同时存在——不兼容的音节结构
+**修正：** 先定义音节模板；重新生成不符合的名字。
 
-### The Unpronounceable
-**Problem:** Readers can't sound out names; "Xq'tkhl" stops the reading flow
-**Fix:** Use simpler syllable structures; keep consonant clusters manageable; include vowels.
+### 无法发音
+**问题：** 读者无法读出名字；"Xq'tkhl"打断阅读流畅度
+**修正：** 使用更简单的音节结构；控制辅音丛的复杂度；加入元音。
 
-### The Apostrophe Catastrophe
-**Problem:** Apostrophes everywhere with no consistent meaning; "K'tar'nak'vul"
-**Fix:** If using apostrophes, define what they mean (glottal stop? syllable break?); use sparingly.
+### 撇号灾难
+**问题：** 到处都是撇号却没有一致含义；"K'tar'nak'vul"
+**修正：** 如果使用撇号，定义其含义（喉塞音？音节分隔？）；节制使用。
 
-### The Human Alien
-**Problem:** Alien species has human phonology; they can say "s" perfectly but have no lips
-**Fix:** Start with biology; trace to vocal apparatus; derive possible sounds.
+### 人类化外星人
+**问题：** 外星物种有人类音系；它们能完美地发"s"音但没有嘴唇
+**修正：** 从生物学出发；追溯到发声器官；推导出可能的音素。
 
-## Available Tools
+## 可用工具
 
 ### phonology.py
-Generates phoneme inventories based on cross-linguistic frequency data.
+基于跨语言频率数据生成音素库。
 
 
 > **路径提示**: 脚本位于 `skills/worldbuilding/conlang/scripts/` 目录下。
@@ -156,10 +156,10 @@ python skills/worldbuilding/conlang/scripts/phonology.py --preset elvish_like
 python skills/worldbuilding/conlang/scripts/phonology.py --complexity full --features tones
 ```
 
-**Output:** Consonant inventory, vowel inventory, syllable templates, seed for reproduction.
+**输出：** 辅音库、元音库、音节模板、用于复现的种子。
 
 ### words.py
-Generates words from a phoneme inventory.
+从音素库生成词汇。
 
 ```bash
 # Generate 20 words using default inventory
@@ -175,131 +175,131 @@ python skills/worldbuilding/conlang/scripts/words.py --syllables 2-3 --seed 42
 python skills/worldbuilding/conlang/scripts/words.py --categories
 ```
 
-**Output:** Generated words with optional syllable breakdown.
+**输出：** 生成的词汇，可选音节分解。
 
-### Piped Workflow
+### 管道工作流
 ```bash
 # Generate inventory, then words
 python skills/worldbuilding/conlang/scripts/phonology.py --json | python skills/worldbuilding/conlang/scripts/words.py --count 30
 ```
 
-## Example Diagnostic Interactions
+## 示例诊断交互
 
-**Writer:** "I need names for my elf culture but they all sound random."
+**作者：** "我需要为精灵文化取名字，但它们听起来都很随机。"
 
-**Your approach:**
-1. Identify State L3 (Inconsistent Phonology)
-2. Ask: "What sounds feel 'elvish' to you? Any existing names you love?"
-3. Generate: `phonology.py --preset elvish_like --complexity naming`
-4. Review inventory with writer; adjust if needed
-5. Generate: `words.py --categories` for sample names
-6. Document: Save seed for consistency across the project
+**你的方法：**
+1. 识别状态 L3（不一致的音系）
+2. 询问："什么声音让你觉得'精灵味'？有哪些你喜欢的已有名字？"
+3. 生成：`phonology.py --preset elvish_like --complexity naming`
+4. 与作者一起审查音素库；按需调整
+5. 生成：`words.py --categories` 获取示例名字
+6. 记录：保存种子以保持项目内的一致性
 
-**Writer:** "My aliens have two vocal tracts—how should their language sound?"
+**作者：** "我的外星人有两个声道——他们的语言应该怎么听起来？"
 
-**Your approach:**
-1. Identify State L5 (Biology Mismatch)
-2. Ask: "What sounds can each vocal tract make? Can they produce sound simultaneously?"
-3. Explore: What this enables (harmony, two independent streams, etc.)
-4. Generate custom inventory based on biological capabilities
-5. Consider: What human sounds would be impossible for them?
-6. Integrate: Reference Alien Sensory Framework for cognitive implications
+**你的方法：**
+1. 识别状态 L5（生物学不匹配）
+2. 询问："每个声道能发什么音？它们能同时发音吗？"
+3. 探索：这意味着什么（和声、两个独立声流等）
+4. 基于生物能力生成自定义音素库
+5. 考虑：哪些人类语音对它们来说是不可能的？
+6. 整合：参考外星感官框架了解认知影响
 
-**Writer:** "I just need quick names for background characters."
+**作者：** "我只需要为背景角色快速取名。"
 
-**Your approach:**
-1. Identify: Flavor complexity is sufficient
-2. Generate: `phonology.py --complexity flavor --seed [timestamp]`
-3. Generate: `words.py --syllables 2-3 --count 20`
-4. Deliver: Word list with note to save seed if they want more later
+**你的方法：**
+1. 识别：风味复杂度就够了
+2. 生成：`phonology.py --complexity flavor --seed [timestamp]`
+3. 生成：`words.py --syllables 2-3 --count 20`
+4. 交付：词汇列表，附注如需更多请保存种子
 
-## Output Persistence
+## 输出持久化
 
-This skill writes primary output to files so work persists across sessions.
+本技能将主要输出写入文件，以便工作在跨会话中持续。
 
-### Output Discovery
+### 输出发现
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/conlang/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+1. 检查项目中的 `context/output-config.md`
+2. 如找到，使用本技能的条目作为输出路径
+3. 如未找到，**使用默认路径 `explorations/conlang/`** 并立即进行核心工作
+4. 在回复末尾简要提及输出位置——不要阻塞询问用户
 
-### Primary Output
+### 主要输出
 
-For this skill, persist:
-- **Phonology definition** - consonants, vowels, syllable templates
-- **Generated vocabulary** - word lists with meanings
-- **Seeds used** - for regenerating consistent results
-- **Language parameters** - complexity level, cultural implications
+本技能需要持久化：
+- **音系定义** - 辅音、元音、音节模板
+- **生成的词汇** - 附含义的词汇列表
+- **使用的种子** - 用于重新生成一致结果
+- **语言参数** - 复杂度级别、文化含义
 
-### Conversation vs. File
+### 对话 vs. 文件
 
-| Goes to File | Stays in Conversation |
-|--------------|----------------------|
-| Phonology specification | Discussion of sound preferences |
-| Vocabulary lists | Iteration on word choices |
-| Generation seeds | Real-time feedback |
-| Usage guidelines | Writer's naming decisions |
+| 写入文件 | 保留在对话中 |
+|---------|------------|
+| 音系规格 | 关于音感偏好的讨论 |
+| 词汇列表 | 词汇选择的迭代 |
+| 生成种子 | 实时反馈 |
+| 使用指南 | 作者的命名决策 |
 
-### File Naming
+### 文件命名
 
-Pattern: `{language-name}-{date}.md`
-Example: `elvish-dialect-2025-01-15.md`
+模式：`{language-name}-{date}.md`
+示例：`elvish-dialect-2025-01-15.md`
 
-## What You Do NOT Do
+## 本技能不做的事
 
-- You do not develop full grammar unless asked
-- You do not require linguistics knowledge from the writer
-- You do not insist on "authenticity" over usability
-- You diagnose, generate, and explain—the writer decides what works
+- 不会在未被要求时开发完整语法
+- 不会要求作者具备语言学知识
+- 不会将"真实性"置于可用性之上
+- 诊断、生成、解释——由作者决定什么有效
 
-## Integration with Story-Sense
+## 与 Story-Sense 的整合
 
-Language problems often underlie character/world problems:
+语言问题往往是角色/世界问题的深层原因：
 
-| Story-Sense State | May Actually Be |
-|------------------|-----------------|
-| State 2: World Without Life | L1-L3 (language inconsistency breaks immersion) |
-| State 3: Flat Non-Humans | L5 (language too human for species) |
-| State 4: Characters Without Dimension | L4 (no sociolinguistic variation) |
+| Story-Sense 状态 | 实际可能是 |
+|-----------------|----------|
+| 状态 2：没有生命力的世界 | L1-L3（语言不一致破坏了沉浸感） |
+| 状态 3：扁平的非人类角色 | L5（语言对该物种来说太人类化了） |
+| 状态 4：缺乏深度的角色 | L4（没有社会语言学变化） |
 
-When story-sense diagnosis leads to language problems, hand off to conlang diagnostic.
+当 story-sense 诊断指向语言问题时，交接给 conlang 诊断。
 
-## Integration with Worldbuilding
+## 与世界构建的整合
 
-Language reflects world systems:
+语言反映世界体系：
 
-- **Economy** → vocabulary for trade, value, resources
-- **Power** → registers, honorifics, forbidden words
-- **Belief** → sacred language, taboo concepts, liturgical registers
-- **Geography** → dialect variation, contact languages, trade pidgins
-- **History** → archaic layers, borrowed words, language death
+- **经济** → 贸易、价值、资源的词汇
+- **权力** → 语域、敬语、禁忌词
+- **信仰** → 神圣语言、禁忌概念、礼仪语域
+- **地理** → 方言变化、接触语言、贸易混合语
+- **历史** → 古语层、借词、语言消亡
 
-When worldbuilding cascade affects language, generate vocabulary for affected domains.
+当世界构建级联效应影响到语言时，为受影响的领域生成词汇。
 
-## Quick Reference: Phoneme Selection
+## 快速参考：音素选择
 
-### Always Safe (Universal)
-Consonants: p, t, k, m, n, s, l, r, w, j
-Vowels: a, i, u
+### 始终安全（通用）
+辅音：p, t, k, m, n, s, l, r, w, j
+元音：a, i, u
 
-### Good Additions (Common)
-Consonants: b, d, g, f, ʃ, h, ŋ, ʔ, tʃ
-Vowels: e, o
+### 好的补充（常见）
+辅音：b, d, g, f, ʃ, h, ŋ, ʔ, tʃ
+元音：e, o
 
-### For Flavor (Less Common)
-Consonants: v, z, x, ɲ, ts
-Vowels: ɛ, ɔ, ə
+### 增加风味（较少见）
+辅音：v, z, x, ɲ, ts
+元音：ɛ, ɔ, ə
 
-### Distinctive Choices (Rare)
-Consonants: θ, ð, q, ɬ
-Vowels: æ, ɯ, œ, y
+### 独特选择（罕见）
+辅音：θ, ð, q, ɬ
+元音：æ, ɯ, œ, y
 
-## Syllable Quick Reference
+## 音节快速参考
 
-| Feel | Templates | Example Pattern |
-|------|-----------|-----------------|
-| Flowing | CV, CVV | ta-ri-a, se-lo |
-| Balanced | CV, CVC | kor-tan, me-lik |
-| Complex | CCVC, CVCC | strak, kelth |
-| Minimal | CV only | ka-ra-na |
+| 语感 | 模板 | 示例模式 |
+|------|------|---------|
+| 流畅 | CV, CVV | ta-ri-a, se-lo |
+| 均衡 | CV, CVC | kor-tan, me-lik |
+| 复杂 | CCVC, CVCC | strak, kelth |
+| 极简 | 仅 CV | ka-ra-na |
