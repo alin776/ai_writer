@@ -13,6 +13,7 @@ export interface Skill {
   group: string;
   allowed_tools?: string[];
   content?: string;
+  enabled?: boolean;
 }
 
 export interface AgentChatRequest {

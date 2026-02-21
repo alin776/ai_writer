@@ -1057,14 +1057,16 @@ ${context.selected_text}
     }
   }, [atMenuOpen, atStage, knowledgeLoading, knowledgeLoadedOnce]);
 
-  // Load skills list when skills stage is entered
+  // Load skills list when skills stage is entered (only show enabled skills)
   useEffect(() => {
     if (!atMenuOpen || atStage !== 'skills' || skillsList.length > 0 || skillsLoading) return;
     const loadSkills = async () => {
       try {
         setSkillsLoading(true);
         const data = await agentApi.getSkills();
-        setSkillsList(data);
+        const enabledOnly = Array.isArray(data) ? data.filter(s => s.enabled === true) : [];
+        console.log('[AIPanel] skills loaded: total=%d enabled=%d', data?.length, enabledOnly.length);
+        setSkillsList(enabledOnly);
       } catch (err) {
         console.error('[AIPanel] Failed to load skills:', err);
       } finally {

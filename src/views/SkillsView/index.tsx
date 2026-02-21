@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Search, Copy, Check, Zap, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Search, Zap, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import SkillEditor from '@/components/editor/SkillEditor';
 import { agentApi } from '@/services/agentApi';
 import type { Skill } from '@/types/agent';
@@ -41,17 +41,42 @@ export default function SkillsView() {
   const [error,   setError]   = useState<string | null>(null);
   const [selected, setSelected] = useState<Skill | null>(null);
   const [search,  setSearch]  = useState('');
-  const [copied,  setCopied]  = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(
     Object.fromEntries(GROUP_ORDER.map(g => [g, true]))
   );
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [enabledMap, setEnabledMap] = useState<Record<string, boolean>>({});
+  const [toggling, setToggling] = useState<string | null>(null);
 
   useEffect(() => {
     agentApi.getSkills()
-      .then(data => { setSkills(data); setLoading(false); })
+      .then(data => {
+        setSkills(data);
+        // 从 API 响应构建 enabledMap
+        const map: Record<string, boolean> = {};
+        for (const s of data) {
+          map[s.name] = s.enabled ?? false;
+        }
+        setEnabledMap(map);
+        setLoading(false);
+      })
       .catch(err  => { setError(err?.message || '获取技能列表失败'); setLoading(false); });
   }, []);
+
+  const handleToggleSkill = async (skillName: string) => {
+    if (toggling) return;
+    setToggling(skillName);
+    const prev = enabledMap[skillName];
+    setEnabledMap(m => ({ ...m, [skillName]: !prev }));
+    try {
+      await agentApi.toggleSkill(skillName);
+    } catch (err: any) {
+      setEnabledMap(m => ({ ...m, [skillName]: prev }));
+      setError(err?.message || '切换技能状态失败');
+    } finally {
+      setToggling(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -80,13 +105,6 @@ export default function SkillsView() {
       setSelected(grouped[0][1][0]);
     }
   }, [grouped, selected]);
-
-  const handleCopy = useCallback(() => {
-    if (!selected) return;
-    navigator.clipboard.writeText(`/${selected.name}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  }, [selected]);
 
   // YAML 作为首个代码块，与正文一起在编辑器里
   const editorContent = useMemo(() => {
@@ -165,6 +183,7 @@ export default function SkillsView() {
 
                     {isExpanded && items.map(skill => {
                       const active = selected?.name === skill.name;
+                      const isEnabled = enabledMap[skill.name] ?? false;
                       return (
                         <button
                           key={skill.name}
@@ -173,10 +192,13 @@ export default function SkillsView() {
                             active
                               ? 'bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-100'
                               : 'hover:bg-gray-50 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300'
-                          }`}
+                          } ${!isEnabled ? 'opacity-50' : ''}`}
                         >
                           <Zap className="shrink-0 w-4 h-4 opacity-60" />
                           <span className="flex-1 w-0 text-left truncate text-sm">{skill.name}</span>
+                          {isEnabled && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                          )}
                         </button>
                       );
                     })}
@@ -221,16 +243,23 @@ export default function SkillsView() {
                   </span>
                 </div>
 
-                <button
-                  onClick={handleCopy}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] rounded-md border transition-colors flex-shrink-0 ${
-                    copied
-                      ? 'text-green-600 dark:text-green-400 border-green-200 dark:border-green-800/50 bg-green-50 dark:bg-green-900/20'
-                      : 'text-gray-500 dark:text-slate-400 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:text-gray-700 dark:hover:text-slate-200'
-                  }`}
-                >
-                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                </button>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {/* Toggle switch */}
+                  <button
+                    onClick={() => handleToggleSkill(selected.name)}
+                    disabled={toggling === selected.name}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${
+                      enabledMap[selected.name]
+                        ? 'bg-green-500 dark:bg-green-600'
+                        : 'bg-gray-300 dark:bg-slate-600'
+                    } ${toggling === selected.name ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    aria-label={enabledMap[selected.name] ? '禁用技能' : '启用技能'}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                      enabledMap[selected.name] ? 'translate-x-4' : 'translate-x-0'
+                    }`} />
+                  </button>
+                </div>
               </div>
 
               {/* 统一滚动区：YAML 代码块 + 正文，全在同一个编辑器里 */}

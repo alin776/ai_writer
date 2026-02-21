@@ -44,6 +44,7 @@ class Preferences(BaseModel):
     auto_save: bool = True
     auto_save_interval: int = Field(30, ge=5, le=600)
     ai_auto_complete: bool = False  # AI 自动补全开关，默认关闭
+    enabled_skills: Optional[List[str]] = None  # 已启用的 skill 名称列表；None = 使用默认前 5 个
 
 
 class ChangePasswordRequest(BaseModel):

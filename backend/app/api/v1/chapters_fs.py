@@ -368,7 +368,7 @@ def _build_file_tree(base: Path, rel: str = "") -> list[FileNode]:
     files: list[FileNode] = []
 
     for entry in sorted(current.iterdir(), key=lambda e: e.name):
-        if entry.name.startswith(".") or entry.is_symlink():
+        if entry.name.startswith(".") or entry.is_symlink() or entry.name == "skills":
             continue
         entry_rel = f"{rel}/{entry.name}" if rel else entry.name
         if entry.is_dir():

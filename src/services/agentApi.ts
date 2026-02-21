@@ -681,6 +681,14 @@ class AgentApiService {
     return response.data;
   }
 
+  /**
+   * 切换 Skill 启用/禁用状态
+   */
+  async toggleSkill(skillName: string): Promise<{ skill_name: string; enabled: boolean }> {
+    const response = await this.client.post(`/skills/${encodeURIComponent(skillName)}/toggle`);
+    return response.data;
+  }
+
   async submitApprovalResponse(request: {
     request_id: string;
     approved: boolean;

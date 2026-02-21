@@ -58,6 +58,7 @@ export interface UserPreferences {
   autoSave: boolean;
   autoSaveInterval: number;
   aiAutoComplete: boolean; // AI 自动补全开关（消耗积分）
+  enabledSkills?: string[] | null; // 已启用的 skill 名称列表
 }
 
 /**

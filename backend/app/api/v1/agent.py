@@ -22,6 +22,8 @@ from pathlib import Path, PurePosixPath
 from datetime import datetime, timedelta
 from app.utils.datetime_utils import get_utc_now
 
+from sqlalchemy.orm.attributes import flag_modified
+
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.core.config import settings
@@ -52,10 +54,17 @@ _GROUP_LABELS = {
     "application": "应用工具",
 }
 
+_GROUP_ORDER = [
+    "质量检查", "创作分析", "创作辅助",
+    "中文小说", "故事诊断", "角色塑造", "结构设计",
+    "写作技法", "世界构建", "应用工具",
+]
 
-@router.get("/skills", summary="列出可用 Agent Skills")
-async def list_skills():
-    """列出所有可用的 Agent Skills（前端技能面板数据源）"""
+DEFAULT_ENABLED_SKILL_COUNT = 5
+
+
+def _load_all_skills() -> list[dict]:
+    """从磁盘读取所有 SKILL.md，返回 skill 字典列表（不含 enabled 字段）。"""
     if not SKILLS_ROOT.is_dir():
         return []
     skills = []
@@ -82,6 +91,86 @@ async def list_skills():
                     "content": parts[2].strip(),
                 })
     return skills
+
+
+def _get_default_enabled_skills(all_skills: list[dict]) -> list[str]:
+    """按 _GROUP_ORDER 排序后取前 N 个 skill 名称作为默认启用列表。"""
+    group_rank = {g: i for i, g in enumerate(_GROUP_ORDER)}
+
+    def sort_key(s: dict):
+        return (group_rank.get(s["group"], 999), s["name"])
+
+    sorted_skills = sorted(all_skills, key=sort_key)
+    return [s["name"] for s in sorted_skills[:DEFAULT_ENABLED_SKILL_COUNT]]
+
+
+@router.get("/skills", summary="列出可用 Agent Skills")
+async def list_skills(
+    current_user: User = Depends(get_current_active_user),
+):
+    """列出所有可用的 Agent Skills（前端技能面板数据源），含 enabled 状态。"""
+    all_skills = _load_all_skills()
+
+    # 读取用户偏好中的 enabled_skills
+    prefs = current_user.preferences or {}
+    enabled_skills: list[str] | None = prefs.get("enabled_skills")
+
+    if enabled_skills is None:
+        enabled_skills = _get_default_enabled_skills(all_skills)
+
+    enabled_set = set(enabled_skills)
+    for skill in all_skills:
+        skill["enabled"] = skill["name"] in enabled_set
+
+    logger.info(
+        "[list_skills] user=%s total=%d enabled=%d enabled_names=%s",
+        current_user.id, len(all_skills), len(enabled_set), sorted(enabled_set),
+    )
+
+    return all_skills
+
+
+@router.post("/skills/{skill_name}/toggle", summary="切换 Skill 启用/禁用状态")
+async def toggle_skill(
+    skill_name: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """切换指定 Skill 的启用/禁用状态，持久化到用户 preferences.enabled_skills。"""
+    # 校验 skill_name 合法性
+    all_skills = _load_all_skills()
+    valid_names = {s["name"] for s in all_skills}
+    if skill_name not in valid_names:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+
+    # 读取当前 enabled_skills
+    prefs: dict = dict(current_user.preferences or {})
+    enabled_skills: list[str] | None = prefs.get("enabled_skills")
+
+    if enabled_skills is None:
+        enabled_skills = _get_default_enabled_skills(all_skills)
+
+    # 切换
+    if skill_name in enabled_skills:
+        enabled_skills = [s for s in enabled_skills if s != skill_name]
+        now_enabled = False
+    else:
+        enabled_skills.append(skill_name)
+        now_enabled = True
+
+    # 写回 preferences（flag_modified 确保 SQLAlchemy 检测到 JSONB 变更）
+    prefs["enabled_skills"] = enabled_skills
+    current_user.preferences = prefs
+    flag_modified(current_user, "preferences")
+    db.add(current_user)
+    await db.flush()
+    await db.commit()
+    logger.info(
+        "[toggle_skill] user=%s skill=%s enabled=%s saved_skills=%s",
+        current_user.id, skill_name, now_enabled, enabled_skills,
+    )
+
+    return {"skill_name": skill_name, "enabled": now_enabled}
 
 
 # ==================== Redis 连接池 ====================
