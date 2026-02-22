@@ -33,6 +33,7 @@ from app.api.v1 import (
     stickers,
     friends,
     chapters_fs,
+    admin_config,
 )
 from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
@@ -72,6 +73,7 @@ api_router.include_router(admin_credits.router, prefix="/admin/credits", tags=["
 api_router.include_router(admin_invitations.router, prefix="/admin/invitations", tags=["admin-invitations"])
 api_router.include_router(admin_works.router, prefix="/admin/works", tags=["admin-works"])
 api_router.include_router(admin_reports.router, prefix="/admin/reports", tags=["admin-reports"])
+api_router.include_router(admin_config.router, prefix="/admin", tags=["admin-config"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(user_tasks.router, prefix="/tasks", tags=["tasks"])
 api_router.include_router(library.router, prefix="/library", tags=["library"])

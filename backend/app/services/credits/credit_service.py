@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user_credits import UserCredits
 from app.models.credit_transaction import CreditTransaction
+from app.models.ai_call_log import AICallLog
 from app.core.config import settings
 from app.services.credits.credit_exceptions import (
     InsufficientCreditsError,
@@ -415,6 +416,35 @@ class CreditService:
         result = await self.db.execute(stmt)
         transactions = result.scalars().all()
 
+        # 批量查询关联的 AICallLog（一条 SQL，非 N+1）
+        ai_call_ids = [
+            t.related_id for t in transactions
+            if t.related_type == "ai_call" and t.related_id
+        ]
+        token_details_map: dict = {}
+        if ai_call_ids:
+            logs_result = await self.db.execute(
+                select(AICallLog).where(AICallLog.id.in_(ai_call_ids))
+            )
+            for log in logs_result.scalars():
+                token_details_map[str(log.id)] = {
+                    "model_name": log.model_name,
+                    "prompt_tokens": log.prompt_tokens,
+                    "completion_tokens": log.completion_tokens,
+                    "total_tokens": log.total_tokens,
+                    "cache_read_tokens": log.cache_read_tokens,
+                    "cache_creation_tokens": log.cache_creation_tokens,
+                    "reasoning_tokens": log.reasoning_tokens,
+                    "prompt_cost": log.prompt_cost,
+                    "completion_cost": log.completion_cost,
+                    "total_cost": log.total_cost,
+                }
+
+        # 从 DB 读取定价元数据
+        from app.services.system_config_service import SystemConfigService
+        model_pricing = await SystemConfigService.get_model_pricing(self.db)
+        credits_per_dollar = await SystemConfigService.get_credits_per_dollar(self.db)
+
         return {
             "items": [
                 {
@@ -426,12 +456,17 @@ class CreditService:
                     "description": t.description,
                     "related_type": t.related_type,
                     "related_id": str(t.related_id) if t.related_id else None,
-                    "created_at": t.created_at.isoformat()
+                    "created_at": t.created_at.isoformat(),
+                    "token_details": token_details_map.get(str(t.related_id)) if t.related_type == "ai_call" else None,
                 }
                 for t in transactions
             ],
             "total": total,
             "page": page,
             "page_size": page_size,
-            "total_pages": (total + page_size - 1) // page_size
+            "total_pages": (total + page_size - 1) // page_size,
+            "pricing_info": {
+                "credits_per_dollar": credits_per_dollar,
+                "model_pricing": model_pricing,
+            },
         }

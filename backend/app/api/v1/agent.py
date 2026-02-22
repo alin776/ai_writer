@@ -44,11 +44,13 @@ _GROUP_LABELS = {
     "structure": "结构设计",
     "craft": "写作技法",
     "worldbuilding": "世界构建",
+    "application": "实用工具",
+    "chinese-novel": "中文创作",
 }
 
 _GROUP_ORDER = [
     "故事诊断", "角色塑造", "结构设计",
-    "写作技法", "世界构建",
+    "写作技法", "世界构建", "中文创作", "实用工具",
 ]
 
 DEFAULT_ENABLED_SKILL_COUNT = 5
@@ -875,8 +877,6 @@ async def agent_v2_chat_stream(
                         if not um:
                             return
                         name = (gen.message.response_metadata or {}).get("model_name") or self._default_model
-                        # 验证 token details 是否可用（临时 debug log）
-                        logger.info("[TokenDetails] model=%s usage_metadata=%s", name, dict(um))
                         if name in self.usage_metadata:
                             from langchain_core.callbacks.usage import add_usage
                             self.usage_metadata[name] = add_usage(self.usage_metadata[name], um)
@@ -936,6 +936,23 @@ async def agent_v2_chat_stream(
                         loaded_skill_dir = skill_md.parent.name   # 目录名，用于 skill_switched 去重
                         # raw 已在验证循环中读取，提取正文（跳过 YAML frontmatter）
                         skill_body = raw.split("---", 2)[2].strip() if raw.startswith("---") else raw
+
+                        # 检测 Skill 是否附带脚本工具，生成强制性使用指令
+                        skill_scripts_dir = skill_md.parent / "scripts"
+                        script_instruction = ""
+                        if skill_scripts_dir.is_dir():
+                            py_files = list(skill_scripts_dir.glob("*.py"))
+                            if py_files:
+                                script_names = ", ".join(f.name for f in py_files)
+                                script_instruction = (
+                                    f"\n\n**脚本工具使用规则（必须遵守）：**\n"
+                                    f"此技能附带以下分析脚本：{script_names}\n"
+                                    f"- 在执行诊断或分析任务时，**必须先使用 execute 工具运行相关脚本**获取量化数据\n"
+                                    f"- 脚本调用方式见下方技能文档中的「可用工具」章节\n"
+                                    f"- 脚本输出的量化数据应作为你分析的依据，而非仅凭 LLM 推断\n"
+                                    f"- 如果脚本执行失败，在回复中说明失败原因，然后用你自己的分析能力补充\n"
+                                )
+
                         user_content = (
                             f"<directive>\n"
                             f"用户选择了技能「{request.skill}」作为主要技能。\n"
@@ -944,7 +961,8 @@ async def agent_v2_chat_stream(
                             f"- 如果在执行过程中，此技能的「集成」「交接」或「相关技能」部分建议切换到其他技能，"
                             f"你可以使用 read_file 读取目标技能的 SKILL.md 并遵循其 SOP\n"
                             f"- 切换前用一句话告知用户你将切换到哪个技能以及原因\n"
-                            f"- 切换后，按照目标技能的 SOP 严格执行\n\n"
+                            f"- 切换后，按照目标技能的 SOP 严格执行\n"
+                            f"{script_instruction}\n"
                             f"{skill_body}\n"
                             f"</directive>\n\n"
                             f"{user_content}"
@@ -1050,6 +1068,7 @@ async def agent_v2_chat_stream(
                             model_name = cb_model or settings.OPENAI_MODEL
                             entry = model_breakdown.setdefault(model_name, {
                                 "input_tokens": 0, "output_tokens": 0,
+                                "cache_read": 0, "cache_creation": 0, "reasoning": 0,
                             })
                             inp = meta.get("input_tokens", 0)
                             out = meta.get("output_tokens", 0)
@@ -1058,16 +1077,40 @@ async def agent_v2_chat_stream(
                             total_input += inp
                             total_output += out
 
+                            # 提取 token 细分
+                            in_details = meta.get("input_token_details") or {}
+                            out_details = meta.get("output_token_details") or {}
+                            entry["cache_read"] += in_details.get("cache_read", 0) or 0
+                            entry["cache_creation"] += in_details.get("cache_creation", 0) or 0
+                            entry["reasoning"] += out_details.get("reasoning", 0) or 0
+
                         total_total = total_input + total_output
 
                         if total_total > 0:
+                            # 聚合 token 细分
+                            total_cache_read = sum(v.get("cache_read", 0) for v in model_breakdown.values())
+                            total_cache_creation = sum(v.get("cache_creation", 0) for v in model_breakdown.values())
+                            total_reasoning = sum(v.get("reasoning", 0) for v in model_breakdown.values())
+
+                            # 从 DB 读取定价（带内存缓存）
+                            from app.services.system_config_service import SystemConfigService
+                            async with create_db_session() as pricing_db:
+                                model_pricing = await SystemConfigService.get_model_pricing(pricing_db)
+                                credits_per_dollar = await SystemConfigService.get_credits_per_dollar(pricing_db)
+
                             # 计算总成本 & 积分
                             cost_data = CostCalculator.calculate_cost(
                                 model_name=settings.OPENAI_MODEL,
                                 prompt_tokens=total_input,
                                 completion_tokens=total_output,
+                                cache_read=total_cache_read,
+                                cache_creation=total_cache_creation,
+                                reasoning=total_reasoning,
+                                model_pricing=model_pricing,
                             )
-                            credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
+                            credits_to_deduct = calculate_credits_from_cost(
+                                cost_data["total_cost"], credits_per_dollar=credits_per_dollar,
+                            )
                             duration_ms = int((_time.time() - _stream_start) * 1000)
 
                             # 独立 DB 会话（SSE 生成器内端点 db 不可用）
@@ -1079,6 +1122,9 @@ async def agent_v2_chat_stream(
                                     prompt_tokens=total_input,
                                     completion_tokens=total_output,
                                     total_tokens=total_total,
+                                    cache_read_tokens=total_cache_read,
+                                    cache_creation_tokens=total_cache_creation,
+                                    reasoning_tokens=total_reasoning,
                                     prompt_cost=cost_data["prompt_cost"],
                                     completion_cost=cost_data["completion_cost"],
                                     total_cost=cost_data["total_cost"],
@@ -1094,10 +1140,11 @@ async def agent_v2_chat_stream(
                                 ai_log = await log_svc.create_log(log_data, auto_commit=False)
 
                                 credit_svc = CreditService(billing_db)
+                                msg_preview = (request.message or "")[:30]
                                 await credit_svc.consume(
                                     user_id=current_user.id,
                                     amount=credits_to_deduct,
-                                    description=f"V2 Agent 对话: {conversation_id[:8]}",
+                                    description=f"{work.title} · {msg_preview}",
                                     related_id=ai_log.id,
                                     skip_check=current_user.is_admin,
                                     auto_commit=False,
@@ -1110,6 +1157,8 @@ async def agent_v2_chat_stream(
                                 "total_tokens": total_total,
                                 "model_breakdown": model_breakdown,
                                 "credits_deducted": float(credits_to_deduct),
+                                "input_token_details": {"cache_read": total_cache_read, "cache_creation": total_cache_creation},
+                                "output_token_details": {"reasoning": total_reasoning},
                             }
                             logger.info(
                                 "[V2 Billing] user=%s conv=%s tokens=%d credits=%.2f",
@@ -1153,10 +1202,49 @@ async def agent_v2_chat_stream(
                     err_total = err_input + err_output
 
                     if err_total > 0:
+                        # 聚合 token 细分
+                        err_cache_read = 0
+                        err_cache_creation = 0
+                        err_reasoning = 0
+                        for meta in usage_cb.usage_metadata.values():
+                            in_d = meta.get("input_token_details") or {}
+                            out_d = meta.get("output_token_details") or {}
+                            err_cache_read += in_d.get("cache_read", 0) or 0
+                            err_cache_creation += in_d.get("cache_creation", 0) or 0
+                            err_reasoning += out_d.get("reasoning", 0) or 0
+
+                        # 构建 per-model breakdown（与成功路径一致）
+                        err_model_breakdown = {}
+                        for cb_model, meta in usage_cb.usage_metadata.items():
+                            model_name = cb_model or settings.OPENAI_MODEL
+                            entry = err_model_breakdown.setdefault(model_name, {
+                                "input_tokens": 0, "output_tokens": 0,
+                                "cache_read": 0, "cache_creation": 0, "reasoning": 0,
+                            })
+                            entry["input_tokens"] += meta.get("input_tokens", 0)
+                            entry["output_tokens"] += meta.get("output_tokens", 0)
+                            in_d = meta.get("input_token_details") or {}
+                            out_d = meta.get("output_token_details") or {}
+                            entry["cache_read"] += in_d.get("cache_read", 0) or 0
+                            entry["cache_creation"] += in_d.get("cache_creation", 0) or 0
+                            entry["reasoning"] += out_d.get("reasoning", 0) or 0
+
+                        # 从 DB 读取定价
+                        from app.services.system_config_service import SystemConfigService
+                        async with create_db_session() as pricing_db:
+                            model_pricing = await SystemConfigService.get_model_pricing(pricing_db)
+                            credits_per_dollar = await SystemConfigService.get_credits_per_dollar(pricing_db)
+
                         cost_data = CostCalculator.calculate_cost(
                             settings.OPENAI_MODEL, err_input, err_output,
+                            cache_read=err_cache_read,
+                            cache_creation=err_cache_creation,
+                            reasoning=err_reasoning,
+                            model_pricing=model_pricing,
                         )
-                        credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
+                        credits_to_deduct = calculate_credits_from_cost(
+                            cost_data["total_cost"], credits_per_dollar=credits_per_dollar,
+                        )
                         duration_ms = int((_time.time() - _stream_start) * 1000) if _stream_start else 0
 
                         async with create_db_session() as billing_db:
@@ -1167,22 +1255,26 @@ async def agent_v2_chat_stream(
                                 prompt_tokens=err_input,
                                 completion_tokens=err_output,
                                 total_tokens=err_total,
+                                cache_read_tokens=err_cache_read,
+                                cache_creation_tokens=err_cache_creation,
+                                reasoning_tokens=err_reasoning,
                                 prompt_cost=cost_data["prompt_cost"],
                                 completion_cost=cost_data["completion_cost"],
                                 total_cost=cost_data["total_cost"],
                                 duration_ms=duration_ms,
                                 is_success=False,
                                 error_message=str(e)[:1000],
-                                extra_data={"conversation_id": conversation_id, "work_id": request.work_id},
+                                extra_data={"conversation_id": conversation_id, "work_id": request.work_id, "model_breakdown": err_model_breakdown},
                             )
                             log_svc = AILogService(billing_db)
                             ai_log = await log_svc.create_log(log_data, auto_commit=False)
 
                             credit_svc = CreditService(billing_db)
+                            msg_preview = (request.message or "")[:30]
                             await credit_svc.consume(
                                 user_id=current_user.id,
                                 amount=credits_to_deduct,
-                                description=f"V2 Agent 对话(错误): {conversation_id[:8]}",
+                                description=f"{work.title} · {msg_preview}(错误)",
                                 related_id=ai_log.id,
                                 skip_check=current_user.is_admin,
                                 auto_commit=False,

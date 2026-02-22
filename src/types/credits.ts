@@ -31,6 +31,44 @@ export interface BalanceInfo {
 }
 
 // ============================================
+// Token 详情（AI 调用明细）
+// ============================================
+export interface TokenDetailInfo {
+  /** 模型名称 */
+  modelName: string;
+  /** 输入 token */
+  promptTokens: number;
+  /** 输出 token */
+  completionTokens: number;
+  /** 总 token */
+  totalTokens: number;
+  /** 缓存命中 token */
+  cacheReadTokens: number;
+  /** 缓存创建 token */
+  cacheCreationTokens: number;
+  /** 推理 token */
+  reasoningTokens: number;
+  /** 输入成本 (USD) */
+  promptCost: number;
+  /** 输出成本 (USD) */
+  completionCost: number;
+  /** 总成本 (USD) */
+  totalCost: number;
+}
+
+/** 定价元数据 */
+export interface PricingInfo {
+  creditsPerDollar: number;
+  modelPricing: Record<string, {
+    input: number;
+    cachedInput: number;
+    output: number;
+    reasoning: number;
+    cacheCreation: number;
+  }>;
+}
+
+// ============================================
 // 交易记录
 // ============================================
 export type TransactionType = 'recharge' | 'consume' | 'gift' | 'expire' | 'refund';
@@ -54,6 +92,8 @@ export interface CreditTransaction {
   relatedId: string | null;
   /** 创建时间 */
   createdAt: string;
+  /** Token 详情（仅 ai_call 类型有值） */
+  tokenDetails?: TokenDetailInfo | null;
 }
 
 // ============================================
@@ -245,6 +285,12 @@ export function formatTransactionDescription(description: string | null): string
   if (match) {
     const taskType = match[1].trim();
     return AI_OPERATION_LABELS[taskType] || 'AI服务';
+  }
+
+  // 处理 "{作品名} · {描述}" 格式，去掉作品名前缀
+  const dotIdx = description.indexOf(' · ');
+  if (dotIdx !== -1) {
+    return description.slice(dotIdx + 3);
   }
 
   // 其他描述保持原样（充值、赠送等）

@@ -38,6 +38,11 @@ class AICallLog(Base):
     completion_tokens = Column(Integer, nullable=False, default=0)  # 生成内容token数
     total_tokens = Column(Integer, nullable=False, default=0)  # 总token数
 
+    # Token 细分
+    cache_read_tokens = Column(Integer, nullable=False, default=0)       # 缓存命中的输入 token
+    cache_creation_tokens = Column(Integer, nullable=False, default=0)   # 创建缓存的 token
+    reasoning_tokens = Column(Integer, nullable=False, default=0)        # 推理 token
+
     # 成本信息 (单位: 美元)
     prompt_cost = Column(Float, nullable=False, default=0.0)  # 提示词成本
     completion_cost = Column(Float, nullable=False, default=0.0)  # 生成内容成本

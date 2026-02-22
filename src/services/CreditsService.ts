@@ -9,6 +9,7 @@ import type {
   CreditTransaction,
   RedeemResponse,
   TransactionType,
+  PricingInfo,
 } from '../types/credits';
 
 /**
@@ -25,6 +26,8 @@ export interface TransactionListResponse {
   pageSize: number;
   /** 总页数 */
   totalPages: number;
+  /** 定价元数据（可选） */
+  pricingInfo?: PricingInfo | null;
 }
 
 /**

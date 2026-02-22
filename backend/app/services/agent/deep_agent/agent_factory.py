@@ -29,7 +29,7 @@ SKILLS_ROOT = Path(__file__).parent.parent / "skills"
 # Skills 分组目录名（与 skills/ 下的子目录对应）
 _SKILL_GROUPS = [
     "core", "character", "structure", "craft",
-    "worldbuilding",
+    "worldbuilding", "application", "chinese-novel",
 ]
 
 

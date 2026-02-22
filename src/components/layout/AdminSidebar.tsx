@@ -1,6 +1,6 @@
 ﻿import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft, Gift, Coins, Bell, Trophy, Book, MessageSquare, Flag } from 'lucide-react';
+import { LayoutDashboard, Users, Cpu, DollarSign, ArrowLeft, Gift, Coins, Bell, Trophy, Book, MessageSquare, Flag, Settings } from 'lucide-react';
 
 const AdminSidebar: React.FC = () => {
   const location = useLocation();
@@ -69,6 +69,12 @@ const AdminSidebar: React.FC = () => {
       icon: DollarSign,
       label: '成本监控',
       description: '查看使用成本',
+    },
+    {
+      path: '/admin/pricing',
+      icon: Settings,
+      label: '定价设置',
+      description: '模型定价和汇率',
     },
     {
       path: '/admin/notifications',

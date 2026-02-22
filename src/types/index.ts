@@ -552,10 +552,20 @@ export interface CostMetrics {
     userId: string;
     totalCost: number;
     totalCalls: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalCacheRead: number;
+    totalCacheCreation: number;
+    totalReasoning: number;
   }>;
   topModels: Array<{
     modelName: string;
     totalCost: number;
     totalCalls: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalCacheRead: number;
+    totalCacheCreation: number;
+    totalReasoning: number;
   }>;
 }

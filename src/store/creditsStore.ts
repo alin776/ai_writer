@@ -3,7 +3,7 @@
  */
 import { create } from 'zustand';
 import { CreditsService, TransactionListResponse } from '../services/CreditsService';
-import type { BalanceInfo, CreditTransaction, TransactionType, RedeemResponse } from '../types/credits';
+import type { BalanceInfo, CreditTransaction, TransactionType, RedeemResponse, PricingInfo } from '../types/credits';
 
 interface CreditsState {
   // 余额信息
@@ -15,6 +15,9 @@ interface CreditsState {
   transactionPage: number;
   transactionPageSize: number;
   transactionTotalPages: number;
+
+  // 定价元数据
+  pricingInfo: PricingInfo | null;
 
   // 加载和错误状态
   isLoading: boolean;
@@ -35,6 +38,7 @@ export const useCreditsStore = create<CreditsState>((set, get) => ({
   transactionPage: 1,
   transactionPageSize: 20,
   transactionTotalPages: 0,
+  pricingInfo: null,
   isLoading: false,
   error: null,
 
@@ -65,6 +69,7 @@ export const useCreditsStore = create<CreditsState>((set, get) => ({
         transactionPage: response.page,
         transactionPageSize: response.pageSize,
         transactionTotalPages: response.totalPages,
+        pricingInfo: response.pricingInfo ?? null,
         isLoading: false,
       });
     } catch (error: any) {

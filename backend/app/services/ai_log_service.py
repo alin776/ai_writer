@@ -441,7 +441,12 @@ class AILogService:
         top_users_stmt = select(
             AICallLog.user_id,
             func.sum(AICallLog.total_cost).label('total_cost'),
-            func.count(AICallLog.id).label('total_calls')
+            func.count(AICallLog.id).label('total_calls'),
+            func.sum(AICallLog.prompt_tokens).label('total_input_tokens'),
+            func.sum(AICallLog.completion_tokens).label('total_output_tokens'),
+            func.sum(AICallLog.cache_read_tokens).label('total_cache_read'),
+            func.sum(AICallLog.cache_creation_tokens).label('total_cache_creation'),
+            func.sum(AICallLog.reasoning_tokens).label('total_reasoning'),
         ).where(
             AICallLog.created_at >= this_month_start
         ).group_by(AICallLog.user_id).order_by(
@@ -455,7 +460,12 @@ class AILogService:
             {
                 'user_id': str(user.user_id),
                 'total_cost': float(user.total_cost),
-                'total_calls': user.total_calls
+                'total_calls': user.total_calls,
+                'total_input_tokens': int(user.total_input_tokens or 0),
+                'total_output_tokens': int(user.total_output_tokens or 0),
+                'total_cache_read': int(user.total_cache_read or 0),
+                'total_cache_creation': int(user.total_cache_creation or 0),
+                'total_reasoning': int(user.total_reasoning or 0),
             }
             for user in top_users_data
         ]
@@ -464,7 +474,12 @@ class AILogService:
         top_models_stmt = select(
             AICallLog.model_name,
             func.sum(AICallLog.total_cost).label('total_cost'),
-            func.count(AICallLog.id).label('total_calls')
+            func.count(AICallLog.id).label('total_calls'),
+            func.sum(AICallLog.prompt_tokens).label('total_input_tokens'),
+            func.sum(AICallLog.completion_tokens).label('total_output_tokens'),
+            func.sum(AICallLog.cache_read_tokens).label('total_cache_read'),
+            func.sum(AICallLog.cache_creation_tokens).label('total_cache_creation'),
+            func.sum(AICallLog.reasoning_tokens).label('total_reasoning'),
         ).where(
             AICallLog.created_at >= this_month_start
         ).group_by(AICallLog.model_name).order_by(
@@ -478,7 +493,12 @@ class AILogService:
             {
                 'model_name': model.model_name,
                 'total_cost': float(model.total_cost),
-                'total_calls': model.total_calls
+                'total_calls': model.total_calls,
+                'total_input_tokens': int(model.total_input_tokens or 0),
+                'total_output_tokens': int(model.total_output_tokens or 0),
+                'total_cache_read': int(model.total_cache_read or 0),
+                'total_cache_creation': int(model.total_cache_creation or 0),
+                'total_reasoning': int(model.total_reasoning or 0),
             }
             for model in top_models_data
         ]

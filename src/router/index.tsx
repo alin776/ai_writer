@@ -23,6 +23,7 @@ const AdminNotificationsView = React.lazy(() => import('../views/AdminNotificati
 const AdminTasksView = React.lazy(() => import('../views/AdminTasksView'));
 const AdminChannelsView = React.lazy(() => import('../views/AdminChannelsView'));
 const AdminReportsView = React.lazy(() => import('../views/AdminReportsView'));
+const AdminPricingView = React.lazy(() => import('../views/AdminPricingView'));
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const ChangePasswordView = React.lazy(() => import('../views/ChangePasswordView'));
 const ChangeEmailView = React.lazy(() => import('../views/ChangeEmailView'));
@@ -325,6 +326,14 @@ export const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <AdminCostView />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'pricing',
+            element: (
+              <SuspenseWrapper>
+                <AdminPricingView />
               </SuspenseWrapper>
             ),
           },

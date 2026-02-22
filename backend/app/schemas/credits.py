@@ -2,10 +2,26 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
+
+
+# ============ Token 详情 ============
+
+class TokenDetailInfo(BaseModel):
+    """AI 调用 token 详情（附带在交易记录中）"""
+    model_name: str = ""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
+    reasoning_tokens: int = 0
+    prompt_cost: float = 0.0
+    completion_cost: float = 0.0
+    total_cost: float = 0.0
 
 
 # ============ 积分余额 ============
@@ -33,6 +49,7 @@ class TransactionResponse(BaseModel):
     related_type: Optional[str] = Field(None, description="关联类型")
     related_id: Optional[str] = Field(None, description="关联ID")
     created_at: str = Field(..., description="创建时间")
+    token_details: Optional[TokenDetailInfo] = Field(None, description="Token 详情（仅 ai_call 类型）")
 
     model_config = ConfigDict(from_attributes=True)
 class TransactionListRequest(BaseModel):
@@ -51,6 +68,7 @@ class TransactionListResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+    pricing_info: Optional[Dict[str, Any]] = Field(None, description="定价元数据")
 
 
 # ============ 兑换码 ============
