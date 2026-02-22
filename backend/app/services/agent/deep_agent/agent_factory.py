@@ -28,13 +28,8 @@ SKILLS_ROOT = Path(__file__).parent.parent / "skills"
 
 # Skills 分组目录名（与 skills/ 下的子目录对应）
 _SKILL_GROUPS = [
-    # 原有
-    "quality", "review", "statistics", "process",
-    # 新增（来自 agent-skills fiction）
     "core", "character", "structure", "craft",
-    "worldbuilding", "application",
-    # 中文小说专用
-    "chinese-novel",
+    "worldbuilding",
 ]
 
 
@@ -88,6 +83,7 @@ def create_writing_agent(
     work,
     user_id: str,
     checkpointer: Any = None,
+    callbacks: list | None = None,
 ) -> tuple[Any, BufferedFilesystemBackend]:
     """创建写作 Agent。
 
@@ -95,6 +91,7 @@ def create_writing_agent(
         work: Work ORM 实例
         user_id: 用户 ID（字符串）
         checkpointer: LangGraph checkpointer（可选）
+        callbacks: LLM instance-level callbacks（可选，用于 token 统计）
 
     Returns:
         (agent, backend) 元组
@@ -126,6 +123,7 @@ def create_writing_agent(
         base_url=settings.OPENAI_BASE_URL,
         timeout=settings.OPENAI_TIMEOUT,
         use_responses_api=True,
+        **({"callbacks": callbacks} if callbacks else {}),
     )
 
     # 6. 组装 Agent（skills 使用相对路径，在 backend 沙箱内可达）

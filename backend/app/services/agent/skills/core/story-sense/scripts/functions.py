@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 
 """
-Function-Form Generator
+functions.py - 角色功能-形态生成器
 
-Works with abstract story functions and setting-specific forms.
-Select a function for story role, then instantiate with setting-appropriate form.
+双层随机化：先选定抽象角色功能（治疗者、执法者…），
+再根据网文设定（玄幻/都市/历史/末世/游戏）实例化为具体形态。
 
 Usage:
-  python functions.py                    # Random function + form
-  python functions.py --setting scifi    # Random function, scifi form
-  python functions.py healer             # Specific function, random setting
-  python functions.py healer --setting fantasy  # Specific both
-  python functions.py --list             # List all functions
-  python functions.py --list-settings    # List all settings
-  python functions.py --count 3          # Multiple random results
+  python functions.py                    # 随机功能 + 形态
+  python functions.py --setting xuanhuan # 随机功能，玄幻设定
+  python functions.py healer             # 指定功能，随机设定
+  python functions.py healer --setting xuanhuan  # 都指定
+  python functions.py --list             # 列出所有功能
+  python functions.py --list-settings    # 列出所有设定
+  python functions.py --count 3          # 生成多个结果
 """
 
 import sys
@@ -21,12 +21,19 @@ import os
 import json
 import random
 
-
 # Ensure UTF-8 output on all platforms
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
+
+SETTING_DISPLAY = {
+    "xuanhuan": "玄幻",
+    "urban": "都市",
+    "historical": "历史",
+    "apocalypse": "末世",
+    "game": "游戏",
+}
 
 
 def random_from(arr: list, count: int = 1) -> list:
@@ -41,16 +48,16 @@ def generate_result(data: dict, function_name: str | None, setting: str | None) 
     func_data = data["functions"].get(selected_func)
 
     if not func_data:
-        raise ValueError(f"Unknown function: {selected_func}")
+        raise ValueError("未知功能: " + selected_func)
 
     selected_setting = setting or random_from(data["settings"], 1)[0]
 
     if selected_setting not in data["settings"]:
-        raise ValueError(f"Unknown setting: {selected_setting}")
+        raise ValueError("未知设定: " + selected_setting)
 
     forms = func_data["forms"].get(selected_setting, [])
     if not forms:
-        raise ValueError(f"No forms for {selected_func} in {selected_setting}")
+        raise ValueError("{}在{}设定下没有可用形态".format(selected_func, selected_setting))
 
     selected_form = random_from(forms, 1)[0]
 
@@ -64,44 +71,46 @@ def generate_result(data: dict, function_name: str | None, setting: str | None) 
 
 
 def format_result(result: dict) -> str:
+    setting_cn = SETTING_DISPLAY.get(result['setting'], result['setting'])
     lines = []
-    lines.append(f"## {result['form']}")
-    lines.append(f"Function: {result['function']} ({result['setting']})")
-    lines.append(f"Role: {result['description']}")
-    sa = ", ".join(result["story_access"])
-    lines.append(f"Story access: {sa}")
+    lines.append("## " + result['form'])
+    lines.append("功能: {} （{}）".format(result['function'], setting_cn))
+    lines.append("角色: " + result['description'])
+    sa = "、".join(result["story_access"])
+    lines.append("故事切入点: " + sa)
     return '\n'.join(lines)
 
 
 def format_brief(result: dict) -> str:
-    return f"{result['form']} [{result['function']}/{result['setting']}]"
+    setting_cn = SETTING_DISPLAY.get(result['setting'], result['setting'])
+    return "{} [{}/{}]".format(result['form'], result['function'], setting_cn)
 
 
 def main() -> None:
     args = sys.argv[1:]
 
     if "--help" in args or "-h" in args:
-        print("""Function-Form Generator
-
-Works with abstract story functions and setting-specific forms.
-
-Usage:
-  python functions.py                    # Random function + form
-  python functions.py --setting scifi    # Random function, scifi form
-  python functions.py healer             # Specific function
-  python functions.py healer --setting fantasy
-  python functions.py --list             # List all functions
-  python functions.py --list-settings    # List all settings
-  python functions.py --count 3          # Multiple results
-  python functions.py --brief            # Short output format
-
-Options:
-  --setting S    Use specific setting (contemporary, historical, fantasy, scifi, postapoc)
-  --count N      Generate N results
-  --brief        Short output (just form and tags)
-  --json         Output as JSON
-  --list         List all available functions
-  --list-settings List all settings""")
+        print("角色功能-形态生成器")
+        print()
+        print("双层随机化：先选抽象功能，再根据设定实例化为具体形态。")
+        print()
+        print("用法:")
+        print("  python functions.py                    # 随机功能 + 形态")
+        print("  python functions.py --setting xuanhuan  # 随机功能，玄幻设定")
+        print("  python functions.py healer              # 指定功能")
+        print("  python functions.py healer --setting urban")
+        print("  python functions.py --list              # 列出所有功能")
+        print("  python functions.py --list-settings     # 列出所有设定")
+        print("  python functions.py --count 3           # 生成多个结果")
+        print("  python functions.py --brief             # 简短输出")
+        print()
+        print("选项:")
+        print("  --setting S    指定设定 (xuanhuan/urban/historical/apocalypse/game)")
+        print("  --count N      生成 N 个结果")
+        print("  --brief        简短输出（仅形态和标签）")
+        print("  --json         JSON 格式输出")
+        print("  --list         列出所有可用功能")
+        print("  --list-settings 列出所有设定")
         sys.exit(0)
 
     # Load data
@@ -112,20 +121,21 @@ Options:
         with open(data_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
-        print(f"Error loading data: {e}", file=sys.stderr)
+        print("加载数据失败: " + str(e), file=sys.stderr)
         sys.exit(1)
 
     # List modes
     if "--list" in args:
-        print("Available functions:\n")
+        print("\n可用角色功能:\n")
         for name, func in data["functions"].items():
-            print(f"  {name:<20} {func['description']}")
+            print("  {:<20} {}".format(name, func['description']))
         sys.exit(0)
 
     if "--list-settings" in args:
-        print("Available settings:\n")
+        print("\n可用设定:\n")
         for setting in data["settings"]:
-            print(f"  {setting}")
+            display = SETTING_DISPLAY.get(setting, setting)
+            print("  {} ({})".format(setting, display))
         sys.exit(0)
 
     # Parse options
@@ -164,12 +174,12 @@ Options:
         for i in range(count):
             results.append(generate_result(data, function_name, setting))
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print("错误: " + str(e), file=sys.stderr)
         sys.exit(1)
 
     # Output
     if json_output:
-        print(json.dumps(results, indent=2))
+        print(json.dumps(results, indent=2, ensure_ascii=False))
     elif brief_output:
         for result in results:
             print(format_brief(result))

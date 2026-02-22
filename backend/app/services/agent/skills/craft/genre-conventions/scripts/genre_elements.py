@@ -1,10 +1,23 @@
 #!/usr/bin/env python3
-"""genre_elements.py - Random genre-specific element generator"""
+"""genre_elements.py - 网文类型元素随机生成器
+
+从 genre-elements.json 中随机抽取类型相关的元素，
+用于灵感激发和诊断参考。
+
+Usage:
+  python genre_elements.py <类型>               # 随机一个元素
+  python genre_elements.py <类型> --count N      # N 个元素
+  python genre_elements.py --list                # 显示所有类型
+  python genre_elements.py --combo g1,g2         # 每个类型各一个
+"""
 
 import sys
 import os
 import json
 import random
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 
 def load_data():
@@ -41,52 +54,60 @@ def random_from(arr, count=1):
 def main():
     args = sys.argv[1:]
     if '--help' in args or '-h' in args:
-        print('Genre Elements Generator')
+        print('网文类型元素生成器')
         print('Usage:')
-        print('  python genre_elements.py <genre>           # Random element')
-        print('  python genre_elements.py <genre> --count N # N elements')
-        print('  python genre_elements.py --list             # Show genres')
-        print('  python genre_elements.py --combo g1,g2     # One from each')
+        print('  python genre_elements.py <类型>               # 随机一个元素')
+        print('  python genre_elements.py <类型> --count N      # N 个元素')
+        print('  python genre_elements.py --list                # 显示所有类型')
+        print('  python genre_elements.py --list <类型>          # 显示类型分类')
+        print('  python genre_elements.py --info <类型>          # 类型详情')
+        print('  python genre_elements.py --combo g1,g2         # 类型组合')
         sys.exit(0)
+
     data = load_data()
     genres = get_genres(data)
     json_out = '--json' in args
+
     if '--list' in args:
         li = args.index('--list')
-        specific = args[li+1] if li+1 < len(args) and args[li+1] in genres else None
+        specific = args[li + 1] if li + 1 < len(args) and args[li + 1] in genres else None
         if specific:
             gd = get_genre_data(data, specific)
             if gd:
-                print(chr(10) + 'Categories for ' + specific + ':' + chr(10))
+                print('\n{} 的元素分类:\n'.format(specific))
                 for cat, items in gd['categories'].items():
-                    print('  {} ({} items)'.format(cat.ljust(25), len(items)))
+                    print('  {} ({} 条)'.format(cat.ljust(25), len(items)))
         else:
-            print(chr(10) + 'Available elemental genres:' + chr(10))
+            print('\n可用网文类型:\n')
             for genre in genres:
                 gd = get_genre_data(data, genre)
                 if gd:
                     total = sum(len(v) for v in gd['categories'].values())
-                    print('  {} - {}... ({} items)'.format(genre.ljust(15), gd['core_promise'][:50], total))
+                    print('  {} — {}  ({} 条)'.format(
+                        genre.ljust(15),
+                        gd['core_promise'][:40],
+                        total))
         sys.exit(0)
 
     if '--info' in args:
         ii = args.index('--info')
-        genre = args[ii+1] if ii+1 < len(args) else None
+        genre = args[ii + 1] if ii + 1 < len(args) else None
         if not genre or genre not in genres:
-            print('Error: Specify a valid genre', file=sys.stderr)
+            print('错误: 请指定有效类型', file=sys.stderr)
             sys.exit(1)
         gd = get_genre_data(data, genre)
         if gd:
-            print(chr(10) + '## ' + genre.capitalize())
-            print('Core promise: ' + gd['core_promise'])
-            print('Required: ' + ', '.join(gd['required_elements']))
-            print('Categories:')
-            for cat in gd['categories']: print('  - ' + cat)
+            print('\n## ' + genre)
+            print('核心承诺: ' + gd['core_promise'])
+            print('必需元素: ' + '、'.join(gd['required_elements']))
+            print('分类:')
+            for cat in gd['categories']:
+                print('  - ' + cat)
         sys.exit(0)
 
     if '--combo' in args:
         ci = args.index('--combo')
-        combo_genres = args[ci+1].split(',') if ci+1 < len(args) else []
+        combo_genres = args[ci + 1].split(',') if ci + 1 < len(args) else []
         result = {}
         for g in combo_genres:
             g = g.strip()
@@ -94,48 +115,57 @@ def main():
             if gd:
                 result[g] = random_from(get_all_elements(gd), 1)[0]
         if json_out:
-            print(json.dumps(result, indent=2))
+            print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
-            print(chr(10) + 'Genre combo:' + chr(10))
-            for g, e in result.items(): print('  {}: {}'.format(g, e))
+            print('\n类型元素组合:\n')
+            for g, e in result.items():
+                print('  {}: {}'.format(g, e))
         sys.exit(0)
 
-    # Parse count and category
+    # 解析参数
     count = int(args[args.index('--count') + 1]) if '--count' in args else 1
     category = args[args.index('--category') + 1] if '--category' in args else None
-    # Find genre
+
     skip = set()
     for flag in ['--count', '--category', '--json']:
         if flag in args:
             idx = args.index(flag)
             skip.add(idx)
-            if flag != '--json': skip.add(idx + 1)
+            if flag != '--json':
+                skip.add(idx + 1)
+
     genre = None
     for i, a in enumerate(args):
         if i not in skip and not a.startswith('--'):
             genre = a
             break
+
     if not genre or genre not in genres:
-        print('Error: Specify a valid genre. Use --list to see options.', file=sys.stderr)
+        print('错误: 请指定有效类型。使用 --list 查看可用选项。', file=sys.stderr)
         sys.exit(1)
+
     gd = get_genre_data(data, genre)
     if not gd:
-        print('Error: Could not load data for genre', file=sys.stderr)
+        print('错误: 无法加载类型数据', file=sys.stderr)
         sys.exit(1)
+
     if category:
         if category not in gd['categories']:
-            print('Error: Unknown category. Available: ' + ', '.join(gd['categories'].keys()), file=sys.stderr)
+            print('错误: 未知分类。可用: ' + '、'.join(gd['categories'].keys()),
+                  file=sys.stderr)
             sys.exit(1)
         pool = gd['categories'][category]
     else:
         pool = get_all_elements(gd)
+
     selected = random_from(pool, count)
     if json_out:
-        print(json.dumps(selected, indent=2))
+        print(json.dumps(selected, indent=2, ensure_ascii=False))
     elif count == 1:
         print(selected[0])
     else:
-        for item in selected: print('- ' + item)
+        for item in selected:
+            print('- ' + item)
 
 
 if __name__ == '__main__':

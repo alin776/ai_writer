@@ -1,8 +1,19 @@
 #!/usr/bin/env python3
-"""orthogonality_check.py - Evaluate if a story element is cliched or orthogonal"""
+"""orthogonality_check.py - 网文套路 vs 正交性评估工具
+
+评估故事元素是套路化的还是具有"正交性"（独立逻辑），
+帮助作者突破常见网文套路。
+
+Usage:
+  python orthogonality_check.py "元素描述"
+  python orthogonality_check.py --json "元素描述"
+"""
 
 import sys
 import json
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 
 def generate_check(element):
@@ -10,73 +21,74 @@ def generate_check(element):
         'element': element,
         'axes': {
             'form': {
-                'axis': 'Form',
-                'question': 'What is the "{}"?'.format(element),
-                'cliche': 'The expected/default version of this element',
-                'orthogonal': 'Same form is fine - orthogonality is in other axes',
+                'axis': '形态',
+                'question': '「{}」是什么？'.format(element),
+                'cliche': '该类型的默认/标准版本',
+                'orthogonal': '形态本身可以是常见的——正交性体现在其他维度',
             },
             'knowledge': {
-                'axis': 'Knowledge',
-                'question': 'What does "{}" know about the central plot/mystery?'.format(element),
-                'cliche': 'Knows about the main conflict; part of it',
-                'orthogonal': 'Has own concerns; intersects with plot accidentally',
+                'axis': '认知',
+                'question': '「{}」知道主线剧情吗？'.format(element),
+                'cliche': '了解核心冲突，是冲突的一部分',
+                'orthogonal': '有自己的关注点，与主线只是偶然相交',
             },
             'goal': {
-                'axis': 'Goal',
-                'question': 'What does "{}" want?'.format(element),
-                'cliche': 'Wants to help/stop protagonist regarding main plot',
-                'orthogonal': 'Wants something unrelated that happens to collide',
+                'axis': '目标',
+                'question': '「{}」想要什么？'.format(element),
+                'cliche': '目标是帮助/阻止主角完成主线任务',
+                'orthogonal': '追求与主线无关的东西，但恰好产生碰撞',
             },
             'role': {
-                'axis': 'Role',
-                'question': 'What function does "{}" serve in the story?'.format(element),
-                'cliche': 'Exists to be obstacle/ally for protagonist',
-                "orthogonal": "Has own story that intersects with protagonist's",
+                'axis': '角色',
+                'question': '「{}」在故事中扮演什么功能？'.format(element),
+                'cliche': '存在的意义就是当主角的工具人/反派',
+                'orthogonal': '有自己的故事线，与主角只是交叉',
             },
         },
-        'key_test': 'Does "{}" know what story it\'s in? (Cliche elements know; orthogonal elements think they\'re in a different story)'.format(element),
+        'key_test': '「{}」知道自己在什么类型的故事里吗？（套路化的元素知道；正交的元素以为自己在另一个故事里）'.format(element),
         'assessment': 'needs-input',
         'suggestions': [],
     }
 
 
 def format_questionnaire(check):
-    r = '# Orthogonality Check: "{}"'.format(check['element']) + chr(10)*2
-    r += '## The Four Axes' + chr(10)*2
-    r += 'For each axis, consider which answer better describes your element:' + chr(10)
+    r = '# 正交性评估：「{}」\n\n'.format(check['element'])
+    r += '## 四维分析\n\n'
+    r += '对每个维度，判断你的元素更接近哪一列：\n'
     for key, axis in check['axes'].items():
-        r += chr(10) + '### ' + axis['axis']
-        r += chr(10) + '**Question:** ' + axis['question'] + chr(10)
-        r += chr(10) + '| Cliche Version | Orthogonal Version |'
-        r += chr(10) + '|----------------|-------------------|'
-        r += chr(10) + '| {} | {} |'.format(axis['cliche'], axis['orthogonal'])
-        r += chr(10)
-    r += chr(10) + '## The Key Test' + chr(10)
-    r += chr(10) + '> ' + check['key_test'] + chr(10)
-    r += chr(10) + '- If YES -> The element is likely cliched'
-    r += chr(10) + '- If NO -> The element has its own logic that collides with your story' + chr(10)
-    r += chr(10) + '## Transformation Strategies' + chr(10)
-    r += chr(10) + 'If the element is cliched, try rotating on one or more axes:' + chr(10)
+        r += '\n### ' + axis['axis']
+        r += '\n**问题：** ' + axis['question'] + '\n'
+        r += '\n| 套路版 | 正交版 |'
+        r += '\n|--------|--------|'
+        r += '\n| {} | {} |'.format(axis['cliche'], axis['orthogonal'])
+        r += '\n'
+    r += '\n## 核心测试\n'
+    r += '\n> ' + check['key_test'] + '\n'
+    r += '\n- 如果是 → 这个元素可能是套路化的'
+    r += '\n- 如果否 → 这个元素有自己的独立逻辑，与你的故事产生碰撞\n'
+    r += '\n## 突破策略\n'
+    r += '\n如果元素过于套路化，尝试旋转一个或多个维度：\n'
     el = check['element']
-    r += chr(10) + '1. **Change Knowledge**: What if "{}" doesn\'t know about the central plot?'.format(el)
-    r += chr(10) + '2. **Change Goal**: What if "{}" wants something unrelated that creates conflict?'.format(el)
-    r += chr(10) + '3. **Change Role**: What if "{}" has their own story that intersects accidentally?'.format(el)
-    r += chr(10)*2 + '## Example Transformation' + chr(10)
-    r += chr(10) + 'FBI agents investigating UFO (cliche):'
-    r += chr(10) + '- Know about aliens, part of cover-up'
-    r += chr(10) + chr(10) + 'FBI agents investigating UFO (orthogonal):'
-    r += chr(10) + '- Working a missing persons case, not aliens'
-    r += chr(10) + '- They think they\'re in a crime drama, not a UFO story' + chr(10)
+    r += '\n1. **改变认知**：如果「{}」完全不知道主线在发生什么？'.format(el)
+    r += '\n2. **改变目标**：如果「{}」追求的东西与主线毫无关系，但恰好制造了冲突？'.format(el)
+    r += '\n3. **改变角色**：如果「{}」有自己的故事，只是偶然闯入了主角的世界？'.format(el)
+    r += '\n\n## 网文套路突破示例\n'
+    r += '\n反派长老刁难主角（套路）：'
+    r += '\n- 长老知道主角有特殊血脉，故意阻拦'
+    r += '\n- 目标是为主角制造升级动力'
+    r += '\n\n反派长老刁难主角（正交）：'
+    r += '\n- 长老在追查二十年前的门派叛徒，主角只是恰好触发了他的疑心'
+    r += '\n- 长老以为自己在一个复仇故事里，不知道这是主角的成长故事\n'
     return r
 
 
 def main():
     args = sys.argv[1:]
     if '--help' in args or '-h' in args:
-        print('Orthogonality Check Tool')
+        print('正交性评估工具 — 检测网文元素是套路还是独立')
         print('Usage:')
-        print('  python orthogonality_check.py "element description"')
-        print('  python orthogonality_check.py --json "element"')
+        print('  python orthogonality_check.py "元素描述"')
+        print('  python orthogonality_check.py --json "元素描述"')
         sys.exit(0)
     json_out = '--json' in args
     element = None
@@ -85,11 +97,11 @@ def main():
             element = a
             break
     if not element:
-        print('Error: No element provided. Use --help for usage.', file=sys.stderr)
+        print('错误: 未提供元素描述。使用 --help 查看用法。', file=sys.stderr)
         sys.exit(1)
     check = generate_check(element)
     if json_out:
-        print(json.dumps(check, indent=2))
+        print(json.dumps(check, indent=2, ensure_ascii=False))
     else:
         print(format_questionnaire(check))
 

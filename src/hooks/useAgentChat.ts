@@ -559,6 +559,23 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   currentFlowItems = [...currentFlowItems, item];
                   break;
                 }
+                case 'skill_switched': {
+                  const switchStepData: StepFlowData = {
+                    stepId: 0,
+                    title: `切换到 Skill(${event.skillName})`,
+                    status: 'done',
+                    toolName: 'skill_switch',
+                    toolInput: { skill_name: event.skillName },
+                  };
+                  const switchItem: FlowItem = {
+                    id: `flow-${Date.now()}-switch-${event.skillName}`,
+                    type: 'step',
+                    data: switchStepData,
+                    timestamp,
+                  };
+                  currentFlowItems = [...currentFlowItems, switchItem];
+                  break;
+                }
                 case 'text': {
                   // V2: 累积合并连续 text 到同一个 FlowItem
                   const rawContent = event.data?.content;

@@ -39,25 +39,16 @@ logger = logging.getLogger(__name__)
 SKILLS_ROOT = Path(__file__).resolve().parents[2] / "services" / "agent" / "skills"
 
 _GROUP_LABELS = {
-    # 原有
-    "quality": "质量检查",
-    "review": "创作分析",
-    "statistics": "创作分析",
-    "process": "创作辅助",
-    # 新增
-    "chinese-novel": "中文小说",
     "core": "故事诊断",
     "character": "角色塑造",
     "structure": "结构设计",
     "craft": "写作技法",
     "worldbuilding": "世界构建",
-    "application": "应用工具",
 }
 
 _GROUP_ORDER = [
-    "质量检查", "创作分析", "创作辅助",
-    "中文小说", "故事诊断", "角色塑造", "结构设计",
-    "写作技法", "世界构建", "应用工具",
+    "故事诊断", "角色塑造", "结构设计",
+    "写作技法", "世界构建",
 ]
 
 DEFAULT_ENABLED_SKILL_COUNT = 5
@@ -834,7 +825,20 @@ async def agent_v2_chat_stream(
     if not work:
         raise HTTPException(status_code=404, detail="Work not found")
 
+    # ── 改动 A：积分预检（SSE 流开始之前同步返回 402） ──
+    token_usage_summary: dict | None = None
+    if settings.CREDITS_ENABLED and not current_user.is_admin:
+        from decimal import Decimal as _Decimal
+        from app.services.credits.credit_service import CreditService as _CreditSvc
+        _credit_svc = _CreditSvc(db)
+        _MIN_V2_CREDITS = _Decimal("500")
+        _is_ok, _balance = await _credit_svc.check_sufficient(current_user.id, _MIN_V2_CREDITS)
+        if not _is_ok:
+            raise HTTPException(status_code=402, detail=f"积分余额不足，当前 {_balance}")
+
     async def event_generator():
+        usage_cb = None
+        _stream_start = None
         try:
             counter = StepCounter()
 
@@ -846,7 +850,42 @@ async def agent_v2_chat_stream(
             async with _work_locks[work_key]:
                 # 创建 Agent + Backend（传入 checkpointer 实现跨轮次记忆）
                 checkpointer = await _get_checkpointer()
-                agent, backend = create_writing_agent(work, user_id, checkpointer=checkpointer)
+
+                # ── 改动 B：注入 Token 用量收集 callback ──
+                from langchain_core.callbacks.base import BaseCallbackHandler as _BCH
+                from langchain_core.outputs import LLMResult as _LLMResult, ChatGeneration as _ChatGen
+                from langchain_core.messages import AIMessage as _AIMsg
+                import time as _time
+
+                class _UsageCollector(_BCH):
+                    """轻量 callback：按 model_name 聚合 usage_metadata（兼容 Responses API）。"""
+                    def __init__(self, default_model: str):
+                        super().__init__()
+                        self.usage_metadata: dict = {}  # {model_name: UsageMetadata}
+                        self._default_model = default_model
+
+                    def on_llm_end(self, response: _LLMResult, **kwargs) -> None:
+                        try:
+                            gen = response.generations[0][0]
+                        except IndexError:
+                            return
+                        if not isinstance(gen, _ChatGen) or not isinstance(gen.message, _AIMsg):
+                            return
+                        um = gen.message.usage_metadata
+                        if not um:
+                            return
+                        name = (gen.message.response_metadata or {}).get("model_name") or self._default_model
+                        if name in self.usage_metadata:
+                            from langchain_core.callbacks.usage import add_usage
+                            self.usage_metadata[name] = add_usage(self.usage_metadata[name], um)
+                        else:
+                            self.usage_metadata[name] = um
+
+                usage_cb = _UsageCollector(default_model=settings.OPENAI_MODEL)
+                agent, backend = create_writing_agent(
+                    work, user_id, checkpointer=checkpointer, callbacks=[usage_cb],
+                )
+                _stream_start = _time.time()
 
                 # 构建输入（注入知识库引用）
                 user_content = request.message
@@ -892,13 +931,18 @@ async def agent_v2_chat_stream(
 
                     if valid_skill:
                         loaded_skill_name = request.skill
+                        loaded_skill_dir = skill_md.parent.name   # 目录名，用于 skill_switched 去重
                         # raw 已在验证循环中读取，提取正文（跳过 YAML frontmatter）
                         skill_body = raw.split("---", 2)[2].strip() if raw.startswith("---") else raw
                         user_content = (
                             f"<directive>\n"
-                            f"用户选择了技能「{request.skill}」。\n"
-                            f"你 **必须严格** 按照以下技能 SOP 执行任务，"
-                            f"包括输出格式、评审维度、分级标准等所有细节。\n\n"
+                            f"用户选择了技能「{request.skill}」作为主要技能。\n"
+                            f"请严格按照此技能的 SOP 执行任务，包括输出格式、评审维度、分级标准等所有细节。\n\n"
+                            f"**技能路由规则：**\n"
+                            f"- 如果在执行过程中，此技能的「集成」「交接」或「相关技能」部分建议切换到其他技能，"
+                            f"你可以使用 read_file 读取目标技能的 SKILL.md 并遵循其 SOP\n"
+                            f"- 切换前用一句话告知用户你将切换到哪个技能以及原因\n"
+                            f"- 切换后，按照目标技能的 SOP 严格执行\n\n"
                             f"{skill_body}\n"
                             f"</directive>\n\n"
                             f"{user_content}"
@@ -931,6 +975,10 @@ async def agent_v2_chat_stream(
 
                 # 流式运行 Agent（实时发送 revision）
                 _last_buffer_len = 0
+                # Skill 切换去重集合（目录名）
+                emitted_skills: set[str] = set()
+                if loaded_skill_name:
+                    emitted_skills.add(loaded_skill_dir)
 
                 async for event in agent.astream_events(
                     input_msg, config=config, version="v2"
@@ -939,8 +987,17 @@ async def agent_v2_chat_stream(
                     if translated:
                         yield f"data: {json.dumps(translated, ensure_ascii=False)}\n\n"
 
-                    # 🆕 实时发送 revision：on_tool_end 后检测 buffer 新增
+                    # 检测 Skill 切换：Agent 读取其他 SKILL.md 时发送 skill_switched 事件
                     kind = event.get("event", "")
+                    if kind == "on_tool_start" and event.get("name") == "read_file":
+                        _rf_path = str((event.get("data") or {}).get("input", {}).get("path", ""))
+                        if "SKILL.md" in _rf_path:
+                            _sk_m = re.search(r'/skills/[^/]+/([^/]+)/SKILL\.md', _rf_path)
+                            if _sk_m:
+                                _switched = _sk_m.group(1)
+                                if _switched not in emitted_skills:
+                                    emitted_skills.add(_switched)
+                                    yield f"data: {json.dumps({'type': 'skill_switched', 'skill_name': _switched, 'timestamp': get_utc_now().isoformat()}, ensure_ascii=False)}\n\n"
                     if kind == "on_tool_end" and len(backend._buffer) > _last_buffer_len:
                         # 从 translated step_complete 事件提取精确 step_id（防嵌套调用错位）
                         _step_id = (translated or {}).get("step_id", counter.current)
@@ -968,22 +1025,175 @@ async def agent_v2_chat_stream(
                 completion = make_completion_event(changes)
                 yield f"data: {json.dumps(completion, ensure_ascii=False)}\n\n"
 
+                # ── 改动 C：流结束后汇总扣费 ──
+                token_usage_summary = None
+                if settings.CREDITS_ENABLED:
+                    try:
+                        from app.utils.cost_calculator import CostCalculator
+                        from app.services.credits.credit_service import CreditService
+                        from app.services.credits.credit_utils import calculate_credits_from_cost
+                        from app.services.ai_log_service import AILogService
+                        from app.schemas.ai_call_log import AICallLogCreate
+                        from app.core.database import create_db_session
+                        from decimal import Decimal
+                        from uuid import UUID
+
+                        # 从 callback 提取按模型聚合的 token 用量
+                        # UsageMetadataCallbackHandler.usage_metadata 是 dict:
+                        #   {model_name: UsageMetadata(input_tokens, output_tokens, total_tokens)}
+                        model_breakdown = {}
+                        total_input = 0
+                        total_output = 0
+                        for cb_model, meta in usage_cb.usage_metadata.items():
+                            model_name = cb_model or settings.OPENAI_MODEL
+                            entry = model_breakdown.setdefault(model_name, {
+                                "input_tokens": 0, "output_tokens": 0,
+                            })
+                            inp = meta.get("input_tokens", 0)
+                            out = meta.get("output_tokens", 0)
+                            entry["input_tokens"] += inp
+                            entry["output_tokens"] += out
+                            total_input += inp
+                            total_output += out
+
+                        total_total = total_input + total_output
+
+                        if total_total > 0:
+                            # 计算总成本 & 积分
+                            cost_data = CostCalculator.calculate_cost(
+                                model_name=settings.OPENAI_MODEL,
+                                prompt_tokens=total_input,
+                                completion_tokens=total_output,
+                            )
+                            credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
+                            duration_ms = int((_time.time() - _stream_start) * 1000)
+
+                            # 独立 DB 会话（SSE 生成器内端点 db 不可用）
+                            async with create_db_session() as billing_db:
+                                log_data = AICallLogCreate(
+                                    user_id=current_user.id,
+                                    model_name=settings.OPENAI_MODEL,
+                                    operation_type="v2_agent_chat",
+                                    prompt_tokens=total_input,
+                                    completion_tokens=total_output,
+                                    total_tokens=total_total,
+                                    prompt_cost=cost_data["prompt_cost"],
+                                    completion_cost=cost_data["completion_cost"],
+                                    total_cost=cost_data["total_cost"],
+                                    duration_ms=duration_ms,
+                                    is_success=True,
+                                    extra_data={
+                                        "conversation_id": conversation_id,
+                                        "work_id": request.work_id,
+                                        "model_breakdown": model_breakdown,
+                                    },
+                                )
+                                log_svc = AILogService(billing_db)
+                                ai_log = await log_svc.create_log(log_data, auto_commit=False)
+
+                                credit_svc = CreditService(billing_db)
+                                await credit_svc.consume(
+                                    user_id=current_user.id,
+                                    amount=credits_to_deduct,
+                                    description=f"V2 Agent 对话: {conversation_id[:8]}",
+                                    related_id=ai_log.id,
+                                    skip_check=current_user.is_admin,
+                                    auto_commit=False,
+                                )
+                                await billing_db.commit()
+
+                            token_usage_summary = {
+                                "input_tokens": total_input,
+                                "output_tokens": total_output,
+                                "total_tokens": total_total,
+                                "model_breakdown": model_breakdown,
+                                "credits_deducted": float(credits_to_deduct),
+                            }
+                            logger.info(
+                                "[V2 Billing] user=%s conv=%s tokens=%d credits=%.2f",
+                                user_id, conversation_id[:8], total_total,
+                                float(credits_to_deduct),
+                            )
+                    except Exception as billing_err:
+                        logger.error("[V2 Billing] 计费失败（不影响用户）: %s", billing_err, exc_info=True)
+
                 # 缓存 backend 待审批（绑定 user_id 隔离）
                 if changes:
                     backend_key = f"{user_id}:{conversation_id}"
                     _pending_backends[backend_key] = backend
                     _save_pending(backend_key, backend)
 
-                # 发送 done 事件
+                # ── 改动 D：done 事件附加 token_usage ──
                 done_event = {
                     "type": "done",
                     "conversation_id": conversation_id,
                     "has_changes": len(changes) > 0,
+                    "token_usage": token_usage_summary,
                 }
                 yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
 
         except Exception as e:
             logger.error(f"[V2 Agent] Error: {e}", exc_info=True)
+
+            # ── 改动 E：错误路径也扣费（按实际用量） ──
+            if settings.CREDITS_ENABLED and usage_cb is not None:
+                try:
+                    from app.utils.cost_calculator import CostCalculator
+                    from app.services.credits.credit_service import CreditService
+                    from app.services.credits.credit_utils import calculate_credits_from_cost
+                    from app.services.ai_log_service import AILogService
+                    from app.schemas.ai_call_log import AICallLogCreate
+                    from app.core.database import create_db_session
+                    from decimal import Decimal
+
+                    err_input = sum(m.get("input_tokens", 0) for m in usage_cb.usage_metadata.values())
+                    err_output = sum(m.get("output_tokens", 0) for m in usage_cb.usage_metadata.values())
+                    err_total = err_input + err_output
+
+                    if err_total > 0:
+                        cost_data = CostCalculator.calculate_cost(
+                            settings.OPENAI_MODEL, err_input, err_output,
+                        )
+                        credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
+                        duration_ms = int((_time.time() - _stream_start) * 1000) if _stream_start else 0
+
+                        async with create_db_session() as billing_db:
+                            log_data = AICallLogCreate(
+                                user_id=current_user.id,
+                                model_name=settings.OPENAI_MODEL,
+                                operation_type="v2_agent_chat",
+                                prompt_tokens=err_input,
+                                completion_tokens=err_output,
+                                total_tokens=err_total,
+                                prompt_cost=cost_data["prompt_cost"],
+                                completion_cost=cost_data["completion_cost"],
+                                total_cost=cost_data["total_cost"],
+                                duration_ms=duration_ms,
+                                is_success=False,
+                                error_message=str(e)[:1000],
+                                extra_data={"conversation_id": conversation_id, "work_id": request.work_id},
+                            )
+                            log_svc = AILogService(billing_db)
+                            ai_log = await log_svc.create_log(log_data, auto_commit=False)
+
+                            credit_svc = CreditService(billing_db)
+                            await credit_svc.consume(
+                                user_id=current_user.id,
+                                amount=credits_to_deduct,
+                                description=f"V2 Agent 对话(错误): {conversation_id[:8]}",
+                                related_id=ai_log.id,
+                                skip_check=current_user.is_admin,
+                                auto_commit=False,
+                            )
+                            await billing_db.commit()
+
+                        logger.info(
+                            "[V2 Billing] error-path user=%s tokens=%d credits=%.2f",
+                            user_id, err_total, float(credits_to_deduct),
+                        )
+                except Exception as billing_err:
+                    logger.error("[V2 Billing] 错误路径计费失败: %s", billing_err, exc_info=True)
+
             error_event = {
                 "type": "error",
                 "error": str(e),

@@ -181,23 +181,23 @@ allowed-tools: [read_file, glob, grep, semantic_search, execute]
 > 执行时必须使用从项目根目录出发的完整相对路径。
 
 ```bash
-# Analyze a scene file
+# 分析场景文件
 python skills/structure/scene-sequencing/scripts/analyze_scene.py scene.txt
 
-# Analyze text directly
-python skills/structure/scene-sequencing/scripts/analyze_scene.py --text "She needed to find the key..."
+# 直接分析文本
+python skills/structure/scene-sequencing/scripts/analyze_scene.py --text "她必须找到那把钥匙，否则一切都来不及了。但门外的脚步声越来越近..."
 
-# Get JSON output for further processing
+# 以 JSON 格式输出供进一步处理
 python skills/structure/scene-sequencing/scripts/analyze_scene.py scene.txt --json
 ```
 
 **检测内容：**
-- 目标指标（want, need, trying to）
-- 冲突指标（but, blocked, obstacle）
-- 灾难指标（failed, worse, trapped）
-- 反应指标（felt, emotion, shock）
-- 困境指标（choice, either, what if）
-- 决定指标（decided, will, plan）
+- 目标指标（想要、需要、试图、必须）
+- 冲突指标（但是、阻碍、障碍、然而）
+- 灾难指标（失败、更糟、困住、崩溃）
+- 反应指标（感到、震惊、心中、不禁）
+- 困境指标（选择、要么、如果、两难）
+- 决定指标（决定、计划、打算、一定要）
 
 **输出包含：**
 - 场景/续篇比例评估
@@ -215,12 +215,11 @@ python skills/structure/scene-sequencing/scripts/analyze_scene.py scene.txt --js
 
 本技能将主要输出写入文件，以便工作跨会话持续保存。
 
-### 输出发现
+### 输出路径
 
-1. 检查项目中是否存在 `context/output-config.md`
-2. 如果找到，使用本技能对应的输出路径条目
-3. 如果未找到，**使用默认路径 `explorations/scene-sequencing/`** 并立即开始核心工作
-4. 在回应结尾简要提及输出位置——不要因为询问用户而阻塞
+分析和诊断结果直接在对话中呈现。如需持久化，写入平台标准路径：
+- 大纲/结构相关 → `/knowledge/outline.md`
+- 章节内容 → `/chapters/NN-标题.md`
 
 ### 主要输出
 

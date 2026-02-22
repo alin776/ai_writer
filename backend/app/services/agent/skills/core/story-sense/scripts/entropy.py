@@ -1,202 +1,182 @@
 #!/usr/bin/env python3
 
 """
-Entropy Injector
+创意熵值注入器
 
-Randomly selects elements from curated lists to introduce creative entropy.
-Breaks default patterns by forcing unexpected combinations.
+从精选列表中随机选取元素，为创作引入创意熵值。
+通过强制引入意外组合，打破默认创作模式。
 
-Usage:
-  python entropy.py lies              # Random character lie
-  python entropy.py lies --count 3    # Three random lies
-  python entropy.py --list            # Show available lists
-  python entropy.py --combo           # Generate random combo
-  python entropy.py --file data.json professions  # Use custom file
+用法:
+  python entropy.py lies              # 随机一条角色错误信念
+  python entropy.py lies --count 3    # 随机三条错误信念
+  python entropy.py --list            # 显示所有可用列表
+  python entropy.py --combo           # 生成随机组合
+  python entropy.py --file data.json professions  # 使用自定义文件
 """
 
 import sys
 import json
 import random
 
-# Ensure UTF-8 output on all platforms
+# 确保所有平台上使用 UTF-8 输出
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 
-# Built-in lists for immediate use
+# 内置列表，可直接使用
 BUILT_IN_LISTS: dict[str, list[str]] = {
-    # Character lies (for character-arc skill)
+    # 角色错误信念（用于 character-arc 技能）
     'lies': [
-        "I'm not worthy of love",
-        'Power is the only protection',
-        'Trust leads to betrayal',
-        'My value comes from achievement',
-        'The world is fundamentally hostile',
-        "I don't deserve happiness",
-        'Being vulnerable is weakness',
-        'I can only rely on myself',
-        "If I'm perfect, I'll be loved",
-        'My past defines my future',
-        'Other people always leave',
-        "I'm not smart/talented enough",
-        'Asking for help is failure',
-        'I must control everything',
-        'Emotions are dangerous',
-        "I'm fundamentally broken",
-        'Success will make me happy',
-        "I don't belong anywhere",
-        'Love requires sacrifice of self',
-        'The truth is too dangerous',
+        "只有变强才能保护重要的人",
+        "感情只会成为修炼的阻碍",
+        "信任别人就会被背叛",
+        "我的价值取决于修为境界",
+        "弱者不配拥有任何东西",
+        "血脉决定一切，努力无用",
+        "孤身一人才是最安全的",
+        "为达目的可以不择手段",
+        "权力是解决一切问题的答案",
+        "我永远无法超越师兄/前辈",
+        "背负命运就必须放弃自我",
+        "仇恨是唯一的生存动力",
+        "弱肉强食是天道法则",
+        "我不配被爱/被拯救",
+        "过去的罪孽永远无法赎清",
     ],
 
-    # Ghost/wound types (backstory wounds that create lies)
+    # 角色伤痛/心魔（角色背景中的创伤，催生错误信念）
     'ghosts': [
-        'Parental abandonment',
-        'Public humiliation',
-        'Betrayal by trusted figure',
-        'Failure at crucial moment',
-        'Loss of loved one',
-        'Witnessed something terrible',
-        'Rejected by community',
-        "Survivor's guilt",
-        'Childhood neglect',
-        'Broken promise with consequences',
-        'Identity revelation (adopted, etc.)',
-        'Forced to make impossible choice',
-        'Trusted someone unworthy',
-        'Lost something irreplaceable',
-        'Discovered painful truth about self',
-        'Was complicit in harm',
-        "Couldn't save someone",
-        'Was used by someone they loved',
-        "Escaped while others didn't",
-        'Chose wrong at fork in road',
+        "宗门灭亡，独自逃生",
+        "被至亲之人背叛/暗算",
+        "亲眼目睹师父/亲人惨死",
+        "关键时刻实力不足，无法救人",
+        "被冤枉逐出师门",
+        "幼时被遗弃，不知亲生父母",
+        "信任之人原来是卧底/内鬼",
+        "为了活命做了不可饶恕之事",
+        "修炼走火入魔，差点失去一切",
+        "被强者羞辱碾压，尊严尽失",
+        "曾经的挚爱死在自己怀中",
+        "逃离灾难时抛下了同伴",
+        "发现敬仰的师尊实为伪善之人",
+        "被当作实验体/棋子利用",
+        "亲手杀死了被魔化的亲人",
     ],
 
-    # Disaster types (for scene-sequencing skill)
+    # 场景灾难/转折（用于 scene-sequencing 技能）
     'disasters': [
-        'Yes, but now a worse problem',
-        'No, and the door is closed',
-        'No, and they know you tried',
-        'Yes, but it cost too much',
-        'No, and time is running out',
-        "Yes, but it's the wrong thing",
-        "No, and you're exposed",
-        'Yes, but someone else paid',
-        "No, and you're trapped",
-        'Yes, but trust is broken',
-        "No, and help can't reach you",
-        'Yes, but you became what you hate',
-        'No, and the enemy adapts',
-        'Yes, but innocent bystanders',
-        'No, and your ally turns',
+        "突破成功，但引来了强敌注意",
+        "逃脱失败，而且暴露了同伴位置",
+        "获得宝物，但触发了禁制机关",
+        "击败对手，却发现这只是替身",
+        "找到线索，但时间已经来不及了",
+        "救出了人，代价是暴露自己的秘密",
+        "成功了，但最信任的人背叛了",
+        "计划失败，而且对方知道了你的弱点",
+        "达成了目标，但用了不该用的手段",
+        "没能阻止，而且局势进一步恶化",
+        "突围成功，但受了重伤",
+        "获得了力量，代价是失去部分记忆",
+        "赢得了战斗，却输掉了人心",
+        "解开了谜团，但真相比想象更可怕",
+        "化解了危机，但埋下了更大的隐患",
     ],
 
-    # Dilemma structures (for scene-sequencing)
+    # 两难抉择（用于 scene-sequencing 技能）
     'dilemmas': [
-        'Save friend vs. complete mission',
-        'Tell truth vs. protect someone',
-        'Personal goal vs. group need',
-        'Quick risky path vs. slow safe path',
-        'Certain small win vs. possible big win',
-        'Principle vs. pragmatism',
-        'Trust new ally vs. go alone',
-        'Reveal secret vs. maintain cover',
-        'Confront now vs. gather evidence',
-        'Mercy vs. justice',
-        'Loyalty to past vs. necessity of present',
-        'Self-preservation vs. moral obligation',
-        'Love vs. duty',
-        'Honesty vs. kindness',
-        'Individual vs. many',
+        "救同伴 vs 完成任务",
+        "说出真相 vs 保护某人",
+        "个人利益 vs 团队大局",
+        "冒险快速通关 vs 稳扎稳打",
+        "修炼突破 vs 救治同伴",
+        "坚持原则 vs 务实妥协",
+        "信任新盟友 vs 独自行动",
+        "暴露秘密 vs 维持伪装",
+        "立即反击 vs 隐忍蛰伏",
+        "仁慈放人 vs 斩草除根",
+        "忠于旧主 vs 顺应大势",
+        "牺牲自己 vs 牺牲他人",
+        "报仇 vs 活下去",
+        "使用禁术 vs 正道手段",
+        "守护一人 vs 守护苍生",
     ],
 
-    # Unexpected professions (for character cliché-breaking)
+    # 非典型身份/职业（用于打破角色刻板印象）
     'professions': [
-        'Elevator inspector',
-        'Medical illustrator',
-        'Voice actor for GPS systems',
-        'Crime scene cleaner',
-        'Ethical hacker',
-        'Cult deprogrammer',
-        'Prosthetic eye maker',
-        'Patent examiner',
-        'Foley artist',
-        'Professional line-sitter',
-        'Food stylist',
-        'Escape room designer',
-        'Wind turbine technician',
-        'Crossword puzzle constructor',
-        'Museum preparator',
-        'Genealogist for hire',
-        'Demolition consultant',
-        'Wastewater treatment operator',
-        'Cartographic surveyor',
-        'Sleep study technician',
+        "灵兽粪便清理工",
+        "传送阵报站员",
+        "丹炉裂缝修补匠",
+        "仙城下水道管理员",
+        "灵石品鉴师",
+        "飞剑保养师",
+        "渡劫场地租赁商",
+        "天劫观测员",
+        "宗门伙食堂大厨",
+        "妖兽标本制作师",
+        "阵法拆除专家",
+        "功法盗版识别官",
+        "境界鉴定黄牛",
+        "秘境导游",
+        "战后遗骸收集者",
     ],
 
-    # Unexpected locations (for setting cliché-breaking)
+    # 非典型场景（用于打破场景刻板印象）
     'locations': [
-        'Toll booth at 3 AM',
-        'Hospital chapel',
-        'Closed water park',
-        'Grain silo',
-        'Furniture warehouse clearance sale',
-        'Nuclear power plant visitor center',
-        'Taxidermy workshop',
-        'Airport interfaith chapel',
-        'Underground parking garage, level 7',
-        'Botanical garden at closing time',
-        'Self-storage facility at midnight',
-        'Casino surveillance room',
-        'Dental office waiting room',
-        "Beekeeper's apiary",
-        'Radio transmission tower base',
-        'Recycling center sorting floor',
-        'Meat processing plant',
-        'Weather research station',
-        'Dog show grooming area',
-        'Construction site trailer',
+        "宗门杂物房深夜",
+        "灵兽粪坑旁的枯树下",
+        "废弃传送阵的裂缝里",
+        "藏经阁最底层的灰尘角落",
+        "丹炉爆炸后的废墟",
+        "灵泉枯竭后的干涸池底",
+        "凡人城镇的路边摊",
+        "飞行法器维修停泊场",
+        "仙城公共茅厕",
+        "妖兽养殖场",
+        "被遗忘的上古战场遗迹",
+        "宗门禁地外围的围墙下",
+        "坊市关门后的空巷",
+        "渡劫失败者的坟场",
+        "灵脉断裂带的废矿",
     ],
 
-    # Orthogonal collisions (for cliche-transcendence)
+    # 正交碰撞（用于 cliche-transcendence 技能）
     'collisions': [
-        "Their investigation accidentally overlaps with protagonist's secret",
-        "They're solving a completely different case that uses same evidence",
-        "Their mundane job puts them in protagonist's path repeatedly",
-        "They're looking for someone else who happens to be with protagonist",
-        'Their personal vendetta targets someone protagonist needs',
-        "They have information they don't know is valuable",
-        'They witnessed something they misinterpreted',
-        'Their hobby intersects with the mystery',
-        "They're enforcing a rule that blocks protagonist for boring reasons",
-        'They want the same resource for completely different reasons',
-        "They're cleaning up someone else's mess and protagonist is evidence",
-        "They're testing equipment that detects protagonist's secret",
-        "They're writing a story and researching the protagonist's situation",
-        "They're a former victim of something adjacent to protagonist's problem",
-        "They're running a scam that accidentally mimics the real conspiracy",
+        "他调查的案子偶然牵扯到主角的秘密身世",
+        "她在追查完全不同的事，但用到了同一条线索",
+        "他的日常工作让他反复出现在主角的路线上",
+        "他在找的人恰好和主角同行",
+        "她的私人恩怨针对的是主角需要的人",
+        "他掌握了一个自己不知道价值的情报",
+        "她目睹了一件事但完全误解了含义",
+        "他的修炼功法和主角的秘密产生了共鸣",
+        "她执行门规恰好阻拦了主角",
+        "他想要同一种资源但理由完全不同",
+        "她在清理别人留下的烂摊子，主角是'证据'之一",
+        "他在测试新法器，无意中探测到主角的隐藏",
+        "她在收集素材写游记，调查到了主角的处境",
+        "他曾经历过和主角类似的遭遇",
+        "他制造的骗局意外模仿了真正的阴谋",
     ],
 
-    # Scene openings (for drafting prompts)
+    # 场景开头（用于 drafting 提示）
     'openings': [
-        "In the middle of an argument that's clearly been going for hours",
-        "Someone arriving where they're not supposed to be",
-        "Two people pretending they don't know each other",
-        'The aftermath of violence, not the violence itself',
-        "A routine that's about to be broken",
-        'Someone working while processing bad news',
-        'A forced politeness between enemies',
-        'The moment before a reveal',
-        'Someone doing their job badly because distracted',
-        'Two conversations happening simultaneously',
-        'Someone waiting and trying not to show impatience',
-        'A goodbye that might be final',
-        'Discovery of something that changes everything',
-        'The last normal moment before disruption',
-        'Someone maintaining composure while falling apart',
+        "一场已经持续数个时辰的争吵中间",
+        "有人出现在不该出现的地方",
+        "两个人假装互不认识",
+        "暴力之后的善后现场，而非暴力本身",
+        "一个即将被打破的日常",
+        "一边干活一边消化坏消息",
+        "仇人之间被迫的客套",
+        "揭秘前的最后一刻",
+        "因为分心而把手头的事搞砸",
+        "两场对话同时进行",
+        "等待中试图掩饰焦躁",
+        "一次可能是永别的告别",
+        "发现了改变一切的东西",
+        "变故来临前最后的平静时刻",
+        "表面镇定内心已经崩溃",
     ],
 
 }
@@ -220,7 +200,7 @@ def load_external_lists(filepath: str) -> dict[str, list[str]]:
         with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        print(f'Error loading {filepath}: {e}', file=sys.stderr)
+        print(f'加载文件 {filepath} 失败: {e}', file=sys.stderr)
         sys.exit(1)
 
 
@@ -229,38 +209,38 @@ def main() -> None:
 
     if '--help' in args or '-h' in args:
         print("""
-Entropy Injector - Random elements for creative work
+创意熵值注入器 - 随机元素灵感激发
 
-Usage:
-  python entropy.py <list-name>           # Random element
-  python entropy.py <list-name> --count N # N random elements
-  python entropy.py --list                # Show available lists
-  python entropy.py --combo               # One from each list
-  python entropy.py --combo-small         # Subset combo
-  python entropy.py --file custom.json <list>  # Custom lists
+用法:
+  python entropy.py <列表名>           # 随机一条元素
+  python entropy.py <列表名> --count N # 随机 N 条元素
+  python entropy.py --list                # 显示所有可用列表
+  python entropy.py --combo               # 每个列表各取一条
+  python entropy.py --combo-small         # 精简组合
+  python entropy.py --file custom.json <列表名>  # 使用自定义列表
 
-Built-in lists:
-  lies        - Character false beliefs (for arcs)
-  ghosts      - Backstory wounds
-  disasters   - Scene endings
-  dilemmas    - Choice structures
-  professions - Unexpected jobs
-  locations   - Unusual places
-  collisions  - Orthogonal intersections
-  openings    - Scene start prompts
+内置列表:
+  lies        - 角色错误信念（用于角色弧线）
+  ghosts      - 角色伤痛/心魔（背景创伤）
+  disasters   - 场景灾难/转折
+  dilemmas    - 两难抉择
+  professions - 非典型身份/职业
+  locations   - 非典型场景
+  collisions  - 正交碰撞
+  openings    - 场景开头
 
-Options:
-  --count N   Return N random items
-  --json      Output as JSON
-  --list      Show all available lists
-  --combo     Generate one item from each list
-  --file F    Load additional lists from JSON file
+选项:
+  --count N   返回 N 条随机结果
+  --json      以 JSON 格式输出
+  --list      显示所有可用列表
+  --combo     从每个列表各生成一条
+  --file F    从 JSON 文件加载额外列表
 """)
         sys.exit(0)
 
     lists = {**BUILT_IN_LISTS}
 
-    # Load external file if specified
+    # 加载外部文件（如指定）
     file_index = args.index('--file') if '--file' in args else -1
     if file_index != -1 and file_index + 1 < len(args):
         external = load_external_lists(args[file_index + 1])
@@ -268,20 +248,20 @@ Options:
 
     json_output = '--json' in args
 
-    # Show available lists
+    # 显示可用列表
     if '--list' in args:
-        print('Available lists:' + '\n')
+        print('可用列表:' + '\n')
         for name, items in lists.items():
-            print(f'  {name:<15} ({len(items)} items)')
+            print(f'  {name:<15} ({len(items)} 条)')
         sys.exit(0)
 
-    # Generate combo from all or subset of lists
+    # 从全部或部分列表生成组合
     if '--combo' in args:
         combo = generate_combo(lists)
         if json_output:
-            print(json.dumps(combo, indent=2))
+            print(json.dumps(combo, indent=2, ensure_ascii=False))
         else:
-            print('Random combination:' + '\n')
+            print('随机组合:' + '\n')
             for name, value in combo.items():
                 print(f'  {name}: {value}')
         sys.exit(0)
@@ -294,14 +274,14 @@ Options:
         }
         combo = generate_combo(small)
         if json_output:
-            print(json.dumps(combo, indent=2))
+            print(json.dumps(combo, indent=2, ensure_ascii=False))
         else:
-            print('Random seed:' + '\n')
+            print('随机种子:' + '\n')
             for name, value in combo.items():
                 print(f'  {name}: {value}')
         sys.exit(0)
 
-    # Get count
+    # 获取数量参数
     count_index = args.index('--count') if '--count' in args else -1
     count = 1
     if count_index != -1 and count_index + 1 < len(args):
@@ -310,7 +290,7 @@ Options:
         except ValueError:
             count = 1
 
-    # Build set of arg indices to skip
+    # 构建需要跳过的参数索引集合
     skip_indices: set[int] = set()
     if file_index != -1:
         skip_indices.add(file_index)
@@ -319,7 +299,7 @@ Options:
         skip_indices.add(count_index)
         skip_indices.add(count_index + 1)
 
-    # Get specific list name
+    # 获取指定的列表名
     list_name = None
     for i in range(len(args)):
         if not args[i].startswith('--') and i not in skip_indices:
@@ -327,17 +307,17 @@ Options:
             break
 
     if not list_name:
-        print('Error: No list specified. Use --list to see options.', file=sys.stderr)
+        print('错误: 未指定列表名。使用 --list 查看可用选项。', file=sys.stderr)
         sys.exit(1)
 
     if list_name not in lists:
-        print(f'Error: Unknown list "{list_name}". Use --list to see options.', file=sys.stderr)
+        print(f'错误: 未知列表 "{list_name}"。使用 --list 查看可用选项。', file=sys.stderr)
         sys.exit(1)
 
     selected = random_from(lists[list_name], count)
 
     if json_output:
-        print(json.dumps(selected, indent=2))
+        print(json.dumps(selected, indent=2, ensure_ascii=False))
     else:
         if count == 1:
             print(selected[0])

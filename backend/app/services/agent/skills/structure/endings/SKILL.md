@@ -386,7 +386,7 @@ allowed-tools: [read_file, glob, grep, semantic_search, execute]
 
 ```bash
 python skills/structure/endings/scripts/ending_check.py final-chapter.txt
-python skills/structure/endings/scripts/ending_check.py --text "The resolution..."
+python skills/structure/endings/scripts/ending_check.py --text "一切尘埃落定。叶辰站在山巅之上，俯瞰苍茫大地..."
 ```
 
 **检查内容：**
@@ -400,7 +400,7 @@ python skills/structure/endings/scripts/ending_check.py --text "The resolution..
 跟踪故事中的铺垫和回收。
 
 ```bash
-python skills/structure/endings/scripts/setup_payoff.py --setup "The rusty key" --file story.txt
+python skills/structure/endings/scripts/setup_payoff.py --setup "那把锈蚀的钥匙" --file story.txt
 python skills/structure/endings/scripts/setup_payoff.py --analyze story.txt
 ```
 
@@ -466,12 +466,10 @@ python skills/structure/endings/scripts/setup_payoff.py --analyze story.txt
 
 本技能将主要输出写入文件，以便工作跨会话保持。
 
-### 输出发现
+### 输出路径
 
-1. 检查项目中是否存在 `context/output-config.md`
-2. 如果找到，使用本技能对应的输出路径
-3. 如果未找到，**使用默认路径 `explorations/endings/`**，并立即开始核心工作
-4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
+分析和诊断结果直接在对话中呈现。如需持久化，写入平台标准路径：
+- 大纲/结构相关 → `/knowledge/outline.md`
 
 ### 主要输出
 

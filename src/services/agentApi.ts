@@ -400,6 +400,9 @@ class AgentApiService {
             case 'skill_loaded':
               callbacks.onFlowEvent?.({ type: 'skill_loaded', skillName: data.skill_name, timestamp: data.timestamp });
               break;
+            case 'skill_switched':
+              callbacks.onFlowEvent?.({ type: 'skill_switched', skillName: data.skill_name, timestamp: data.timestamp });
+              break;
             case 'knowledge_loaded':
               // V1 遗留，忽略
               break;

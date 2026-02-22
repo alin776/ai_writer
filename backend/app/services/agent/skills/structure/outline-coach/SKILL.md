@@ -193,12 +193,10 @@ allowed-tools: [read_file, glob, grep, semantic_search]
 
 本技能将主要输出写入文件，以便工作跨会话保持。
 
-### 输出发现
+### 输出路径
 
-1. 检查项目中是否存在 `context/output-config.md`
-2. 如果找到，使用本技能对应的输出路径
-3. 如果未找到，**使用默认路径 `explorations/outline-coach/`**，并立即开始核心工作
-4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
+分析和诊断结果直接在对话中呈现。如需持久化，写入平台标准路径：
+- 大纲/结构相关 → `/knowledge/outline.md`
 
 ### 主要输出
 
@@ -216,11 +214,6 @@ allowed-tools: [read_file, glob, grep, semantic_search]
 | 有效的问题 | 讨论与探索 |
 | 作者的洞见 | 澄清性问题 |
 | 进展笔记 | 鼓励 |
-
-### 文件命名
-
-模式：`{project}-outline-coaching-{date}.md`
-示例：`novel-outline-coaching-2025-01-15.md`
 
 ## 与其他技能的集成
 

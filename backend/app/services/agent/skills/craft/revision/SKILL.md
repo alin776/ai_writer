@@ -432,29 +432,29 @@ allowed-tools: [read_file, glob, grep, semantic_search, execute]
 ## 修改工作流
 
 ```
-Draft Complete
+草稿完成
     ↓
-[Rest Period - days/weeks]
+[冷却期 — 几天/几周]
     ↓
-Structural Pass
+结构轮次
     ↓
-[Beta Readers - optional]
+[测试读者 — 可选]
     ↓
-Scene Pass
+场景轮次
     ↓
-Character Pass
+角色轮次
     ↓
-Dialogue Pass
+对话轮次
     ↓
-Prose Pass
+散文轮次
     ↓
-[Critique Partners - optional]
+[评论伙伴 — 可选]
     ↓
-Polish Pass
+润色轮次
     ↓
-[Proofreader - optional]
+[校对者 — 可选]
     ↓
-Done
+完成
 ```
 
 ---
@@ -608,12 +608,11 @@ python skills/craft/revision/scripts/revision_audit.py --pass structural
 
 本技能将主要输出写入文件，以便跨会话保留工作成果。
 
-### 输出发现
+### 输出路径
 
-1. 检查项目中是否有 `context/output-config.md`
-2. 如果找到，使用该技能的条目获取输出路径
-3. 如果未找到，**使用默认路径 `explorations/revision/`** 并立即开始核心工作
-4. 在回复末尾简要提及输出位置——不要因询问用户而阻塞
+分析和诊断结果直接在对话中呈现。如需持久化，写入平台标准路径：
+- 章节内容 → `/chapters/NN-标题.md`
+- 大纲/结构相关 → `/knowledge/outline.md`
 
 ### 主要输出
 

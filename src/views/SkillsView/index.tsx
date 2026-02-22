@@ -5,9 +5,8 @@ import { agentApi } from '@/services/agentApi';
 import type { Skill } from '@/types/agent';
 
 const GROUP_ORDER = [
-    '质量检查', '创作分析', '创作辅助',
-    '中文小说', '故事诊断', '角色塑造', '结构设计',
-    '写作技法', '世界构建', '应用工具',
+    '故事诊断', '角色塑造', '结构设计',
+    '写作技法', '世界构建',
 ];
 
 // ── channel-style section header ──────────────────────────────────────────────
