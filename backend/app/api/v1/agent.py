@@ -875,6 +875,8 @@ async def agent_v2_chat_stream(
                         if not um:
                             return
                         name = (gen.message.response_metadata or {}).get("model_name") or self._default_model
+                        # 验证 token details 是否可用（临时 debug log）
+                        logger.info("[TokenDetails] model=%s usage_metadata=%s", name, dict(um))
                         if name in self.usage_metadata:
                             from langchain_core.callbacks.usage import add_usage
                             self.usage_metadata[name] = add_usage(self.usage_metadata[name], um)

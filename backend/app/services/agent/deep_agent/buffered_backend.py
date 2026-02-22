@@ -303,6 +303,7 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         try:
             result = subprocess.run(
                 command, shell=True, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
                 timeout=effective_timeout, cwd=str(self.cwd),
                 env={**os.environ, "PYTHONIOENCODING": "utf-8"},
             )
