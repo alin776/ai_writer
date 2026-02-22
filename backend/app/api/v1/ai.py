@@ -38,91 +38,6 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-# ==================== 后台日志记录函数 ====================
-# ❌ DEPRECATED - 2025-12-01
-# 此函数已被弃用，现在使用HTTPAIService._track_api_cost替代
-# 保留代码仅用于紧急回滚
-
-async def _log_ai_call_async(
-    user_id: str,
-    model_name: str,
-    operation_type: str,
-    prompt_tokens: int,
-    completion_tokens: int,
-    prompt_text: str = "",
-    completion_text: str = "",
-    extra_data: dict = None
-):
-    """
-    后台异步记录AI调用日志
-
-    Args:
-        user_id: 用户ID
-        model_name: 模型名称
-        operation_type: 操作类型
-        prompt_tokens: 输入token数
-        completion_tokens: 输出token数
-        prompt_text: 输入文本（用于估算）
-        completion_text: 输出文本（用于估算）
-        extra_data: 额外数据
-    """
-    import asyncio
-    from uuid import UUID
-    from app.services.ai_log_service import AILogService
-    from app.schemas.ai_call_log import AICallLogCreate
-    from app.utils.cost_calculator import CostCalculator
-
-    try:
-        # 如果没有提供token数，估算
-        if prompt_tokens == 0 and prompt_text:
-            # 简单估算：中文1.5字符=1token，英文4字符=1token
-            chinese_chars = sum(1 for c in prompt_text if '\u4e00' <= c <= '\u9fff')
-            other_chars = len(prompt_text) - chinese_chars
-            prompt_tokens = int(chinese_chars / 1.5 + other_chars / 4)
-
-        if completion_tokens == 0 and completion_text:
-            chinese_chars = sum(1 for c in completion_text if '\u4e00' <= c <= '\u9fff')
-            other_chars = len(completion_text) - chinese_chars
-            completion_tokens = int(chinese_chars / 1.5 + other_chars / 4)
-
-        # 计算成本
-        cost_data = CostCalculator.calculate_cost(
-            model_name=model_name,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens
-        )
-
-        # 创建日志记录
-        log_service = AILogService(db)
-        log_data = AICallLogCreate(
-            user_id=UUID(user_id),
-            model_name=model_name,
-            operation_type=operation_type,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=prompt_tokens + completion_tokens,
-            prompt_cost=cost_data["prompt_cost"],
-            completion_cost=cost_data["completion_cost"],
-            total_cost=cost_data["total_cost"],
-            duration_ms=0,  # 流式响应无法准确计时
-            is_success=True,
-            extra_data=extra_data or {}
-        )
-
-        await log_service.create_log(log_data)
-        await db.commit()
-
-        logger.info(
-            f"[后台日志] AI调用已记录: operation={operation_type}, "
-            f"tokens={prompt_tokens + completion_tokens}, "
-            f"cost=${cost_data['total_cost']:.6f}"
-        )
-
-    except Exception as e:
-        logger.error(f"[后台日志] 记录失败: {e}", exc_info=True)
-        # 日志记录失败不影响主流程
-
-
 # ==================== 请求数据模型 ====================
 
 class AICompleteRequest(BaseModel):
@@ -263,23 +178,6 @@ async def ai_complete(
             yield f"data: [ERROR] {error_msg}\n\n"
 
         finally:
-            # ❌ DEPRECATED - 2025-12-01: 注释掉后台任务，改用HTTPAIService内部的_track_api_cost
-            # HTTPAIService现在会在AI调用完成时自动记录成本到数据库
-            # asyncio.create_task(_log_ai_call_async(
-            #     user_id=str(current_user.id),
-            #     model_name=settings.OPENAI_MODEL,
-            #     operation_type="continue",
-            #     prompt_tokens=0,
-            #     completion_tokens=0,
-            #     prompt_text=request.context,
-            #     completion_text=accumulated_text,
-            #     extra_data={
-            #         "style": request.style,
-            #         "prompt": request.prompt,
-            #         "max_tokens": request.max_tokens,
-            #         "context_length": len(request.context)
-            #     }
-            # ))
             pass
 
     return StreamingResponse(
@@ -352,17 +250,6 @@ async def ai_polish(
             yield f"data: [ERROR] {error_msg}\n\n"
 
         finally:
-            # ❌ DEPRECATED - 2025-12-01: 注释掉后台任务
-            # asyncio.create_task(_log_ai_call_async(
-            #     user_id=str(current_user.id),
-            #     model_name=settings.OPENAI_MODEL,
-            #     operation_type="polish",
-            #     prompt_tokens=0,
-            #     completion_tokens=0,
-            #     prompt_text=request.text,
-            #     completion_text=accumulated_text,
-            #     extra_data={"text_length": len(request.text)}
-            # ))
             pass
 
     return StreamingResponse(
@@ -434,20 +321,6 @@ async def ai_translate(
             yield f"data: [ERROR] {error_msg}\n\n"
 
         finally:
-            # ❌ DEPRECATED - 2025-12-01: 注释掉后台任务
-            # asyncio.create_task(_log_ai_call_async(
-            #     user_id=str(current_user.id),
-            #     model_name=settings.OPENAI_MODEL,
-            #     operation_type="translate",
-            #     prompt_tokens=0,
-            #     completion_tokens=0,
-            #     prompt_text=request.text,
-            #     completion_text=accumulated_text,
-            #     extra_data={
-            #         "text_length": len(request.text),
-            #         "target_lang": request.target_lang
-            #     }
-            # ))
             pass
 
     return StreamingResponse(
@@ -509,17 +382,6 @@ async def ai_expand(
             yield f"data: [ERROR] {error_msg}\n\n"
 
         finally:
-            # ❌ DEPRECATED - 2025-12-01: 注释掉后台任务
-            # asyncio.create_task(_log_ai_call_async(
-            #     user_id=str(current_user.id),
-            #     model_name=settings.OPENAI_MODEL,
-            #     operation_type="expand",
-            #     prompt_tokens=0,
-            #     completion_tokens=0,
-            #     prompt_text=request.text,
-            #     completion_text=accumulated_text,
-            #     extra_data={"text_length": len(request.text)}
-            # ))
             pass
 
     return StreamingResponse(

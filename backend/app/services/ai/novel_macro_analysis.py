@@ -30,9 +30,6 @@ class NovelMacroAnalysisService:
             db: 数据库会话（用于token记录）
             work_id: 作品ID（用于token记录）
         """
-        # ❌ DEPRECATED - 2025-12-01
-        # self.ai_service = HTTPAIService()
-        # ✅ 新增：传递db和user_id给HTTPAIService
         self.user_id = user_id
         self.db = db
         self.work_id = work_id
@@ -240,9 +237,6 @@ class NovelMacroAnalysisService:
             full_response += text_chunk
             if usage:  # 最后一个chunk包含usage
                 final_usage = usage
-
-        # ❌ DEPRECATED - 2025-12-02: 删除重复的成本追踪逻辑
-        # HTTPAIService._track_api_cost()已经自动记录成本到数据库
 
         return full_response.strip()
     

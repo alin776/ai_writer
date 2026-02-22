@@ -14,8 +14,6 @@ from datetime import datetime
 from app.core.config import settings
 from app.services.ai.prompts import get_prompts_manager
 from app.services.agent.model_selector import ModelSelector, TaskType
-# ❌ DEPRECATED - 2025-12-01: 注释掉CostTracker，改用AILogService
-# from app.services.agent.cost_tracker import get_cost_tracker
 from ..agent.utils.llm_optimizer import get_llm_optimizer, optimized_llm_call
 # ✅ 2025-12-01: 支持从请求上下文获取user_id（用于全局Agent成本追踪）
 from app.core.request_context import get_request_user_id, get_request_db
@@ -95,14 +93,7 @@ class HTTPAIService:
         else:
             self.model_selector = None
 
-        # ❌ DEPRECATED - 2025-12-01: 注释掉CostTracker
-        # if enable_cost_tracking:
-        #     self.cost_tracker = get_cost_tracker()
-        #     logger.info("CostTracker 已启用")
-        # else:
-        #     self.cost_tracker = None
-
-        # ✅ 新增：使用AILogService替代CostTracker
+        # 使用AILogService进行成本追踪
         self.ai_log_service = None
         if enable_cost_tracking and db and user_id:
             from app.services.ai_log_service import AILogService

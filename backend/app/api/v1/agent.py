@@ -990,7 +990,7 @@ async def agent_v2_chat_stream(
                     # 检测 Skill 切换：Agent 读取其他 SKILL.md 时发送 skill_switched 事件
                     kind = event.get("event", "")
                     if kind == "on_tool_start" and event.get("name") == "read_file":
-                        _rf_path = str((event.get("data") or {}).get("input", {}).get("path", ""))
+                        _rf_path = str((event.get("data") or {}).get("input", {}).get("file_path", ""))
                         if "SKILL.md" in _rf_path:
                             _sk_m = re.search(r'/skills/[^/]+/([^/]+)/SKILL\.md', _rf_path)
                             if _sk_m:

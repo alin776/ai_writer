@@ -641,7 +641,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   currentFlowItems = [...currentFlowItems, item];
                   break;
                 }
-                // knowledge_loaded: V1 遗留，V2 不再处理
                 case 'step_complete': {
                   // v6.7: 确保 running 状态至少显示 500ms，与 TaskList 同步
                   const MIN_RUNNING_DISPLAY_MS = 500;
@@ -733,8 +732,6 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   currentFlowItems = [...currentFlowItems, item];
                   break;
                 }
-                // summarization: V1 遗留，V2 不再处理
-                // explore: V1 遗留，V2 不再处理
                 case 'revision': {
                   // v9: 实时修订 — 通过 stepId 精确匹配 step + 同 path 累加
                   const revisionItemId = `flow-${Date.now()}-revision`;

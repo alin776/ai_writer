@@ -327,7 +327,7 @@ export interface ActivityItem {
 /**
  * 执行轨迹项类型
  */
-export type FlowItemType = 'text' | 'tool' | 'content' | 'step' | 'output' | 'agent_header' | 'completion' | 'summarization' | 'revision' | 'explore_round' | 'explore_summary' | 'operate' | 'todo';
+export type FlowItemType = 'text' | 'step' | 'output' | 'agent_header' | 'completion' | 'revision' | 'operate' | 'todo';
 
 // ==================== 知识调取相关类型 (v6.0) ====================
 
@@ -396,46 +396,9 @@ export interface CompletionFlowData {
 }
 
 /**
- * AI整合分析数据 (Summarization)
- */
-export interface SummarizationFlowData {
-  status: 'running' | 'done';
-  reason?: string;
-  taskClassification: {
-    inputTasks: Array<{ tool: string; description: string }>;
-    outputTasks: Array<{ tool: string; description: string }>;
-    displayTasks: Array<{ tool: string; description: string }>;
-  };
-  contextStats: {
-    originalLength: number;
-    compressedLength: number;
-    mode: string;
-  };
-}
-
-/**
  * AI 说明文字数据
  */
 export interface TextFlowData {
-  content: string;
-}
-
-/**
- * 工具卡片数据
- */
-export interface ToolFlowData {
-  taskId: number;
-  icon: string;           // Lucide 图标名
-  title: string;          // 工具标题
-  description: string;    // 工具描述
-  status: 'running' | 'done' | 'error';
-  output?: string;        // 工具执行输出
-}
-
-/**
- * 流式内容数据
- */
-export interface ContentFlowData {
   content: string;
 }
 
@@ -487,109 +450,6 @@ export interface RevisionFlowData {
   diffPairs?: Array<{ oldString: string; newString: string }>;  // 同 path 累加时保留所有 diff 对（用于 session 恢复重放）
   editorPosition?: { from: number; to: number };  // 编辑器位置
   selectedVersion?: number;     // 选择的改写版本索引
-}
-
-// ==================== Explore 探索轨迹类型 (v9.0) ====================
-
-/**
- * Explore 工具调用标签
- */
-export interface ExploreToolCall {
-  type: 'Search' | 'Locate' | 'ReadRaw' | 'ReadParagraph' | 'ListChapters' | 'ListParagraphs' | 'Worldview';
-  value: string;
-  highlight?: string;  // Search 类型的高亮关键词
-}
-
-/**
- * Explore 证据项
- */
-export interface ExploreEvidenceItem {
-  chapter?: number;
-  paragraph?: number;
-  text: string;
-  chapterOrder?: number;
-  chapterTitle?: string;
-  paragraphIndex?: number;
-}
-
-/**
- * Explore 轮次数据（流事件）
- */
-export interface ExploreRoundFlowData {
-  stepId: number;
-  roundIdx: number;
-  title: string;
-  reason?: string;  // AI 生成的决策理由（完整）
-  toolCalls: ExploreToolCall[];
-  hitCount: number;
-  missingItems: string[];
-  statusText: string;
-  evidences: ExploreEvidenceItem[];
-  reviewStatus: string;  // "覆盖不足" | "补齐要点" | "通过"
-  status: 'running' | 'done';
-}
-
-/**
- * Explore 统计数据
- */
-export interface ExploreStats {
-  worldview: number;
-  chapters: string;    // "1-4"
-  evidences: number;
-  coverage: string;    // "充足/覆盖不足/未知"
-}
-
-/**
- * Explore 总结数据（流事件）
- */
-export interface ExploreSummaryFlowData {
-  stepId: number;
-  totalRounds: number;
-  summary: string;
-  nextAction: string;
-  nextTool?: string;
-  sufficient?: boolean;
-  coverage?: string;
-  stats: ExploreStats;
-}
-
-/**
- * ExploreCard 组件使用的轮次数据（兼容旧版）
- */
-export interface ExploreRound {
-  id: string;
-  title?: string;
-  reason?: string;  // AI 生成的决策理由（完整）
-  query?: string;
-  search?: {
-    query?: string;
-    results?: any[];
-  };
-  locate?: {
-    chapterOrder?: number;
-    chapterTitle?: string;
-    paragraphIndex?: number;
-  };
-  readRaw?: {
-    chapterOrder?: number;
-    chapterTitle?: string;
-  };
-  readSegment?: {
-    chapterOrder?: number;
-    chapterTitle?: string;
-    paragraphIndex?: number;
-  };
-  review?: {
-    status: 'pass' | 'insufficient' | 'pending';
-  };
-  evidence?: ExploreEvidenceItem[];
-}
-
-/**
- * ExploreCard 组件使用的数据（兼容旧版）
- */
-export interface ExploreFlowData {
-  rounds: ExploreRound[];
 }
 
 // ==================== Operate 操作轨迹类型 (v10.0) ====================
@@ -674,7 +534,7 @@ export interface TodoFlowData {
 export interface FlowItem {
   id: string;
   type: FlowItemType;
-  data: TextFlowData | ToolFlowData | ContentFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | SummarizationFlowData | RevisionFlowData | ExploreRoundFlowData | ExploreSummaryFlowData | ExploreFlowData | OperateFlowData | TodoFlowData;
+  data: TextFlowData | StepFlowData | OutputFlowData | AgentHeaderFlowData | CompletionFlowData | RevisionFlowData | OperateFlowData | TodoFlowData;
   timestamp: string;
 }
 

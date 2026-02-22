@@ -127,13 +127,6 @@ export function ExecutionFlow({
             // 极简：不渲染独立 header，由 AIPanel 控制
             return null;
 
-          // V1 遗留类型 — 兼容旧消息，不报错
-          case 'summarization':
-          case 'explore_round':
-          case 'explore_summary':
-          case 'operate':
-          case 'tool':
-          case 'content':
           default:
             return null;
         }

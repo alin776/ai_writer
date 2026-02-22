@@ -281,37 +281,22 @@ class AgentApiService {
     const streamBase = streamBaseRaw
       .replace(/\/api\/v1\/?$/, '')
       .replace(/\/$/, '');
-    const streamUrls = [
-      `${streamBase}/api/v1/agent/v2/chat/stream`,
-      `${streamBase}/api/v1/agent/chat/stream`,
-    ];
+    const streamUrl = `${streamBase}/api/v1/agent/v2/chat/stream`;
 
     // ✅ 真正的流式输出：直接传递后端返回的内容，不再拆分和模拟
     // 后端现在会以小块（5字符）的粒度发送内容，前端直接展示即可
 
     const doFetch = async (authToken: string | null): Promise<Response | null> => {
-      let response: Response | null = null;
-      for (let idx = 0; idx < streamUrls.length; idx += 1) {
-        const candidate = streamUrls[idx];
-        const resp = await fetch(candidate, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': authToken ? `Bearer ${authToken}` : '',
-          },
-          body: JSON.stringify(finalRequest),
-          signal: options?.signal,
-        });
-
-        // 新后端走 /v2，若目标服务仍是旧版本，则 404 后自动回退。
-        if (resp.status === 404 && idx < streamUrls.length - 1) {
-          continue;
-        }
-
-        response = resp;
-        break;
-      }
-      return response;
+      const resp = await fetch(streamUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authToken ? `Bearer ${authToken}` : '',
+        },
+        body: JSON.stringify(finalRequest),
+        signal: options?.signal,
+      });
+      return resp;
     };
 
     try {
@@ -403,9 +388,6 @@ class AgentApiService {
             case 'skill_switched':
               callbacks.onFlowEvent?.({ type: 'skill_switched', skillName: data.skill_name, timestamp: data.timestamp });
               break;
-            case 'knowledge_loaded':
-              // V1 遗留，忽略
-              break;
             case 'step_complete':
               callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolName: data.tool_name, toolCall: data.tool_call, status: data.status, timestamp: data.timestamp });
               break;
@@ -425,18 +407,6 @@ class AgentApiService {
               callbacks.onFlowEvent?.({ type: 'revision', data: revisionData, stepId: data.step_id, timestamp });
               break;
             }
-            case 'summarization_start':
-              // V1 遗留，忽略
-              break;
-            case 'summarization_complete':
-              // V1 遗留，忽略
-              break;
-
-            // Explore 探索事件 — V1 遗留，忽略
-            case 'explore_round':
-              break;
-            case 'explore_summary':
-              break;
           }
         } catch (error) {
           console.error('[AgentApi] Failed to parse SSE data:', error);

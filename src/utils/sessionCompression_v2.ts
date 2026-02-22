@@ -6,9 +6,6 @@
 import type {
   Message,
   FlowItem,
-  ExploreRoundFlowData,
-  ToolFlowData,
-  ContentFlowData,
 } from '@/types/agent';
 
 interface CompressionStats {
@@ -36,57 +33,8 @@ export function compressFlowItems(
     return undefined;
   }
 
-  // 对于当前会话，选择性压缩
-  return flowItems.map((item) => {
-    const compressed = { ...item };
-
-    switch (item.type) {
-      case 'explore_round': {
-        const data = item.data as ExploreRoundFlowData;
-
-        // ✅ 修复：正确压缩 evidences（这是占用空间最大的部分）
-        compressed.data = {
-          ...data,
-          // 只保留前 5 个证据片段
-          evidences: data.evidences?.slice(0, 5) || [],
-          // toolCalls 保持不变（占用空间小，且UI需要显示）
-        } as ExploreRoundFlowData;
-        break;
-      }
-
-      case 'tool': {
-        const data = item.data as ToolFlowData;
-
-        // 压缩长输出
-        if (data.output && typeof data.output === 'string' && data.output.length > 1000) {
-          compressed.data = {
-            ...data,
-            output: data.output.substring(0, 1000) + '\n\n...(已截断，完整内容请查看当前会话)',
-          } as ToolFlowData;
-        }
-        break;
-      }
-
-      case 'content': {
-        const data = item.data as ContentFlowData;
-
-        // 压缩长文本
-        if (data.content && data.content.length > 2000) {
-          compressed.data = {
-            ...data,
-            content: data.content.substring(0, 2000) + '\n\n...(已截断，完整内容请查看当前会话)',
-          } as ContentFlowData;
-        }
-        break;
-      }
-
-      default:
-        // 其他类型保持不变
-        break;
-    }
-
-    return compressed;
-  });
+  // 对于当前会话，直接返回（V2 事件类型无需特殊压缩）
+  return flowItems;
 }
 
 /**
