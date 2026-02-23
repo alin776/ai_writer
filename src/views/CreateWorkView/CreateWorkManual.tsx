@@ -104,6 +104,10 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
       newErrors.description = '简介至少需要10个字符';
     }
 
+    if (!formData.genre) {
+      newErrors.genre = '请选择作品类型';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -122,6 +126,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
     const workData: CreateWorkData = {
       title: formData.title.trim(),
       description: formData.description.trim(),
+      genre: formData.genre as CreateWorkData['genre'],
     };
 
     // 将手动输入的世界观信息对齐为 AI Guidelines 字段，便于后端自动分发到人物/地点/设定
@@ -238,8 +243,11 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                 <div ref={genreRef} className="relative">
                   <button
                     type="button"
-                    onClick={() => setGenreOpen(!genreOpen)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded-xl transition-colors flex items-center justify-between"
+                    onClick={() => {
+                      setGenreOpen(!genreOpen);
+                      if (errors.genre) setErrors(prev => ({ ...prev, genre: '' }));
+                    }}
+                    className={`w-full px-4 py-2 border ${errors.genre ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white/50 dark:bg-slate-800/50 text-gray-900 dark:text-gray-100 focus:border-gray-600 dark:focus:border-gray-400 focus:ring-1 focus:ring-gray-600/20 dark:focus:ring-gray-400/20 outline-none rounded-xl transition-colors flex items-center justify-between`}
                   >
                     <span className={formData.genre ? '' : 'text-gray-400 dark:text-gray-500'}>
                       {GENRE_OPTIONS.find(opt => opt.value === formData.genre)?.label || '请选择类型'}
@@ -255,6 +263,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                           onClick={() => {
                             setFormData(prev => ({ ...prev, genre: option.value }));
                             setGenreOpen(false);
+                            if (errors.genre) setErrors(prev => ({ ...prev, genre: '' }));
                           }}
                           className={`w-full px-3 py-2 text-left rounded-lg transition-colors ${
                             formData.genre === option.value ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'
@@ -266,6 +275,7 @@ const CreateWorkManual: React.FC<CreateWorkManualProps> = ({ onSubmit, onBack })
                     </div>
                   )}
                 </div>
+                {errors.genre && <span className="text-sm text-red-500">{errors.genre}</span>}
               </div>
 
               {/* 世界观简介 - 跨两列 */}

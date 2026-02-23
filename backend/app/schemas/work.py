@@ -14,7 +14,7 @@ class WorkBase(BaseModel):
 
 class WorkCreate(WorkBase):
     """创建作品"""
-    genre: WorkGenre
+    genre: WorkGenre = WorkGenre.OTHER
     cover_image: Optional[str] = None
 
 

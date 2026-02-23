@@ -6,6 +6,40 @@ import CreateWorkWithAI from './CreateWorkWithAI';
 import { DataService } from '../../services/DataService';
 import { useGlobalStore } from '../../store/globalStore';
 import type { CreateWorkData } from '../../types';
+import type { WorkGenre } from '../../types';
+
+/**
+ * 中文 genre → enum 映射（AI 路径可能返回中文类型名）
+ */
+const GENRE_CHINESE_TO_ENUM: Record<string, WorkGenre> = {
+  '玄幻': 'fantasy',
+  '都市': 'urban',
+  '言情': 'romance',
+  '科幻': 'scifi',
+  '武侠': 'wuxia',
+  '游戏': 'game',
+  '历史': 'history',
+  '军事': 'military',
+  '悬疑': 'suspense',
+  '西幻': 'western_fantasy',
+  '末世': 'apocalypse',
+};
+
+const VALID_GENRES: WorkGenre[] = [
+  'fantasy', 'urban', 'romance', 'scifi', 'wuxia', 'game',
+  'history', 'military', 'suspense', 'western_fantasy', 'apocalypse', 'other',
+];
+
+/**
+ * 从 worldView.primaryGenre 解析出合法的 WorkGenre enum 值
+ * 支持直接 enum 值（如 "fantasy"）和中文名（如 "玄幻"）
+ */
+function resolveGenre(worldView: WorldViewData): WorkGenre {
+  const raw = worldView.primaryGenre;
+  if (!raw) return 'other';
+  if (VALID_GENRES.includes(raw as WorkGenre)) return raw as WorkGenre;
+  return GENRE_CHINESE_TO_ENUM[raw] || 'other';
+}
 
 /**
  * 创建模式
@@ -108,8 +142,9 @@ const CreateWorkView: React.FC = () => {
       const newWork = await DataService.createWork({
         title: data.title,
         description: data.description,
+        genre: data.genre || resolveGenre(worldView),
       });
-      
+
       // 如果有世界观数据，保存AI规范到数据库
       if (Object.keys(worldView).length > 0) {
         try {
@@ -121,7 +156,7 @@ const CreateWorkView: React.FC = () => {
           // 不影响主流程，只记录错误
         }
       }
-      
+
       showToast('success', '作品创建成功！');
 
       // 跳转到作品详情页，标记为新建作品
@@ -142,11 +177,12 @@ const CreateWorkView: React.FC = () => {
       // 保存数据
       setWorkData(data);
       setWorldViewData(worldView);
-      
+
       // 创建作品
       const newWork = await DataService.createWork({
         title: data.title,
         description: data.description,
+        genre: data.genre || resolveGenre(worldView),
       });
       
       // 如果有世界观数据，保存AI规范到数据库
