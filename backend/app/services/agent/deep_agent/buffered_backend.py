@@ -232,17 +232,70 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
     """
 
     def __init__(self, root_dir: str | Path, *, timeout: float = 60.0,
-                 max_output: int = 100_000, **kwargs):
+                 max_output: int = 100_000,
+                 use_docker: bool = False,
+                 docker_image: str = "python:3.11-slim",
+                 host_data_root: str = "",
+                 **kwargs):
         kwargs.setdefault("virtual_mode", True)
         super().__init__(root_dir=root_dir, **kwargs)
         self._buffer: list[BufferOp] = []
         self._timeout = timeout
         self._max_output = max_output
         self._id = f"buffered-{uuid.uuid4().hex[:8]}"
+        self._preflushed_paths: set[str] = set()          # 已预落盘的路径
+        self._preflushed_originals: dict[str, str | None] = {}  # 路径 → 预落盘前的原始内容（None = 新文件）
+        self._use_docker = use_docker
+        self._docker_image = docker_image
+        self._host_data_root = host_data_root
+        self._sandbox = None  # DockerSandbox | None（懒初始化）
 
     @property
     def id(self) -> str:
         return self._id
+
+    # ─── Windows 路径兼容 ───
+
+    def ls_info(self, path: str) -> list:
+        """ls_info with Windows path normalization for virtual mode.
+
+        FilesystemBackend.ls_info() 在 virtual_mode 下通过字符串操作计算虚拟路径，
+        但 Windows 上 str(Path(...)) 返回反斜杠，导致虚拟路径畸形
+        (如 "/\\skills\\..." )，使 SkillsMiddleware 无法发现任何技能。
+        这里在父类返回结果后统一将反斜杠归一化为正斜杠。
+        """
+        results = super().ls_info(path)
+        if os.name == "nt":
+            for item in results:
+                if "path" in item:
+                    item["path"] = item["path"].replace("\\", "/")
+        return results
+
+    def glob_info(self, pattern: str, path: str = "/") -> list:
+        """glob_info with Windows path normalization.
+
+        Same issue as ls_info: FilesystemBackend.glob_info() computes virtual
+        paths via str(Path(...)), which produces backslashes on Windows.
+        """
+        results = super().glob_info(pattern, path)
+        if os.name == "nt":
+            for item in results:
+                if "path" in item:
+                    item["path"] = item["path"].replace("\\", "/")
+        return results
+
+    def grep_raw(self, pattern: str, path: str | None = None, glob: str | None = None) -> list | str:
+        """grep_raw with Windows path normalization.
+
+        grep_raw returns list[GrepMatch] on success or str on error.
+        Only normalize paths when the result is a list.
+        """
+        results = super().grep_raw(pattern, path, glob)
+        if os.name == "nt" and isinstance(results, list):
+            for item in results:
+                if "path" in item:
+                    item["path"] = item["path"].replace("\\", "/")
+        return results
 
     # ─── 脚本执行（SandboxBackendProtocol） ───
 
@@ -268,10 +321,38 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
             return str(matches[0].relative_to(self.cwd)).replace("\\", "/")
         return None
 
+    def _flush_for_execute(self) -> None:
+        """将缓冲区文件预落盘，使 execute 子进程可见。幂等安全。
+
+        用 _replay() 从 buffer 计算每个文件的最终状态并写入磁盘，
+        不依赖当前磁盘内容，因此调用 N 次结果相同。
+        不清空 _buffer — 缓冲区仍保留用于审批流程。
+        """
+        affected_paths = {op.path for op in self._buffer}
+        for path in affected_paths:
+            # 首次预落盘：保存原始内容用于 discard 回滚
+            if path not in self._preflushed_originals:
+                resolved = self._resolve_path(path)
+                if resolved.exists():
+                    self._preflushed_originals[path] = resolved.read_text(encoding="utf-8")
+                else:
+                    self._preflushed_originals[path] = None  # 新文件
+
+            # 用 _replay() 计算最终状态并写入磁盘
+            content = self._replay(path)
+            if content is not None:
+                resolved = self._resolve_path(path)
+                resolved.parent.mkdir(parents=True, exist_ok=True)
+                resolved.write_text(content, encoding="utf-8")
+                self._preflushed_paths.add(path)
+
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
         """在 work_dir 内执行 shell 命令（受限沙箱）。"""
         if not command or not isinstance(command, str):
             return ExecuteResponse(output="Error: empty command", exit_code=1)
+
+        # ── 0. 将缓冲区文件临时落盘，使子进程可见 ──
+        self._flush_for_execute()
 
         # ── 1. 虚拟绝对路径翻译 ──
         # Agent 生成 "/chapters/...", "/skills/..." 等虚拟绝对路径，
@@ -300,6 +381,48 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                 command = command.replace(short_path, real_path, 1)
 
         effective_timeout = timeout if timeout is not None else self._timeout
+
+        # ── Docker 沙盒执行分支 ──
+        if self._use_docker:
+            # 路径翻译：宿主机路径 → 容器内 /workspace
+            cwd_posix = str(self.cwd).replace("\\", "/")
+            command = command.replace(str(self.cwd), "/workspace")
+            if cwd_posix != str(self.cwd):
+                command = command.replace(cwd_posix, "/workspace")
+            # 清理残余反斜杠（Windows 路径遗留），确保命令在 Linux 容器中合法
+            command = command.replace("\\", "/")
+
+            try:
+                from app.services.agent.deep_agent.docker_sandbox import DockerSandbox
+
+                if self._sandbox is None:
+                    self._sandbox = DockerSandbox(
+                        self.cwd, self._docker_image,
+                        host_data_root=self._host_data_root,
+                    )
+                self._sandbox.ensure_running()
+                output, exit_code = self._sandbox.run(
+                    command, timeout=int(effective_timeout),
+                )
+            except Exception as e:
+                return ExecuteResponse(output=f"Error (docker): {e}", exit_code=1)
+
+            truncated = False
+            if len(output) > self._max_output:
+                output = output[:self._max_output] + \
+                    f"\n...truncated at {self._max_output} bytes"
+                truncated = True
+
+            if exit_code != 0:
+                output = f"{output.rstrip()}\n\nExit code: {exit_code}"
+
+            return ExecuteResponse(
+                output=output,
+                exit_code=exit_code,
+                truncated=truncated,
+            )
+
+        # ── 原有 subprocess 执行分支（向后兼容） ──
         try:
             result = subprocess.run(
                 command, shell=True, capture_output=True, text=True,
@@ -336,6 +459,14 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
             )
         except Exception as e:
             return ExecuteResponse(output=f"Error: {e}", exit_code=1)
+
+    # ─── 沙盒清理 ───
+
+    def cleanup_sandbox(self) -> None:
+        """清理 Docker 沙盒容器（如果有）。"""
+        if self._sandbox is not None:
+            self._sandbox.cleanup()
+            self._sandbox = None
 
     # ─── 重写写操作：缓冲不落盘 ───
 
@@ -602,6 +733,26 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         import logging
         logger = logging.getLogger(__name__)
 
+        if self._preflushed_paths:
+            # 预落盘模式：用 _replay() 计算最终状态，一次性写入
+            affected = set()
+            all_paths = {op.path for op in self._buffer}
+            for path in all_paths:
+                try:
+                    content = self._replay(path)
+                    if content is not None:
+                        resolved = self._resolve_path(path)
+                        resolved.parent.mkdir(parents=True, exist_ok=True)
+                        resolved.write_text(content, encoding="utf-8")
+                        affected.add(path)
+                except Exception as e:
+                    logger.error(f"[BufferedBackend] flush(replay) 失败: {path}: {e}")
+            self._buffer.clear()
+            self._preflushed_paths.clear()
+            self._preflushed_originals.clear()
+            return list(affected)
+
+        # 原有增量逻辑（未经 execute() 时走这条路径）
         affected = set()
         for op in self._buffer:
             try:
@@ -670,7 +821,20 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         return op.path
 
     def discard(self) -> None:
-        """审批拒绝：丢弃全部缓冲区。"""
+        """审批拒绝：丢弃缓冲区，回滚预落盘文件。"""
+        for path, original in self._preflushed_originals.items():
+            resolved = self._resolve_path(path)
+            try:
+                if original is None:
+                    # 新文件：删除
+                    resolved.unlink(missing_ok=True)
+                else:
+                    # 已有文件被编辑：恢复原始内容
+                    resolved.write_text(original, encoding="utf-8")
+            except OSError:
+                pass
+        self._preflushed_paths.clear()
+        self._preflushed_originals.clear()
         self._buffer.clear()
 
     def discard_single(self, index: int) -> bool:

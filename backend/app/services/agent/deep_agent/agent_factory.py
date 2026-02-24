@@ -108,7 +108,12 @@ def create_writing_agent(
     skill_sources = _sync_skills_to_work_dir(work_dir)
 
     # 2. 创建缓冲后端
-    backend = BufferedFilesystemBackend(root_dir=str(work_dir))
+    backend = BufferedFilesystemBackend(
+        root_dir=str(work_dir),
+        use_docker=settings.SANDBOX_USE_DOCKER,
+        docker_image=settings.SANDBOX_DOCKER_IMAGE,
+        host_data_root=settings.SANDBOX_HOST_DATA_ROOT,
+    )
 
     # 3. 构建 system prompt
     system_prompt = build_system_prompt(work)

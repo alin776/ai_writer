@@ -76,6 +76,13 @@ services:
     volumes:
       - backend_logs:/app/logs
       - backend_uploads:/app/uploads
+      # Docker socket 挂载：允许后端创建沙箱容器（DooD 模式）
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 数据目录 bind mount：宿主机与沙箱容器共享同一路径
+      - ${DATA_HOST_PATH:-./backend-data}:/app/data
+    # Docker socket 权限：将容器用户加入宿主机 docker 组
+    group_add:
+      - "${DOCKER_GID:-999}"
 
   # ==================== 前端 + Nginx ====================
   frontend:

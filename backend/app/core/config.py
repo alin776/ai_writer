@@ -340,6 +340,11 @@ class Settings(BaseSettings):
 
     # ==================== Explore V6 配置 ====================
 
+    # ==================== Docker 沙盒配置 ====================
+    SANDBOX_USE_DOCKER: bool = False  # 是否启用 Docker 沙盒执行 Agent 命令
+    SANDBOX_DOCKER_IMAGE: str = "python:3.11-slim"  # 沙盒容器镜像
+    SANDBOX_HOST_DATA_ROOT: str = ""  # DooD 模式下宿主机上 /app/data 对应的真实路径（为空则直接用 work_dir）
+
     model_config = ConfigDict(
         env_file=".env",
         case_sensitive=True,
