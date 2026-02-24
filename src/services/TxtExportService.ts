@@ -1,26 +1,19 @@
 /**
- * TXT 格式导出服务
+ * 作品导出服务 —— ZIP 压缩包 + 独立 Markdown 章节文件
  *
  * 纯前端实现，无需后端支持
- * 支持导出作品标题、简介、所有章节内容
+ * 每个章节导出为独立的 .md 文件，打包为 ZIP 下载
  */
 
-import { DataService } from './DataService';
+import JSZip from 'jszip';
 import { chaptersFs } from './chaptersFs';
 import { fsToChapter } from '@/utils/fsChapterAdapter';
 import type { Work, Chapter } from '@/types';
-import { htmlToPlainText } from '@/utils/wordCount';
 
 /**
- * TXT 导出选项
+ * 导出选项
  */
-export interface TxtExportOptions {
-  /** 是否包含简介，默认 true */
-  includeDescription?: boolean;
-  /** 作者名，可选 */
-  authorName?: string;
-  /** 段落缩进字符，默认全角空格 */
-  indentChar?: string;
+export interface ExportOptions {
   /** 指定导出的章节范围，第一章从 1 开始计数 */
   chapterRange?: {
     start: number;
@@ -29,56 +22,50 @@ export interface TxtExportOptions {
 }
 
 /**
- * 默认导出选项
- */
-type ResolvedTxtExportOptions = {
-  includeDescription: boolean;
-  authorName: string;
-  indentChar: string;
-  chapterRange?: {
-    start: number;
-    end: number;
-  };
-};
-
-const DEFAULT_OPTIONS: ResolvedTxtExportOptions = {
-  includeDescription: true,
-  authorName: '',
-  indentChar: '　　', // 两个全角空格
-};
-
-/**
  * 导出结果
  */
-export interface TxtExportResult {
+export interface ExportResult {
   success: boolean;
   chapterCount: number;
   totalWords: number;
 }
 
 /**
- * TXT 导出服务类
+ * 生成单个章节的 .md 文件名
+ *
+ * 始终以 chapter.order 作为前缀，保证文件名在 ZIP 内唯一，
+ * 避免 JSZip 同名静默覆盖导致章节丢失。
  */
-class TxtExportServiceClass {
-  /**
-   * 导出作品为 TXT 文件
-   * @param work 作品信息
-   * @param options 导出选项
-   * @returns 导出结果
-   */
-  async export(work: Work, options: TxtExportOptions = {}): Promise<TxtExportResult> {
-    const mergedOptions: ResolvedTxtExportOptions = { ...DEFAULT_OPTIONS, ...options };
+function buildChapterFilename(chapter: Chapter): string {
+  const order = chapter.order;
+  // 剥离标题中已有的「第X章」前缀，避免与 order 重复
+  const rawTitle = (chapter.title || '').replace(/^第\d+章\s*/, '');
 
-    // 1. 获取所有章节（不含正文）
+  // 清理 Windows 非法字符
+  const safePart = rawTitle.replace(/[\\/:*?"<>|]+/g, '-').trim();
+  const baseName = safePart ? `第${order}章 ${safePart}` : `第${order}章`;
+
+  return `${baseName}.md`;
+}
+
+/**
+ * 导出服务类
+ */
+class ExportServiceClass {
+  /**
+   * 导出作品为 ZIP 文件（每章一个 .md 文件）
+   */
+  async export(work: Work, options: ExportOptions = {}): Promise<ExportResult> {
+    // 1. 获取所有章节元信息
     const fsList = await chaptersFs.list(work.id);
     const chapters = fsList.map(fs => fsToChapter(fs, work.id));
 
     // 2. 按 order 排序
     let sortedChapters = [...chapters].sort((a, b) => a.order - b.order);
 
-    // 2.1 如果指定了范围，按照范围裁剪章节（用下标切片而非 order 过滤）
-    if (mergedOptions.chapterRange) {
-      const { start, end } = mergedOptions.chapterRange;
+    // 2.1 范围裁剪
+    if (options.chapterRange) {
+      const { start, end } = options.chapterRange;
 
       if (Number.isNaN(start) || Number.isNaN(end) || start <= 0 || end <= 0 || start > end) {
         throw new Error('导出章节范围格式不正确，请检查输入');
@@ -91,7 +78,7 @@ class TxtExportServiceClass {
       }
     }
 
-    // 2.2 逐章获取正文（list 接口不含 content）
+    // 3. 逐章获取正文
     const chaptersWithContent = await Promise.all(
       sortedChapters.map(async (ch) => {
         const full = await chaptersFs.get(work.id, ch.order);
@@ -99,14 +86,21 @@ class TxtExportServiceClass {
       })
     );
 
-    // 3. 格式化内容
-    const content = this.formatContent(work, chaptersWithContent, mergedOptions);
+    // 4. 用 JSZip 打包
+    const zip = new JSZip();
 
-    // 4. 清理文件名并触发下载
-    const safeFilename = this.sanitizeFilename(work.title);
-    this.downloadFile(content, `${safeFilename}.txt`);
+    chaptersWithContent.forEach((chapter) => {
+      const filename = buildChapterFilename(chapter);
+      zip.file(filename, chapter.content);
+    });
 
-    // 5. 返回导出结果
+    const blob = await zip.generateAsync({ type: 'blob' });
+
+    // 5. 触发下载
+    const safeTitle = this.sanitizeFilename(work.title);
+    this.downloadBlob(blob, `${safeTitle}.zip`);
+
+    // 6. 返回结果
     return {
       success: true,
       chapterCount: chaptersWithContent.length,
@@ -116,103 +110,20 @@ class TxtExportServiceClass {
 
   /**
    * 清理文件名，移除非法字符
-   * Windows 禁止字符: \ / : * ? " < > |
    */
   private sanitizeFilename(filename: string): string {
-    // 1. 移除 Windows/Unix 保留字符
     let sanitized = filename.replace(/[\\/:*?"<>|]+/g, '-');
-
-    // 2. 移除前导和尾随的点和空格
     sanitized = sanitized.replace(/^[\s.]+|[\s.]+$/g, '');
-
-    // 3. 合并连续的连字符
     sanitized = sanitized.replace(/-+/g, '-');
-
-    // 4. 限制长度（保守值，确保兼容各系统）
     sanitized = sanitized.substring(0, 200);
-
-    // 5. 如果清理后为空，使用默认名称
     return sanitized || '未命名作品';
   }
 
   /**
-   * 格式化导出内容
+   * 触发 Blob 文件下载
    */
-  private formatContent(
-    work: Work,
-    chapters: Chapter[],
-    options: ResolvedTxtExportOptions
-  ): string {
-    const lines: string[] = [];
-
-    // 标题
-    lines.push(work.title);
-
-    // 作者（如果提供）
-    if (options.authorName) {
-      lines.push(`作者：${options.authorName}`);
-    }
-
-    // 简介
-    if (options.includeDescription && work.description) {
-      lines.push('简介：');
-      const descParagraphs = htmlToPlainText(work.description).split('\n');
-      for (const para of descParagraphs) {
-        if (para.trim()) {
-          lines.push(`${options.indentChar}${para.trim()}`);
-        } else {
-          lines.push('');
-        }
-      }
-      lines.push(''); // 空行分隔
-    }
-
-    // 章节内容
-    for (let idx = 0; idx < chapters.length; idx++) {
-      const chapter = chapters[idx];
-      // 章节标题：使用范围起始编号/原 order，避免重复添加「第X章」前缀
-      const chapterNumber = options.chapterRange
-        ? options.chapterRange.start + idx
-        : chapter.order ?? idx + 1;
-
-      let chapterTitle: string;
-      if (/^第\d+章/.test(chapter.title)) {
-        chapterTitle = chapter.title;
-      } else {
-        chapterTitle = `第${chapterNumber}章 ${chapter.title}`;
-      }
-
-      // 使用全角括号包裹，避免 Markdown 粗体在 TXT 中失效
-      lines.push(`【${chapterTitle}】`);
-
-      // 章节正文，先转纯文本再按行输出，保留段落换行
-      if (chapter.content) {
-        const paragraphs = htmlToPlainText(chapter.content).split('\n');
-        for (const para of paragraphs) {
-          if (para.trim()) {
-            lines.push(`${options.indentChar}${para.trim()}`);
-          } else {
-            lines.push('');
-          }
-        }
-      }
-
-      // 章节间空行
-      lines.push('');
-    }
-
-    return lines.join('\n');
-  }
-
-  /**
-   * 触发文件下载
-   */
-  private downloadFile(content: string, filename: string): void {
-    // 添加 BOM 以确保 Windows 记事本正确识别 UTF-8
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + content], { type: 'text/plain;charset=utf-8' });
+  private downloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
-
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
@@ -222,12 +133,16 @@ class TxtExportServiceClass {
     link.click();
     document.body.removeChild(link);
 
-    // 释放 URL 对象
     URL.revokeObjectURL(url);
   }
 }
 
 /**
- * TXT 导出服务单例
+ * 导出服务单例
  */
-export const TxtExportService = new TxtExportServiceClass();
+export const ExportService = new ExportServiceClass();
+
+// 向后兼容旧名称
+export type { ExportOptions as TxtExportOptions };
+export type { ExportResult as TxtExportResult };
+export { ExportService as TxtExportService };

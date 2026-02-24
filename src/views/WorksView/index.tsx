@@ -125,6 +125,7 @@ const WorksView: React.FC = () => {
   const [exportEndChapter, setExportEndChapter] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [exportChapterCount, setExportChapterCount] = useState(0);
 
   // 活动/公告弹窗状态
   const [activityNotification, setActivityNotification] = useState<UserNotification | null>(null);
@@ -430,14 +431,25 @@ const WorksView: React.FC = () => {
   };
 
   // 打开导出弹窗
-  const openExportModal = (work: Work) => {
-    const endChapter = work.totalChapters > 0 ? work.totalChapters : 1;
+  const openExportModal = async (work: Work) => {
     setExportingWork(work);
     setExportMode('full');
     setExportStartChapter('1');
-    setExportEndChapter(String(endChapter));
     setExportError(null);
     setShowExportModal(true);
+
+    // 从文件系统获取真实章节数（DB 中的 totalChapters 可能过时）
+    try {
+      const fsList = await chaptersFs.list(work.id);
+      const realCount = fsList.length;
+      setExportChapterCount(realCount);
+      setExportEndChapter(String(realCount > 0 ? realCount : 1));
+    } catch {
+      // 获取失败时回退到 DB 值
+      const fallback = work.totalChapters > 0 ? work.totalChapters : 1;
+      setExportChapterCount(fallback);
+      setExportEndChapter(String(fallback));
+    }
   };
 
   const closeExportModal = () => {
@@ -445,6 +457,7 @@ const WorksView: React.FC = () => {
     setExportingWork(null);
     setExportError(null);
     setIsExporting(false);
+    setExportChapterCount(0);
   };
 
   // 导出作品为TXT
@@ -461,7 +474,7 @@ const WorksView: React.FC = () => {
       if (exportMode === 'range') {
         const start = parseInt(exportStartChapter, 10);
         const end = parseInt(exportEndChapter, 10);
-        const total = exportingWork.totalChapters || 0;
+        const total = exportChapterCount || 0;
 
         if (Number.isNaN(start) || Number.isNaN(end)) {
           const message = t('works.export.invalidNumber');
@@ -499,12 +512,11 @@ const WorksView: React.FC = () => {
 
         showToast('info', t('common.processing'));
         result = await TxtExportService.export(exportingWork, {
-          includeDescription: true,
           chapterRange: { start, end },
         });
       } else {
         showToast('info', t('common.processing'));
-        result = await TxtExportService.export(exportingWork, { includeDescription: true });
+        result = await TxtExportService.export(exportingWork);
       }
 
       if (result.chapterCount === 0) {
@@ -1584,7 +1596,7 @@ const WorksView: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg text-gray-900 dark:text-gray-100">{t('works.export.title')}</h2>
-                  <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-1">《{exportingWork.title}》 · {t('works.export.totalChapters', { count: exportingWork.totalChapters })}</p>
+                  <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-1">《{exportingWork.title}》 · {t('works.export.totalChapters', { count: exportChapterCount })}</p>
                 </div>
                 <button onClick={closeExportModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg">
                   <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
@@ -1629,7 +1641,7 @@ const WorksView: React.FC = () => {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-[12px] text-gray-500 dark:text-gray-400">
                     <span>{t('works.export.selectRange')}</span>
-                    <span>{t('works.export.totalChapters', { count: exportingWork.totalChapters })}</span>
+                    <span>{t('works.export.totalChapters', { count: exportChapterCount })}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>

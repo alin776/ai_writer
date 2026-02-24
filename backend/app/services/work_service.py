@@ -113,26 +113,6 @@ class WorkService:
         await CacheInvalidator.invalidate_work(work_id)
         
         return True
-    
-    async def update_work_stats(self, work_id: str):
-        """更新作品统计信息"""
-        work = await self.get_work_by_id(work_id)
-        if not work:
-            return
-
-        # 统计章节数和总字数
-        result = await self.db.execute(
-            select(
-                func.count(Chapter.id),
-                func.sum(Chapter.word_count)
-            ).where(Chapter.work_id == work_id)
-        )
-        chapter_count, total_words = result.one()
-
-        work.total_chapters = chapter_count or 0
-        work.total_words = total_words or 0
-
-        await self.db.commit()
 
     async def publish_work(self, work_id: str, chapter_ids: List[str]) -> Optional[Work]:
         """

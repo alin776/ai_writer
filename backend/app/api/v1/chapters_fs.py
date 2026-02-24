@@ -153,6 +153,22 @@ def _next_chapter_num(chapters_dir: Path) -> int:
     return existing[-1][0] + 1
 
 
+async def _sync_work_stats(work: Work, chapters_dir: Path, db: AsyncSession) -> None:
+    """扫描文件系统章节，同步 Work.total_chapters / total_words 到数据库。"""
+    chapter_files = _list_chapter_files(chapters_dir)
+    total_words = 0
+    for _, path in chapter_files:
+        try:
+            raw = path.read_text("utf-8")
+            parsed = parse_chapter(raw)
+            total_words += parsed["word_count"]
+        except Exception:
+            pass
+    work.total_chapters = len(chapter_files)
+    work.total_words = total_words
+    await db.commit()
+
+
 def _resolve_chapter_path(chapters_dir: Path, num: int) -> Optional[Path]:
     """按序号 glob 匹配章节文件：02-*.md"""
     for f in chapters_dir.glob(f"{num:02d}-*.md"):
@@ -253,7 +269,7 @@ async def create_chapter(
     current_user: User = Depends(get_current_active_user),
 ):
     """创建新章节（自动分配序号）。"""
-    _, work_dir = await _get_work_and_dir(work_id, current_user, db)
+    work, work_dir = await _get_work_and_dir(work_id, current_user, db)
     chapters_dir = work_dir / "chapters"
     chapters_dir.mkdir(parents=True, exist_ok=True)
 
@@ -262,6 +278,9 @@ async def create_chapter(
 
     content = build_chapter(request.title, request.status, request.content)
     await asyncio.to_thread(chapter_path.write_text, content, "utf-8")
+
+    # 同步 DB 统计
+    await _sync_work_stats(work, chapters_dir, db)
 
     parsed = parse_chapter(content)
     return ChapterResponse(
@@ -286,7 +305,7 @@ async def update_chapter(
     current_user: User = Depends(get_current_active_user),
 ):
     """更新章节（标题/内容/状态）。"""
-    _, work_dir = await _get_work_and_dir(work_id, current_user, db)
+    work, work_dir = await _get_work_and_dir(work_id, current_user, db)
     chapters_dir = work_dir / "chapters"
     chapter_path = _resolve_chapter_path(chapters_dir, num)
 
@@ -312,6 +331,10 @@ async def update_chapter(
         else:
             await asyncio.to_thread(chapter_path.rename, new_path)
 
+    # 内容变更时同步 DB 字数统计
+    if request.content is not None:
+        await _sync_work_stats(work, chapters_dir, db)
+
     new_parsed = parse_chapter(new_content)
     return ChapterResponse(
         num=num,
@@ -334,7 +357,7 @@ async def delete_chapter(
     current_user: User = Depends(get_current_active_user),
 ):
     """删除章节文件。"""
-    _, work_dir = await _get_work_and_dir(work_id, current_user, db)
+    work, work_dir = await _get_work_and_dir(work_id, current_user, db)
     chapters_dir = work_dir / "chapters"
     chapter_path = _resolve_chapter_path(chapters_dir, num)
 
@@ -342,6 +365,10 @@ async def delete_chapter(
         raise HTTPException(status_code=404, detail=f"Chapter {num} not found")
 
     await asyncio.to_thread(chapter_path.unlink)
+
+    # 同步 DB 统计
+    await _sync_work_stats(work, chapters_dir, db)
+
     return None
 
 
@@ -502,7 +529,7 @@ async def delete_file(
     current_user: User = Depends(get_current_active_user),
 ):
     """删除作品目录下的文件或文件夹，返回刷新后的文件树。"""
-    _, work_dir = await _get_work_and_dir(work_id, current_user, db)
+    work, work_dir = await _get_work_and_dir(work_id, current_user, db)
     target = _safe_path(work_dir, path)
     if not target.exists():
         raise HTTPException(status_code=404, detail="File or directory not found")
@@ -514,11 +541,12 @@ async def delete_file(
         await asyncio.to_thread(shutil.rmtree, target)
     else:
         await asyncio.to_thread(target.unlink)
-    # 章节文件删除后自动重排序
+    # 章节文件删除后自动重排序 + 同步 DB 统计
     if path.startswith("chapters/"):
         chapters_dir = work_dir / "chapters"
         if chapters_dir.exists():
             await asyncio.to_thread(_renumber_chapters, chapters_dir)
+            await _sync_work_stats(work, chapters_dir, db)
     return await asyncio.to_thread(_build_file_tree, work_dir)
 
 
