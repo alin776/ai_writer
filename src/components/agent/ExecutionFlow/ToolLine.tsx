@@ -59,7 +59,7 @@ function formatToolLine(toolName?: string, toolInput?: any, fallbackTitle?: stri
       return `${verb}("${query}")`;
     }
     case 'task': {
-      const prompt = String(toolInput.prompt || '').slice(0, 40);
+      const prompt = String(toolInput.description || '').slice(0, 40);
       return `${verb}("${prompt}")`;
     }
     case 'skill':

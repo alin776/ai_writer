@@ -117,6 +117,9 @@ async def get_works(
             dirty = True
     if dirty:
         await db.commit()
+        # commit() 会 expire 所有 ORM 对象，async 模式下无法懒加载，需手动 refresh
+        for work in works:
+            await db.refresh(work)
 
     # 统计汇总数据（全量计算，不受分页影响；在读时修复之后执行以反映最新值）
     total_words = await db.scalar(

@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: assistive
   domain: fiction
-allowed-tools: read_file, glob, grep, semantic_search
+allowed-tools: read_file, glob, grep, semantic_search, task
 ---
 
 # Story Coach：网文写作教练技能

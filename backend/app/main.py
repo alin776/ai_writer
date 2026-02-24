@@ -234,7 +234,7 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-        reload_excludes=["data/*", "logs/*"] if settings.DEBUG else None,
+        reload_dirs=["app"] if settings.DEBUG else None,
         log_config=log_config,
         log_level="info"
     )

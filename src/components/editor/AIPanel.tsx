@@ -649,6 +649,10 @@ ${context.selected_text}
     skipAutoScrollRef.current = true;
     ignoreScrollEventRef.current = false; // 重置滚动事件忽略标志
 
+    // 预设缓冲为容器全高，确保用户消息能被顶格显示
+    const ctr = messagesContainerRef.current;
+    if (ctr) setScrollBufferHeight(ctr.clientHeight);
+
     try {
       await sendMessageStream(request);
     } catch (err) {
@@ -992,10 +996,19 @@ ${context.selected_text}
   const handleInputBlur = useCallback(() => {
     isInputFocusedRef.current = false;
     const container = messagesContainerRef.current;
+    const lastUserMsg = lastUserMessageRef.current;
+    const endMarker = messagesEndRef.current;
     if (!container) return;
-    const base = Math.max(container.clientHeight - 24, 0);
-    const next = Math.min(Math.round(container.clientHeight * 0.6), base);
-    setScrollBufferHeight(next);
+    const containerHeight = container.clientHeight;
+    if (!lastUserMsg || !endMarker) {
+      setScrollBufferHeight(0);
+      return;
+    }
+    const userMsgRect = lastUserMsg.getBoundingClientRect();
+    const endRect = endMarker.getBoundingClientRect();
+    const contentBelowUserMsg = endRect.bottom - userMsgRect.top;
+    const needed = Math.max(0, containerHeight - contentBelowUserMsg);
+    setScrollBufferHeight(needed);
   }, []);
 
   useEffect(() => {
@@ -1318,6 +1331,10 @@ ${selectionContext.selected_text}
     skipAutoScrollRef.current = true;
     ignoreScrollEventRef.current = false; // 重置滚动事件忽略标志
 
+    // 预设缓冲为容器全高，确保用户消息能被顶格显示
+    const ctr = messagesContainerRef.current;
+    if (ctr) setScrollBufferHeight(ctr.clientHeight);
+
     try {
       await sendMessageStream(request);
     } catch (err) {
@@ -1411,16 +1428,37 @@ ${selectionContext.selected_text}
   }, [inputValue, selectedDocs.length, adjustInputHeight]);
 
   // 预留底部滚动缓冲，让最新消息可被顶到顶部
+  // 动态计算：缓冲 = max(0, 容器高度 - 用户最后消息到内容末尾的距离)
   useLayoutEffect(() => {
     const container = messagesContainerRef.current;
+    const content = messagesContentRef.current;
     if (!container || typeof ResizeObserver === 'undefined') return;
 
     const updateBuffer = () => {
-      if (isInputFocusedRef.current) return;
-      // Reduce the spacer so new messages don't leave an oversized blank area.
-      const base = Math.max(container.clientHeight - 24, 0);
-      const next = Math.min(Math.round(container.clientHeight * 0.6), base);
-      setScrollBufferHeight(next);
+      const containerHeight = container.clientHeight;
+      const lastUserMsg = lastUserMessageRef.current;
+      const endMarker = messagesEndRef.current;
+
+      if (!lastUserMsg || !endMarker) {
+        if (!isInputFocusedRef.current) setScrollBufferHeight(0);
+        return;
+      }
+
+      // messagesEndRef 在缓冲占位 div 之前，所以它的位置代表真实内容末尾
+      // getBoundingClientRect 的相对差值不受滚动位置影响
+      const userMsgRect = lastUserMsg.getBoundingClientRect();
+      const endRect = endMarker.getBoundingClientRect();
+      const contentBelowUserMsg = endRect.bottom - userMsgRect.top;
+
+      // 当 AI 回复内容逐渐增长时，needed 自然趋向 0
+      const needed = Math.max(0, containerHeight - contentBelowUserMsg);
+
+      // 输入框聚焦时只允许缓冲缩小（AI 流式输出时内容增长），不允许增大（避免视觉跳动）
+      if (isInputFocusedRef.current) {
+        setScrollBufferHeight(prev => Math.min(prev, needed));
+        return;
+      }
+      setScrollBufferHeight(needed);
     };
 
     updateBuffer();
@@ -1428,6 +1466,8 @@ ${selectionContext.selected_text}
       updateBuffer();
     });
     observer.observe(container);
+    // 同时监听内容区域，AI 流式输出时内容高度变化能实时缩减缓冲
+    if (content) observer.observe(content);
     return () => observer.disconnect();
   }, [expandedMode, messages.length]);
 

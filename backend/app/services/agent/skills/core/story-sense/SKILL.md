@@ -9,7 +9,7 @@ metadata:
   type: diagnostic
   mode: diagnostic
   domain: fiction
-allowed-tools: read_file, glob, grep, semantic_search, execute
+allowed-tools: read_file, glob, grep, semantic_search, execute, task
 ---
 
 # Story Sense：诊断技能

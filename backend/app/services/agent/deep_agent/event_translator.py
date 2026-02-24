@@ -212,7 +212,7 @@ def _tool_description(tool_name: str, tool_input: Any) -> str:
         if tool_name == "semantic_search":
             return f"语义搜索: {str(tool_input.get('query', ''))[:50]}"
         if tool_name == "task":
-            return f"子任务: {str(tool_input.get('prompt', ''))[:50]}"
+            return f"子任务: {str(tool_input.get('description', ''))[:50]}"
         if tool_name == "execute":
             return f"执行 {str(tool_input.get('command', ''))[:50]}"
     return tool_name

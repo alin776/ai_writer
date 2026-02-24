@@ -7,6 +7,21 @@ System Prompt 构建器
 from pathlib import Path
 
 GENRE_PROMPTS_DIR = Path(__file__).parent.parent / "genre_prompts"
+SKILLS_ROOT = Path(__file__).parent.parent / "skills"
+
+# 始终注入到 system prompt 的 Skill 文件（无需用户选择）
+_ALWAYS_ACTIVE_SKILLS = [
+    "core/subagent-strategy",
+]
+
+
+def _extract_skill_body(content: str) -> str:
+    """从 SKILL.md 内容中提取 Markdown body（去除 YAML frontmatter）。"""
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            return parts[2].lstrip("\n")
+    return content
 
 _GENRE_FILE_MAP = {
     "fantasy": "xianxia.md",
@@ -77,7 +92,7 @@ def build_system_prompt(work) -> str:
 3. 创建章节时务必包含 frontmatter（title + status）
 4. 保持人物性格、世界观设定的前后一致性
 5. 使用自然流畅的中文，符合{genre_label}小说的文风
-6. 使用 task 工具创建的子 Agent 仅用于分析和检查，不得修改任何文件
+6. 善用 task 工具委派分析、检查、批量阅读等只读任务给子 Agent
 7. 新建章节文件名格式为 两位序号-标题.md，如 chapters/03-玉佩之谜.md
 8. 修改已有章节时，优先使用行号语法：edit_file 的 old_string 填写 [LINES:起始行-结束行]（如 [LINES:5-12]），new_string 填替换内容。行号从 read_file 输出的行号获取。这比复述原文更准确
 
@@ -93,5 +108,12 @@ def build_system_prompt(work) -> str:
         genre_path = GENRE_PROMPTS_DIR / genre_file
         if genre_path.exists():
             prompt += f"\n\n## 题材风格指南\n\n{genre_path.read_text(encoding='utf-8')}"
+
+    # 追加始终活跃的策略 Skill
+    for skill_rel in _ALWAYS_ACTIVE_SKILLS:
+        skill_path = SKILLS_ROOT / skill_rel / "SKILL.md"
+        if skill_path.exists():
+            body = _extract_skill_body(skill_path.read_text(encoding="utf-8"))
+            prompt += f"\n\n{body}"
 
     return prompt

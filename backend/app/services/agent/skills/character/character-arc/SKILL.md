@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: diagnostic+assistive
   domain: fiction
-allowed-tools: read_file, glob, grep, semantic_search
+allowed-tools: read_file, glob, grep, semantic_search, task
 ---
 
 # 角色弧线：转变技能

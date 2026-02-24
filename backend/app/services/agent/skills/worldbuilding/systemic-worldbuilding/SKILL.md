@@ -8,7 +8,7 @@ metadata:
   type: generator
   mode: generative
   domain: worldbuilding
-allowed-tools: read_file, glob, grep, semantic_search
+allowed-tools: read_file, glob, grep, semantic_search, task
 ---
 
 # 系统性世界构建：级联后果技能

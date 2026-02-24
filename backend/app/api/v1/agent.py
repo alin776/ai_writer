@@ -73,6 +73,10 @@ def _load_all_skills() -> list[dict]:
                     meta = yaml.safe_load(parts[1]) or {}
                 except yaml.YAMLError:
                     continue
+                # 跳过系统级 Skill（不在前端技能面板展示）
+                skill_meta = meta.get("metadata") or {}
+                if isinstance(skill_meta, dict) and skill_meta.get("type") == "system":
+                    continue
                 group_key = skill_md.parent.parent.name
                 raw_tools = meta.get("allowed-tools", "")
                 if isinstance(raw_tools, str):
@@ -932,6 +936,10 @@ async def agent_v2_chat_stream(
                                 if len(parts) >= 3:
                                     meta = yaml.safe_load(parts[1]) or {}
                                     if meta.get("name") == request.skill:
+                                        # 系统级 Skill 不能通过前端 skill 参数手动触发
+                                        skill_meta = meta.get("metadata") or {}
+                                        if isinstance(skill_meta, dict) and skill_meta.get("type") == "system":
+                                            break
                                         valid_skill = True
                                         break
                         except Exception:
