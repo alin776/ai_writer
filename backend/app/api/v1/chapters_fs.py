@@ -10,6 +10,7 @@ import io
 import logging
 import re
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -154,7 +155,7 @@ def _next_chapter_num(chapters_dir: Path) -> int:
 
 
 async def _sync_work_stats(work: Work, chapters_dir: Path, db: AsyncSession) -> None:
-    """扫描文件系统章节，同步 Work.total_chapters / total_words 到数据库。"""
+    """扫描文件系统章节，同步 Work.total_chapters / total_words / updated_at 到数据库。"""
     chapter_files = _list_chapter_files(chapters_dir)
     total_words = 0
     for _, path in chapter_files:
@@ -166,6 +167,7 @@ async def _sync_work_stats(work: Work, chapters_dir: Path, db: AsyncSession) -> 
             pass
     work.total_chapters = len(chapter_files)
     work.total_words = total_words
+    work.updated_at = datetime.now(timezone.utc)
     await db.commit()
 
 

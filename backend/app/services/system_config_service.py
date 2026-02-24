@@ -79,7 +79,10 @@ class SystemConfigService:
     @classmethod
     async def get_model_pricing(cls, db: AsyncSession) -> dict:
         """获取模型定价配置"""
-        return await cls.get(db, "model_pricing", default=_DEFAULT_MODEL_PRICING)
+        pricing = await cls.get(db, "model_pricing", default=_DEFAULT_MODEL_PRICING)
+        # 始终合并：_DEFAULT_MODEL_PRICING 打底，DB/缓存值覆盖
+        # 防止缓存或 DB 只有部分模型键（如只有 "default" 没有 "gpt-5.2"）
+        return {**_DEFAULT_MODEL_PRICING, **(pricing or {})}
 
     @classmethod
     async def get_credits_per_dollar(cls, db: AsyncSession) -> int:

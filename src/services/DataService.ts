@@ -23,10 +23,6 @@ import type {
   RegisterData,
   CreateWorkData,
   CreateChapterData,
-  AIContinueRequest,
-  AIContinueResponse,
-  AIPolishRequest,
-  AISummaryRequest,
   CostMetric,
   AnalysisStatusResponse,
   AnalysisResultResponse,
@@ -340,11 +336,11 @@ class DataServiceClass {
   /**
    * 发布作品到小说广场
    * @param workId 作品ID
-   * @param chapterIds 要发布的章节ID列表
+   * @param chapterNums 要发布的章节序号列表
    * @returns Promise<{ message: string; work_id: string; is_published: boolean }>
    */
-  async publishWork(workId: string, chapterIds: string[]): Promise<{ message: string; work_id: string; is_published: boolean }> {
-    return this.adapter.post(`/works/${workId}/publish`, { chapter_ids: chapterIds });
+  async publishWork(workId: string, chapterNums: number[]): Promise<{ message: string; work_id: string; is_published: boolean }> {
+    return this.adapter.post(`/works/${workId}/publish`, { chapter_nums: chapterNums });
   }
 
   /**
@@ -448,38 +444,6 @@ class DataServiceClass {
       work_id: workId,
       chapter_ids: chapterIds
     });
-  }
-
-  // ==================== AI 相关 ====================
-
-  /**
-   * AI 续写
-   * @param request 续写请求
-   * @returns Promise<AIContinueResponse>
-   */
-  async aiContinue(request: AIContinueRequest): Promise<AIContinueResponse> {
-    return this.adapter.post('/ai/continue', request);
-  }
-
-  /**
-   * AI 润色
-   * @param request 润色请求
-   * @returns Promise<string>
-   */
-  async aiPolish(request: AIPolishRequest): Promise<string> {
-    const response = await this.adapter.post<{ result: string }>('/ai/polish', request);
-    return response.result;
-  }
-
-  /**
-   * AI 剧情概括（返回JSON对象）- 已废弃，请使用 generateChapterSummary
-   * @deprecated
-   * @param request 概括请求
-   * @returns Promise<string>
-   */
-  async aiSummarize(request: AISummaryRequest): Promise<string> {
-    const response = await this.adapter.post<{ summary: string }>('/ai/summarize', request);
-    return response.summary;
   }
 
   /**

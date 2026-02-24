@@ -8,15 +8,10 @@ AI 成本计算工具
 
 from typing import Dict, Optional
 
+from app.services.system_config_service import _DEFAULT_MODEL_PRICING
 
-# 硬编码兜底（无 DB 时 fallback）
-_FALLBACK_PRICING = {
-    "input": 1.0,
-    "cached_input": 0.5,
-    "output": 2.0,
-    "reasoning": 2.0,
-    "cache_creation": 1.0,
-}
+# 从 system_config_service 统一导入，确保单一真相源
+_FALLBACK_PRICING = _DEFAULT_MODEL_PRICING["default"]
 
 
 class CostCalculator:

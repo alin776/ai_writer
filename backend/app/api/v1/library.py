@@ -10,7 +10,6 @@ from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.work import Work, WorkGenre
-from app.models.chapter import Chapter
 from app.models.bookshelf import Bookshelf
 from app.models.rating import WorkRating
 from app.models.channel import Channel, ChannelType, ChannelStatus
@@ -19,6 +18,11 @@ from app.schemas.work import WorkResponse
 from pydantic import BaseModel, ConfigDict
 import uuid
 from app.services.notification_service import NotificationService
+from app.services.chapter_fs_helpers import (
+    count_published_chapters as _count_published_chapters,
+    get_published_chapters as _get_published_chapters,
+    read_chapter_by_num as _read_chapter_by_num,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -90,14 +94,8 @@ async def get_featured_novels(
     # 构建响应数据
     items = []
     for work in works:
-        # 统计已发布章节数
-        published_chapter_count_result = await db.execute(
-            select(func.count(Chapter.id)).where(
-                Chapter.work_id == work.id,
-                Chapter.is_published == True
-            )
-        )
-        published_chapter_count = published_chapter_count_result.scalar() or 0
+        # 统计已发布章节数（从文件系统读取）
+        published_chapter_count = await _count_published_chapters(str(work.author_id), str(work.id))
 
         # 计算平均评分
         avg_rating_result = await db.execute(
@@ -194,14 +192,8 @@ async def get_published_novels(
     # 构建响应数据
     items = []
     for work in works:
-        # 统计已发布章节数
-        published_chapter_count_result = await db.execute(
-            select(func.count(Chapter.id)).where(
-                Chapter.work_id == work.id,
-                Chapter.is_published == True
-            )
-        )
-        published_chapter_count = published_chapter_count_result.scalar() or 0
+        # 统计已发布章节数（从文件系统读取）
+        published_chapter_count = await _count_published_chapters(str(work.author_id), str(work.id))
 
         # 计算平均评分
         avg_rating_result = await db.execute(
@@ -269,19 +261,9 @@ async def get_published_novel_detail(
     work.view_count += 1
     await db.commit()
 
-    # 获取已发布的章节列表
-    chapters_result = await db.execute(
-        select(Chapter)
-        .where(
-            Chapter.work_id == work_id,
-            Chapter.is_published == True
-        )
-        .order_by(Chapter.order.asc())
-    )
-    chapters = chapters_result.scalars().all()
-
-    # 统计已发布章节数
-    published_chapter_count = len(chapters)
+    # 获取已发布的章节列表（从文件系统读取）
+    published_chapters = await _get_published_chapters(str(work.author_id), str(work.id))
+    published_chapter_count = len(published_chapters)
 
     # 计算平均评分
     avg_rating_result = await db.execute(
@@ -294,14 +276,14 @@ async def get_published_novel_detail(
     # 构建章节响应数据
     chapter_responses = [
         PublishedChapterResponse(
-            id=str(chapter.id),
-            title=chapter.title,
-            order=chapter.order,
-            word_count=chapter.word_count,
-            view_count=chapter.view_count,
-            published_at=chapter.published_at
+            id=str(ch["num"]),
+            title=ch["title"],
+            order=ch["num"],
+            word_count=ch["word_count"],
+            view_count=0,
+            published_at=work.published_at
         )
-        for chapter in chapters
+        for ch in published_chapters
     ]
 
     return LibraryWorkDetailResponse(
@@ -349,37 +331,31 @@ async def get_published_chapter_content(
             detail="作品不存在或未发布"
         )
 
-    # 查询章节
-    chapter_result = await db.execute(
-        select(Chapter).where(
-            Chapter.id == chapter_id,
-            Chapter.work_id == work_id,
-            Chapter.is_published == True
-        )
-    )
-    chapter = chapter_result.scalar_one_or_none()
-
-    if not chapter:
+    # 从文件系统读取章节
+    try:
+        chapter_num = int(chapter_id)
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="章节不存在或未发布"
         )
 
-    # 增加章节浏览次数
-    chapter.view_count += 1
-    await db.commit()
-
-    chapter_content = chapter.content or ""
+    chapter_data = await _read_chapter_by_num(str(work.author_id), str(work.id), chapter_num)
+    if not chapter_data or chapter_data["status"] != "published":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="章节不存在或未发布"
+        )
 
     return {
-        "id": str(chapter.id),
+        "id": str(chapter_num),
         "work_id": str(work_id),
-        "title": chapter.title,
-        "content": chapter_content,
-        "order": chapter.order,
-        "word_count": chapter.word_count,
-        "view_count": chapter.view_count,
-        "published_at": chapter.published_at
+        "title": chapter_data["title"],
+        "content": chapter_data["content"],
+        "order": chapter_num,
+        "word_count": chapter_data["word_count"],
+        "view_count": 0,
+        "published_at": work.published_at
     }
 
 
@@ -602,7 +578,6 @@ async def get_bookshelf(
         .where(Bookshelf.user_id == current_user.id)
         .options(
             selectinload(Bookshelf.work).selectinload(Work.author),
-            selectinload(Bookshelf.last_read_chapter)
         )
         .order_by(Bookshelf.last_read_at.desc().nullslast(), Bookshelf.created_at.desc())
     )
@@ -613,14 +588,8 @@ async def get_bookshelf(
     for item in bookshelf_items:
         work = item.work
 
-        # 统计已发布章节数
-        published_chapter_count_result = await db.execute(
-            select(func.count(Chapter.id)).where(
-                Chapter.work_id == work.id,
-                Chapter.is_published == True
-            )
-        )
-        published_chapter_count = published_chapter_count_result.scalar() or 0
+        # 统计已发布章节数（从文件系统读取）
+        published_chapter_count = await _count_published_chapters(str(work.author_id), str(work.id))
 
         # 计算平均评分
         avg_rating_result = await db.execute(
@@ -630,14 +599,33 @@ async def get_bookshelf(
         )
         average_rating = avg_rating_result.scalar() or 0.0
 
-        # 获取最新章节发布时间
-        latest_chapter_result = await db.execute(
-            select(func.max(Chapter.published_at)).where(
-                Chapter.work_id == work.id,
-                Chapter.is_published == True
-            )
-        )
-        work_updated_at = latest_chapter_result.scalar()
+        # 最新章节发布时间：FS 无 published_at，用 Work 级别近似
+        work_updated_at = work.published_at
+
+        # 获取最后阅读章节信息（优先用 last_read_chapter_num 从 FS 读取）
+        last_chapter_id = None
+        last_chapter_title = None
+        last_chapter_order = None
+        chapter_num = getattr(item, 'last_read_chapter_num', None)
+        if chapter_num:
+            ch_data = await _read_chapter_by_num(str(work.author_id), str(work.id), chapter_num)
+            last_chapter_id = str(chapter_num)
+            last_chapter_title = ch_data["title"] if ch_data else None
+            last_chapter_order = chapter_num
+        elif item.last_read_chapter_id:
+            # 旧数据兼容：按需查 DB Chapter 表
+            try:
+                from app.models.chapter import Chapter
+                old_ch_result = await db.execute(
+                    select(Chapter).where(Chapter.id == item.last_read_chapter_id)
+                )
+                old_ch = old_ch_result.scalar_one_or_none()
+                if old_ch:
+                    last_chapter_id = str(old_ch.id)
+                    last_chapter_title = old_ch.title
+                    last_chapter_order = old_ch.order
+            except Exception:
+                pass
 
         items.append(BookshelfItemResponse(
             id=str(work.id),
@@ -655,9 +643,9 @@ async def get_bookshelf(
             author_name=work.author.username,
             author_id=str(work.author_id),
             published_chapter_count=published_chapter_count,
-            last_read_chapter_id=str(item.last_read_chapter_id) if item.last_read_chapter_id else None,
-            last_read_chapter_title=item.last_read_chapter.title if item.last_read_chapter else None,
-            last_read_chapter_order=item.last_read_chapter.order if item.last_read_chapter else None,
+            last_read_chapter_id=last_chapter_id,
+            last_read_chapter_title=last_chapter_title,
+            last_read_chapter_order=last_chapter_order,
             last_read_position=item.last_read_position,
             last_read_at=item.last_read_at,
             added_at=item.created_at,
@@ -698,24 +686,36 @@ async def update_reading_progress(
             detail="该作品不在书架中,请先添加到书架"
         )
 
-    # 验证章节是否存在且已发布
-    chapter_result = await db.execute(
-        select(Chapter).where(
-            Chapter.id == request.chapter_id,
-            Chapter.work_id == work_id,
-            Chapter.is_published == True
-        )
-    )
-    chapter = chapter_result.scalar_one_or_none()
-
-    if not chapter:
+    # 验证章节是否存在且已发布（从文件系统读取）
+    try:
+        chapter_num = int(request.chapter_id)
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="章节不存在或未发布"
         )
 
-    # 更新阅读进度
-    bookshelf_item.last_read_chapter_id = request.chapter_id
+    # 查询作品获取 author_id
+    work_result = await db.execute(
+        select(Work).where(Work.id == work_id)
+    )
+    work = work_result.scalar_one_or_none()
+    if not work:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="作品不存在"
+        )
+
+    chapter_data = await _read_chapter_by_num(str(work.author_id), str(work.id), chapter_num)
+    if not chapter_data or chapter_data["status"] != "published":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="章节不存在或未发布"
+        )
+
+    # 更新阅读进度（使用新的 chapter_num 字段）
+    bookshelf_item.last_read_chapter_num = chapter_num
+    bookshelf_item.last_read_chapter_id = None  # 清除旧 FK
     bookshelf_item.last_read_position = request.position
     bookshelf_item.last_read_at = datetime.now(timezone.utc)
 

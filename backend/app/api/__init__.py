@@ -3,7 +3,6 @@ from app.api.v1 import (
     auth,
     users,
     works,
-    ai,
     worldview,
     novel_analysis,
     admin,
@@ -50,7 +49,6 @@ api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monito
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(works.router, prefix="/works", tags=["works"])
-api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 api_router.include_router(worldview.router, prefix="/worldview", tags=["worldview"])
 api_router.include_router(relationships.router, prefix="/relationships", tags=["relationships"])
 api_router.include_router(timeline.router, prefix="/timeline", tags=["timeline"])

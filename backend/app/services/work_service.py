@@ -3,12 +3,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
+import asyncio
+from pathlib import Path
 
 from app.models.work import Work
 from app.models.chapter import Chapter
 from app.schemas.work import WorkCreate, WorkUpdate
 from app.utils.cache import cache_result, CacheInvalidator
 from app.core.redis import CacheKey, CacheExpire
+from app.services.agent.deep_agent import DATA_ROOT
+from app.services.agent.deep_agent.frontmatter import parse_chapter, build_chapter
 
 
 class WorkService:
@@ -114,13 +118,32 @@ class WorkService:
         
         return True
 
-    async def publish_work(self, work_id: str, chapter_ids: List[str]) -> Optional[Work]:
+    @staticmethod
+    def _get_work_dir(user_id: str, work_id: str) -> Path:
+        return DATA_ROOT / user_id / "works" / work_id
+
+    @staticmethod
+    def _list_chapter_files(chapters_dir: Path) -> list[tuple[int, Path]]:
+        import re
+        if not chapters_dir.exists():
+            return []
+        result = []
+        for f in chapters_dir.iterdir():
+            if f.is_file() and f.suffix == ".md":
+                match = re.match(r"^(\d+)-(.+)\.md$", f.name)
+                if match:
+                    result.append((int(match.group(1)), f))
+        result.sort(key=lambda x: x[0])
+        return result
+
+    async def publish_work(self, work_id: str, chapter_nums: List[int], user_id: str) -> Optional[Work]:
         """
         发布作品到小说广场
 
         Args:
             work_id: 作品ID
-            chapter_ids: 要发布的章节ID列表
+            chapter_nums: 要发布的章节序号列表 (如 [1, 2, 3])
+            user_id: 用户ID (用于定位文件系统目录)
 
         Returns:
             更新后的作品对象
@@ -133,18 +156,20 @@ class WorkService:
         work.is_published = True
         work.published_at = datetime.now(timezone.utc)
 
-        # 更新选中章节的发布状态
-        if chapter_ids:
-            result = await self.db.execute(
-                select(Chapter).where(
-                    Chapter.work_id == work_id,
-                    Chapter.id.in_(chapter_ids)
-                )
-            )
-            chapters = result.scalars().all()
-            for chapter in chapters:
-                chapter.is_published = True
-                chapter.published_at = datetime.now(timezone.utc)
+        # 更新文件系统中章节的 status
+        chapters_dir = self._get_work_dir(user_id, work_id) / "chapters"
+        if chapters_dir.exists():
+            chapter_files = await asyncio.to_thread(self._list_chapter_files, chapters_dir)
+            nums_set = set(chapter_nums)
+            for num, path in chapter_files:
+                raw = await asyncio.to_thread(path.read_text, "utf-8")
+                parsed = parse_chapter(raw)
+                if num in nums_set and parsed["status"] != "published":
+                    new_content = build_chapter(parsed["title"] or f"Chapter {num}", "published", parsed["content"])
+                    await asyncio.to_thread(path.write_text, new_content, "utf-8")
+                elif num not in nums_set and parsed["status"] == "published":
+                    new_content = build_chapter(parsed["title"] or f"Chapter {num}", "draft", parsed["content"])
+                    await asyncio.to_thread(path.write_text, new_content, "utf-8")
 
         await self.db.commit()
         await self.db.refresh(work)
@@ -154,12 +179,13 @@ class WorkService:
 
         return work
 
-    async def unpublish_work(self, work_id: str) -> Optional[Work]:
+    async def unpublish_work(self, work_id: str, user_id: str) -> Optional[Work]:
         """
         取消发布作品
 
         Args:
             work_id: 作品ID
+            user_id: 用户ID
 
         Returns:
             更新后的作品对象
@@ -171,13 +197,16 @@ class WorkService:
         # 设置作品为未发布
         work.is_published = False
 
-        # 同时取消所有章节的发布状态
-        result = await self.db.execute(
-            select(Chapter).where(Chapter.work_id == work_id)
-        )
-        chapters = result.scalars().all()
-        for chapter in chapters:
-            chapter.is_published = False
+        # 将所有 FS 章节 status 从 published 恢复为 draft
+        chapters_dir = self._get_work_dir(user_id, work_id) / "chapters"
+        if chapters_dir.exists():
+            chapter_files = await asyncio.to_thread(self._list_chapter_files, chapters_dir)
+            for num, path in chapter_files:
+                raw = await asyncio.to_thread(path.read_text, "utf-8")
+                parsed = parse_chapter(raw)
+                if parsed["status"] == "published":
+                    new_content = build_chapter(parsed["title"] or f"Chapter {num}", "draft", parsed["content"])
+                    await asyncio.to_thread(path.write_text, new_content, "utf-8")
 
         await self.db.commit()
         await self.db.refresh(work)

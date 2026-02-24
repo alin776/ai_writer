@@ -14,14 +14,21 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.models.chapter import Chapter
 from app.models.character import Character
 from app.models.location import Location
 from app.models.setting import Setting
+from app.models.work import Work
 from app.models.relationship import EntityRelationship
 from app.services.worldview_service import WorldviewService
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType
+from app.services.chapter_fs_helpers import (
+    ChapterData,
+    get_all_chapters_data,
+    get_chapters_by_nums,
+    get_chapters_by_range as fs_get_chapters_by_range,
+    read_chapter_by_num,
+)
 from app.core.redis_client import redis_client
 from app.schemas.worldview import CharacterCreate, CharacterUpdate, LocationCreate, SettingCreate
 from app.utils.text_cleaner import TextCleaner
@@ -37,6 +44,21 @@ class WorldviewSyncService:
         self.db = db
         self.user_id = user_id
         self.worldview_service = WorldviewService(db)
+        self._author_id_cache: dict[str, str] = {}
+
+    async def _get_author_id(self, work_id: str) -> str:
+        """获取作品的 author_id（带缓存）"""
+        if work_id in self._author_id_cache:
+            return self._author_id_cache[work_id]
+        result = await self.db.execute(
+            select(Work.author_id).where(Work.id == work_id)
+        )
+        author_id = result.scalar_one_or_none()
+        if not author_id:
+            raise ValueError(f"Work {work_id} not found")
+        aid = str(author_id)
+        self._author_id_cache[work_id] = aid
+        return aid
 
     async def extract_changes_from_chapter(
         self,
@@ -69,12 +91,19 @@ class WorldviewSyncService:
             existing_characters, existing_locations, existing_settings
         )
 
-        # 获取章节信息
-        chapter_stmt = select(Chapter).where(Chapter.id == chapter_id)
-        chapter_result = await self.db.execute(chapter_stmt)
-        chapter = chapter_result.scalar_one_or_none()
-        chapter_title = chapter.title if chapter else "未知章节"
-        chapter_order = chapter.order if chapter else 0
+        # 获取章节信息（从文件系统读取）
+        try:
+            chapter_num = int(chapter_id)
+        except (ValueError, TypeError):
+            chapter_num = 0
+        chapter_title = "未知章节"
+        chapter_order = 0
+        if chapter_num > 0:
+            author_id = await self._get_author_id(work_id)
+            ch_data = await read_chapter_by_num(author_id, work_id, chapter_num)
+            if ch_data:
+                chapter_title = ch_data["title"]
+                chapter_order = chapter_num
 
         # 调用 AI 提取变化
         changes = await self._ai_extract_changes(
@@ -147,22 +176,22 @@ class WorldviewSyncService:
             status_callback=status_callback
         )
 
-    async def get_chapters_by_work(self, work_id: str) -> List[Chapter]:
-        result = await self.db.execute(
-            select(Chapter).where(Chapter.work_id == work_id).order_by(Chapter.order)
-        )
-        return result.scalars().all()
+    async def get_chapters_by_work(self, work_id: str) -> List[ChapterData]:
+        author_id = await self._get_author_id(work_id)
+        return await get_all_chapters_data(author_id, work_id)
 
-    async def get_chapters_by_ids(self, work_id: str, chapter_ids: List[str]) -> List[Chapter]:
+    async def get_chapters_by_ids(self, work_id: str, chapter_ids: List[str]) -> List[ChapterData]:
         if not chapter_ids:
             return []
-        result = await self.db.execute(
-            select(Chapter).where(
-                Chapter.work_id == work_id,
-                Chapter.id.in_(chapter_ids)
-            ).order_by(Chapter.order)
-        )
-        return result.scalars().all()
+        author_id = await self._get_author_id(work_id)
+        # chapter_ids 可能是章节序号（字符串形式）
+        nums = []
+        for cid in chapter_ids:
+            try:
+                nums.append(int(cid))
+            except (ValueError, TypeError):
+                continue
+        return await get_chapters_by_nums(author_id, work_id, nums)
 
     async def get_chapters_by_range(
         self,
@@ -170,21 +199,19 @@ class WorldviewSyncService:
         start_chapter: int,
         end_chapter: Optional[int],
         limit: int
-    ) -> List[Chapter]:
-        stmt = select(Chapter).where(Chapter.work_id == work_id).order_by(Chapter.order)
-        if start_chapter:
-            stmt = stmt.where(Chapter.order >= start_chapter)
-        if end_chapter:
-            stmt = stmt.where(Chapter.order <= end_chapter)
-        if limit:
-            stmt = stmt.limit(limit)
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
+    ) -> List[ChapterData]:
+        author_id = await self._get_author_id(work_id)
+        return await fs_get_chapters_by_range(
+            author_id, work_id,
+            start_chapter=start_chapter,
+            end_chapter=end_chapter,
+            limit=limit
+        )
 
     async def _scan_chapters_batched(
         self,
         work_id: str,
-        chapters: List[Chapter],
+        chapters: List[ChapterData],
         preface_text: Optional[str],
         progress_callback: Optional[Callable[[int, int, int, int], Awaitable[None]]],
         status_callback: Optional[Callable[[str], Awaitable[None]]] = None
@@ -568,7 +595,7 @@ class WorldviewSyncService:
 
     def _iter_scan_batches(
         self,
-        chapters: List[Chapter],
+        chapters: List[ChapterData],
         preface_text: Optional[str],
         max_chapters_per_batch: int,
         max_chars_per_batch: int,
@@ -649,7 +676,7 @@ class WorldviewSyncService:
 
     def _build_scan_batches(
         self,
-        chapters: List[Chapter],
+        chapters: List[ChapterData],
         preface_text: Optional[str],
         max_chapters_per_batch: int,
         max_chars_per_batch: int,

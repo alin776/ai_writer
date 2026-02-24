@@ -13,7 +13,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { chaptersFs } from '../../services/chaptersFs';
-import { fsToChapter } from '../../utils/fsChapterAdapter';
+import { fsToChapter, chapterIdToNum } from '../../utils/fsChapterAdapter';
 import { useTranslation } from 'react-i18next';
 import {
   Plus,
@@ -289,7 +289,10 @@ const WorksView: React.FC = () => {
     try {
       setIsPublishing(true);
       // 调用后端API发布作品和章节
-      const response = await DataService.publishWork(publishingWork.id, Array.from(selectedChapters));
+      const chapterNums = Array.from(selectedChapters)
+        .map(id => chapterIdToNum(id))
+        .filter((n): n is number => n !== null);
+      const response = await DataService.publishWork(publishingWork.id, chapterNums);
 
       showToast('success', response.message);
       closePublishModal();

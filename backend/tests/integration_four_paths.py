@@ -88,14 +88,12 @@ async def import_novel() -> dict:
     work_id = str(result.work_id)
     _step("0.3", f"导入完成: work_id={work_id[:12]}..., chapters={result.chapters_created}, 耗时={elapsed:.1f}s")
 
-    from app.services.chapter_service import ChapterService
+    from app.services.chapter_fs_helpers import get_all_chapters_data
 
-    async with AsyncSessionLocal() as db:
-        ch_service = ChapterService(db)
-        ch_list = await ch_service.get_chapters_by_work(work_id)
+    ch_list = await get_all_chapters_data(TEST_USER_ID, work_id)
     chapters = [
-        {"id": str(ch.id), "order": ch.order, "title": ch.title or "", "word_count": ch.word_count or 0}
-        for ch in (ch_list or [])
+        {"id": ch.id, "order": ch.order, "title": ch.title or "", "word_count": ch.word_count or 0}
+        for ch in ch_list
     ]
 
     _step("0.4", f"共 {len(chapters)} 章:")

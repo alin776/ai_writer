@@ -1414,8 +1414,7 @@ async def extract_changes_from_chapter(
     返回变化列表供用户确认，不会自动应用。
     """
     from app.services.worldview_sync_service import WorldviewSyncService
-    from sqlalchemy import select
-    from app.models.chapter import Chapter
+    from app.services.chapter_fs_helpers import read_chapter_by_num
 
     # 验证作品权限
     work_service = WorkService(db)
@@ -1428,13 +1427,15 @@ async def extract_changes_from_chapter(
     # 获取章节内容
     chapter_content = request.chapter_content
     if not chapter_content:
-        # 从数据库读取章节内容
-        chapter_stmt = select(Chapter).where(Chapter.id == request.chapter_id)
-        chapter_result = await db.execute(chapter_stmt)
-        chapter = chapter_result.scalar_one_or_none()
-        if not chapter:
+        # 从文件系统读取章节内容
+        try:
+            chapter_num = int(request.chapter_id)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid chapter_id")
+        ch_data = await read_chapter_by_num(str(current_user.id), work_id, chapter_num)
+        if not ch_data:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found")
-        chapter_content = chapter.content or ""
+        chapter_content = ch_data["content"] or ""
 
     if len(chapter_content) < 100:
         # 内容太短，返回空结果

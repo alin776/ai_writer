@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Integer, ForeignKey
+from sqlalchemy import Column, DateTime, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -18,6 +18,7 @@ class Bookshelf(Base):
 
     # 阅读进度 - 记录用户读到哪一章
     last_read_chapter_id = Column(UUID(as_uuid=True), ForeignKey("chapters.id", ondelete="SET NULL"), nullable=True)
+    last_read_chapter_num = Column(Integer, nullable=True, comment="最后阅读的章节序号（FS 迁移后使用）")
     last_read_position = Column(Integer, default=0, nullable=False, comment="阅读位置(字符偏移量)")
 
     # 时间戳

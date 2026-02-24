@@ -7,10 +7,10 @@ from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.work import Work
-from app.models.chapter import Chapter
 from app.models.character import Character
 from app.models.location import Location
 from app.models.setting import Setting
+from app.services.chapter_fs_helpers import get_all_chapters
 from app.schemas.search import (
     SearchResponse,
     WorkSearchResult,
@@ -121,42 +121,40 @@ async def global_search(
         ]
         results.total += len(results.works)
     
-    # 2. 搜索章节（标题和内容）
+    # 2. 搜索章节（标题匹配，从文件系统读取）
     if not type or type == "chapters":
-        # 构建章节查询，JOIN作品表获取作品标题
-        chapters_query = (
-            select(
-                Chapter,
-                Work.title.label('work_title'),
-            )
-            .join(Work, Chapter.work_id == Work.id)
-            .where(Work.author_id == current_user.id)
-            .where(
-                Chapter.title.ilike(search_pattern)
-            )
-            .order_by(Chapter.updated_at.desc())
-            .limit(limit)
-        )
-        
+        # 先获取当前用户的作品列表
+        works_for_chapters_query = select(Work).where(Work.author_id == current_user.id)
         if work_id:
             from uuid import UUID
-            chapters_query = chapters_query.where(Chapter.work_id == UUID(work_id))
-        
-        chapters_result = await db.execute(chapters_query)
-        chapters_data = chapters_result.all()
-        
-        results.chapters = [
-            ChapterSearchResult(
-                id=chapter.id,
-                work_id=chapter.work_id,
-                work_title=work_title,
-                title=chapter.title,
-                content_snippet="",
-                word_count=chapter.word_count,
-                updated_at=chapter.updated_at
-            )
-            for chapter, work_title in chapters_data
-        ]
+            works_for_chapters_query = works_for_chapters_query.where(Work.id == UUID(work_id))
+
+        works_result_ch = await db.execute(works_for_chapters_query)
+        user_works = works_result_ch.scalars().all()
+
+        query_lower = q.lower()
+        chapter_results = []
+        for w in user_works:
+            chapters_data = await get_all_chapters(str(w.author_id), str(w.id))
+            for ch in chapters_data:
+                if query_lower in ch["title"].lower():
+                    chapter_results.append(
+                        ChapterSearchResult(
+                            id=str(ch["num"]),
+                            work_id=w.id,
+                            work_title=w.title,
+                            title=ch["title"],
+                            content_snippet="",
+                            word_count=ch["word_count"],
+                            updated_at=None
+                        )
+                    )
+                    if len(chapter_results) >= limit:
+                        break
+            if len(chapter_results) >= limit:
+                break
+
+        results.chapters = chapter_results
         results.total += len(results.chapters)
     
     # 3. 搜索角色

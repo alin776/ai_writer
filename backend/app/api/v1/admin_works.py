@@ -9,8 +9,8 @@ from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.work import Work, WorkGenre, WorkStatus
-from app.models.chapter import Chapter
 from app.models.rating import WorkRating
+from app.services.chapter_fs_helpers import count_published_chapters
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -118,14 +118,8 @@ async def get_all_works(
     # 构建响应数据
     items = []
     for work in works:
-        # 统计已发布章节数
-        published_chapter_count_result = await db.execute(
-            select(func.count(Chapter.id)).where(
-                Chapter.work_id == work.id,
-                Chapter.is_published == True
-            )
-        )
-        published_chapter_count = published_chapter_count_result.scalar() or 0
+        # 统计已发布章节数（从文件系统读取）
+        published_chapter_count = await count_published_chapters(str(work.author_id), str(work.id))
 
         # 计算平均评分
         avg_rating_result = await db.execute(

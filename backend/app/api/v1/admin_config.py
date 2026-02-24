@@ -41,5 +41,12 @@ async def update_config(
     current_user: User = Depends(get_current_admin_user),
 ):
     """更新系统配置（仅管理员）"""
+    # 写入校验：model_pricing 必须是含 "default" 键的非空字典
+    if key == "model_pricing":
+        if not isinstance(body.value, dict) or "default" not in body.value:
+            raise HTTPException(
+                status_code=422,
+                detail="model_pricing 必须是包含 'default' 键的字典",
+            )
     await SystemConfigService.set(db, key, body.value, user_id=current_user.id)
     return {"key": key, "value": body.value}

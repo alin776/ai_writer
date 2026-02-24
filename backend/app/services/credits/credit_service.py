@@ -440,7 +440,7 @@ class CreditService:
                     "total_cost": log.total_cost,
                 }
 
-        # 从 DB 读取定价元数据
+        # 从 DB 读取定价元数据（get_model_pricing 已保证返回含 default 键的有效数据）
         from app.services.system_config_service import SystemConfigService
         model_pricing = await SystemConfigService.get_model_pricing(self.db)
         credits_per_dollar = await SystemConfigService.get_credits_per_dollar(self.db)

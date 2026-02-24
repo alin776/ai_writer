@@ -12,7 +12,7 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.models.work import Work
 from app.models.timeline_event import TimelineEvent
-from app.models.chapter import Chapter
+from app.services.chapter_fs_helpers import get_all_chapters
 from app.schemas.timeline_event import (
     TimelineEventCreate,
     TimelineEventUpdate,
@@ -176,25 +176,21 @@ async def get_chapter_anchors(
 ):
     """获取作品的章节锚点列表"""
     # 验证作品所有权
-    await verify_work_owner(work_id, current_user.id, db)
-    
-    # 查询所有章节
-    result = await db.execute(
-        select(Chapter)
-        .where(Chapter.work_id == work_id)
-        .order_by(Chapter.order.asc())
-    )
-    chapters = result.scalars().all()
-    
+    work = await verify_work_owner(work_id, current_user.id, db)
+
+    # 从文件系统读取所有章节
+    chapters = await get_all_chapters(str(work.author_id), str(work_id))
+
     # 转换为章节锚点
     anchors = []
-    for i, chapter in enumerate(chapters):
+    for i, ch in enumerate(chapters):
+        num = ch["num"]
         anchors.append({
-            "id": chapter.id,
-            "chapter_id": chapter.id,
-            "chapter_title": chapter.title,
-            "chapter_number": chapter.order,
+            "id": str(num),
+            "chapter_id": str(num),
+            "chapter_title": ch["title"],
+            "chapter_number": num,
             "timestamp": i * 100  # 简单的时间戳计算，每章间隔100
         })
-    
+
     return anchors

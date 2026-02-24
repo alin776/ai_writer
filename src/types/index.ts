@@ -269,50 +269,6 @@ export interface AIModel {
   createTime: string;
 }
 
-/**
- * AI 配置
- */
-export interface AIConfig {
-  tone: 'formal' | 'casual' | 'humorous' | 'serious';
-  length: number;
-  temperature: number;
-  model: string;
-}
-
-/**
- * AI 续写请求
- */
-export interface AIContinueRequest {
-  chapterId: string;
-  content: string;
-  config: AIConfig;
-}
-
-/**
- * AI 续写响应
- */
-export interface AIContinueResponse {
-  suggestions: string[];
-  tokensUsed: number;
-  cost: number;
-}
-
-/**
- * AI 润色请求
- */
-export interface AIPolishRequest {
-  text: string;
-  config: Partial<AIConfig>;
-}
-
-/**
- * AI 摘要请求
- */
-export interface AISummaryRequest {
-  content: string;
-  maxLength: number;
-}
-
 // ==================== 世界观相关类型 ====================
 
 /**

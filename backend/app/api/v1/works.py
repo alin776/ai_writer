@@ -3,6 +3,8 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+import asyncio
 import logging
 from pydantic import BaseModel
 
@@ -17,9 +19,42 @@ from app.schemas.work import WorkCreate, WorkUpdate, WorkResponse, WorkListRespo
 from app.services.work_service import WorkService
 from app.services.cos_service import get_cos_service
 from app.schemas.worldview import WorldviewScanProgressResponse
+from app.services.agent.deep_agent import DATA_ROOT
+from app.api.v1.chapters_fs import _list_chapter_files
+from app.services.agent.deep_agent.frontmatter import parse_chapter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+async def _read_repair_work_stats(work: Work, user_id: str) -> bool:
+    """FS 读时修复：扫描文件系统章节，若与 DB 不一致则就地更新 ORM 对象。
+
+    返回 True 表示有字段被修正（调用方需 commit）。
+    """
+    chapters_dir = DATA_ROOT / user_id / "works" / str(work.id) / "chapters"
+    if not chapters_dir.exists():
+        # 目录不存在但 DB 有残留数据 → 修正为 0
+        if work.total_chapters != 0 or work.total_words != 0:
+            work.total_chapters = 0
+            work.total_words = 0
+            return True
+        return False
+    chapter_files = await asyncio.to_thread(_list_chapter_files, chapters_dir)
+    fs_count = len(chapter_files)
+    fs_words = 0
+    for _, path in chapter_files:
+        try:
+            raw = await asyncio.to_thread(path.read_text, "utf-8")
+            parsed = parse_chapter(raw)
+            fs_words += parsed["word_count"]
+        except Exception:
+            pass
+    if work.total_chapters != fs_count or work.total_words != fs_words:
+        work.total_chapters = fs_count
+        work.total_words = fs_words
+        return True
+    return False
 
 async def _calculate_weekly_new_words(db: AsyncSession, author_id: str) -> int:
     """计算本周新增字数 — 废弃卫星表已删除，暂返回 0"""
@@ -33,7 +68,7 @@ class CoverUploadResponse(BaseModel):
 
 class PublishWorkRequest(BaseModel):
     """发布作品请求"""
-    chapter_ids: List[str]
+    chapter_nums: List[int]
 
 
 class PublishWorkResponse(BaseModel):
@@ -75,7 +110,15 @@ async def get_works(
 
     page = skip // limit + 1
 
-    # 统计汇总数据（全量计算，不受分页影响）
+    # FS 读时修复：确保每个作品的统计值与文件系统一致
+    dirty = False
+    for work in works:
+        if await _read_repair_work_stats(work, author_id):
+            dirty = True
+    if dirty:
+        await db.commit()
+
+    # 统计汇总数据（全量计算，不受分页影响；在读时修复之后执行以反映最新值）
     total_words = await db.scalar(
         select(func.coalesce(func.sum(Work.total_words), 0)).where(Work.author_id == author_id)
     ) or 0
@@ -122,6 +165,10 @@ async def get_work(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access this work"
         )
+
+    # FS 读时修复
+    if await _read_repair_work_stats(work, str(current_user.id)):
+        await db.commit()
 
     return work
 
@@ -338,7 +385,7 @@ async def publish_work(
     发布作品到小说广场
 
     - **work_id**: 作品ID
-    - **chapter_ids**: 要发布的章节ID列表
+    - **chapter_nums**: 要发布的章节序号列表
     """
     work_service = WorkService(db)
 
@@ -358,14 +405,14 @@ async def publish_work(
         )
 
     # 验证章节ID
-    if not request.chapter_ids:
+    if not request.chapter_nums:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="请至少选择一个章节"
         )
 
     # 发布作品
-    updated_work = await work_service.publish_work(work_id, request.chapter_ids)
+    updated_work = await work_service.publish_work(work_id, request.chapter_nums, str(current_user.id))
     if not updated_work:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -449,7 +496,7 @@ async def unpublish_work(
         )
 
     # 取消发布作品
-    updated_work = await work_service.unpublish_work(work_id)
+    updated_work = await work_service.unpublish_work(work_id, str(current_user.id))
     if not updated_work:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

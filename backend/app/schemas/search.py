@@ -17,13 +17,13 @@ class WorkSearchResult(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 class ChapterSearchResult(BaseModel):
     """章节搜索结果"""
-    id: UUID
+    id: str
     work_id: UUID
     work_title: str
     title: str
     content_snippet: str  # 匹配的内容片段（带高亮）
     word_count: int = 0
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 class CharacterSearchResult(BaseModel):

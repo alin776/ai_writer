@@ -14,6 +14,9 @@ import {
   SelectValue,
 } from '../../components/ui/select';
 
+/** 前端极简兜底（仅在后端 API 完全未返回定价时使用，不含模型级别单价） */
+const FALLBACK_PRICING = { input: 1.0, cachedInput: 0.5, output: 2.0, reasoning: 2.0, cacheCreation: 1.0 };
+
 /** Token 明细展开卡片 */
 const TokenDetailCard: React.FC<{
   transaction: CreditTransaction;
@@ -22,7 +25,7 @@ const TokenDetailCard: React.FC<{
   const d = transaction.tokenDetails;
   if (!d) return null;
 
-  const modelPricing = pricingInfo?.modelPricing?.[d.modelName] ?? pricingInfo?.modelPricing?.['default'];
+  const modelPricing = pricingInfo?.modelPricing?.[d.modelName] ?? pricingInfo?.modelPricing?.['default'] ?? FALLBACK_PRICING;
   const creditsPerDollar = pricingInfo?.creditsPerDollar ?? 12400;
 
   // 计算 new input（排除 cache 部分）
@@ -75,46 +78,31 @@ const TokenDetailCard: React.FC<{
             费用计算
           </h4>
           <div className="space-y-1 text-gray-600 dark:text-gray-400 font-mono text-xs">
-            {modelPricing ? (
-              <>
-                <div className="flex justify-between">
-                  <span>New Input: {newInput.toLocaleString()} × ${modelPricing.input}/M</span>
-                  <span>${(newInput / 1_000_000 * modelPricing.input).toFixed(6)}</span>
-                </div>
-                {d.cacheReadTokens > 0 && (
-                  <div className="flex justify-between text-green-600 dark:text-green-400">
-                    <span>Cache Read: {d.cacheReadTokens.toLocaleString()} × ${modelPricing.cachedInput}/M</span>
-                    <span>${(d.cacheReadTokens / 1_000_000 * modelPricing.cachedInput).toFixed(6)}</span>
-                  </div>
-                )}
-                {d.cacheCreationTokens > 0 && (
-                  <div className="flex justify-between text-blue-600 dark:text-blue-400">
-                    <span>Cache Create: {d.cacheCreationTokens.toLocaleString()} × ${modelPricing.cacheCreation}/M</span>
-                    <span>${(d.cacheCreationTokens / 1_000_000 * modelPricing.cacheCreation).toFixed(6)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span>Output: {newOutput.toLocaleString()} × ${modelPricing.output}/M</span>
-                  <span>${(newOutput / 1_000_000 * modelPricing.output).toFixed(6)}</span>
-                </div>
-                {d.reasoningTokens > 0 && (
-                  <div className="flex justify-between text-purple-600 dark:text-purple-400">
-                    <span>Reasoning: {d.reasoningTokens.toLocaleString()} × ${modelPricing.reasoning}/M</span>
-                    <span>${(d.reasoningTokens / 1_000_000 * modelPricing.reasoning).toFixed(6)}</span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="flex justify-between">
-                  <span>Input Cost</span>
-                  <span>${d.promptCost.toFixed(6)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Output Cost</span>
-                  <span>${d.completionCost.toFixed(6)}</span>
-                </div>
-              </>
+            <div className="flex justify-between">
+              <span>New Input: {newInput.toLocaleString()} × ${modelPricing.input}/M</span>
+              <span>${(newInput / 1_000_000 * modelPricing.input).toFixed(6)}</span>
+            </div>
+            {d.cacheReadTokens > 0 && (
+              <div className="flex justify-between text-green-600 dark:text-green-400">
+                <span>Cache Read: {d.cacheReadTokens.toLocaleString()} × ${modelPricing.cachedInput}/M</span>
+                <span>${(d.cacheReadTokens / 1_000_000 * modelPricing.cachedInput).toFixed(6)}</span>
+              </div>
+            )}
+            {d.cacheCreationTokens > 0 && (
+              <div className="flex justify-between text-blue-600 dark:text-blue-400">
+                <span>Cache Create: {d.cacheCreationTokens.toLocaleString()} × ${modelPricing.cacheCreation}/M</span>
+                <span>${(d.cacheCreationTokens / 1_000_000 * modelPricing.cacheCreation).toFixed(6)}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span>Output: {newOutput.toLocaleString()} × ${modelPricing.output}/M</span>
+              <span>${(newOutput / 1_000_000 * modelPricing.output).toFixed(6)}</span>
+            </div>
+            {d.reasoningTokens > 0 && (
+              <div className="flex justify-between text-purple-600 dark:text-purple-400">
+                <span>Reasoning: {d.reasoningTokens.toLocaleString()} × ${modelPricing.reasoning}/M</span>
+                <span>${(d.reasoningTokens / 1_000_000 * modelPricing.reasoning).toFixed(6)}</span>
+              </div>
             )}
             <div className="flex justify-between pt-1 font-medium text-gray-900 dark:text-gray-200">
               <span>USD 合计</span>

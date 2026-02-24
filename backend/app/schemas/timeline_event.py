@@ -56,8 +56,8 @@ class TimelineEventListResponse(BaseModel):
 
 class ChapterAnchor(BaseModel):
     """章节锚点"""
-    id: UUID
-    chapter_id: UUID
+    id: str
+    chapter_id: str
     chapter_title: str
     chapter_number: int
     timestamp: int  # 在时间线上的位置

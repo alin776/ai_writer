@@ -6,12 +6,11 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 import logging
 
 from app.models.novel_analysis import NovelAnalysis, AnalysisStatus, AnalysisStage
 from app.models.work import Work
-from app.models.chapter import Chapter
+from app.services.chapter_fs_helpers import get_all_chapters, count_all_chapters
 from app.schemas.novel_analysis import (
     NovelAnalysisCreate,
     NovelAnalysisUpdate,
@@ -59,8 +58,8 @@ class NovelAnalysisService:
             await self.db.commit()
             logger.info(f"Deleted old analysis for work {work_id}, creating new one")
         
-        # 3. 获取章节总数
-        total_chapters = len(work.chapters)
+        # 3. 获取章节总数（从 FS 读取）
+        total_chapters = len(work._fs_chapters)
         if total_chapters == 0:
             raise ValueError(f"Work {work_id} has no chapters to analyze")
         
@@ -381,35 +380,38 @@ class NovelAnalysisService:
     
     async def _get_work_with_chapters(self, work_id: str) -> Optional[Work]:
         """
-        获取作品及其章节
-        
+        获取作品（章节数量从文件系统统计）
+
         Args:
             work_id: 作品ID
-            
+
         Returns:
-            Optional[Work]: 作品对象（包含章节）
+            Optional[Work]: 作品对象（附加 _fs_chapters 属性）
         """
         result = await self.db.execute(
-            select(Work)
-            .options(selectinload(Work.chapters))
-            .where(Work.id == work_id)
+            select(Work).where(Work.id == work_id)
         )
-        return result.scalar_one_or_none()
-    
-    async def get_chapters_for_analysis(self, work_id: str) -> List[Chapter]:
+        work = result.scalar_one_or_none()
+        if work:
+            # 从 FS 读取章节列表，存储为临时属性供调用方使用
+            work._fs_chapters = await get_all_chapters(str(work.author_id), str(work.id))
+        return work
+
+    async def get_chapters_for_analysis(self, work_id: str) -> list[dict]:
         """
-        获取作品的所有章节（用于分析）
-        
+        获取作品的所有章节（用于分析，从文件系统读取）
+
         Args:
             work_id: 作品ID
-            
+
         Returns:
-            List[Chapter]: 章节列表（按顺序排列）
+            list[dict]: 章节列表（按顺序排列）
         """
+        # 需要 author_id 来定位 FS 目录
         result = await self.db.execute(
-            select(Chapter)
-            .where(Chapter.work_id == work_id)
-            .order_by(Chapter.order)
+            select(Work).where(Work.id == work_id)
         )
-        chapters = result.scalars().all()
-        return chapters
+        work = result.scalar_one_or_none()
+        if not work:
+            return []
+        return await get_all_chapters(str(work.author_id), str(work.id))

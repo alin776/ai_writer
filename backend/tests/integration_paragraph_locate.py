@@ -83,20 +83,18 @@ async def stage_import() -> dict:
     work_id = str(result.work_id)
     _print_step("1.4", f"导入完成: work_id={work_id}, chapters_created={result.chapters_created}, 耗时={elapsed:.1f}s")
 
-    # ImportResponse 没有 chapters 列表，从 DB 查询
-    from app.services.chapter_service import ChapterService
+    # ImportResponse 没有 chapters 列表，从 FS 查询
+    from app.services.chapter_fs_helpers import get_all_chapters_data
 
-    async with AsyncSessionLocal() as db:
-        ch_service = ChapterService(db)
-        ch_list = await ch_service.get_chapters_by_work(work_id)
+    ch_list = await get_all_chapters_data(TEST_USER_ID, work_id)
     chapters = [
         {
-            "id": str(ch.id),
+            "id": ch.id,
             "order": ch.order,
             "title": ch.title or "",
             "word_count": ch.word_count or 0,
         }
-        for ch in (ch_list or [])
+        for ch in ch_list
     ]
 
     _print_step("1.4b", f"查询到 {len(chapters)} 章")
@@ -285,18 +283,16 @@ async def stage_verify_chapter_content(work_id: str, explore_result: dict):
 
     _print_step("4.1", f"加载章节内容: chapter_id={chapter_id[:12]}...")
 
-    from app.services.chapter_service import ChapterService
-    from app.core.database import AsyncSessionLocal
+    from app.services.chapter_fs_helpers import read_chapter_by_num
 
-    async with AsyncSessionLocal() as db:
-        service = ChapterService(db)
-        chapter = await service.get_chapter_by_id(chapter_id)
+    chapter_num = int(chapter_id)
+    ch_data = await read_chapter_by_num(TEST_USER_ID, work_id, chapter_num)
 
-    if not chapter or not chapter.content:
+    if not ch_data or not ch_data.get("content"):
         print("         ✗ 章节内容为空")
         return
 
-    content = str(chapter.content)
+    content = str(ch_data["content"])
     _print_step("4.2", f"章节内容: {len(content)} 字符, HTML={'<p' in content}")
 
     # 解析段落
@@ -330,7 +326,7 @@ async def stage_verify_chapter_content(work_id: str, explore_result: dict):
 
 
 # ── 阶段 4b：验证新导入章节的 data-id ─────────────────────
-async def stage_verify_new_chapter(chapters: list):
+async def stage_verify_new_chapter(chapters: list, work_id: str):
     """直接验证新导入的章节是否有 data-id，不依赖 Explore 结果"""
     _print_header("阶段 4b：验证新导入章节 data-id")
 
@@ -339,21 +335,19 @@ async def stage_verify_new_chapter(chapters: list):
         return
 
     chapter_id = chapters[0]["id"]
-    _print_step("4b.1", f"加载新导入章节: id={chapter_id[:12]}.. order={chapters[0]['order']}")
+    _print_step("4b.1", f"加载新导入章节: id={chapter_id} order={chapters[0]['order']}")
 
-    from app.services.chapter_service import ChapterService
-    from app.core.database import AsyncSessionLocal
+    from app.services.chapter_fs_helpers import read_chapter_by_num
     from app.services.agent.tools.locate_tools import _split_paragraphs
 
-    async with AsyncSessionLocal() as db:
-        service = ChapterService(db)
-        chapter = await service.get_chapter_by_id(chapter_id)
+    chapter_num = int(chapter_id)
+    ch_data = await read_chapter_by_num(TEST_USER_ID, work_id, chapter_num)
 
-    if not chapter or not chapter.content:
+    if not ch_data or not ch_data.get("content"):
         print("         ✗ 章节内容为空")
         return
 
-    content = str(chapter.content)
+    content = str(ch_data["content"])
     has_data_id = 'data-id=' in content
     _print_step("4b.2", f"HTML={True}, data-id={'✓' if has_data_id else '✗'}, {len(content)} 字符")
 
@@ -451,7 +445,7 @@ async def main():
         await stage_verify_chapter_content(work_id, explore_result)
 
         # 阶段 4b：直接验证新导入章节的 data-id 和段落解析
-        await stage_verify_new_chapter(chapters)
+        await stage_verify_new_chapter(chapters, work_id)
 
     except Exception as e:
         print(f"\n  ✗ 异常: {e}")
