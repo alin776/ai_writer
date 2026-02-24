@@ -6,7 +6,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15,13 +15,13 @@
 }
 
 .export-dialog {
-  background: #1e1e1e;
+  background: #ffffff;
   border-radius: 12px;
   width: 90%;
   max-width: 600px;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   animation: slideUp 0.3s ease-out;
 }
 
@@ -30,7 +30,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .export-dialog-header h2 {
@@ -40,13 +40,13 @@
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #fff;
+  color: #111827;
 }
 
 .close-button {
   background: none;
   border: none;
-  color: #999;
+  color: #9ca3af;
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -54,31 +54,31 @@
 }
 
 .close-button:hover {
-  color: #fff;
-  background: #333;
+  color: #111827;
+  background: #f3f4f6;
 }
 
 .work-info {
   padding: 16px 24px;
-  border-bottom: 1px solid #333;
-  background: #252525;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
 }
 
 .work-info p {
   margin: 0;
-  color: #ccc;
+  color: #374151;
 }
 
 .form-section {
   padding: 20px 24px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .form-section h3 {
   margin: 0 0 16px 0;
   font-size: 14px;
   font-weight: 500;
-  color: #999;
+  color: #6b7280;
   text-transform: uppercase;
 }
 
@@ -93,20 +93,20 @@
   align-items: center;
   gap: 12px;
   padding: 16px;
-  border: 2px solid #333;
+  border: 2px solid #e5e7eb;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .format-option:hover {
-  border-color: #444;
-  background: #252525;
+  border-color: #d1d5db;
+  background: #f9fafb;
 }
 
 .format-option.active {
   border-color: #3b82f6;
-  background: #1e3a5f;
+  background: #eff6ff;
 }
 
 .format-option input[type="radio"] {
@@ -117,7 +117,7 @@
 }
 
 .format-option svg {
-  color: #666;
+  color: #9ca3af;
   flex-shrink: 0;
 }
 
@@ -133,12 +133,12 @@
 }
 
 .format-info strong {
-  color: #fff;
+  color: #111827;
   font-size: 15px;
 }
 
 .format-info span {
-  color: #999;
+  color: #6b7280;
   font-size: 13px;
 }
 
@@ -157,7 +157,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #ccc;
+  color: #374151;
   cursor: pointer;
   padding: 8px 0;
 }
@@ -171,10 +171,10 @@
 .error-message {
   margin: 16px 24px;
   padding: 12px;
-  background: #3f1f1f;
-  border: 1px solid #ff4444;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
   border-radius: 6px;
-  color: #ff6b6b;
+  color: #dc2626;
   font-size: 14px;
 }
 
@@ -205,12 +205,12 @@
 }
 
 .button-secondary {
-  background: #333;
-  color: #ccc;
+  background: #f3f4f6;
+  color: #374151;
 }
 
 .button-secondary:hover:not(:disabled) {
-  background: #444;
+  background: #e5e7eb;
 }
 
 .button-primary {
@@ -245,4 +245,93 @@
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* ── 暗色模式 ─────────────────────────────────── */
+.dark .export-dialog-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.dark .export-dialog {
+  background: #1e293b;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.dark .export-dialog-header {
+  border-bottom-color: #334155;
+}
+
+.dark .export-dialog-header h2 {
+  color: #f8fafc;
+}
+
+.dark .close-button {
+  color: #94a3b8;
+}
+
+.dark .close-button:hover {
+  color: #f8fafc;
+  background: #334155;
+}
+
+.dark .work-info {
+  border-bottom-color: #334155;
+  background: #0f172a;
+}
+
+.dark .work-info p {
+  color: #cbd5e1;
+}
+
+.dark .form-section {
+  border-bottom-color: #334155;
+}
+
+.dark .form-section h3 {
+  color: #94a3b8;
+}
+
+.dark .format-option {
+  border-color: #334155;
+}
+
+.dark .format-option:hover {
+  border-color: #475569;
+  background: #0f172a;
+}
+
+.dark .format-option.active {
+  border-color: #3b82f6;
+  background: #1e3a5f;
+}
+
+.dark .format-option svg {
+  color: #64748b;
+}
+
+.dark .format-info strong {
+  color: #f8fafc;
+}
+
+.dark .format-info span {
+  color: #94a3b8;
+}
+
+.dark .export-options label {
+  color: #cbd5e1;
+}
+
+.dark .error-message {
+  background: #3f1f1f;
+  border-color: #ff4444;
+  color: #ff6b6b;
+}
+
+.dark .button-secondary {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.dark .button-secondary:hover:not(:disabled) {
+  background: #475569;
 }

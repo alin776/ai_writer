@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: assistive
   domain: fiction
-allowed-tools: [read_file, write_file, edit_file, glob, grep, execute]
+allowed-tools: read_file, write_file, edit_file, glob, grep, execute
 ---
 
 # 起草：网文初稿执行技能

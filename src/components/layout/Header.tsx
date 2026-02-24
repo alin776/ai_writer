@@ -69,7 +69,6 @@ const Header: React.FC = () => {
     // 管理员模块
     if (path.includes('/admin/dashboard')) return t('header.pages.dashboard');
     if (path.includes('/admin/users')) return t('header.pages.users');
-    if (path.includes('/admin/ai-models')) return t('header.pages.aiModels');
     if (path.includes('/admin/cost')) return t('header.pages.cost');
     if (path.includes('/admin/notifications')) return '通知管理';
     if (path.includes('/admin/tasks')) return '任务配置';

@@ -1,5 +1,5 @@
 /**
- * 管理员通知管理页面 - 简约黑白设计
+ * 管理员通知管理页面 - 统一管理后台风格
  *
  * 功能:
  * - 创建和发送通知
@@ -49,6 +49,7 @@ import {
 } from '../types/activity';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { ADMIN_STYLES } from '../styles/adminStyles';
 
 // 扩展通知创建接口以包含活动规则
 interface ActivityNotificationCreate extends Omit<NotificationCreate, 'activityType' | 'displayType'> {
@@ -471,17 +472,16 @@ const AdminNotificationsView: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
-        {/* 页面头部 - 简约黑白风格 */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-8 py-6">
+    <div className={ADMIN_STYLES.page}>
+      <div className={ADMIN_STYLES.stickyHeader}>
+        <div className={ADMIN_STYLES.titleSection}>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl text-black dark:text-white">通知管理</h1>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                创建和管理系统通知、公告和活动
-              </p>
+              <h1 className={ADMIN_STYLES.title}>
+                <Bell className={ADMIN_STYLES.titleIcon} />
+                通知管理
+              </h1>
+              <p className={ADMIN_STYLES.subtitle}>创建和管理系统通知、公告和活动</p>
             </div>
             <button
               onClick={() => {
@@ -489,157 +489,153 @@ const AdminNotificationsView: React.FC = () => {
                 setEditingNotification(null);
                 setShowCreateModal(true);
               }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-black dark:bg-gray-700 text-white dark:text-gray-100 text-sm rounded-full hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
+              className={ADMIN_STYLES.btnPrimary + ' flex items-center gap-2'}
             >
               <Plus className="w-4 h-4" />
               创建通知
             </button>
           </div>
+        </div>
 
-          {/* 筛选和搜索 */}
-          <div className="mt-6 flex items-center gap-3">
+        {/* 筛选和搜索 */}
+        <div className={ADMIN_STYLES.filterCard}>
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               {(['all', 'active', 'draft'] as const).map((status) => (
                 <button
                   key={status}
                   onClick={() => setFilterStatus(status)}
-                  className={`px-4 py-2 text-sm rounded-full transition-all ${
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                     filterStatus === status
-                      ? 'bg-black dark:bg-gray-700 text-white dark:text-gray-100'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
                   {status === 'all' ? '全部' : status === 'active' ? '已发布' : '草稿'}
                 </button>
               ))}
             </div>
-
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="搜索通知标题..."
-                  className="w-full pl-10 pr-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 rounded-full focus:outline-none focus:border-black dark:focus:border-gray-400"
-                />
-              </div>
+            <div className="flex-1 max-w-md relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="搜索通知标题..."
+                className={ADMIN_STYLES.searchInput}
+              />
             </div>
           </div>
-        </div>
         </div>
       </div>
 
       {/* 通知列表 */}
-      <div className="max-w-7xl mx-auto px-8 py-6">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-sm text-gray-500 dark:text-gray-400">加载中...</div>
-            </div>
-          ) : filteredNotifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Bell className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
-              <p className="text-sm text-gray-500 dark:text-gray-400">暂无通知</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
-              {filteredNotifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-sm font-medium text-black dark:text-white">
-                          {notification.title}
-                        </h3>
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${
-                            notification.priority === NotificationPriority.URGENT
-                              ? 'bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400'
-                              : notification.priority === NotificationPriority.IMPORTANT
-                              ? 'bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                          }`}
-                        >
-                          {notification.priority === NotificationPriority.URGENT
-                            ? '紧急'
+      <div className={ADMIN_STYLES.tableContainer}>
+        {loading ? (
+          <div className={ADMIN_STYLES.loadingContainer}>
+            <div className={ADMIN_STYLES.loadingText}>加载中...</div>
+          </div>
+        ) : filteredNotifications.length === 0 ? (
+          <div className={ADMIN_STYLES.emptyContainer}>
+            <Bell className={ADMIN_STYLES.emptyIcon} />
+            <p className={ADMIN_STYLES.emptyText}>暂无通知</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            {filteredNotifications.map((notification) => (
+              <div
+                key={notification.id}
+                className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                        {notification.title}
+                      </h3>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 text-xs rounded ${
+                          notification.priority === NotificationPriority.URGENT
+                            ? 'bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400'
                             : notification.priority === NotificationPriority.IMPORTANT
-                            ? '重要'
-                            : '普通'}
-                        </span>
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 text-xs rounded-full ${
-                            notification.status === NotificationStatus.ACTIVE
-                              ? 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                          }`}
-                        >
-                          {notification.status === NotificationStatus.ACTIVE ? '已发布' : '草稿'}
-                        </span>
-                      </div>
-                      {notification.content && (
-                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
-                          {notification.content}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                        <span>
-                          {notification.targetUsers === 'all' ? '全部用户' : '自定义'}
-                        </span>
-                        <span>
-                          {formatDistanceToNow(new Date(notification.createdAt), {
-                            addSuffix: true,
-                            locale: zhCN,
-                          })}
-                        </span>
-                      </div>
+                            ? 'bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                        }`}
+                      >
+                        {notification.priority === NotificationPriority.URGENT
+                          ? '紧急'
+                          : notification.priority === NotificationPriority.IMPORTANT
+                          ? '重要'
+                          : '普通'}
+                      </span>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 text-xs rounded ${
+                          notification.status === NotificationStatus.ACTIVE
+                            ? 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                        }`}
+                      >
+                        {notification.status === NotificationStatus.ACTIVE ? '已发布' : '草稿'}
+                      </span>
                     </div>
-
-                    {/* 操作按钮 */}
-                    <div className="flex items-center gap-2">
-                      {notification.status === NotificationStatus.DRAFT && (
-                        <button
-                          onClick={() => handlePublish(notification.id)}
-                          className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          title="发布"
-                        >
-                          <Send className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleEdit(notification)}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                        title="编辑"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(notification.id)}
-                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                        title="删除"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    {notification.content && (
+                      <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
+                        {notification.content}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                      <span>
+                        {notification.targetUsers === 'all' ? '全部用户' : '自定义'}
+                      </span>
+                      <span>
+                        {formatDistanceToNow(new Date(notification.createdAt), {
+                          addSuffix: true,
+                          locale: zhCN,
+                        })}
+                      </span>
                     </div>
                   </div>
+
+                  {/* 操作按钮 */}
+                  <div className="flex items-center gap-2">
+                    {notification.status === NotificationStatus.DRAFT && (
+                      <button
+                        onClick={() => handlePublish(notification.id)}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                        title="发布"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleEdit(notification)}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                      title="编辑"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(notification.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      title="删除"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* 创建/编辑通知弹窗 - 简约黑白风格 */}
+      {/* 创建/编辑通知弹窗 */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className={ADMIN_STYLES.modalOverlay}>
+          <div className={ADMIN_STYLES.modalContainer + ' max-w-3xl max-h-[90vh] overflow-y-auto'}>
             {/* 弹窗头部 */}
-            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-8 py-6 flex items-center justify-between">
-              <h2 className="text-lg font-medium text-black dark:text-white">
+            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+              <h2 className={ADMIN_STYLES.modalTitle}>
                 {editingNotification ? '编辑通知' : '创建通知'}
               </h2>
               <button
@@ -648,16 +644,16 @@ const AdminNotificationsView: React.FC = () => {
                   setEditingNotification(null);
                   resetForm();
                 }}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
               {/* 基础信息 */}
               <div className="space-y-4">
-                <h3 className="text-sm font-medium text-black dark:text-white">基础信息</h3>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white">基础信息</h3>
 
                 {/* 标题 */}
                 <div>
@@ -669,7 +665,7 @@ const AdminNotificationsView: React.FC = () => {
                     required
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-black dark:focus:border-gray-400"
+                    className={ADMIN_STYLES.modalInput}
                     placeholder="输入通知标题"
                   />
                 </div>
@@ -683,7 +679,7 @@ const AdminNotificationsView: React.FC = () => {
                     value={formData.content}
                     onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                     rows={4}
-                    className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-black dark:focus:border-gray-400 resize-none"
+                    className={ADMIN_STYLES.modalInput + ' resize-none'}
                     placeholder="输入通知内容（可选）"
                   />
                 </div>
@@ -712,7 +708,7 @@ const AdminNotificationsView: React.FC = () => {
                           }));
                         }
                       }}
-                      className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-400"
+                      className={ADMIN_STYLES.modalInput}
                     >
                       <option value={NotificationType.ANNOUNCEMENT}>公告</option>
                       <option value={NotificationType.FEATURE}>新功能</option>
@@ -734,7 +730,7 @@ const AdminNotificationsView: React.FC = () => {
                           priority: e.target.value as NotificationPriority,
                         })
                       }
-                      className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-400"
+                      className={ADMIN_STYLES.modalInput}
                     >
                       <option value={NotificationPriority.NORMAL}>普通</option>
                       <option value={NotificationPriority.IMPORTANT}>重要</option>
@@ -749,7 +745,7 @@ const AdminNotificationsView: React.FC = () => {
                     封面图片
                   </label>
                   <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-2 px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <label className="flex items-center gap-2 px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                       <ImageIcon className="w-4 h-4" />
                       <span>{uploadingCover ? '上传中...' : '选择图片'}</span>
                       <input
@@ -765,7 +761,7 @@ const AdminNotificationsView: React.FC = () => {
                         <img
                           src={formData.coverImageUrl}
                           alt="封面预览"
-                          className="w-16 h-16 object-cover rounded-xl border border-gray-200 dark:border-gray-700"
+                          className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
                         />
                         <button
                           type="button"
@@ -782,9 +778,9 @@ const AdminNotificationsView: React.FC = () => {
 
               {/* 活动配置（仅活动类型显示） */}
               {formData.type === NotificationType.EVENT && (
-                <div className="space-y-4 pt-6 border-t border-gray-100 dark:border-gray-700">
+                <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-black dark:text-white">活动配置</h3>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">活动配置</h3>
                     <button
                       type="button"
                       onClick={() => setShowRewardsConfig(!showRewardsConfig)}
@@ -821,9 +817,9 @@ const AdminNotificationsView: React.FC = () => {
                               key={type}
                               type="button"
                               onClick={() => handleActivityTypeChange(type)}
-                              className={`flex items-center justify-center gap-2 px-4 py-3 text-sm border rounded-xl transition-all ${
+                              className={`flex items-center justify-center gap-2 px-4 py-3 text-sm border rounded-lg transition-all ${
                                 formData.activityType === type
-                                  ? 'border-black dark:border-gray-600 bg-black dark:bg-gray-700 text-white dark:text-gray-100'
+                                  ? 'border-blue-600 bg-blue-600 text-white'
                                   : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                               }`}
                             >
@@ -837,8 +833,8 @@ const AdminNotificationsView: React.FC = () => {
                       {/* 邀请活动配置 */}
                       {formData.activityType === ActivityType.INVITATION &&
                         formData.activityRules && (
-                          <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
-                            <h4 className="text-xs font-medium text-black dark:text-white">邀请奖励配置</h4>
+                          <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                            <h4 className="text-xs font-medium text-gray-900 dark:text-white">邀请奖励配置</h4>
 
                             {/* 邀请者奖励 */}
                             <div>
@@ -968,8 +964,8 @@ const AdminNotificationsView: React.FC = () => {
                       {/* 比赛活动配置 */}
                       {formData.activityType === ActivityType.COMPETITION &&
                         formData.activityRules && (
-                          <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
-                            <h4 className="text-xs font-medium text-black dark:text-white">比赛奖励配置</h4>
+                          <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                            <h4 className="text-xs font-medium text-gray-900 dark:text-white">比赛奖励配置</h4>
                             <div>
                               <label className="block text-xs text-gray-600 dark:text-gray-400 mb-2">
                                 评分标准
@@ -988,7 +984,7 @@ const AdminNotificationsView: React.FC = () => {
                               />
                             </div>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                              💡 提示：比赛活动的排名奖励配置较复杂，建议在后续版本中添加
+                              提示：比赛活动的排名奖励配置较复杂，建议在后续版本中添加
                             </p>
                           </div>
                         )}
@@ -1036,8 +1032,8 @@ const AdminNotificationsView: React.FC = () => {
               )}
 
               {/* 其他设置 */}
-              <div className="space-y-4 pt-6 border-t border-gray-100 dark:border-gray-700">
-                <h3 className="text-sm font-medium text-black dark:text-white">其他设置</h3>
+              <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white">其他设置</h3>
 
                 {/* 展示方式 */}
                 <div>
@@ -1045,7 +1041,7 @@ const AdminNotificationsView: React.FC = () => {
                     展示方式 *
                   </label>
                   <div className="space-y-2">
-                    <label className="flex items-center gap-2 p-3 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 bg-white dark:bg-gray-900 transition-colors">
+                    <label className="flex items-center gap-2 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 bg-white dark:bg-gray-900 transition-colors">
                       <input
                         type="checkbox"
                         checked={formData.displayType?.includes('notification') ?? false}
@@ -1063,7 +1059,7 @@ const AdminNotificationsView: React.FC = () => {
                         <div className="text-xs text-gray-500 dark:text-gray-400">在顶部通知铃铛中显示</div>
                       </div>
                     </label>
-                    <label className="flex items-center gap-2 p-3 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 bg-white dark:bg-gray-900 transition-colors">
+                    <label className="flex items-center gap-2 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 bg-white dark:bg-gray-900 transition-colors">
                       <input
                         type="checkbox"
                         checked={formData.displayType?.includes('modal') ?? false}
@@ -1096,7 +1092,7 @@ const AdminNotificationsView: React.FC = () => {
                     required
                     value={formData.targetUsers}
                     onChange={(e) => setFormData({ ...formData, targetUsers: e.target.value as TargetUserType })}
-                    className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-400"
+                    className={ADMIN_STYLES.modalInput}
                   >
                     <option value={TargetUserType.ALL}>全部用户</option>
                     <option value={TargetUserType.ACTIVE}>活跃用户</option>
@@ -1113,7 +1109,7 @@ const AdminNotificationsView: React.FC = () => {
                     required
                     value={formData.publishType}
                     onChange={(e) => setFormData({ ...formData, publishType: e.target.value as 'immediate' | 'scheduled' | 'draft' })}
-                    className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-gray-400"
+                    className={ADMIN_STYLES.modalInput}
                   >
                     <option value="immediate">立即发布</option>
                     <option value="draft">保存为草稿</option>
@@ -1122,7 +1118,7 @@ const AdminNotificationsView: React.FC = () => {
               </div>
 
               {/* 提交按钮 */}
-              <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100 dark:border-gray-700">
+              <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <button
                   type="button"
                   onClick={() => {
@@ -1130,14 +1126,14 @@ const AdminNotificationsView: React.FC = () => {
                     setEditingNotification(null);
                     resetForm();
                   }}
-                  className="px-5 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                  className={ADMIN_STYLES.btnSecondary}
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-black dark:bg-gray-700 text-white dark:text-gray-100 text-sm rounded-full hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className={ADMIN_STYLES.btnPrimary + ' inline-flex items-center gap-2'}
                 >
                   {loading ? (
                     '保存中...'

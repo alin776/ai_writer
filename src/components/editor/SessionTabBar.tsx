@@ -58,7 +58,7 @@ export const SessionTabBar: React.FC<SessionTabBarProps> = ({
   ];
 
   return (
-    <div className="flex items-center h-10 px-3 bg-white dark:bg-slate-900">
+    <div className="flex items-center h-8 px-3 bg-white dark:bg-slate-900 flex-shrink-0">
       {/* 功能按钮组 */}
       <div className="flex items-center gap-1">
         {/* 1. 目录展开/收缩按钮 */}

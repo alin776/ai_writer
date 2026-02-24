@@ -74,8 +74,13 @@ def _load_all_skills() -> list[dict]:
                 except yaml.YAMLError:
                     continue
                 group_key = skill_md.parent.parent.name
-                raw_tools = meta.get("allowed-tools", [])
-                allowed_tools = list(raw_tools) if isinstance(raw_tools, list) else []
+                raw_tools = meta.get("allowed-tools", "")
+                if isinstance(raw_tools, str):
+                    allowed_tools = [t.strip(",") for t in raw_tools.split() if t.strip(",")]
+                elif isinstance(raw_tools, list):
+                    allowed_tools = [str(t) for t in raw_tools]
+                else:
+                    allowed_tools = []
                 skills.append({
                     "name": meta.get("name", ""),
                     "description": meta.get("description", ""),
@@ -841,6 +846,7 @@ async def agent_v2_chat_stream(
     async def event_generator():
         usage_cb = None
         _stream_start = None
+        backend = None
         try:
             counter = StepCounter()
 
@@ -1140,7 +1146,8 @@ async def agent_v2_chat_stream(
                                 ai_log = await log_svc.create_log(log_data, auto_commit=False)
 
                                 credit_svc = CreditService(billing_db)
-                                msg_preview = (request.message or "")[:30]
+                                _raw = (request.message or "").replace("\n", " ").strip()
+                                msg_preview = _raw[:20] + "…" if len(_raw) > 20 else _raw
                                 await credit_svc.consume(
                                     user_id=current_user.id,
                                     amount=credits_to_deduct,
@@ -1270,7 +1277,8 @@ async def agent_v2_chat_stream(
                             ai_log = await log_svc.create_log(log_data, auto_commit=False)
 
                             credit_svc = CreditService(billing_db)
-                            msg_preview = (request.message or "")[:30]
+                            _raw = (request.message or "").replace("\n", " ").strip()
+                            msg_preview = _raw[:20] + "…" if len(_raw) > 20 else _raw
                             await credit_svc.consume(
                                 user_id=current_user.id,
                                 amount=credits_to_deduct,
@@ -1294,6 +1302,13 @@ async def agent_v2_chat_stream(
                 "error_type": type(e).__name__,
             }
             yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+        finally:
+            # 清理 Docker 沙盒容器（流结束后容器不再需要）
+            if backend is not None and hasattr(backend, 'cleanup_sandbox'):
+                try:
+                    backend.cleanup_sandbox()
+                except Exception as cleanup_err:
+                    logger.warning("[V2 Agent] Sandbox cleanup failed: %s", cleanup_err)
 
     return StreamingResponse(
         event_generator(),
@@ -1340,6 +1355,10 @@ async def accept_v2_changes(
     affected = backend.flush()
     _delete_pending(backend_key)
 
+    # 清理 Docker 沙盒（如果有）
+    if hasattr(backend, 'cleanup_sandbox'):
+        backend.cleanup_sandbox()
+
     # flush 后更新向量索引（直接读磁盘文件，而非 backend.read()）
     from app.services.agent.deep_agent.rag_tool import update_chapter_vectors
     from app.services.agent.deep_agent.frontmatter import parse_chapter
@@ -1373,6 +1392,11 @@ async def reject_v2_changes(
         raise HTTPException(status_code=404, detail="No pending changes")
     backend.discard()
     _delete_pending(backend_key)
+
+    # 清理 Docker 沙盒（如果有）
+    if hasattr(backend, 'cleanup_sandbox'):
+        backend.cleanup_sandbox()
+
     return {"status": "rejected"}
 
 
@@ -1396,6 +1420,9 @@ async def accept_v2_single_change(
     if not backend.get_changes():
         _pending_backends.pop(backend_key, None)
         _delete_pending(backend_key)
+        # 防御性清理：释放可能关联的 Docker 沙盒
+        if hasattr(backend, 'cleanup_sandbox'):
+            backend.cleanup_sandbox()
     else:
         _save_pending(backend_key, backend)
 
@@ -1422,6 +1449,9 @@ async def reject_v2_single_change(
     if not backend.get_changes():
         _pending_backends.pop(backend_key, None)
         _delete_pending(backend_key)
+        # 防御性清理：释放可能关联的 Docker 沙盒
+        if hasattr(backend, 'cleanup_sandbox'):
+            backend.cleanup_sandbox()
     else:
         _save_pending(backend_key, backend)
 

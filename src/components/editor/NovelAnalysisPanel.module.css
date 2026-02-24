@@ -4,3 +4,9 @@
   border-radius: 12px;
   padding: 16px;
 }
+
+/* 暗色模式 */
+:global(.dark) .panel {
+  background: #1e293b;
+  border-color: #334155;
+}

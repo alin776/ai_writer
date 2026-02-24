@@ -122,7 +122,7 @@ export default function SkillsView() {
   }, [selected]);
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-950 text-gray-900 dark:text-white">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
 
       {/* ── body ──────────────────────────────────────────────────────────── */}
       <div className="flex-1 flex overflow-hidden">
@@ -227,7 +227,7 @@ export default function SkillsView() {
         </div>
 
         {/* ── right panel ───────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-950">
+        <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-900">
           {selected ? (
             <>
               {/* path bar */}

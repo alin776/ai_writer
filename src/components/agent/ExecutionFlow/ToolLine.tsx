@@ -22,6 +22,7 @@ const TOOL_VERB_MAP: Record<string, string> = {
   read_todos: 'ReadTodos',
   task: 'Task',
   skill: 'Skill',
+  skill_switch: 'Switch',
   execute: 'Run',
 };
 
@@ -61,7 +62,8 @@ function formatToolLine(toolName?: string, toolInput?: any, fallbackTitle?: stri
       const prompt = String(toolInput.prompt || '').slice(0, 40);
       return `${verb}("${prompt}")`;
     }
-    case 'skill': {
+    case 'skill':
+    case 'skill_switch': {
       const skillName = toolInput?.skill_name || '';
       return `${verb}(${skillName})`;
     }

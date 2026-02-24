@@ -29,7 +29,7 @@ export default function SuggestedActions({
 
   return (
     <div className="suggested-actions">
-      <div className="text-xs text-gray-600 mb-1.5 font-medium">
+      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1.5 font-medium">
         💡 建议操作:
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -37,7 +37,7 @@ export default function SuggestedActions({
           <button
             key={index}
             onClick={() => onActionClick(action)}
-            className="px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-blue-400 hover:text-blue-600 transition-all flex items-center gap-1.5 text-xs shadow-sm"
+            className="px-2.5 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all flex items-center gap-1.5 text-xs shadow-sm dark:text-gray-200"
           >
             <span>{getActionIcon(action)}</span>
             <span>{action}</span>

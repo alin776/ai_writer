@@ -2,13 +2,9 @@
  * 管理员任务配置界面
  */
 import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
-import { Label } from '../../components/ui/label';
-import { Loader2, Save, Settings2, Coins, Eye, EyeOff } from 'lucide-react';
-import { Alert, AlertDescription } from '../../components/ui/alert';
+import { Loader2, Save, Settings2, Coins, Eye, EyeOff, Trophy } from 'lucide-react';
+import { ADMIN_STYLES } from '../../styles/adminStyles';
 import { getAllTemplates, updateTemplate } from '../../api/userTasks';
 import { TaskTemplate, TaskTemplateUpdate } from '../../types/userTask';
 
@@ -96,36 +92,34 @@ const AdminTasksView: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className={ADMIN_STYLES.page}>
+        <div className={ADMIN_STYLES.loadingContainer}>
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-6 pb-6 max-w-6xl">
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pt-6">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Settings2 className="w-8 h-8 text-primary" />
-            <h1 className="text-3xl font-bold">任务配置管理</h1>
-          </div>
-          <p className="text-muted-foreground">管理系统任务及奖励积分</p>
+    <div className={ADMIN_STYLES.page}>
+      <div className={ADMIN_STYLES.stickyHeader}>
+        <div className={ADMIN_STYLES.titleSection}>
+          <h1 className={ADMIN_STYLES.title}>
+            <Trophy className={ADMIN_STYLES.titleIcon} />
+            任务配置管理
+          </h1>
+          <p className={ADMIN_STYLES.subtitle}>管理系统任务及奖励积分</p>
         </div>
       </div>
 
       {/* 成功提示 */}
       {success && (
-        <Alert className="mb-6 border-green-200 bg-green-50">
-          <AlertDescription className="text-green-800">{success}</AlertDescription>
-        </Alert>
+        <div className="mb-6 p-4 rounded-lg border bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300 text-sm">{success}</div>
       )}
 
       {/* 错误提示 */}
       {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <div className="mb-6 p-4 rounded-lg border bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 text-sm">{error}</div>
       )}
 
       {/* 任务模板列表 */}
@@ -135,47 +129,48 @@ const AdminTasksView: React.FC = () => {
           const isSaving = savingId === template.id;
 
           return (
-            <Card key={template.id}>
-              <CardHeader>
+            <div key={template.id} className={ADMIN_STYLES.tableContainer}>
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="flex items-center gap-3">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-3">
                       <span className="text-2xl">
                         {template.icon === 'edit' && '✍️'}
                         {template.icon === 'image' && '🖼️'}
                         {template.icon === 'user' && '✨'}
                       </span>
                       {template.title}
-                    </CardTitle>
-                    <CardDescription className="mt-2">
+                    </h3>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                       任务Key: <code className="text-xs bg-gray-100 px-2 py-1 rounded">{template.task_key}</code>
                       <span className="ml-4">类型: {getTaskTypeLabel(template.task_type)}</span>
-                    </CardDescription>
+                    </p>
                   </div>
                 </div>
-              </CardHeader>
+              </div>
 
-              <CardContent className="space-y-6">
+              <div className="p-6 space-y-6">
                 {/* 任务描述 */}
                 <div className="space-y-2">
-                  <Label htmlFor={`desc-${template.id}`}>任务描述</Label>
-                  <Input
+                  <label htmlFor={`desc-${template.id}`} className={ADMIN_STYLES.modalLabel}>任务描述</label>
+                  <input
                     id={`desc-${template.id}`}
                     value={editValue.description || ''}
                     onChange={(e) =>
                       handleValueChange(template.id, 'description', e.target.value)
                     }
                     placeholder="任务描述"
+                    className={ADMIN_STYLES.modalInput}
                   />
                 </div>
 
                 {/* 奖励积分 */}
                 <div className="space-y-2">
-                  <Label htmlFor={`credits-${template.id}`} className="flex items-center gap-2">
+                  <label htmlFor={`credits-${template.id}`} className={ADMIN_STYLES.modalLabel + ' flex items-center gap-2'}>
                     <Coins className="w-4 h-4 text-yellow-600" />
                     奖励积分
-                  </Label>
-                  <Input
+                  </label>
+                  <input
                     id={`credits-${template.id}`}
                     type="number"
                     min="0"
@@ -183,7 +178,7 @@ const AdminTasksView: React.FC = () => {
                     onChange={(e) =>
                       handleValueChange(template.id, 'reward_credits', parseInt(e.target.value) || 0)
                     }
-                    className="max-w-xs"
+                    className={ADMIN_STYLES.modalInput + ' max-w-xs'}
                   />
                 </div>
 
@@ -196,7 +191,7 @@ const AdminTasksView: React.FC = () => {
                       handleValueChange(template.id, 'is_active', checked)
                     }
                   />
-                  <Label htmlFor={`active-${template.id}`} className="flex items-center gap-2 cursor-pointer">
+                  <label htmlFor={`active-${template.id}`} className="flex items-center gap-2 cursor-pointer text-sm">
                     {editValue.is_active ? (
                       <>
                         <Eye className="w-4 h-4 text-green-600" />
@@ -208,15 +203,15 @@ const AdminTasksView: React.FC = () => {
                         <span className="text-gray-400">任务已禁用</span>
                       </>
                     )}
-                  </Label>
+                  </label>
                 </div>
 
                 {/* 保存按钮 */}
                 <div className="flex justify-end pt-4 border-t">
-                  <Button
+                  <button
                     onClick={() => handleUpdate(template.id)}
                     disabled={isSaving}
-                    className="gap-2"
+                    className={ADMIN_STYLES.btnPrimary + ' flex items-center gap-2'}
                   >
                     {isSaving ? (
                       <>
@@ -229,19 +224,19 @@ const AdminTasksView: React.FC = () => {
                         保存更改
                       </>
                     )}
-                  </Button>
+                  </button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })}
       </div>
 
       {/* 空状态 */}
       {templates.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          <Settings2 className="w-16 h-16 mx-auto mb-4 opacity-20" />
-          <p>暂无任务模板</p>
+        <div className={ADMIN_STYLES.emptyContainer}>
+          <Settings2 className={ADMIN_STYLES.emptyIcon} />
+          <p className={ADMIN_STYLES.emptyText}>暂无任务模板</p>
         </div>
       )}
     </div>

@@ -6,7 +6,7 @@ description: |
 metadata:
   trigger: 创作中文小说、分章节故事、长篇小说创作
   source: 基于小说创作最佳实践设计
-allowed-tools: [read_file, write_file, edit_file, glob, grep, execute]
+allowed-tools: read_file, write_file, edit_file, glob, grep, execute
 ---
 
 # Chinese Novelist: 中文小说创作助手
@@ -115,9 +115,8 @@ Options:
 
 执行以下步骤：
 
-1. **创建项目文件夹**：`novels/[小说名称]/`
-2. **生成大纲**：创建 `00-大纲.md`，使用 `references/outline-template.md` 模板，填入完整的章节规划
-3. **生成人物档案**：创建 `01-人物档案.md`，使用 `references/character-template.md` 模板，创建主角、反派、配角档案
+1. **生成大纲**：创建 `/knowledge/outline.md`，使用 `references/outline-template.md` 模板，填入完整的章节规划
+2. **生成人物档案**：创建 `/knowledge/characters.md`，使用 `references/character-template.md` 模板，创建主角、反派、配角档案
 
 完成后，向用户展示规划摘要并请求确认，等待用户确认。用户同意后，进入"第三阶段：疯狂创作"。
 
@@ -137,21 +136,21 @@ Options:
 
 #### 1. 写前分析
 
-1. 读取 `00-大纲.md` - 查看TODO list和已完成章节的摘要
-2. 读取 `00-大纲.md` 中上一章的摘要
-3. 更新`00-大纲.md` 中 TODO list - 将本章标记为"进行中"
+1. 读取 `/knowledge/outline.md` - 查看TODO list和已完成章节的摘要
+2. 读取 `/knowledge/outline.md` 中上一章的摘要
+3. 更新 `/knowledge/outline.md` 中 TODO list - 将本章标记为"进行中"
 4. 设计开头钩子 - **最关键**：前20%必须有即时冲突 → [chapter-guide.md](references/chapter-guide.md)（10种开头技巧）
 5. 规划场景 - 确定本章需要3-5个场景
 
 #### 2. 撰写
 
-6. 创建章节文件 - 使用`references/chapter-template.md` 模板
+6. 创建章节文件到 `/chapters/` 目录 - 命名 `XX-标题.md`（如 `chapters/01-吞噬.md`），XX 为两位数字零填充。章节文件只包含正文，不加任何元数据。使用 `references/chapter-template.md` 模板
 7. 撰写正文 - **每章必须达到3000-5000字**
    - 开头检查：前20%是否极其吸引人？
    - 对话规范 → [dialogue-writing.md](references/dialogue-writing.md)
    - 内容不足？使用 [content-expansion.md](references/content-expansion.md) 扩充技巧
 8. 设置结尾钩子 → [hook-techniques.md](references/hook-techniques.md)（10种钩子类型）
-9. **字数检查** - 必须使用脚本检查字数：`python scripts/check_chapter_wordcount.py <章节文件路径>` 低于3000字必须使用扩充技巧重写
+9. **字数检查** - 必须使用脚本检查字数：`python scripts/check_chapter_wordcount.py chapters/01-标题.md`（使用相对路径，不要加前导 `/`）。低于3000字必须使用扩充技巧重写
 
 #### 3. 撰写后优化
 
@@ -163,12 +162,12 @@ Options:
     - **增加口语化表达**：人物对话要有个性，避免"书面语套话"
     - **优化节奏感**：长句和短句交替，避免句式单调
     - **细节具象化**：用具体的视觉/听觉/嗅觉细节替代笼统描述
-12. **字数检查** - 必须使用脚本检查字数：`python scripts/check_chapter_wordcount.py <章节文件路径>` 低于3000字必须使用扩充技巧重写
+12. **字数检查** - 必须使用脚本检查字数：`python scripts/check_chapter_wordcount.py chapters/01-标题.md`（使用相对路径，不要加前导 `/`）。低于3000字必须使用扩充技巧重写
 
 #### 4. 最后收尾
 
-13. 生成章节摘要 - 在 `00-大纲.md` 添加摘要（300-500字）
-14. 更新状态 - `00-大纲.md` 中 TODO list - 将本章标记为"完成"
+13. 生成章节摘要 - 在 `/knowledge/outline.md` 添加摘要（300-500字）
+14. 更新状态 - `/knowledge/outline.md` 中 TODO list - 将本章标记为"完成"
 
 ---
 
@@ -180,17 +179,25 @@ Options:
 
 ### 字数检查脚本
 
-使用 `scripts/check_chapter_wordcount.py` 检查章节字数：
+使用 `scripts/check_chapter_wordcount.py` 检查章节字数。**注意：路径必须使用相对路径，不要加前导 `/`。**
 
 ```bash
 # 检查单个章节
-python scripts/check_chapter_wordcount.py novels/小说名/第01章.md
+python scripts/check_chapter_wordcount.py chapters/01-标题.md
 
-# 检查所有章节
-python scripts/check_chapter_wordcount.py --all novels/小说名/
+# 检查所有章节（自动过滤非章节文件）
+python scripts/check_chapter_wordcount.py --all chapters/
 
 # 自定义最小字数
-python scripts/check_chapter_wordcount.py novels/小说名/第01章.md 3500
+python scripts/check_chapter_wordcount.py chapters/01-标题.md 3500
 ```
 
 低于3000字的章节必须使用 [content-expansion.md](references/content-expansion.md) 的扩充技巧进行扩充。
+
+### 文件命名规范
+
+| 文件 | 路径 | 示例 |
+|------|------|------|
+| 大纲 | `/knowledge/outline.md` | `knowledge/outline.md` |
+| 人物档案 | `/knowledge/characters.md` | `knowledge/characters.md` |
+| 章节文件 | `/chapters/XX-标题.md` | `chapters/01-吞噬.md`、`chapters/02-浑圆桩.md` |

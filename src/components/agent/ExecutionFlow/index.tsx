@@ -12,8 +12,13 @@ import { OutputCard } from './OutputCard';
 import { RevisionCard } from './RevisionCard';
 import styles from './ExecutionFlow.module.css';
 import { Streamdown } from 'streamdown';
-import { code } from '@streamdown/code';
+import { createCodePlugin } from '@streamdown/code';
 import { cjk } from '@streamdown/cjk';
+
+// 自定义代码高亮主题：暗色模式使用高对比度主题（白色基色文字）
+const code = createCodePlugin({
+  themes: ['github-light', 'github-dark-high-contrast'],
+});
 
 interface ExecutionFlowProps {
   items: FlowItem[];

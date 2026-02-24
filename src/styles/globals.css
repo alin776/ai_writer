@@ -12,6 +12,30 @@
 /* Streamdown AI Markdown 组件样式（必须在所有 @import 之后） */
 @source "../node_modules/streamdown/dist/*.js";
 
+/* Streamdown CodeBlock 暗色模式文字颜色修正 —— 覆盖 Tailwind text-muted-foreground */
+.dark [data-streamdown="code-block"] {
+  --muted-foreground: #e2e8f0;
+  --color-muted-foreground: #e2e8f0;
+  --foreground: #ffffff;
+  --color-foreground: #ffffff;
+}
+.dark [data-streamdown="code-block-header"] {
+  color: #e2e8f0 !important;
+}
+.dark [data-streamdown="code-block-copy-button"],
+.dark [data-streamdown="code-block-download-button"] {
+  color: #cbd5e1 !important;
+}
+.dark [data-streamdown="code-block-copy-button"]:hover,
+.dark [data-streamdown="code-block-download-button"]:hover {
+  color: #ffffff !important;
+}
+
+/* 暗色模式：代码体 token 文字强制浅色（覆盖 Shiki inline --sdm-c / --shiki-dark） */
+.dark [data-streamdown="code-block-body"] code span span {
+  color: #e2e8f0 !important;
+}
+
 /**
  * 自定义字体 - HYShangWeiShouShuW
  */
@@ -581,6 +605,17 @@ select option {
   background-color: white;
   color: #111827;
   padding: 8px 12px;
+}
+
+.dark select option:checked,
+.dark select option:hover {
+  background-color: #1e3a5f !important; /* 深蓝高亮 */
+  color: #93c5fd !important; /* text-blue-300 */
+}
+
+.dark select option {
+  background-color: #374151; /* bg-gray-700 */
+  color: #f3f4f6; /* text-gray-100 */
 }
 
 /**

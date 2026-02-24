@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: evaluative
   domain: fiction
-allowed-tools: [read_file, glob, grep, semantic_search]
+allowed-tools: read_file, glob, grep, semantic_search
 ---
 
 # 故事分析：网文诊断技能

@@ -130,3 +130,26 @@
 .info .iconWrapper {
   color: #3b82f6;
 }
+
+/* 暗色模式 */
+:global(.dark) .toast {
+  background-color: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+}
+
+:global(.dark) .title {
+  color: #f8fafc;
+}
+
+:global(.dark) .message {
+  color: #94a3b8;
+}
+
+:global(.dark) .closeButton {
+  color: #64748b;
+}
+
+:global(.dark) .closeButton:hover {
+  color: #f8fafc;
+}

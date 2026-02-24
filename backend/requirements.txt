@@ -55,6 +55,7 @@ json-repair==0.52.3
 jsonpatch==1.33
 jsonpointer==3.0.0
 deepagents==0.4.1
+docker>=7.0.0
 wcmatch>=10.0
 langchain-chroma>=0.2.0
 langchain>=1.2.10

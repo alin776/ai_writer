@@ -108,7 +108,7 @@ export default function ConversationHistory({
       {/* 触发按钮 */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`p-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors relative ${className}`}
+        className={`p-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors relative ${className}`}
         title="对话历史"
       >
         📚 历史
@@ -129,14 +129,14 @@ export default function ConversationHistory({
           />
 
           {/* 侧边栏内容 */}
-          <div className="fixed right-0 top-0 bottom-0 w-80 bg-white shadow-2xl z-50 flex flex-col">
+          <div className="fixed right-0 top-0 bottom-0 w-80 bg-white dark:bg-slate-800 shadow-2xl z-50 flex flex-col">
             {/* 头部 */}
-            <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-800">对话历史</h3>
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">对话历史</h3>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="text-gray-500 hover:text-gray-700 text-lg"
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-lg"
                 >
                   ✕
                 </button>
@@ -144,7 +144,7 @@ export default function ConversationHistory({
             </div>
 
             {/* 新建对话按钮 */}
-            <div className="px-4 py-3 border-b border-gray-200">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
               <button
                 onClick={handleCreateNew}
                 className="w-full px-3 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
@@ -157,7 +157,7 @@ export default function ConversationHistory({
             {/* 会话列表 */}
             <div className="flex-1 overflow-y-auto">
               {sessions.length === 0 ? (
-                <div className="px-4 py-8 text-center text-gray-500 text-sm">
+                <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400 text-sm">
                   <div className="text-4xl mb-2">📝</div>
                   <p>暂无历史对话</p>
                   <p className="text-xs mt-1">开始新对话后会自动保存</p>
@@ -171,8 +171,8 @@ export default function ConversationHistory({
                       className={`
                         group px-3 py-2.5 rounded-lg cursor-pointer transition-all
                         ${session.id === currentSessionId
-                          ? 'bg-blue-50 border border-blue-200'
-                          : 'hover:bg-gray-50 border border-transparent'
+                          ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700 border border-transparent'
                         }
                       `}
                     >
@@ -181,7 +181,7 @@ export default function ConversationHistory({
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className={`
                               text-sm font-medium truncate
-                              ${session.id === currentSessionId ? 'text-blue-700' : 'text-gray-800'}
+                              ${session.id === currentSessionId ? 'text-blue-700 dark:text-blue-400' : 'text-gray-800 dark:text-gray-100'}
                             `}>
                               {session.title}
                             </h4>
@@ -191,7 +191,7 @@ export default function ConversationHistory({
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                             <span>{session.messages.length} 条消息</span>
                             <span>•</span>
                             <span>{formatTime(session.updatedAt)}</span>
@@ -201,7 +201,7 @@ export default function ConversationHistory({
                         {/* 删除按钮 */}
                         <button
                           onClick={(e) => handleDeleteSession(session.id, e)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+                          className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all"
                           title="删除对话"
                         >
                           🗑️
@@ -214,8 +214,8 @@ export default function ConversationHistory({
             </div>
 
             {/* 底部提示 */}
-            <div className="px-4 py-2 border-t border-gray-200 bg-gray-50">
-              <p className="text-xs text-gray-500 text-center">
+            <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                 对话会自动保存到本地
               </p>
             </div>

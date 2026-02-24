@@ -175,9 +175,9 @@ const ServiceUsageView: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-800">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-900">
       {/* ── 固定页眉 ── */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">使用记录</h2>
         <div className="flex items-center space-x-2">
           <Select
@@ -205,8 +205,8 @@ const ServiceUsageView: React.FC = () => {
       ) : (
         <div className="flex-1 overflow-y-auto min-h-0">
           <table className="w-full table-fixed">
-            <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10">
-              <tr className="border-b border-gray-200 dark:border-gray-700">
+            <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10">
+              <tr className="border-b border-gray-200 dark:border-slate-700">
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   详情
                 </th>
@@ -218,7 +218,7 @@ const ServiceUsageView: React.FC = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-700/50">
               {transactions.map((transaction) => {
                 const config = TRANSACTION_TYPE_CONFIG[transaction.type];
                 const isExpanded = expandedId === transaction.id;
@@ -230,15 +230,15 @@ const ServiceUsageView: React.FC = () => {
                       className={`transition-colors ${hasDetails ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : ''}`}
                       onClick={() => toggleExpand(transaction)}
                     >
-                      <td className="px-6 py-3.5 max-w-0">
+                      <td className="px-6 py-3.5">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="w-4 flex-shrink-0 text-gray-400">
                             {hasDetails ? (
                               isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
                             ) : null}
                           </span>
-                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                            {formatTransactionDescription(transaction.description) || '-'}
+                          <span className="text-sm text-gray-700 dark:text-gray-300">
+                            {formatTransactionDescription(transaction.description, transaction.type) || '-'}
                           </span>
                         </div>
                       </td>
@@ -278,7 +278,7 @@ const ServiceUsageView: React.FC = () => {
 
       {/* ── 固定页脚 ── */}
       {transactions.length > 0 && (
-        <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-t border-gray-200 dark:border-slate-700">
           <div className="text-sm text-gray-600 dark:text-gray-400">
             共 {transactionTotal} 条记录，第 {transactionPage} / {transactionTotalPages} 页
           </div>

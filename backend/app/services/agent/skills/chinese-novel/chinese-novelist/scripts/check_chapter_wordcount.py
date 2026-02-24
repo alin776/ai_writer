@@ -82,14 +82,30 @@ def check_chapter(file_path: str, min_words: int = 3000) -> dict:
     }
 
 
-def check_all_chapters(directory: str, pattern: str = '第*.md', min_words: int = 3000) -> list:
+_META_KEYWORDS = re.compile(r'大纲|人物档案|设定集|世界观|README', re.IGNORECASE)
+
+
+def _is_chapter_file(filename: str) -> bool:
+    """判断文件名是否为章节（排除大纲/人物档案等元数据）"""
+    if filename.startswith('00-') or _META_KEYWORDS.search(filename):
+        return False
+    if filename.startswith('第'):
+        return True
+    if re.match(r'^\d{1,3}[-_]', filename):
+        return True
+    return False
+
+
+def check_all_chapters(directory: str, pattern: str = '*.md', min_words: int = 3000) -> list:
     """检查目录下所有符合模式的章节文件"""
     dir_path = Path(directory)
     if not dir_path.exists():
         print(f'错误: 目录不存在 - {directory}')
         return []
 
-    chapter_files = sorted(dir_path.glob(pattern))
+    chapter_files = sorted(
+        f for f in dir_path.glob(pattern) if _is_chapter_file(f.name)
+    )
     results = []
 
     for chapter_file in chapter_files:

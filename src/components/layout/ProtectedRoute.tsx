@@ -68,7 +68,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
    */
   if (!hasHydrated || isChecking) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-gray-950">
         <Loading size="lg" text="加载中..." />
       </div>
     );

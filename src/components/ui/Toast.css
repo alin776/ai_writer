@@ -150,3 +150,26 @@
     min-width: 0;
   }
 }
+
+/* 暗色模式 */
+.dark .toast-item {
+  background: #1e293b;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+}
+
+.dark .toast-title {
+  color: #f8fafc;
+}
+
+.dark .toast-message {
+  color: #94a3b8;
+}
+
+.dark .toast-close {
+  color: #64748b;
+}
+
+.dark .toast-close:hover {
+  background: #334155;
+  color: #cbd5e1;
+}

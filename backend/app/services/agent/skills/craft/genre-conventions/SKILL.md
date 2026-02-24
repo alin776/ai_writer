@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: diagnostic+generative
   domain: fiction
-allowed-tools: [read_file, glob, grep, semantic_search, execute]
+allowed-tools: read_file, glob, grep, semantic_search, execute
 ---
 
 # 类型惯例：诊断与生成技能
@@ -274,14 +274,17 @@ python skills/craft/genre-conventions/scripts/genre_elements.py --combo xuanhuan
 用于文本样本的类型模式诊断。
 
 ```bash
-# 检查文本是否符合指定类型
-python skills/craft/genre-conventions/scripts/genre_check.py --genre xuanhuan scene.txt
+# 检查文件是否符合指定类型（推荐用法：传入文件路径）
+python skills/craft/genre-conventions/scripts/genre_check.py chapters/01-吞噬.md --genre xuanhuan
 
-# 自动检测可能的类型
-python skills/craft/genre-conventions/scripts/genre_check.py --analyze "简介文本..."
+# 自动检测可能的类型（传入文件路径）
+python skills/craft/genre-conventions/scripts/genre_check.py chapters/01-吞噬.md --analyze
 
-# 内联文本检查
+# 内联文本检查（必须用 --text 标记）
 python skills/craft/genre-conventions/scripts/genre_check.py --text "叶辰盘膝而坐，丹田中的灵气缓缓运转..." --genre xuanhuan
+
+# 内联文本 + 综合分析
+python skills/craft/genre-conventions/scripts/genre_check.py --text "段融站在马坊门口，手里攥着那柄牛尾刀..." --analyze
 ```
 
 ### genre_blend.py

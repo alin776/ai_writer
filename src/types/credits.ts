@@ -272,13 +272,23 @@ export const AI_OPERATION_LABELS: Record<string, string> = {
   'unknown': 'AI服务',
 };
 
+/** 交易类型默认描述 */
+const TRANSACTION_TYPE_FALLBACK: Partial<Record<TransactionType, string>> = {
+  gift: '赠送积分',
+  recharge: '积分充值',
+  expire: '积分过期',
+  refund: '积分退款',
+};
+
 /**
  * 格式化交易描述，隐藏技术细节
  * @example "AI调用: simple_qa" -> "智能问答"
  * @example "AI调用: content_creation" -> "内容创作"
  */
-export function formatTransactionDescription(description: string | null): string {
-  if (!description) return '';
+export function formatTransactionDescription(description: string | null, type?: TransactionType): string {
+  if (!description || description === '无') {
+    return (type && TRANSACTION_TYPE_FALLBACK[type]) || '';
+  }
 
   // 匹配 "AI调用: xxx" 或 "FastAI调用: xxx" 或 "AI调用：xxx" 格式
   const match = description.match(/^(?:Fast)?AI调用[：:]\s*(.+)$/);

@@ -58,8 +58,8 @@ def parse_chapter(content: str) -> dict:
                 meta = yaml.safe_load(parts[1]) or {}
             except yaml.YAMLError:
                 meta = {}
-            title = meta.get("title", "")
-            status = meta.get("status", "draft")
+            title = meta.get("title", "") or ""
+            status = meta.get("status", "draft") or "draft"
             body = parts[2].lstrip("\n")
 
     word_count = len(body.replace("\n", "").replace(" ", ""))

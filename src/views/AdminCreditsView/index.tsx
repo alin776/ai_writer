@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Trash2, Copy, CheckCircle2, Gift, Coins, TrendingUp, DollarSign, FileDown } from 'lucide-react';
-import { Button, Card, Input, Loading } from '../../components/common';
+import { Search, Plus, Trash2, Copy, CheckCircle2, Gift, Coins, TrendingUp, DollarSign, FileDown, CreditCard } from 'lucide-react';
+import { ADMIN_STYLES } from '../../styles/adminStyles';
 import { AdminCreditsService, type RedeemCodeInfo } from '../../services/AdminCreditsService';
 import { useGlobalStore } from '../../store/globalStore';
 import { formatDate } from '../../utils/formatDate';
@@ -270,174 +270,141 @@ const AdminCreditsView: React.FC = () => {
   };
 
   if (isLoading && !stats) {
-    return <Loading />;
+    return (
+      <div className={ADMIN_STYLES.page}>
+        <div className={ADMIN_STYLES.loadingContainer}>
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
-        <div className="space-y-6">
-          {/* 页面标题 */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">积分管理</h1>
-              <p className="mt-2 text-gray-600 dark:text-gray-400">管理兑换码和用户积分</p>
-            </div>
-            <div className="flex gap-3">
-              <Button onClick={() => setShowGiftModal(true)} variant="outline" icon={<Gift className="w-4 h-4" />}>
-                赠送积分
-              </Button>
-              <Button onClick={() => setShowGenerateModal(true)} icon={<Plus className="w-4 h-4" />}>
-                生成兑换码
-              </Button>
-            </div>
+    <div className={ADMIN_STYLES.page}>
+      <div className={ADMIN_STYLES.stickyHeader}>
+        {/* 页面标题 */}
+        <div className="flex items-center justify-between">
+          <div className={ADMIN_STYLES.titleSection}>
+            <h1 className={ADMIN_STYLES.title}><CreditCard className={ADMIN_STYLES.titleIcon} />积分管理</h1>
+            <p className={ADMIN_STYLES.subtitle}>管理兑换码和用户积分</p>
           </div>
+          <div className="flex gap-3">
+            <button onClick={() => setShowGiftModal(true)} className={ADMIN_STYLES.btnSecondary + ' flex items-center gap-2'}>
+              <Gift className="w-4 h-4" />赠送积分
+            </button>
+            <button onClick={() => setShowGenerateModal(true)} className={ADMIN_STYLES.btnPrimary + ' flex items-center gap-2'}>
+              <Plus className="w-4 h-4" />生成兑换码
+            </button>
+          </div>
+        </div>
 
-          {/* 统计卡片 */}
-          {stats && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <Card background="blue">
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">积分用户数</p>
-                      <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stats.totalUsers.toLocaleString()}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
-                      <Coins className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              <Card background="blue">
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">总余额</p>
-                      <p className="mt-2 text-3xl font-bold text-green-600 dark:text-green-400">{stats.totalBalance.toLocaleString()}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              <Card background="blue">
-                <div className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计充值</p>
-                      <p className="mt-2 text-3xl font-bold text-purple-600 dark:text-purple-400">{stats.totalRecharged.toLocaleString()}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center">
-                      <DollarSign className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              <Card background="blue">
-                <div className="p-6">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计消费</p>
-                  <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalConsumed.toLocaleString()}</p>
-                </div>
-              </Card>
-
-              <Card background="blue">
-                <div className="p-6">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">累计赠送</p>
-                  <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalGifted.toLocaleString()}</p>
-                </div>
-              </Card>
-
-              <Card background="blue">
-                <div className="p-6">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">交易总数</p>
-                  <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{stats.totalTransactions.toLocaleString()}</p>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {/* 兑换码筛选 */}
-          <Card background="blue">
-            <div className="p-6">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <Input
-                    placeholder="搜索兑换码或备注..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    icon={<Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setUsedFilter('all')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      usedFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    全部
-                  </button>
-                  <button
-                    onClick={() => setUsedFilter('unused')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      usedFilter === 'unused' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    未使用
-                  </button>
-                  <button
-                    onClick={() => setUsedFilter('used')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      usedFilter === 'used' ? 'bg-gray-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    已使用
-                  </button>
-                  <button
-                    onClick={handleCopyAll}
-                    className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    title="一键复制当前列表兑换码"
-                  >
-                    复制全部
-                  </button>
-                  <button
-                    onClick={handleExportCsv}
-                    className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center space-x-1"
-                    title="导出当前列表为 CSV"
-                  >
-                    <FileDown className="w-4 h-4" />
-                    <span>导出CSV</span>
-                  </button>
-                </div>
+        {/* 统计卡片 */}
+        {stats && (
+          <div className={ADMIN_STYLES.filterCard}>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div>
+                <p className={ADMIN_STYLES.statLabel}>积分用户数</p>
+                <p className={ADMIN_STYLES.statValue}>{stats.totalUsers.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className={ADMIN_STYLES.statLabel}>总余额</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.totalBalance.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className={ADMIN_STYLES.statLabel}>累计充值</p>
+                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.totalRecharged.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className={ADMIN_STYLES.statLabel}>累计消费</p>
+                <p className={ADMIN_STYLES.statValue}>{stats.totalConsumed.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className={ADMIN_STYLES.statLabel}>累计赠送</p>
+                <p className={ADMIN_STYLES.statValue}>{stats.totalGifted.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className={ADMIN_STYLES.statLabel}>交易总数</p>
+                <p className={ADMIN_STYLES.statValue}>{stats.totalTransactions.toLocaleString()}</p>
               </div>
             </div>
-          </Card>
-        </div>
+          </div>
+        )}
       </div>
 
-      <Card background="blue">
-        <div className="p-6">
-          {/* 兑换码表格 */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">兑换码</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">积分</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">状态</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">使用者</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">使用时间</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">过期时间</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">备注</th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+      {/* 兑换码筛选 + 表格 */}
+      <div className={ADMIN_STYLES.tableContainer}>
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="搜索兑换码或备注..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={ADMIN_STYLES.searchInput}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setUsedFilter('all')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  usedFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                全部
+              </button>
+              <button
+                onClick={() => setUsedFilter('unused')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  usedFilter === 'unused' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                未使用
+              </button>
+              <button
+                onClick={() => setUsedFilter('used')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  usedFilter === 'used' ? 'bg-gray-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                已使用
+              </button>
+              <button
+                onClick={handleCopyAll}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                title="一键复制当前列表兑换码"
+              >
+                复制全部
+              </button>
+              <button
+                onClick={handleExportCsv}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center space-x-1"
+                title="导出当前列表为 CSV"
+              >
+                <FileDown className="w-4 h-4" />
+                <span>导出CSV</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 兑换码表格 */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className={ADMIN_STYLES.tableHead}>
+              <tr>
+                <th className={ADMIN_STYLES.th}>兑换码</th>
+                <th className={ADMIN_STYLES.th}>积分</th>
+                <th className={ADMIN_STYLES.th}>状态</th>
+                <th className={ADMIN_STYLES.th}>使用者</th>
+                <th className={ADMIN_STYLES.th}>使用时间</th>
+                <th className={ADMIN_STYLES.th}>过期时间</th>
+                <th className={ADMIN_STYLES.th}>备注</th>
+                <th className={ADMIN_STYLES.thRight}>操作</th>
+              </tr>
+            </thead>
+              <tbody className={ADMIN_STYLES.tbody}>
                 {codes.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
@@ -468,11 +435,11 @@ const AdminCreditsView: React.FC = () => {
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{code.credits}</td>
                       <td className="px-4 py-3 text-sm">
                         {code.isUsed ? (
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                             已使用
                           </span>
                         ) : (
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">
                             未使用
                           </span>
                         )}
@@ -509,26 +476,26 @@ const AdminCreditsView: React.FC = () => {
               </tbody>
             </table>
           </div>
-        </div>
-      </Card>
+      </div>
 
       {/* 生成兑换码模态框 */}
       {showGenerateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card background="blue" className="w-full max-w-md mx-4">
+        <div className={ADMIN_STYLES.modalOverlay}>
+          <div className={ADMIN_STYLES.modalContainer + ' max-w-md'}>
             <div className="p-6 space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">批量生成兑换码</h3>
+              <h3 className={ADMIN_STYLES.modalTitle}>批量生成兑换码</h3>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   生成数量 (1-100)
                 </label>
-                <Input
+                <input
                   type="number"
-                  min="1"
-                  max="100"
+                  min={1}
+                  max={100}
                   value={generateForm.count}
                   onChange={(e) => setGenerateForm({ ...generateForm, count: parseInt(e.target.value) || 1 })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
@@ -536,11 +503,12 @@ const AdminCreditsView: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   每个兑换码的积分数
                 </label>
-                <Input
+                <input
                   type="number"
-                  min="1"
+                  min={1}
                   value={generateForm.credits}
                   onChange={(e) => setGenerateForm({ ...generateForm, credits: parseInt(e.target.value) || 100 })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
@@ -548,11 +516,12 @@ const AdminCreditsView: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   有效期 (天，0表示无限期)
                 </label>
-                <Input
+                <input
                   type="number"
-                  min="0"
+                  min={0}
                   value={generateForm.validDays}
                   onChange={(e) => setGenerateForm({ ...generateForm, validDays: parseInt(e.target.value) || 0 })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
@@ -560,17 +529,18 @@ const AdminCreditsView: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   备注 (可选)
                 </label>
-                <Input
+                <input
+                  type="text"
                   placeholder="备注信息"
                   value={generateForm.remark}
                   onChange={(e) => setGenerateForm({ ...generateForm, remark: e.target.value })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button
-                  variant="outline"
-                  className="flex-1"
+                <button
+                  className={ADMIN_STYLES.btnSecondary + ' flex-1'}
                   onClick={() => {
                     setShowGenerateModal(false);
                     setGenerateForm({ count: 1, credits: 100, validDays: 0, remark: '' });
@@ -578,31 +548,33 @@ const AdminCreditsView: React.FC = () => {
                   disabled={generating}
                 >
                   取消
-                </Button>
-                <Button className="flex-1" onClick={handleGenerate} disabled={generating}>
+                </button>
+                <button className={ADMIN_STYLES.btnPrimary + ' flex-1'} onClick={handleGenerate} disabled={generating}>
                   {generating ? '生成中...' : '生成'}
-                </Button>
+                </button>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
       {/* 赠送积分模态框 */}
       {showGiftModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card background="blue" className="w-full max-w-md mx-4">
+        <div className={ADMIN_STYLES.modalOverlay}>
+          <div className={ADMIN_STYLES.modalContainer + ' max-w-md'}>
             <div className="p-6 space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">赠送积分</h3>
+              <h3 className={ADMIN_STYLES.modalTitle}>赠送积分</h3>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   用户邮箱
                 </label>
-                <Input
+                <input
+                  type="text"
                   placeholder="请输入用户邮箱"
                   value={giftForm.userEmail}
                   onChange={(e) => setGiftForm({ ...giftForm, userEmail: e.target.value })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
@@ -610,11 +582,12 @@ const AdminCreditsView: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   积分数量
                 </label>
-                <Input
+                <input
                   type="number"
-                  min="1"
+                  min={1}
                   value={giftForm.credits}
                   onChange={(e) => setGiftForm({ ...giftForm, credits: parseInt(e.target.value) || 100 })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
@@ -622,17 +595,18 @@ const AdminCreditsView: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   赠送原因
                 </label>
-                <Input
+                <input
+                  type="text"
                   placeholder="请输入赠送原因"
                   value={giftForm.reason}
                   onChange={(e) => setGiftForm({ ...giftForm, reason: e.target.value })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button
-                  variant="outline"
-                  className="flex-1"
+                <button
+                  className={ADMIN_STYLES.btnSecondary + ' flex-1'}
                   onClick={() => {
                     setShowGiftModal(false);
                     setGiftForm({ userEmail: '', credits: 100, reason: '' });
@@ -640,13 +614,13 @@ const AdminCreditsView: React.FC = () => {
                   disabled={gifting}
                 >
                   取消
-                </Button>
-                <Button className="flex-1" onClick={handleGift} disabled={gifting}>
+                </button>
+                <button className={ADMIN_STYLES.btnPrimary + ' flex-1'} onClick={handleGift} disabled={gifting}>
                   {gifting ? '赠送中...' : '赠送'}
-                </Button>
+                </button>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       )}
     </div>

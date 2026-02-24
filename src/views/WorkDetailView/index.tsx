@@ -654,6 +654,7 @@ const WorkDetailView: React.FC = () => {
    */
   const handleChapterSelect = useCallback(async (chapterId: string) => {
     diffPreviewRef.current = false;
+    if (isEditorCollapsed) setIsEditorCollapsed(false);
     const chapter = chapters.find((c) => c.id === chapterId);
     if (chapter) {
       // 取消正在进行的章节重命名编辑
@@ -695,13 +696,14 @@ const WorkDetailView: React.FC = () => {
         title: chapter.title,
       });
     }
-  }, [chapters, editingChapterId, workId, setLastChapter, openEditorTab]);
+  }, [chapters, editingChapterId, workId, setLastChapter, openEditorTab, isEditorCollapsed]);
 
   /**
    * 处理文件树选择（统一入口：章节走 handleChapterSelect，文档走 docsFs）
    */
   const handleFileSelect = useCallback(async (fileId: string) => {
     diffPreviewRef.current = false;
+    if (isEditorCollapsed) setIsEditorCollapsed(false);
     if (isDocId(fileId)) {
       const path = docIdToPath(fileId);
       const fileName = path.split('/').pop() || path;
@@ -717,7 +719,7 @@ const WorkDetailView: React.FC = () => {
     } else {
       handleChapterSelect(fileId);
     }
-  }, [workId, handleChapterSelect, openEditorTab]);
+  }, [workId, handleChapterSelect, openEditorTab, isEditorCollapsed]);
 
   /**
    * 处理编辑器标签页切换（先加载内容，再切换编辑器）
@@ -781,6 +783,32 @@ const WorkDetailView: React.FC = () => {
       setLastChapter(workId, tabId);
     }
   }, [switchEditorTab, currentChapterId, chapters, workId, setLastChapter]);
+
+  /**
+   * 处理编辑器标签页关闭（同步清除编辑器内容）
+   */
+  const handleEditorTabClose = useCallback(async (tabId: string) => {
+    // 先从当前 editorTabs 计算关闭后的新激活 tab
+    const idx = editorTabs.findIndex(t => t.id === tabId);
+    const remaining = editorTabs.filter(t => t.id !== tabId);
+
+    // 关闭 tab（更新 editorTabs + activeEditorTabId）
+    closeEditorTab(tabId);
+
+    // 如果关闭的是当前正在显示的章节，需要同步编辑器内容
+    if (tabId === currentChapterId) {
+      if (remaining.length === 0) {
+        // 所有 tab 都关闭了：清空编辑器并折叠面板
+        setCurrentChapterId(undefined);
+        setCurrentChapterContent('');
+        setIsEditorCollapsed(true);
+      } else {
+        // 切换到相邻 tab（复用已有的切换逻辑加载内容）
+        const newIdx = Math.min(idx, remaining.length - 1);
+        await handleEditorTabSwitch(remaining[newIdx].id);
+      }
+    }
+  }, [editorTabs, closeEditorTab, currentChapterId, handleEditorTabSwitch]);
 
   /**
    * 处理添加章节（文件树内联创建 chapters/ 下文件时调用）
@@ -1994,7 +2022,7 @@ const WorkDetailView: React.FC = () => {
                 tabs={editorTabs}
                 activeTabId={activeEditorTabId}
                 onTabSwitch={handleEditorTabSwitch}
-                onTabClose={closeEditorTab}
+                onTabClose={handleEditorTabClose}
               />
             )}
           </div>

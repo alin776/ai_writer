@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: diagnostic+assistive
   domain: fiction
-allowed-tools: [read_file, glob, grep, semantic_search, execute]
+allowed-tools: read_file, glob, grep, semantic_search, execute
 ---
 
 # 场景排序：节奏技能

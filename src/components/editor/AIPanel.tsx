@@ -1432,7 +1432,7 @@ ${selectionContext.selected_text}
   }, [expandedMode, messages.length]);
 
   return (
-    <div className="p-3 flex flex-col h-full min-h-0 dark:bg-slate-900 overflow-hidden">
+    <div className="px-3 pb-3 flex flex-col h-full min-h-0 dark:bg-slate-900 overflow-hidden">
       <ToastContainer messages={toastMessages} onClose={closeToast} />
 
       {/* 新会话欢迎界面 - 输入框居中偏上 */}

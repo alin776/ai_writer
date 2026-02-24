@@ -100,7 +100,7 @@ export default function SkillEditor({ content, placeholder }: SkillEditorProps) 
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-white dark:bg-gray-950">
+    <div className="h-full overflow-y-auto bg-white dark:bg-gray-900">
       <article className="skill-md-body px-8 py-6 max-w-none">
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkBreaks]}

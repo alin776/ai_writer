@@ -1,257 +1,257 @@
 ---
 name: list-builder
-description: Build comprehensive randomization lists for creative entropy. Use when you need to create or expand lists of story elements (professions, locations, objects, names, etc.) for use with entropy tools. Leverages research sources like Kiwix/Wikipedia to build lists with good variety and size.
+description: |
+  构建高质量的创意随机化列表，作为创意熵源。用于创建或扩展故事元素列表（职业、地点、物品、姓名等），供熵工具使用。通过研究来源构建具有丰富多样性的列表。
+  当用户要求：创建列表、构建随机池、扩展素材库、创意熵源、随机化列表时使用。
 license: MIT
 metadata:
-  author: jwynia
+  author: ai-writer
   version: "1.0"
   type: utility
   mode: generative
   domain: creativity
-allowed-tools: [read_file, glob, grep, semantic_search, execute]
+allowed-tools: read_file, glob, grep, semantic_search
 ---
 
-# List Builder: Entropy List Curation Skill
+# List Builder：创意熵源策展技能
 
-You build comprehensive, high-quality lists for creative randomization. These lists feed into entropy tools that inject unpredictability into story development.
+你构建全面、高质量的创意随机化列表。这些列表馈入熵工具，为故事发展注入不可预测性。
 
-## Core Principle
+## 核心原则
 
-**Good entropy lists have three properties:**
-1. **Size** — Large enough (50-200+ items) to feel genuinely random
-2. **Variety** — Spans the full possibility space, not just obvious examples
-3. **Specificity** — Concrete enough to spark ideas, not vague categories
+**好的熵列表具备三个属性：**
+1. **规模** — 足够大（50-200+ 条目）以产生真正的随机感
+2. **多样性** — 覆盖完整的可能性空间，不只是显而易见的例子
+3. **具体性** — 足够具体以激发灵感，而非模糊的类别
 
-LLMs are good at research, categorization, and quality control. Scripts are good at storage and random selection. This skill bridges them.
+LLM 擅长研究、分类和质量控制。脚本擅长存储和随机选择。此技能连接两者。
 
-## Dataset Maturity Levels
+## 数据集成熟度等级
 
-See [references/dataset-quality-criteria.md](references/dataset-quality-criteria.md) for complete criteria.
+详见 [references/dataset-quality-criteria.md](references/dataset-quality-criteria.md) 的完整标准。
 
-| Level | Size | Status | Use Case |
+| 等级 | 规模 | 状态 | 适用场景 |
 |-------|------|--------|----------|
-| **Starter** | 10-30 | Quick example | Prototyping, demos |
-| **Functional** | 30-75 | Usable but limited | Personal projects |
-| **Production** | 75-150 | Ready for regular use | Client work, published tools |
-| **Comprehensive** | 150+ | Reference quality | Definitive resource |
+| **入门** | 10-30 | 快速示例 | 原型、演示 |
+| **可用** | 30-75 | 可用但有限 | 个人项目 |
+| **生产** | 75-150 | 可正式使用 | 客户项目、发布工具 |
+| **全面** | 150+ | 参考级质量 | 权威资源 |
 
-**Key metrics:**
-- **Size:** Large enough for genuine randomness
-- **Variety:** Covers all relevant dimensions (see criteria doc)
-- **Specificity:** Concrete enough to spark ideas (20-60 char average)
-- **Freshness:** >30% items that surprise (not first-thought)
+**关键指标：**
+- **规模：** 足以产生真正的随机性
+- **多样性：** 覆盖所有相关维度（见标准文档）
+- **具体性：** 足够具体以激发灵感（平均 20-60 字符）
+- **新鲜度：** >30% 的条目出人意料（不是第一反应）
 
-**Current built-in lists are Starter/Functional level.** This skill exists to build them up to Production.
+**当前内置列表处于入门/可用级别。** 此技能的存在是为了将它们提升到生产级。
 
-## List Quality Criteria
+## 列表质量标准
 
-### What Makes a Good List Item
+### 什么是好的列表条目
 
-**Good:** "Elevator inspector" (specific, unexpected, sparks questions)
-**Bad:** "Office worker" (generic, expected, no hooks)
+**好：** "验尸官"（具体、意外、引发追问）
+**坏：** "上班族"（笼统、预期内、无钩子）
 
-**Good:** "Self-storage facility at midnight" (specific time, atmosphere implied)
-**Bad:** "Building" (too vague to use)
+**好：** "凌晨三点的自助仓库"（有具体时间，暗示氛围）
+**坏：** "建筑物"（太模糊无法使用）
 
-**Good:** "They're solving a completely different case that uses same evidence" (specific collision mechanism)
-**Bad:** "They get in the way" (no mechanism, just effect)
+**好：** "他们在调查一个完全不同的案件，但用到了相同的证据"（具体的碰撞机制）
+**坏：** "他们碍事了"（无机制，只有效果）
 
-### Variety Dimensions
+### 多样性维度
 
-When building a list, ensure coverage across relevant dimensions:
+构建列表时，确保在相关维度上覆盖充分：
 
-**Professions:**
-- Industries (medical, legal, construction, arts, service, tech)
-- Status levels (entry-level to expert)
-- Visibility (public-facing vs. behind-scenes)
-- Unusual vs. common
-- Historical vs. modern vs. emerging
+**职业：**
+- 行业（医疗、法律、建筑、艺术、服务、科技）
+- 层级（入门到专家）
+- 可见度（面向公众 vs. 幕后）
+- 常见度（罕见 vs. 常见）
+- 时代（传统 vs. 现代 vs. 新兴）
 
-**Locations:**
-- Public vs. private
-- Indoor vs. outdoor
-- Urban vs. rural vs. suburban
-- Time of day implications
-- Emotional valence (creepy, mundane, sacred, liminal)
+**地点：**
+- 公共 vs. 私密
+- 室内 vs. 室外
+- 都市 vs. 乡村 vs. 城郊
+- 时间含义（白天 vs. 深夜）
+- 情感色彩（诡异、日常、神圣、过渡性）
 
-**Character traits:**
-- Positive vs. negative vs. neutral
-- Visible vs. hidden
-- Self-aware vs. blind spots
-- Stable vs. situational
+**角色特质：**
+- 正面 vs. 负面 vs. 中性
+- 可见 vs. 隐藏
+- 自知 vs. 盲区
+- 稳定 vs. 随情境变化
 
-## Research Process
+## 研究流程
 
-### Step 1: Define the List
-- What category of things?
-- What will it be used for?
-- What makes an item useful vs. useless?
-- Target size (minimum 50, ideally 100+)
+### 步骤 1：定义列表
+- 什么类别的事物？
+- 将用于什么？
+- 什么使条目有用 vs. 无用？
+- 目标规模（最少 50，理想 100+）
 
-### Step 2: Seed with Obvious Examples
-Start with 10-20 items that come to mind immediately. These are the "available" options—the ones that would occur to anyone. They're valid but not sufficient.
+### 步骤 2：用显而易见的例子起步
+先列出 10-20 个立刻想到的条目。这些是"唾手可得"的选项——任何人都会想到。它们有效但不充分。
 
-### Step 3: Research for Variety
-Use available sources to expand beyond obvious:
+### 步骤 3：研究扩展多样性
+使用可用来源超越显而易见：
 
-**Kiwix/Wikipedia:**
-- Category pages (e.g., "Category:Occupations")
-- List articles (e.g., "List of unusual deaths")
-- Related articles that branch into unexpected territory
+**百科/维基：**
+- 分类页面（如"职业列表"）
+- 列表类文章（如"不寻常的死亡方式列表"）
+- 分支到意想不到领域的相关文章
 
-**Pattern: Dimensional expansion**
-- Pick a dimension the seed list lacks
-- Research specifically in that dimension
-- Add 10-20 items that fill the gap
+**模式：维度扩展**
+- 选择种子列表缺失的维度
+- 专门在该维度上研究
+- 添加 10-20 个填补空白的条目
 
-### Step 4: Filter for Quality
-Remove items that are:
-- Too vague to be useful
-- Too similar to existing items
-- Culturally specific without being interesting
-- Requiring too much explanation
+### 步骤 4：质量过滤
+移除以下条目：
+- 太模糊无法使用
+- 与已有条目太相似
+- 文化特定但不有趣
+- 需要太多解释
 
-### Step 5: Format for Use
-Output as JSON array for use with entropy.py:
+### 步骤 5：格式化
+输出为 JSON 数组供 entropy.py 使用：
 
 ```json
 {
   "list_name": [
-    "Item one",
-    "Item two",
-    "Item three"
+    "条目一",
+    "条目二",
+    "条目三"
   ]
 }
 ```
 
-## Available Tools
+## 可用工具
 
 ### validate_list.py
-Analyzes a list for quality and variety.
+分析列表的质量指标：规模/成熟度等级、重复项、条目长度分布、具体性评分。语言无关（支持中文、英文等）。
 
 ```bash
+# 验证 JSON 数组文件
 python scripts/validate_list.py list.json
 
-# Check specific list in a file
+# 检查 JSON 对象中的特定命名列表
 python scripts/validate_list.py data.json professions
+
+# 输出为 JSON 供程序使用
+python scripts/validate_list.py list.json --json
 ```
 
-**Reports:**
-- Total count
-- Duplicate check
-- Average item length (too short = vague, too long = unwieldy)
-- Variety assessment (if dimensions specified)
+**报告内容：**
+- 总条目数和唯一条目数
+- 成熟度等级（入门 / 可用 / 生产 / 全面）
+- 重复检测
+- 平均条目长度和具体性评分（理想范围 20-60 字符）
+- 问题和可操作建议
 
-### merge_lists.py
-Combines multiple list sources, deduplicates, and formats.
+## 研究提示
 
-```bash
-python scripts/merge_lists.py source1.json source2.json --output combined.json
-```
+需要研究特定类别时，使用如下提示：
 
-## Research Prompts
+**职业类：**
+"找出 20 个[行业]中大多数人不知道的职业。关注涉及有趣接触权限、专业知识或不寻常工作条件的岗位。"
 
-When you need to research a specific category, use prompts like:
+**地点类：**
+"找出 20 个具体地点（非类别），在这些地方可能发生重要对话。关注自带紧张感、时间压力或意外亲密感的场所。"
 
-**For professions:**
-"Find 20 professions in [industry] that most people don't know exist. Focus on jobs that involve interesting access, specialized knowledge, or unusual working conditions."
+**角色缺陷类：**
+"找出 20 个人们关于自身的具体错误信念，不是明显的反派特质。关注感觉是保护性的但实际上是限制性的信念。"
 
-**For locations:**
-"Find 20 specific locations (not categories) where important conversations might happen. Focus on places with built-in tension, time pressure, or unexpected intimacy."
+## 示例：构建职业列表
 
-**For character flaws:**
-"Find 20 specific false beliefs people hold about themselves that aren't obvious villain traits. Focus on beliefs that feel protective but are actually limiting."
+### 起步种子（显而易见）
+- 医生、律师、教师、警察、消防员…
 
-## Example: Building a Professions List
+### 维度缺口分析
+- 缺失：小众技术岗位
+- 缺失：拥有特殊接触权的服务岗位
+- 缺失：涉及秘密的工作
+- 缺失：大多数人不知道的职业
 
-### Starting Seed (obvious)
-- Doctor, lawyer, teacher, police officer, firefighter...
+### 研究扩展
+百科搜索："职业列表" → 分类页面 → 具体不常见职业
 
-### Dimensional Gap Analysis
-- Missing: Niche technical jobs
-- Missing: Service jobs with unusual access
-- Missing: Jobs that involve secrets
-- Missing: Jobs most people don't know exist
+**从研究中添加：**
+- 验尸官（接触死亡真相）
+- 古玩鉴定师（辨别真伪的专业知识）
+- 网约车司机（每天接触不同乘客的故事）
+- 外卖骑手（穿梭城市、接触各阶层）
+- 拟音师（从无到有创造现实）
+- 专利审查员（在公众之前看到创新）
 
-### Research Expansion
-Kiwix search: "List of occupations" → Category pages → specific unusual jobs
+### 质量过滤
+移除：
+- "商人"（太模糊）
+- "直播带货网红"（太流行、会过时）
+- "炼丹师"（错误时代，除非奇幻设定）
 
-**Add from research:**
-- Elevator inspector (access to buildings)
-- Crime scene cleaner (aftermath, not crime)
-- Ethical hacker (knows vulnerabilities)
-- Cult deprogrammer (understands manipulation)
-- Foley artist (creates reality from nothing)
-- Patent examiner (sees innovations before public)
+### 最终检查
+- 80+ 条目？ ✓
+- 多个行业？ ✓
+- 混合层级？ ✓
+- 意外选项？ ✓
 
-### Quality Filter
-Remove:
-- "Businessperson" (too vague)
-- "TikTok influencer" (too trendy, will date)
-- "Alchemist" (wrong era unless fantasy)
+## 与熵工具的整合
 
-### Final Check
-- 80+ items? ✓
-- Multiple industries? ✓
-- Mix of status levels? ✓
-- Unexpected options? ✓
+此技能构建的列表放入：
+- `story-sense/data/` 用于小说专用列表
+- 可通过 `entropy.py --file` 加载
 
-## Integration with Entropy Tools
+**命名规范：**
+- `[类别]-[具体性].json`
+- 示例：`professions-unusual.json`、`locations-liminal.json`、`objects-evidence.json`
 
-Lists built with this skill go into:
-- `story-sense/data/` for fiction-specific lists
-- Can be loaded via `entropy.py --file`
+## 你做的事
 
-**Naming convention:**
-- `[category]-[specificity].json`
-- Examples: `professions-unusual.json`, `locations-liminal.json`, `objects-evidence.json`
+1. 明确需要什么列表以及如何使用
+2. 用显而易见的例子起步
+3. 研究扩展多样性
+4. 质量过滤
+5. 格式化为 JSON
+6. 用工具验证
+7. 记录列表的用途
 
-## What You Do
+## 你不做的事
 
-1. Clarify what list is needed and how it will be used
-2. Seed with obvious examples
-3. Research to expand variety
-4. Filter for quality
-5. Format as JSON
-6. Validate with tools
-7. Document the list's intended use
+- 生成随机条目（那是熵脚本的事）
+- 不经研究就创建列表（会导致只有显而易见的条目）
+- 包含需要大量解释的条目
+- 重量不重质（100 个好条目 > 500 个平庸条目）
 
-## What You Don't Do
+## 输出持久化
 
-- Generate random items (that's what the entropy script does)
-- Create lists without research (leads to obvious-only items)
-- Include items that require extensive explanation
-- Prioritize quantity over quality (100 good items > 500 mediocre ones)
+此技能将主要输出写入文件，使工作跨会话持久化。
 
-## Output Persistence
+### 输出发现
 
-This skill writes primary output to files so work persists across sessions.
+1. 检查项目中是否存在 `context/output-config.md`
+2. 如果存在，使用此技能对应的输出路径
+3. 如果不存在，**使用默认路径 `explorations/list-builder/`** 并立即开始核心工作
+4. 在回复末尾简要提及输出位置——不要阻塞询问用户
 
-### Output Discovery
+### 主要输出
 
-1. Check for `context/output-config.md` in the project
-2. If found, use this skill's entry for output path
-3. If not found, **use default path `explorations/list-builder/`** and proceed with core work immediately
-4. Mention the output location briefly at the end of your response — do NOT block on asking the user
+此技能需要持久化：
+- **列表本身** — JSON 格式供 entropy.py 使用
+- **研究来源** — 条目来自哪里
+- **维度分析** — 覆盖了哪些多样性维度
+- **使用文档** — 列表用于什么
 
-### Primary Output
+### 对话 vs. 文件
 
-For this skill, persist:
-- **The list itself** - JSON format for entropy.py use
-- **Research sources** - where items came from
-- **Dimensional analysis** - what variety dimensions are covered
-- **Usage documentation** - what the list is for
-
-### Conversation vs. File
-
-| Goes to File | Stays in Conversation |
+| 写入文件 | 留在对话中 |
 |--------------|----------------------|
-| Final list (JSON) | Discussion of list purpose |
-| Research sources | Iteration on items |
-| Quality analysis | Real-time feedback |
-| Documentation | Category refinement |
+| 最终列表（JSON） | 列表用途讨论 |
+| 研究来源 | 条目迭代 |
+| 质量分析 | 实时反馈 |
+| 文档 | 类别细化 |
 
-### File Naming
+### 文件命名
 
-Pattern: `{category}-{specificity}.json`
-Example: `professions-unusual.json`
+模式：`{类别}-{具体性}.json`
+示例：`professions-unusual.json`

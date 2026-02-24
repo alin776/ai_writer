@@ -465,14 +465,28 @@ def main():
         idx = args.index('--text')
         text = args[idx + 1] if idx + 1 < len(args) else ''
     else:
+        # 跳过已知 flag 及其参数值
+        flag_with_value = {'--genre', '--text'}
+        skip_next = False
         for a in args:
-            if not a.startswith('--') and a not in list(GENRE_PATTERNS.keys()):
-                try:
-                    with open(a, 'r', encoding='utf-8') as fh:
-                        text = fh.read()
-                    break
-                except Exception:
-                    pass
+            if skip_next:
+                skip_next = False
+                continue
+            if a in flag_with_value:
+                skip_next = True
+                continue
+            if a.startswith('--'):
+                continue
+            if a in list(GENRE_PATTERNS.keys()):
+                continue
+            # 先尝试当文件路径打开，失败则视为内联文本
+            try:
+                with open(a, 'r', encoding='utf-8') as fh:
+                    text = fh.read()
+                break
+            except Exception:
+                text = a
+                break
 
     if not text.strip():
         print('错误：未提供文本。请使用 --text 或传入文件路径。', file=sys.stderr)

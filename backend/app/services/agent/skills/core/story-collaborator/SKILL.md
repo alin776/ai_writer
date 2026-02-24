@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: collaborative
   domain: fiction
-allowed-tools: [read_file, write_file, edit_file, glob, grep, execute]
+allowed-tools: read_file, write_file, edit_file, glob, grep, execute
 ---
 
 # Story Collaborator：网文写作搭档技能
@@ -25,7 +25,7 @@ allowed-tools: [read_file, write_file, edit_file, glob, grep, execute]
 4. 因此，每次写入应是完整、可独立审阅的内容块
 
 ### 输出规范
-- 章节内容 → `/chapters/NN-标题.md`（包含 YAML frontmatter）
+- 章节内容 → `/chapters/NN-标题.md`（纯正文，不含 frontmatter 或元数据）
 - 大纲 → `/knowledge/outline.md`
 - 世界观 → `/knowledge/worldview.md`
 - 角色 → `/knowledge/characters.md`
@@ -124,20 +124,13 @@ allowed-tools: [read_file, write_file, edit_file, glob, grep, execute]
 - 节奏控制：大高潮章节之间穿插过渡与铺垫
 
 ### 输出格式
-生成的章节内容写入 `/chapters/NN-标题.md`，包含 YAML frontmatter：
+生成的章节内容写入 `/chapters/NN-标题.md`，只包含纯正文：
 
 ```markdown
----
-chapter: 1
-title: 章节标题
-wordcount: 3200
-status: draft
----
-
-# 第一章 章节标题
-
 正文内容……
 ```
+
+章节文件不加 YAML frontmatter、不加标题行、不加元数据。
 
 ## 框架应用
 

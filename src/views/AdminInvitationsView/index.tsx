@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Trash2, Copy, CheckCircle2, AlertCircle, Gift } from 'lucide-react';
-import { Button, Card, Input, Loading } from '../../components/common';
+import { Search, Plus, Trash2, Copy, CheckCircle2, AlertCircle, Gift, Ticket } from 'lucide-react';
+import { ADMIN_STYLES } from '../../styles/adminStyles';
 import {
   AdminInvitationsService,
   type AdminInvitationInfo,
@@ -165,160 +165,116 @@ const AdminInvitationsView: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
-        return <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">有效</span>;
+        return <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">有效</span>;
       case 'expired':
-        return <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">已过期</span>;
+        return <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">已过期</span>;
       case 'exhausted':
-        return <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300">已用完</span>;
+        return <span className="px-2 py-1 rounded text-xs font-medium bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300">已用完</span>;
       default:
-        return <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">未知</span>;
+        return <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">未知</span>;
     }
   };
 
   if (isLoading && invitations.length === 0) {
-    return <Loading />;
+    return (
+      <div className={ADMIN_STYLES.page}>
+        <div className={ADMIN_STYLES.loadingContainer}>
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900">
-        <div className="space-y-6">
-          {/* 页面标题 */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">邀请码管理</h1>
-              <p className="mt-2 text-gray-600 dark:text-gray-400">生成和管理系统邀请码</p>
-            </div>
-            <Button onClick={() => setShowGenerateModal(true)} icon={<Plus className="w-4 h-4" />}>
-              生成邀请码
-            </Button>
+    <div className={ADMIN_STYLES.page}>
+      <div className={ADMIN_STYLES.stickyHeader}>
+        {/* 页面标题 */}
+        <div className="flex items-center justify-between">
+          <div className={ADMIN_STYLES.titleSection}>
+            <h1 className={ADMIN_STYLES.title}><Ticket className={ADMIN_STYLES.titleIcon} />邀请码管理</h1>
+            <p className={ADMIN_STYLES.subtitle}>生成和管理系统邀请码</p>
           </div>
+          <button onClick={() => setShowGenerateModal(true)} className={ADMIN_STYLES.btnPrimary + ' flex items-center gap-2'}>
+            <Plus className="w-4 h-4" />生成邀请码
+          </button>
+        </div>
 
-          {/* 统计卡片 */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card background="blue">
-              <div className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">总数</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stats.totalCodes}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
-                    <Gift className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                  </div>
-                </div>
-              </div>
-            </Card>
-            <Card background="blue">
-              <div className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">有效</p>
-                    <p className="mt-2 text-3xl font-bold text-green-600 dark:text-green-400">{stats.activeCodes}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
-                    <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
-                  </div>
-                </div>
-              </div>
-            </Card>
-            <Card background="blue">
-              <div className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">已过期</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-600 dark:text-gray-400">{stats.expiredCodes}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                    <AlertCircle className="w-6 h-6 text-gray-600 dark:text-gray-400" />
-                  </div>
-                </div>
-              </div>
-            </Card>
-            <Card background="blue">
-              <div className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">已用完</p>
-                    <p className="mt-2 text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.exhaustedCodes}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex items-center justify-center">
-                    <AlertCircle className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-                  </div>
-                </div>
-              </div>
-            </Card>
+        {/* 统计卡片 */}
+        <div className={ADMIN_STYLES.filterCard}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div><p className={ADMIN_STYLES.statLabel}>总数</p><p className={ADMIN_STYLES.statValue}>{stats.totalCodes}</p></div>
+            <div><p className={ADMIN_STYLES.statLabel}>有效</p><p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.activeCodes}</p></div>
+            <div><p className={ADMIN_STYLES.statLabel}>已过期</p><p className="text-2xl font-bold text-gray-600 dark:text-gray-400">{stats.expiredCodes}</p></div>
+            <div><p className={ADMIN_STYLES.statLabel}>已用完</p><p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.exhaustedCodes}</p></div>
           </div>
-
-          {/* 搜索和筛选 */}
-          <Card background="blue">
-            <div className="p-6">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <Input
-                    placeholder="搜索邀请码或备注..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    icon={<Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setStatusFilter('all')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      statusFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    全部
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('active')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      statusFilter === 'active' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    有效
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('expired')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      statusFilter === 'expired' ? 'bg-gray-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    已过期
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('exhausted')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      statusFilter === 'exhausted' ? 'bg-orange-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                  >
-                    已用完
-                  </button>
-                </div>
-              </div>
-            </div>
-          </Card>
         </div>
       </div>
 
-      <Card background="blue">
-        <div className="p-6">
-          {/* 邀请码表格 */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">邀请码</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">使用次数</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">状态</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">过期时间</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">备注</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">创建时间</th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+      {/* 搜索筛选 + 邀请码表格 */}
+      <div className={ADMIN_STYLES.tableContainer}>
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+              <input
+                placeholder="搜索邀请码或备注..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={ADMIN_STYLES.searchInput}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                全部
+              </button>
+              <button
+                onClick={() => setStatusFilter('active')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === 'active' ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                有效
+              </button>
+              <button
+                onClick={() => setStatusFilter('expired')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === 'expired' ? 'bg-gray-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                已过期
+              </button>
+              <button
+                onClick={() => setStatusFilter('exhausted')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === 'exhausted' ? 'bg-orange-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                已用完
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 邀请码表格 */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className={ADMIN_STYLES.tableHead}>
+              <tr>
+                <th className={ADMIN_STYLES.th}>邀请码</th>
+                <th className={ADMIN_STYLES.th}>使用次数</th>
+                <th className={ADMIN_STYLES.th}>状态</th>
+                <th className={ADMIN_STYLES.th}>过期时间</th>
+                <th className={ADMIN_STYLES.th}>备注</th>
+                <th className={ADMIN_STYLES.th}>创建时间</th>
+                <th className={ADMIN_STYLES.thRight}>操作</th>
+              </tr>
+            </thead>
+            <tbody className={ADMIN_STYLES.tbody}>
                 {invitations.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
@@ -375,24 +331,24 @@ const AdminInvitationsView: React.FC = () => {
               </tbody>
             </table>
           </div>
-        </div>
-      </Card>
+      </div>
 
       {/* 生成邀请码模态框 */}
       {showGenerateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card background="blue" className="w-full max-w-md mx-4">
+        <div className={ADMIN_STYLES.modalOverlay}>
+          <div className={ADMIN_STYLES.modalContainer + ' max-w-md'}>
             <div className="p-6 space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">生成邀请码</h3>
+              <h3 className={ADMIN_STYLES.modalTitle}>生成邀请码</h3>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   自定义邀请码 (可选，3-8位)
                 </label>
-                <Input
+                <input
                   placeholder="留空则自动生成"
                   value={generateForm.customCode}
                   onChange={(e) => setGenerateForm({ ...generateForm, customCode: e.target.value })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
@@ -400,12 +356,13 @@ const AdminInvitationsView: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   最大使用次数 (1-100)
                 </label>
-                <Input
+                <input
                   type="number"
-                  min="1"
-                  max="100"
+                  min={1}
+                  max={100}
                   value={generateForm.maxUsageCount}
                   onChange={(e) => setGenerateForm({ ...generateForm, maxUsageCount: parseInt(e.target.value) || 1 })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
@@ -413,12 +370,13 @@ const AdminInvitationsView: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   有效期 (天，1-365)
                 </label>
-                <Input
+                <input
                   type="number"
-                  min="1"
-                  max="365"
+                  min={1}
+                  max={365}
                   value={generateForm.validDays}
                   onChange={(e) => setGenerateForm({ ...generateForm, validDays: parseInt(e.target.value) || 30 })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
@@ -426,17 +384,17 @@ const AdminInvitationsView: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   备注 (可选)
                 </label>
-                <Input
+                <input
                   placeholder="备注信息"
                   value={generateForm.remark}
                   onChange={(e) => setGenerateForm({ ...generateForm, remark: e.target.value })}
+                  className={ADMIN_STYLES.modalInput}
                 />
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button
-                  variant="outline"
-                  className="flex-1"
+                <button
+                  className={ADMIN_STYLES.btnSecondary + ' flex-1'}
                   onClick={() => {
                     setShowGenerateModal(false);
                     setGenerateForm({ customCode: '', maxUsageCount: 1, validDays: 30, remark: '' });
@@ -444,13 +402,13 @@ const AdminInvitationsView: React.FC = () => {
                   disabled={generating}
                 >
                   取消
-                </Button>
-                <Button className="flex-1" onClick={handleGenerate} disabled={generating}>
+                </button>
+                <button className={ADMIN_STYLES.btnPrimary + ' flex-1'} onClick={handleGenerate} disabled={generating}>
                   {generating ? '生成中...' : '生成'}
-                </Button>
+                </button>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       )}
     </div>

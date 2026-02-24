@@ -1,231 +1,231 @@
-# Entropy Dataset Quality Criteria
+# 熵数据集质量标准
 
-This document defines what makes a randomization dataset production-ready vs. a quick starter example.
+本文档定义了什么使随机化数据集达到生产级别，而非仅仅是快速入门示例。
 
-## Maturity Levels
+## 成熟度等级
 
-### Level 1: Starter (10-30 items)
-**Status:** Quick example, not production
-**Use case:** Demonstrating the concept, early prototyping
+### 等级 1：入门（10-30 条目）
+**状态：** 快速示例，非生产用
+**适用场景：** 概念演示、早期原型
 
-**Characteristics:**
-- Obvious items that come to mind first
-- Limited variety across dimensions
-- May have gaps in coverage
-- Sufficient for testing workflows
+**特征：**
+- 最先想到的显而易见的条目
+- 跨维度多样性有限
+- 可能存在覆盖空白
+- 足以测试工作流程
 
-**Upgrade path:** Research to expand, analyze gaps, fill dimensions
-
----
-
-### Level 2: Functional (30-75 items)
-**Status:** Usable but limited
-**Use case:** Personal projects, low-stakes ideation
-
-**Characteristics:**
-- Covers most obvious territory
-- Some unexpected items mixed in
-- May repeat patterns or clusters
-- Repeated use will show limits
-
-**Upgrade path:** Dimensional analysis, targeted research for gaps
+**升级路径：** 研究扩展，分析空白，填充维度
 
 ---
 
-### Level 3: Production (75-150 items)
-**Status:** Ready for regular use
-**Use case:** Client work, published tools, repeated application
+### 等级 2：可用（30-75 条目）
+**状态：** 可用但有限
+**适用场景：** 个人项目、低风险创意激发
 
-**Characteristics:**
-- Strong variety across all relevant dimensions
-- Unexpected items outnumber obvious ones
-- No significant gaps in coverage
-- Can sustain repeated use without feeling stale
+**特征：**
+- 覆盖大多数显而易见的领域
+- 混入一些意外条目
+- 可能重复某些模式或集群
+- 反复使用会暴露局限
 
-**Upgrade path:** Edge case research, user feedback integration
-
----
-
-### Level 4: Comprehensive (150+ items)
-**Status:** Reference-quality dataset
-**Use case:** Definitive resource, high-frequency tools, teaching
-
-**Characteristics:**
-- Exhaustive coverage of possibility space
-- Includes edge cases and rare examples
-- Documented dimensions and coverage
-- Can be subset for specific needs
-
-**Maintenance:** Regular review for dated items, emerging categories
+**升级路径：** 维度分析，针对空白的定向研究
 
 ---
 
-## Quality Metrics
+### 等级 3：生产（75-150 条目）
+**状态：** 可正式使用
+**适用场景：** 客户项目、发布工具、重复应用
 
-### Size Thresholds
+**特征：**
+- 所有相关维度上有良好多样性
+- 意外条目数量超过显而易见的条目
+- 覆盖无显著空白
+- 可以承受反复使用而不显陈旧
 
-| Metric | Starter | Functional | Production | Comprehensive |
+**升级路径：** 边缘案例研究，用户反馈整合
+
+---
+
+### 等级 4：全面（150+ 条目）
+**状态：** 参考级数据集
+**适用场景：** 权威资源、高频工具、教学
+
+**特征：**
+- 对可能性空间的穷尽覆盖
+- 包含边缘案例和罕见示例
+- 维度和覆盖已记录
+- 可以按需求子集化
+
+**维护：** 定期检查过时条目，关注新兴类别
+
+---
+
+## 质量指标
+
+### 规模阈值
+
+| 指标 | 入门 | 可用 | 生产 | 全面 |
 |--------|---------|------------|------------|---------------|
-| Minimum items | 10 | 30 | 75 | 150 |
-| Target items | 20 | 50 | 100 | 200+ |
-| Unique items % | 90% | 95% | 99% | 100% |
+| 最小条目数 | 10 | 30 | 75 | 150 |
+| 目标条目数 | 20 | 50 | 100 | 200+ |
+| 唯一条目占比 | 90% | 95% | 99% | 100% |
 
-### Variety Score
+### 多样性评分
 
-Variety is measured across dimensions relevant to the list type.
+多样性通过与列表类型相关的维度来衡量。
 
-**Calculation:**
-1. Define 3-5 dimensions for the category
-2. For each dimension, count how many distinct values appear
-3. Variety score = average coverage across dimensions
+**计算方法：**
+1. 为该类别定义 3-5 个维度
+2. 对每个维度，计算出现了多少不同的值
+3. 多样性评分 = 各维度平均覆盖率
 
-**Example for Professions:**
-- Industry dimension: 8 industries represented → good
-- Status dimension: entry to expert → good
-- Visibility dimension: all public-facing → gap
-- Era dimension: all contemporary → may be intentional
+**职业列表示例：**
+- 行业维度：覆盖 8 个行业 → 良好
+- 层级维度：入门到专家 → 良好
+- 可见度维度：全是面向公众的 → 空白
+- 时代维度：全是当代 → 可能是有意的
 
-**Thresholds:**
-- Starter: May cluster in 1-2 dimensions
-- Functional: Covers most dimensions partially
-- Production: Good coverage across all dimensions
-- Comprehensive: Full coverage including edge cases
+**阈值：**
+- 入门：可能聚集在 1-2 个维度
+- 可用：部分覆盖大多数维度
+- 生产：所有维度覆盖良好
+- 全面：包含边缘案例的完整覆盖
 
-### Specificity Score
+### 具体性评分
 
-Items should be concrete enough to spark ideas.
+条目应该足够具体以激发灵感。
 
-**Measurement:**
-- Average character length (target: 20-60 chars)
-- Contains specific detail (place, time, condition)?
-- Could generate a story question?
+**衡量方法：**
+- 平均字符长度（目标：20-60 字符）
+- 是否包含具体细节（地点、时间、条件）？
+- 能否引发故事疑问？
 
-**Examples by specificity:**
+**按具体性级别的示例：**
 
-| Too Vague | Good | Too Complex |
+| 太模糊 | 良好 | 太复杂 |
 |-----------|------|-------------|
-| "Building" | "Abandoned mall food court" | "The third floor conference room of the regional insurance claims processing center during the annual audit" |
-| "Worker" | "Court stenographer" | "Person who operates the machine that tests tensile strength of aircraft cables" |
-| "Problem" | "Ran out of time" | "Realized the evidence they needed was destroyed in exactly the way that would implicate them if discovered" |
+| "建筑物" | "废弃商场的美食广场" | "区域保险理赔处理中心三楼会议室年度审计期间" |
+| "工人" | "法庭速记员" | "操作飞机钢缆抗拉强度测试机器的人" |
+| "问题" | "时间不够了" | "发现他们需要的证据恰好以会牵连他们的方式被销毁了" |
 
-### Freshness Score
+### 新鲜度评分
 
-How many items would surprise someone familiar with the category?
+有多少条目会让熟悉该类别的人感到意外？
 
-**Measurement:**
-- First-thought items (would come to most people): Should be < 30%
-- Second-thought items (reasonable but less obvious): ~40%
-- Surprising items (research-derived, unexpected): Should be > 30%
+**衡量方法：**
+- 第一反应条目（大多数人都会想到的）：应该 < 30%
+- 第二反应条目（合理但不那么显而易见的）：约 40%
+- 意外条目（通过研究发现的、出人意料的）：应该 > 30%
 
-**Test:** Show 10 random items to someone unfamiliar. How many make them say "I wouldn't have thought of that"?
-
----
-
-## Dimensional Framework
-
-Different list types have different relevant dimensions.
-
-### Professions
-1. **Industry:** Medical, legal, construction, tech, arts, service, industrial, government
-2. **Status:** Entry-level, skilled, professional, expert, leadership
-3. **Visibility:** Public-facing, behind-scenes, hidden
-4. **Access:** Physical access (buildings, systems), information access, social access
-5. **Rarity:** Common knowledge vs. "jobs most people don't know exist"
-
-### Locations
-1. **Access:** Public, semi-public, private, restricted
-2. **Setting:** Urban, suburban, rural, wilderness, institutional
-3. **Time:** Day vs. night vs. transitional implications
-4. **Atmosphere:** Mundane, liminal, sacred, threatening, intimate
-5. **Permanence:** Permanent structures, temporary, mobile
-
-### Character Traits/Flaws
-1. **Visibility:** Obvious to others vs. hidden
-2. **Self-awareness:** Character knows vs. blind spot
-3. **Origin:** Innate vs. developed vs. reactive
-4. **Manifestation:** Behavioral, emotional, cognitive, relational
-5. **Trajectory:** Static vs. can arc
-
-### Objects
-1. **Size:** Pocket, carried, furniture, vehicle, structure
-2. **Commonality:** Universal, regional, professional, rare
-3. **Function:** Tool, decoration, evidence, symbol
-4. **Material:** Organic, manufactured, digital, ephemeral
-5. **Story potential:** Can it be clue, weapon, macguffin, symbol?
+**测试：** 向一个不熟悉的人展示 10 个随机条目。有多少让他们说"我不会想到这个"？
 
 ---
 
-## Validation Checklist
+## 维度框架
 
-### Starter → Functional
-- [ ] 30+ unique items
-- [ ] No obvious duplicates
-- [ ] At least 3 dimensions represented
-- [ ] Some items that required research
+不同类型的列表有不同的相关维度。
 
-### Functional → Production
-- [ ] 75+ unique items
-- [ ] All relevant dimensions covered
-- [ ] < 30% first-thought items
-- [ ] > 30% research-derived items
-- [ ] Average item length 20-60 characters
-- [ ] Items can stand alone (no context required)
+### 职业
+1. **行业：** 医疗、法律、建筑、科技、艺术、服务、工业、政府
+2. **层级：** 入门级、技术工、专业人士、专家、领导层
+3. **可见度：** 面向公众、幕后、隐藏
+4. **接触权：** 物理接触（建筑物、系统）、信息接触、社交接触
+5. **稀有度：** 常见认知 vs. "大多数人不知道存在的工作"
 
-### Production → Comprehensive
-- [ ] 150+ unique items
-- [ ] Edge cases included
-- [ ] Documented dimensional coverage
-- [ ] Tested with users/applications
-- [ ] Dated items identified and flagged
-- [ ] Expansion strategy documented
+### 地点
+1. **开放度：** 公共、半公共、私密、限制进入
+2. **环境：** 都市、城郊、乡村、荒野、机构性
+3. **时间：** 白天 vs. 夜晚 vs. 过渡时段的含义
+4. **氛围：** 日常、过渡性、神圣、威胁性、亲密
+5. **持久性：** 永久建筑、临时、移动
 
----
+### 角色特质/缺陷
+1. **可见度：** 对他人显而易见 vs. 隐藏
+2. **自知度：** 角色知道 vs. 盲区
+3. **来源：** 天生 vs. 后天形成 vs. 应激反应
+4. **表现方式：** 行为性、情感性、认知性、关系性
+5. **轨迹：** 稳定 vs. 可弧线化
 
-## Maintenance Guidelines
-
-### Regular Review
-- **Quarterly:** Check for dated references (trending terms, defunct companies)
-- **Annually:** Reassess dimensional coverage against emerging categories
-- **On feedback:** Track items that don't work in practice
-
-### Version Control
-- Tag dataset versions
-- Note what changed between versions
-- Maintain changelog for significant updates
-
-### Documentation
-Each production dataset should include:
-- Purpose statement (what is this for?)
-- Dimensional coverage map
-- Known gaps (intentional exclusions)
-- Last review date
-- Expansion candidates (items to research)
+### 物品
+1. **尺寸：** 口袋、手持、家具、车辆、建筑
+2. **普遍度：** 全球通用、地域性、职业性、稀有
+3. **功能：** 工具、装饰、证据、象征
+4. **材质：** 有机、制造、数字、短暂
+5. **故事潜力：** 能否作为线索、武器、麦格芬、象征？
 
 ---
 
-## Anti-Patterns
+## 验证检查清单
 
-### The Brainstorm Dump
-50 items generated in one session without research.
-**Problem:** Clusters around first-thoughts, misses dimensions
-**Fix:** Research phase with intentional dimension-filling
+### 入门 → 可用
+- [ ] 30+ 唯一条目
+- [ ] 无明显重复
+- [ ] 至少 3 个维度有代表
+- [ ] 有些条目需要通过研究获得
 
-### The Wikipedia Copy
-Entire category list pulled without curation.
-**Problem:** Includes unusable items, lacks quality control
-**Fix:** Filter for story utility, check each item
+### 可用 → 生产
+- [ ] 75+ 唯一条目
+- [ ] 所有相关维度覆盖
+- [ ] < 30% 第一反应条目
+- [ ] > 30% 通过研究发现的条目
+- [ ] 平均条目长度 20-60 字符
+- [ ] 条目可独立理解（无需额外语境）
 
-### The Dated List
-Items that made sense 5 years ago but now feel stale.
-**Problem:** "Instagram influencer" instead of timeless roles
-**Fix:** Prefer timeless over trendy; flag dated items for review
+### 生产 → 全面
+- [ ] 150+ 唯一条目
+- [ ] 包含边缘案例
+- [ ] 维度覆盖已记录
+- [ ] 经用户/应用测试
+- [ ] 过时条目已标识
+- [ ] 扩展策略已记录
 
-### The Insider List
-Items that only make sense with specialized knowledge.
-**Problem:** "FPGA verification engineer" means nothing to most writers
-**Fix:** Either explain in item or reserve for specialized lists
+---
 
-### The Vague List
-Items too general to spark specific ideas.
-**Problem:** "Professional" instead of "Forensic accountant"
-**Fix:** Add specificity: who, where, when, what condition?
+## 维护指南
+
+### 定期检查
+- **每季度：** 检查过时的引用（流行词、已倒闭的公司）
+- **每年：** 重新评估维度覆盖，关注新兴类别
+- **收到反馈时：** 追踪实践中不好用的条目
+
+### 版本控制
+- 标记数据集版本
+- 记录版本间的变更
+- 为重大更新维护变更日志
+
+### 文档
+每个生产级数据集应包含：
+- 用途说明（这是用来做什么的？）
+- 维度覆盖图谱
+- 已知空白（有意排除的）
+- 上次检查日期
+- 扩展候选（待研究的条目）
+
+---
+
+## 反模式
+
+### 头脑风暴倾倒
+一次会话中不经研究生成 50 个条目。
+**问题：** 聚集在第一反应，遗漏维度
+**修复：** 有意识填充维度的研究阶段
+
+### 百科复制
+不加策展地拉取整个分类列表。
+**问题：** 包含不可用条目，缺乏质量控制
+**修复：** 以故事可用性过滤，逐条检查
+
+### 过时列表
+5 年前有道理但现在已经陈旧的条目。
+**问题：** "直播达人"而非经得起时间考验的角色
+**修复：** 优先选择经典而非流行；标记过时条目供检查
+
+### 内行列表
+只有专业知识才能理解的条目。
+**问题：** "FPGA验证工程师"对大多数作者毫无意义
+**修复：** 要么在条目中解释，要么保留给专用列表
+
+### 模糊列表
+太笼统无法激发具体灵感的条目。
+**问题：** "专业人士"而非"法医会计师"
+**修复：** 增加具体性：谁、在哪、何时、什么条件？

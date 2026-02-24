@@ -17,7 +17,6 @@ import type {
   Work,
   Chapter,
   User,
-  AIModel,
   Item,
   TokenResponse,
   LoginCredentials,
@@ -816,44 +815,6 @@ class DataServiceClass {
    */
   async updateChannelStatus(channelId: string, status: string): Promise<{ message: string; channel: any }> {
     return this.adapter.patch(`/admin/channels/${channelId}/status?new_status=${status}`);
-  }
-
-  // ==================== AI 模型管理 ====================
-
-  /**
-   * 获取所有 AI 模型
-   * @returns Promise<AIModel[]>
-   */
-  async getAIModels(): Promise<AIModel[]> {
-    return this.adapter.get('/ai-models');
-  }
-
-  /**
-   * 创建 AI 模型
-   * @param model 模型数据
-   * @returns Promise<AIModel>
-   */
-  async createAIModel(model: Partial<AIModel>): Promise<AIModel> {
-    return this.adapter.post('/ai-models', model);
-  }
-
-  /**
-   * 更新 AI 模型
-   * @param id 模型ID
-   * @param model 更新的数据
-   * @returns Promise<AIModel>
-   */
-  async updateAIModel(id: string, model: Partial<AIModel>): Promise<AIModel> {
-    return this.adapter.put(`/ai-models/${id}`, model);
-  }
-
-  /**
-   * 删除 AI 模型
-   * @param id 模型ID
-   * @returns Promise<void>
-   */
-  async deleteAIModel(id: string): Promise<void> {
-    return this.adapter.delete(`/ai-models/${id}`);
   }
 
   // ==================== 成本统计（旧版，已废弃） ====================

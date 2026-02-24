@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: diagnostic+generative
   domain: fiction
-allowed-tools: [read_file, glob, grep, semantic_search]
+allowed-tools: read_file, glob, grep, semantic_search
 ---
 
 # 关键时刻：类型驱动的情感节拍技能

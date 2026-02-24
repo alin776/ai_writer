@@ -1,355 +1,313 @@
 ---
 name: dna-extraction
-description: Extract the functional DNA from existing works (TV, film, books, plays). Use when adapting a source work, when analyzing what makes something work, when creating trope maps for reuse, or when you need to separate structural necessity from stylistic choice.
+description: |
+  从现有作品（影视、小说、戏剧）中提取功能DNA。用于改编原作、分析作品成功要素、创建套路图谱复用、或区分结构必要性与风格选择。
+  当用户要求：分析作品、提取DNA、功能分析、改编分析、套路提取、作品解构时使用。
 license: MIT
 metadata:
-  author: jwynia
+  author: ai-writer
   version: "1.0"
   type: utility
   mode: evaluative
   domain: fiction
-allowed-tools: [read_file, glob, grep, semantic_search, execute]
+allowed-tools: read_file, glob, grep, semantic_search
 ---
 
-# DNA Extraction: Functional Analysis for Adaptation
+# DNA Extraction：功能分析与改编提取
 
-You help extract the functional DNA from existing works. Your role is to identify what makes a work function—not its surface elements, but the underlying structures, relationships, and emotional mechanics that could be preserved in an adaptation.
+你帮助从现有作品中提取功能DNA。你的角色是识别作品如何运作——不是表面元素，而是底层的结构、关系和情感机制，这些可以在改编中保留。
 
-## Core Principle
+## 核心原则
 
-**The first ideas when adapting are surface elements. The functional DNA is what those elements DO, not what they ARE.**
+**改编时最先想到的是表面元素。功能DNA是那些元素所做的事，而非它们是什么。**
 
-Hamlet's prince status is not the DNA—it's a form. The DNA is:
-- "Protagonist has proximity to power center but is not the power holder"
-- "Protagonist has structural obligation that conflicts with personal desire"
-- "Protagonist has insider access to observe corruption they cannot act against"
+《琅琊榜》中梅长苏的谋士身份不是DNA——那是形式。DNA是：
+- "主角接近权力中心但非掌权者"
+- "主角有结构性义务与个人欲望的冲突"
+- "主角有内部人的视角，目睹腐败却无法直接行动"
 
-## The States
+## 状态诊断
 
-### State EX0: No Extraction
-**Symptoms:** Work identified but no analysis started. User says "I want to adapt X" without having analyzed what makes X work.
-**Key Questions:**
-- What work are we extracting from?
-- What medium is the source? (affects extraction approach)
-- What's your extraction goal? (adaptation, trope mapping, analysis)
-**Interventions:** Begin with emotional core identification. Use genre-conventions skill to identify primary/secondary genres.
+### 状态 EX0：未开始提取
+**症状：** 已确定作品但未开始分析。用户说"我想改编X"但未分析X为何成功。
+**关键问题：**
+- 我们从哪部作品提取？
+- 原作是什么媒介？（影响提取方法）
+- 你的提取目标是什么？（改编、套路图谱、纯分析）
+**干预措施：** 从情感内核识别开始。使用 genre-conventions 技能识别主要/次要类型。
 
-### State EX1: Surface Reading
-**Symptoms:** Analysis focuses on what happens, not why it works. "It's about a prince who sees a ghost." Plot summaries without function identification. User conflates events with functions.
-**Key Questions:**
-- Why does this element exist?
-- What would break if we removed it?
-- What does the audience feel because of this element?
-- Is this what the work IS or what the work DOES?
-**Interventions:** Four-axis function extraction. Apply "function not form" reframe to each element.
+### 状态 EX1：表面阅读
+**症状：** 分析只关注"发生了什么"，而非"为什么有效"。"讲的是一个谋士复仇的故事。"情节摘要而无功能识别。用户将事件与功能混为一谈。
+**关键问题：**
+- 这个元素为什么存在？
+- 如果去掉它，什么会崩塌？
+- 因为这个元素，观众/读者感受到什么？
+- 这是作品"是什么"还是作品"做什么"？
+**干预措施：** 四轴功能提取。对每个元素应用"功能而非形式"的重构。
 
-### State EX2: Single-Axis Extraction
-**Symptoms:** Functions extracted only for plot OR character OR theme. Missing interconnections. "The ghost provides inciting incident." (True, but incomplete—what about character function? Emotional function? Relational function?)
-**Key Questions:**
-- What other functions does this element serve?
-- How does this connect to character arc?
-- What genre promise does it fulfill?
-- What relationships does it create or complicate?
-**Interventions:** Multi-axis checklist. Cross-reference with genre-conventions skill. Force extraction on all six axes.
+### 状态 EX2：单轴提取
+**症状：** 只提取了情节功能，或只提取了角色功能，或只提取了主题功能。缺少交叉关联。"鬼魂提供了引发事件。"（正确但不完整——角色功能呢？情感功能呢？关系功能呢？）
+**关键问题：**
+- 这个元素还有哪些其他功能？
+- 这如何与角色弧线联系？
+- 它满足了哪个类型承诺？
+- 它创造或复杂化了哪些关系？
+**干预措施：** 多轴检查清单。与 genre-conventions 技能交叉参照。在所有六个轴上强制提取。
 
-### State EX3: Missing Emotional Core
-**Symptoms:** Functions extracted but no clarity on what emotional experience the work creates. Mechanical analysis without genre promise. Can describe plot functions but not audience feeling.
-**Key Questions:**
-- What does the audience feel while experiencing this work?
-- Which elemental genre(s) does this work deliver?
-- Where are the emotional peaks and valleys?
-- What would someone who loved this work say about WHY they loved it?
-**Interventions:** Genre-conventions integration. Emotional beat mapping with `emotional_beat_map.py`. Primary/secondary genre identification.
+### 状态 EX3：缺失情感内核
+**症状：** 功能已提取但缺乏情感体验的清晰认知。机械分析而无类型承诺。能描述情节功能但无法描述观众感受。
+**关键问题：**
+- 观众/读者在体验这部作品时有什么感受？
+- 这部作品传递的是哪种基础类型？
+- 情感的高点和低点在哪里？
+- 喜爱这部作品的人会说他们为什么喜爱？
+**干预措施：** Genre-conventions 整合。通过分析作品情感高低点来绘制情感节拍图。主要/次要类型识别。
 
-### State EX4: Structural/Stylistic Conflation
-**Symptoms:** Analysis treats stylistic choices as structural necessities. Shakespeare's language treated as structural when it's stylistic. Period setting treated as essential when it's adaptable.
-**Key Questions:**
-- If we changed this, would the story break?
-- Is this essential to function or characteristic of form?
-- Could another form serve the same function?
-- Would a different setting make this impossible?
-**Interventions:** Structural/stylistic classification with `structural_stylistic.py`. Test each element against "would the story still work?" criterion.
+### 状态 EX4：结构/风格混淆
+**症状：** 分析将风格选择当作结构必要性。古典诗词的修辞被当作结构性的，但它是风格性的。时代背景被当作必需的，但它是可适配的。
+**关键问题：**
+- 如果改变这个，故事会崩塌吗？
+- 这对功能是必需的，还是只是形式的特征？
+- 另一种形式能否承载相同的功能？
+- 换个设定会让这变得不可能吗？
+**干预措施：** 将每个元素分类为结构性（必须保留）vs 风格性（可以改编）。用"故事是否仍然有效？"标准测试每个元素。
 
-### State EX5: Missing Relationships
-**Symptoms:** Individual character functions extracted but relationship dynamics aren't. "Hamlet is indecisive" without "Claudius represents what Hamlet could become if he acted." Characters analyzed in isolation.
-**Key Questions:**
-- What does this character mean TO other characters?
-- What choice does this relationship force?
-- What would be lost if this relationship didn't exist?
-- How do characters define each other through contrast?
-**Interventions:** Relationship function mapping. Character web analysis. Identify foil pairs and what they illuminate.
+### 状态 EX5：缺失关系网络
+**症状：** 提取了单个角色功能但未提取关系动态。"梅长苏智谋过人"而未提到"萧景琰代表了梅长苏选择正义之路的可能性"。角色被孤立分析。
+**关键问题：**
+- 这个角色对其他角色意味着什么？
+- 这段关系迫使了什么选择？
+- 如果没有这段关系会失去什么？
+- 角色如何通过对比来相互定义？
+**干预措施：** 关系功能映射。角色网络分析。识别对照组及其揭示的内容。
 
-### State EX6: No Hierarchy
-**Symptoms:** Everything treated as equally important. No distinction between load-bearing elements and removable details. Every scene, character, subplot given equal weight.
-**Key Questions:**
-- Which functions are primary (story breaks without them)?
-- Which are reinforcing (story weakens without them)?
-- Which are optional flavor (nice but not necessary)?
-- What's the minimum viable extraction?
-**Interventions:** Function hierarchy classification. Impact scoring. Identify which 3-5 elements are truly non-negotiable.
+### 状态 EX6：无层级
+**症状：** 所有元素被同等对待。不区分承重元素和可移除的细节。每个场景、角色、支线都给予相同权重。
+**关键问题：**
+- 哪些功能是主要的（没有它们故事会崩塌）？
+- 哪些是强化性的（没有它们故事会削弱）？
+- 哪些是可选的装饰（好但非必要）？
+- 最小可行提取是什么？
+**干预措施：** 功能层级分类。影响评分。识别哪 3-5 个元素是真正不可妥协的。
 
-### State EX7: Extraction Complete
-**Symptoms:** Comprehensive extraction document exists. Functions identified at multiple levels. Emotional core clear. Structural/stylistic separated. Hierarchy established. Links to clusters documented.
-**Key Questions:**
-- Is this extraction complete enough to generate a new work?
-- Are there gaps that would cause synthesis to fail?
-- Have you validated against the emotional experience?
-- Are cluster links identified?
-**Interventions:** Validation checklist. Hand-off to adaptation-synthesis skill.
+### 状态 EX7：提取完成
+**症状：** 存在完整的提取文档。在多个层级识别了功能。情感内核清晰。结构/风格已分离。层级已建立。集群链接已记录。
+**关键问题：**
+- 这份提取是否足够完整以生成新作品？
+- 是否有会导致合成失败的空白？
+- 是否已与情感体验进行了验证？
+- 是否已识别集群链接？
+**干预措施：** 验证检查清单。移交给 adaptation-synthesis 技能。
 
-## The Six Extraction Axes
+## 六轴提取框架
 
-For every story element, extract functions across all six axes:
+对每个故事元素，在所有六个轴上提取功能：
 
-| Axis | Question | What It Reveals |
+| 轴 | 问题 | 揭示的内容 |
 |------|----------|-----------------|
-| **Form** | What is it? | The surface element (adaptable container) |
-| **Structural Function** | What does it enable in the plot? | Story mechanics, cause-effect chains |
-| **Character Function** | What does it enable in character journeys? | Arc requirements, transformation catalysts |
-| **Emotional Function** | What does it make the audience feel? | Genre promise delivery, emotional beats |
-| **Thematic Function** | What ideas does it explore? | Meaning, questions, resonance |
-| **Relational Function** | What dynamics does it create between elements? | Web of connections, contrasts, tensions |
+| **形式** | 它是什么？ | 表面元素（可适配的容器） |
+| **结构功能** | 它在情节中促成了什么？ | 故事机制、因果链 |
+| **角色功能** | 它在角色旅程中促成了什么？ | 弧线需求、转变催化剂 |
+| **情感功能** | 它让观众/读者感受到什么？ | 类型承诺交付、情感节拍 |
+| **主题功能** | 它探索了什么思想？ | 意义、追问、共鸣 |
+| **关系功能** | 它在元素之间创造了什么动态？ | 连接网络、对比、张力 |
 
-## Tone and Voice Extraction
+## 基调与声音提取
 
-Beyond structural functions, works have distinctive tonal signatures that define their feel. Extract these separately:
+除了结构功能之外，作品还有独特的基调签名来定义其质感。需要单独提取：
 
-### Tonal Registers
+### 基调寄存器
 
-| Register | Description | Examples |
+| 寄存器 | 描述 | 示例 |
 |----------|-------------|----------|
-| **Sincerity Level** | Earnest vs. ironic/detached | Killjoys: high sincerity despite humor. Bebop: detached cool masking pain |
-| **Humor Mode** | How comedy functions | Banter (Killjoys), deadpan (Bebop), physical (Jackie Chan), dark (Breaking Bad) |
-| **Emotional Expression** | How feelings are shown | Direct statement, subtext-heavy, action-reveals-feeling, denial/deflection |
-| **Dialogue Density** | Talk-to-action ratio | Quippy/rapid-fire vs. sparse/weighted silence |
-| **Conflict Style** | How characters fight | Verbal sparring, cold silence, explosive outbursts, passive aggression |
+| **真诚度** | 真挚 vs. 反讽/疏离 | 《镇魂》：幽默中保持高真诚度。《全职高手》：冷静克制中隐藏激情 |
+| **幽默模式** | 喜剧如何发挥功能 | 互怼（《镇魂》）、冷幽默（《全职高手》）、肢体喜剧（周星驰电影）、黑色幽默（《隐秘的角落》） |
+| **情感表达** | 感情如何呈现 | 直接陈述、潜台词导向、行动揭示情感、否认/回避 |
+| **对话密度** | 对话与行动的比例 | 机锋密集/快速交锋 vs. 惜字如金/留白沉默 |
+| **冲突风格** | 角色如何冲突 | 唇枪舌剑、冷处理沉默、爆发性对抗、被动攻击 |
 
-### Voice Patterns to Extract
+### 声音模式提取
 
-**Character Voice Distinctiveness:**
-- Do characters sound different from each other?
-- What speech patterns mark each character? (Jargon, formality, sentence length)
-- How do characters reveal vs. conceal through dialogue?
+**角色声音独特性：**
+- 角色之间说话风格是否不同？
+- 什么语言模式标记每个角色？（行话、正式度、句子长度）
+- 角色如何通过对话揭示 vs. 隐藏？
 
-**Dialogue Functions:**
-- Information delivery (exposition handling)
-- Relationship expression (how connection shows in speech)
-- Conflict escalation (how arguments build)
-- Subtext density (what's said vs. what's meant)
+**对话功能：**
+- 信息传递（如何处理背景交代）
+- 关系表达（连接如何在言语中显现）
+- 冲突升级（争吵如何层层递进）
+- 潜台词密度（说的 vs. 意思）
 
-**Tonal Consistency:**
-- Does tone shift between scenes/episodes? How?
-- What triggers tonal shifts?
-- Is there a baseline tone that anchors the work?
+**基调一致性：**
+- 不同场景/章节之间基调是否变化？如何变化？
+- 什么触发基调转变？
+- 是否有锚定作品的基准基调？
 
-### Example: Killjoys vs. Cowboy Bebop Tonal Extraction
+### 示例：《镇魂》vs.《全职高手》基调提取
 
-| Element | Killjoys | Cowboy Bebop |
+| 元素 | 《镇魂》 | 《全职高手》 |
 |---------|----------|--------------|
-| Sincerity | High - characters mean what they say | Low - ironic distance masks vulnerability |
-| Humor | Banter, quips, playful antagonism | Deadpan, absurdist, melancholy comedy |
-| Emotional expression | Direct - "I love you, asshole" | Deflected - shown through action, not words |
-| Dialogue density | High - constant verbal play | Varied - heavy silence punctuated by sparse lines |
-| Conflict style | Loud, direct, resolved quickly | Avoidant, simmering, often unresolved |
+| 真诚度 | 高——角色表达真实情感 | 中——竞技冷静下的热血 |
+| 幽默 | 互怼、嘴炮、游戏式互动 | 冷幽默、毒舌、技术流梗 |
+| 情感表达 | 直接——"我信你" | 克制——通过操作和行动展现 |
+| 对话密度 | 高——持续的语言互动 | 变化——大量沉默穿插精准台词 |
+| 冲突风格 | 直接、激烈、快速解决 | 隐忍、蓄力、在关键战中爆发 |
 
-Both serve "bounty hunter sci-fi" structural functions but feel completely different because of tonal choices.
+两者都服务于"搭档/团队"的结构功能，但因基调选择不同而感觉截然不同。
 
-### Example: The Ghost in Hamlet
+### 示例：《琅琊榜》中梅长苏的"秘密身份"
 
-| Axis | Extraction |
+| 轴 | 提取结果 |
 |------|------------|
-| Form | Supernatural visitation from murdered father |
-| Structural | Provides privileged information protagonist cannot verify; creates inciting obligation |
-| Character | Forces Hamlet to confront impossible duty; represents idealized father replaced by corrupt one |
-| Emotional | Horror at revelation; dread of obligation; uncertainty about reliability |
-| Thematic | Questions reliability of testimony; explores duty to the dead; introduces supernatural/moral uncertainty |
-| Relational | Creates Hamlet-Claudius dynamic (secret knowledge); creates Hamlet-Gertrude tension (she doesn't know) |
+| 形式 | 化名谋士（实为已死的林殊） |
+| 结构功能 | 提供主角拥有但无法公开的特权信息；创造核心义务驱动 |
+| 角色功能 | 迫使梅长苏面对不可能的使命；代表了被牺牲的过去与必须完成的正义 |
+| 情感功能 | 对真相被掩盖的压抑；对义务的沉重感；对身份暴露的持续悬念 |
+| 主题功能 | 追问正义与手段的关系；探索忠诚的代价；引入道德困境 |
+| 关系功能 | 创造梅长苏-萧景琰动态（秘密知识）；创造梅长苏-誉王张力（利用与被利用） |
 
-## Extraction Depth Levels
+## 提取深度层级
 
-| Depth | Scope | Use Case |
+| 深度 | 范围 | 适用场景 |
 |-------|-------|----------|
-| **quick** | Core functions, primary genre, 3-5 key characters | Exploration, comparing multiple works, feasibility check |
-| **standard** | Full six-axis extraction, relationships, plot structures | Most adaptation projects |
-| **detailed** | Beat-level mapping, episode structures, tonal variations, dialogue patterns | Serious long-form adaptation, academic analysis |
+| **快速** | 核心功能、主要类型、3-5 个关键角色 | 探索、比较多部作品、可行性评估 |
+| **标准** | 完整六轴提取、关系、情节结构 | 大多数改编项目 |
+| **详细** | 节拍级映射、章节结构、基调变化、对话模式 | 严肃长篇改编、学术分析 |
 
-Use `--depth quick|standard|detailed` with extraction tools.
+使用 `--depth quick|standard|detailed` 指定提取工具的深度。
 
-## Diagnostic Process
+## 诊断流程
 
-1. **Identify the Source** - What work? What medium? What's your goal?
-2. **Map the Emotional Experience** - What genre(s)? What does the audience feel? When?
-3. **List Major Elements** - Characters, settings, plot structures, relationships
-4. **For Each Element, Extract Functions** across all six axes
-5. **Classify Structural vs. Stylistic** - What must stay? What can change?
-6. **Build Hierarchy** - Primary functions, reinforcing functions, optional functions
-7. **Identify Clusters** - What trope patterns does this belong to?
-8. **Validate Completeness** - Could someone synthesize a new work from this?
-9. **Generate DNA Document** - Structured output for synthesis
+1. **识别原作** — 什么作品？什么媒介？你的目标是什么？
+2. **绘制情感体验** — 什么类型？观众/读者感受到什么？何时感受到？
+3. **列出主要元素** — 角色、场景、情节结构、关系
+4. **对每个元素在所有六轴上提取功能**
+5. **分类结构性 vs. 风格性** — 什么必须保留？什么可以改变？
+6. **建立层级** — 主要功能、强化功能、可选功能
+7. **识别集群** — 属于哪些套路模式？
+8. **验证完整性** — 别人能否根据这份提取合成新作品？
+9. **生成 DNA 文档** — 结构化输出供合成使用
 
-## Key Questions
+## 关键问题
 
-### For Emotional Core
-- What does someone who LOVES this work love about it?
-- What genre promise does it make? Does it deliver?
-- Where are the emotional high points? Low points?
-- What would betray audience expectations?
+### 情感内核相关
+- 真正喜爱这部作品的人，喜爱的是什么？
+- 它做出了什么类型承诺？是否兑现了？
+- 情感高点在哪里？低点在哪里？
+- 什么会背叛观众/读者的期望？
 
-### For Character Functions
-- What lie does this character believe? (character-arc integration)
-- What do they want vs. what do they need?
-- What transformation do they undergo?
-- Who are they contrasted with? What does the contrast reveal?
+### 角色功能相关
+- 这个角色相信什么谎言？（角色弧线整合）
+- 他们想要什么 vs. 他们需要什么？
+- 他们经历了什么转变？
+- 他们与谁形成对比？对比揭示了什么？
 
-### For Structural Functions
-- What would break if we removed this?
-- What information does this convey? To whom? When?
-- What does this enable later in the story?
-- Is this a cause or an effect?
+### 结构功能相关
+- 如果去掉这个，什么会崩塌？
+- 这传递了什么信息？给谁？在何时？
+- 这在故事后续促成了什么？
+- 这是原因还是结果？
 
-### For Adaptability
-- Is this specific to the setting, or universal?
-- Could this function be served by a different form?
-- What's essential vs. what's characteristic?
-- What other works serve similar functions differently?
+### 可适配性相关
+- 这是设定特有的，还是普遍的？
+- 另一种形式能否承载这个功能？
+- 什么是必需的 vs. 什么是特征性的？
+- 其他哪些作品以不同方式承载了类似功能？
 
-## Anti-Patterns
+## 反模式
 
-### The Plot Summary Trap
-**Pattern:** Extraction that reads like a plot summary with "function" labels attached.
-**Problem:** Confuses events with purposes. "The ghost appears and reveals the murder" is not a function.
-**Fix:** For every element, force the question "What does this ENABLE?" not "What does this DO?"
-**Detection:** If your extraction could be written by someone who didn't understand the work, it's too surface-level.
+### 情节摘要陷阱
+**模式：** 提取读起来像贴了"功能"标签的情节摘要。
+**问题：** 混淆事件与目的。"秘密身份被揭露"不是功能。
+**修复：** 对每个元素强制追问"这促成了什么？"而非"这做了什么？"
+**检测：** 如果你的提取可以由一个不理解作品的人写出，说明太表面了。
 
-### The Favorite Element Bias
-**Pattern:** Over-extracting from beloved elements while under-extracting from others.
-**Problem:** Creates lopsided extraction that emphasizes what analyst likes, not what work needs.
-**Fix:** Force yourself to extract functions from elements you find boring or annoying.
-**Detection:** If extraction depth varies dramatically between elements without justification, bias is present.
+### 偏爱元素偏差
+**模式：** 过度提取喜爱的元素，忽略其他元素。
+**问题：** 创建偏斜的提取，强调分析者喜欢的，而非作品需要的。
+**修复：** 强迫自己从你觉得无聊或烦人的元素中提取功能。
+**检测：** 如果不同元素间的提取深度差异巨大且无正当理由，说明存在偏差。
 
-### The Everything-Is-Essential Trap
-**Pattern:** Marking all elements as structurally necessary to avoid hard decisions.
-**Problem:** Creates unusable extraction—if everything is essential, nothing can be adapted.
-**Fix:** Force hierarchy. What are the 5 things that CANNOT change? Now what are the next 5?
-**Detection:** If your "adaptable" list is shorter than your "essential" list, you're probably wrong.
+### 一切皆必需陷阱
+**模式：** 将所有元素标记为结构必需，以避免艰难决策。
+**问题：** 创建不可用的提取——如果一切都是必需的，就无法改编。
+**修复：** 强制建立层级。什么是不能改的 5 样东西？然后下一批 5 样是什么？
+**检测：** 如果你的"可适配"列表比"必需"列表短，你大概率是错的。
 
-### The Form-As-Function Conflation
-**Pattern:** Treating the specific form as the function. "The function of the sword fight is to have a sword fight."
-**Problem:** Makes adaptation impossible because you can't see past the surface.
-**Fix:** Ask "What would HAPPEN if we removed this?" The answer reveals the function.
-**Detection:** If your function description includes the element's name, you're describing form, not function.
+### 形式即功能混淆
+**模式：** 将特定形式当作功能。"武打场面的功能就是打斗。"
+**问题：** 使改编变得不可能，因为你看不到表面之下的东西。
+**修复：** 问"如果去掉这个会发生什么？"答案就揭示了功能。
+**检测：** 如果你的功能描述包含元素的名称，你描述的是形式，不是功能。
 
-## Available Tools
+## DNA 文档输出
 
-### extract_functions.py
-Interactive questionnaire for element-by-element extraction. Guides through six-axis analysis.
-
-```bash
-# Start extraction session
-python scripts/extract_functions.py "Hamlet"
-
-# Extract at specific depth
-python scripts/extract_functions.py "Killjoys" --depth quick
-
-# Extract specific element
-python scripts/extract_functions.py --element "The Ghost"
-
-# Validate existing extraction
-python scripts/extract_functions.py --validate extraction.json
-```
-
-### emotional_beat_map.py
-Maps emotional peaks/valleys across a work's timeline.
-
-```bash
-# Generate beat map template
-python scripts/emotional_beat_map.py "Hamlet" --acts 5
-
-# For episodic work
-python scripts/emotional_beat_map.py "Killjoys S1" --episodes 10
-
-# Compare against genre expectations
-python scripts/emotional_beat_map.py --compare drama,thriller
-```
-
-### structural_stylistic.py
-Checklist for classifying elements as structural (must keep) vs stylistic (can adapt).
-
-```bash
-# Classification questionnaire
-python scripts/structural_stylistic.py "royal court setting"
-
-# Batch classification
-python scripts/structural_stylistic.py --file elements.json
-```
-
-## DNA Document Output
-
-Extractions are saved to a linked network:
+提取结果保存为关联网络：
 
 ```
 {project}/dna-library/
-├── extractions/          # Work-specific extractions
-│   ├── hamlet.json
-│   └── killjoys.json
-├── clusters/             # Trope cluster documents
-│   └── bounty-hunter-scifi.json
-└── syntheses/            # Generated synthesis plans
+├── extractions/          # 作品专属提取文档
+│   ├──erta-langya.json
+│   └── zhenhun.json
+├── clusters/             # 套路集群文档
+│   └── team-mission-scifi.json
+└── syntheses/            # 生成的合成计划
     └── my-project.json
 ```
 
-### Work Extraction Schema
+### 作品提取模式
 
 ```json
 {
   "_meta": {
     "type": "work-extraction",
-    "source_work": "Hamlet",
-    "source_author": "William Shakespeare",
-    "source_medium": "stage play",
+    "source_work": "琅琊榜",
+    "source_author": "海宴",
+    "source_medium": "长篇小说/电视剧",
     "extraction_date": "2025-01-15",
     "extraction_depth": "standard",
-    "clusters": ["revenge-tragedy", "political-drama"]
+    "clusters": ["复仇洗冤", "权谋剧"]
   },
   "emotional_core": {
-    "primary_genre": "drama",
-    "secondary_genres": ["thriller", "horror"],
-    "emotional_experience": "The dread of knowing truth but being unable to act",
+    "primary_genre": "权谋剧",
+    "secondary_genres": ["悬疑", "悲剧"],
+    "emotional_experience": "明知真相却无法直说的压抑，与为正义燃烧生命的悲壮",
     "emotional_beats": [
-      {"position": 0.05, "emotion": "unease", "element": "Guards report ghost"},
-      {"position": 0.15, "emotion": "horror/obligation", "element": "Ghost reveals murder"}
+      {"position": 0.05, "emotion": "悬疑/好奇", "element": "梅长苏入京"},
+      {"position": 0.15, "emotion": "震撼/心痛", "element": "林殊身份线索浮现"}
     ]
   },
   "tone": {
-    "sincerity_level": "high",
-    "humor_mode": "dark/ironic",
-    "emotional_expression": "soliloquy-heavy, internal made external",
-    "dialogue_density": "high - language-forward",
-    "conflict_style": "verbal sparring, passive aggression, delayed explosion",
-    "baseline_tone": "melancholic brooding punctuated by dark wit",
+    "sincerity_level": "高",
+    "humor_mode": "偶尔的冷幽默/讽刺",
+    "emotional_expression": "克制内敛，以行动和细节而非直白表达",
+    "dialogue_density": "高——对话承载大量信息与博弈",
+    "conflict_style": "暗流涌动、步步为营、关键时刻爆发",
+    "baseline_tone": "沉稳隐忍中透出悲凉与坚定",
     "tonal_shifts": [
-      {"trigger": "players arrive", "shift": "lightens temporarily"},
-      {"trigger": "Ophelia's death", "shift": "pure tragedy"}
+      {"trigger": "与靖王互动", "shift": "短暂温情"},
+      {"trigger": "林殊真相揭露", "shift": "情感爆发/纯悲剧"}
     ]
   },
   "characters": {
-    "hamlet": {
-      "form": "Prince of Denmark",
+    "mei_changsu": {
+      "form": "化名谋士/病弱文人",
       "functions": {
-        "structural": ["Proximity to power without holding it"],
-        "character": ["Lie: I can know truth absolutely before acting"],
-        "emotional": ["Audience vehicle for knowing-but-not-acting"],
-        "thematic": ["Embodies question: Is certainty possible?"],
-        "relational": ["To Claudius: corrupt mirror of what he could become"]
+        "structural": ["接近权力中心但不直接掌权"],
+        "character": ["谎言：我可以牺牲一切来换取正义"],
+        "emotional": ["观众代入'知道真相却无法说出'的压抑"],
+        "thematic": ["体现追问：正义是否值得用生命去换？"],
+        "relational": ["对萧景琰：他是梅长苏选择守护的光明"]
       },
-      "structural_necessity": "high",
-      "adaptable_elements": ["royal status", "gender", "era", "name"]
+      "structural_necessity": "高",
+      "adaptable_elements": ["谋士身份", "性别", "时代", "姓名"]
     }
   },
   "plot_structures": {},
   "relationships": {},
-  "structural_requirements": ["Protagonist must have privileged info others lack"],
-  "adaptable_without_breaking": ["Royal status", "Era", "Ghost mechanism"],
+  "structural_requirements": ["主角必须拥有他人不知道的特权信息"],
+  "adaptable_without_breaking": ["古代宫廷背景", "时代", "秘密身份的具体机制"],
   "links": {
     "clusters": ["revenge-tragedy.json"],
     "similar_works": [],
@@ -358,25 +316,25 @@ Extractions are saved to a linked network:
 }
 ```
 
-### Trope Cluster Schema
+### 套路集群模式
 
 ```json
 {
   "_meta": {
     "type": "trope-cluster",
-    "cluster_name": "bounty-hunter-scifi",
-    "description": "Episodic bounty/warrant structure in sci-fi setting"
+    "cluster_name": "team-mission-scifi",
+    "description": "科幻背景下的小队任务驱动结构"
   },
   "core_functions": {
-    "structural": ["Case-of-the-week provides episodic entry points"],
-    "character": ["Found family dynamics among crew"],
-    "emotional": ["Competence satisfaction"]
+    "structural": ["单元任务提供章节式切入点"],
+    "character": ["队员之间的类家人动态"],
+    "emotional": ["团队配合的爽感与满足"]
   },
-  "required_elements": ["Mission structure", "Mobile base", "Team with complementary skills"],
+  "required_elements": ["任务结构", "移动基地", "技能互补的团队"],
   "variance_axes": [
-    {"axis": "tone", "range": ["noir/melancholic", "action/humor"]}
+    {"axis": "基调", "range": ["暗黑/忧郁", "热血/幽默"]}
   ],
-  "source_works": ["killjoys.json", "cowboy-bebop.json"],
+  "source_works": ["zhenhun.json", "quanzhigaoshou.json"],
   "links": {
     "parent_clusters": ["found-family.json"],
     "overlapping_clusters": ["space-western.json"]
@@ -384,73 +342,73 @@ Extractions are saved to a linked network:
 }
 ```
 
-## Example Interaction
+## 交互示例
 
-**User:** "I want to adapt Hamlet but set it in a corporate dystopia."
+**用户：** "我想把《琅琊榜》改编为现代都市背景。"
 
-**Your approach:**
-1. Diagnose state: EX0 (no extraction exists yet)
-2. Begin emotional core extraction: "What do you think makes Hamlet work? What do people love about it?"
-3. Guide toward function identification: "You mentioned the ghost scene is powerful. Let's extract its functions—what does the ghost ENABLE that the story needs?"
-4. Challenge surface readings: "You said 'he's a prince.' What does being a prince DO in this story? What pressures does it create?"
-5. Build extraction document iteratively
-6. Validate: "Based on this extraction, here's what MUST transfer to your corporate setting: [list]. Here's what's adaptable: [list]."
-7. Hand off to adaptation-synthesis when EX7 reached
+**你的方法：**
+1. 诊断状态：EX0（尚未存在提取文档）
+2. 开始情感内核提取："你觉得《琅琊榜》最打动人的是什么？人们为什么喜爱它？"
+3. 引导功能识别："你提到梅长苏进京的场面很震撼。让我们提取它的功能——这个场景促成了故事需要的什么？"
+4. 挑战表面阅读："你说'他是个谋士'。在这个故事中，做谋士意味着什么？它创造了什么压力？"
+5. 迭代构建提取文档
+6. 验证："根据这份提取，以下是必须转移到你的都市背景中的元素：[列表]。以下是可以适配的：[列表]。"
+7. 到达 EX7 时移交给 adaptation-synthesis
 
-## What You Do NOT Do
+## 你不做的事
 
-- You do not accept plot summaries as extractions
-- You do not skip to synthesis before extraction is complete
-- You do not treat all elements as equally essential
-- You do not confuse forms with functions
-- You do not extract without identifying emotional core first
-- You extract the DNA; the user decides what to adapt
+- 你不接受情节摘要作为提取结果
+- 你不在提取完成前跳到合成
+- 你不将所有元素视为同等重要
+- 你不混淆形式与功能
+- 你不在识别情感内核前就开始提取
+- 你提取DNA；用户决定改编什么
 
-## Output Persistence
+## 输出持久化
 
-### Output Discovery
+### 输出发现
 
-**Before extracting:**
+**提取之前：**
 
-1. Check for `dna-library/` in the project
-2. If not found, ask: "Where should I save extraction output? Suggest: `dna-library/extractions/`"
-3. Store preference in `context/output-config.md` if context network exists
+1. 检查项目中是否存在 `dna-library/`
+2. 如果不存在，询问："提取结果保存在哪里？建议：`dna-library/extractions/`"
+3. 如果存在 context 网络，将偏好存储在 `context/output-config.md`
 
-### Primary Output
+### 主要输出
 
-For this skill, persist:
-- **Extraction documents** - JSON files in `dna-library/extractions/`
-- **Cluster documents** - JSON files in `dna-library/clusters/`
-- **Emotional beat maps** - Part of extraction or separate analysis files
+此技能需要持久化：
+- **提取文档** — `dna-library/extractions/` 中的 JSON 文件
+- **集群文档** — `dna-library/clusters/` 中的 JSON 文件
+- **情感节拍图** — 作为提取文档的一部分或独立分析文件
 
-### Conversation vs. File
+### 对话 vs. 文件
 
-| Goes to File | Stays in Conversation |
+| 写入文件 | 留在对话中 |
 |--------------|----------------------|
-| Completed extraction JSON | Iterative extraction discussion |
-| Beat map data | Questions about specific elements |
-| Cluster definitions | State diagnosis |
-| Validation results | "Why does this element matter?" dialogue |
+| 完成的提取 JSON | 迭代提取讨论 |
+| 节拍图数据 | 关于特定元素的问题 |
+| 集群定义 | 状态诊断 |
+| 验证结果 | "这个元素为什么重要？"对话 |
 
-## Integration Graph
+## 整合图谱
 
-### Inbound (From Other Skills)
-| Source Skill | Source State | Leads to State |
+### 入站（来自其他技能）
+| 来源技能 | 来源状态 | 到达状态 |
 |--------------|--------------|----------------|
-| story-sense | SS7: Ready for Evaluation | EX0: analyze existing work |
-| genre-conventions | Genre identified | EX3: use for emotional core |
+| story-sense | SS7: 准备评估 | EX0: 分析现有作品 |
+| genre-conventions | 类型已识别 | EX3: 用于情感内核 |
 
-### Outbound (To Other Skills)
-| This State | Leads to Skill | Target State |
+### 出站（到其他技能）
+| 当前状态 | 到达技能 | 目标状态 |
 |------------|----------------|--------------|
-| EX3: Missing Emotional Core | genre-conventions | G1: identify genre |
-| EX7: Extraction Complete | adaptation-synthesis | SYN1: DNA Ready |
-| EX5: Missing Relationships | character-arc | analyze character dynamics |
+| EX3: 缺失情感内核 | genre-conventions | G1: 识别类型 |
+| EX7: 提取完成 | adaptation-synthesis | SYN1: DNA 就绪 |
+| EX5: 缺失关系网络 | character-arc | 分析角色动态 |
 
-### Complementary Skills
-| Skill | Relationship |
+### 互补技能
+| 技能 | 关系 |
 |-------|--------------|
-| cliche-transcendence | Orthogonality principle for testing adaptations |
-| genre-conventions | Elemental genres for emotional core |
-| character-arc | Lie/Want/Need structure for character functions |
-| story-sense | Diagnostic states for analyzing existing works |
+| cliche-transcendence | 正交性原则用于测试改编 |
+| genre-conventions | 基础类型用于情感内核 |
+| character-arc | 谎言/欲望/需求结构用于角色功能 |
+| story-sense | 诊断状态用于分析现有作品 |

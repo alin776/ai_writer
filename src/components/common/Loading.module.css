@@ -80,3 +80,20 @@
   font-size: 0.875rem;
   color: #6b7280;
 }
+
+/* 暗色模式 */
+:global(.dark) .fullscreen {
+  background-color: rgba(15, 23, 42, 0.9);
+}
+
+:global(.dark) .primary {
+  border-color: #f8fafc;
+}
+
+:global(.dark) .secondary {
+  border-color: #94a3b8;
+}
+
+:global(.dark) .text {
+  color: #94a3b8;
+}

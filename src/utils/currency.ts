@@ -50,6 +50,19 @@ export function formatUsdToCny(usd: number, decimals?: number): string {
 }
 
 /**
+ * 格式化美元金额直接显示（不做汇率转换）
+ * @param usd - 美元金额
+ * @returns 格式化后的美元字符串，如 "$1.00"
+ */
+export function formatUsd(usd: number): string {
+  if (usd === 0) return '$0.00';
+  if (usd < 0.0001) return `$${usd.toFixed(6)}`;
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(2)}`;
+}
+
+/**
  * 同时显示美元和人民币
  * @param usd - 美元金额
  * @returns 双币种显示字符串，如 "$1.00 (¥7.19)"

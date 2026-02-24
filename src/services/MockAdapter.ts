@@ -9,7 +9,6 @@ import {
   mockWorks,
   mockChapters,
   mockUsers,
-  mockAIModels,
   mockCharacters,
   mockLocations,
   mockItems,
@@ -301,11 +300,6 @@ export class MockAdapter implements IDataAdapter {
     // 用户列表
     if (url === '/users') {
       return mockUsers as T;
-    }
-
-    // AI 模型列表
-    if (url === '/ai-models') {
-      return mockAIModels as T;
     }
 
     // 世界观数据 - 角色

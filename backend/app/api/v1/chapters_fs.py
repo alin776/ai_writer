@@ -161,6 +161,12 @@ def _resolve_chapter_path(chapters_dir: Path, num: int) -> Optional[Path]:
     return None
 
 
+def _title_from_filename(path: Path) -> str:
+    """从文件名提取章节标题：06-兵刃.md → 兵刃"""
+    match = re.match(r"^\d+-(.+)\.md$", path.name)
+    return match.group(1) if match else ""
+
+
 # ─── 章节端点 ───
 
 
@@ -185,9 +191,10 @@ async def list_chapters(
         try:
             raw = await asyncio.to_thread(path.read_text, "utf-8")
             parsed = parse_chapter(raw)
+            title = parsed["title"] or _title_from_filename(path)
             result.append(ChapterResponse(
                 num=num,
-                title=parsed["title"],
+                title=title,
                 status=parsed["status"],
                 word_count=parsed["word_count"],
             ))
@@ -223,9 +230,10 @@ async def get_chapter(
 
     raw = await asyncio.to_thread(chapter_path.read_text, "utf-8")
     parsed = parse_chapter(raw)
+    title = parsed["title"] or _title_from_filename(chapter_path)
     return ChapterResponse(
         num=num,
-        title=parsed["title"],
+        title=title,
         status=parsed["status"],
         word_count=parsed["word_count"],
         content=parsed["content"],
@@ -288,7 +296,7 @@ async def update_chapter(
     raw = await asyncio.to_thread(chapter_path.read_text, "utf-8")
     parsed = parse_chapter(raw)
 
-    title = request.title if request.title is not None else parsed["title"]
+    title = request.title if request.title is not None else (parsed["title"] or _title_from_filename(chapter_path))
     content = request.content if request.content is not None else parsed["content"]
     chapter_status = request.status if request.status is not None else parsed["status"]
 
@@ -307,7 +315,7 @@ async def update_chapter(
     new_parsed = parse_chapter(new_content)
     return ChapterResponse(
         num=num,
-        title=new_parsed["title"],
+        title=new_parsed["title"] or title,
         status=new_parsed["status"],
         word_count=new_parsed["word_count"],
         content=new_parsed["content"],

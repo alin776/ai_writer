@@ -118,6 +118,15 @@ async def lifespan(app: FastAPI):
 
     logger.info("[STARTUP] 应用启动完成")
 
+    # 清理上次崩溃/重启可能遗留的 Docker sandbox 容器
+    try:
+        from app.services.agent.deep_agent.docker_sandbox import DockerSandbox
+        cleaned = DockerSandbox.cleanup_stale_containers()
+        if cleaned:
+            logger.info("[STARTUP] 已清理 %d 个残留 sandbox 容器", cleaned)
+    except Exception as e:
+        logger.debug("[STARTUP] Docker sandbox 清理跳过: %s", e)
+
     yield
 
     # 关闭时执行
@@ -225,6 +234,7 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
+        reload_excludes=["data/*", "logs/*"] if settings.DEBUG else None,
         log_config=log_config,
         log_level="info"
     )

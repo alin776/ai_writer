@@ -9,7 +9,7 @@ metadata:
   type: diagnostic
   mode: diagnostic
   domain: worldbuilding
-allowed-tools: [read_file, glob, grep, semantic_search]
+allowed-tools: read_file, glob, grep, semantic_search
 ---
 
 # 网文世界观：诊断技能

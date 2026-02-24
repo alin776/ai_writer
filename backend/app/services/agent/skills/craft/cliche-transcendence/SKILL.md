@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: diagnostic+generative
   domain: fiction
-allowed-tools: [read_file, glob, grep, semantic_search, execute]
+allowed-tools: read_file, glob, grep, semantic_search, execute
 ---
 
 # 套路超越：原创性技能

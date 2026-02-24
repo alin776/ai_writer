@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: collaborative
   domain: fiction
-allowed-tools: [read_file, glob, grep, semantic_search]
+allowed-tools: read_file, glob, grep, semantic_search
 ---
 
 # 大纲协作者：主动式结构合作技能

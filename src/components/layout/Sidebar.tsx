@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   LayoutDashboard,
   Users,
-  Cpu,
   DollarSign,
   Wallet,
   BarChart3,
@@ -70,7 +69,6 @@ const serviceNavItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { id: 'dashboard', label: '数据面板', icon: LayoutDashboard, path: '/admin/dashboard', roles: ['admin'] },
   { id: 'users', label: '用户管理', icon: Users, path: '/admin/users', roles: ['admin'] },
-  { id: 'ai-models', label: 'AI 模型', icon: Cpu, path: '/admin/ai-models', roles: ['admin'] },
   { id: 'cost', label: '成本监控', icon: DollarSign, path: '/admin/cost', roles: ['admin'] },
   { id: 'notifications-admin', label: '通知管理', icon: Bell, path: '/admin/notifications', roles: ['admin'] },
   { id: 'tasks-admin', label: '任务配置', icon: Trophy, path: '/admin/tasks', roles: ['admin'] },

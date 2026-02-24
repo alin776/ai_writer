@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { DataService } from '../services/DataService';
 import { useGlobalStore } from '../store/globalStore';
+import { ADMIN_STYLES } from '../styles/adminStyles';
 
 interface ReportSummary {
   messageReports: { total: number; pending: number; processedToday: number };
@@ -225,17 +226,17 @@ export default function AdminReportsView() {
           </p>
         </div>
 
-        {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        {/* 统计卡片 - 合并到一个容器 */}
+        <div className={ADMIN_STYLES.filterCard}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                 <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">消息举报</div>
+                <div className={ADMIN_STYLES.statLabel}>消息举报</div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <span className={ADMIN_STYLES.statValue}>
                     {summary.messageReports.pending}
                   </span>
                   <span className="text-sm text-gray-500">待处理</span>
@@ -243,17 +244,15 @@ export default function AdminReportsView() {
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
                 <MessageCircle className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">评论举报</div>
+                <div className={ADMIN_STYLES.statLabel}>评论举报</div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <span className={ADMIN_STYLES.statValue}>
                     {summary.commentReports.pending}
                   </span>
                   <span className="text-sm text-gray-500">待处理</span>
@@ -261,17 +260,15 @@ export default function AdminReportsView() {
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
                 <Book className="w-5 h-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">小说举报</div>
+                <div className={ADMIN_STYLES.statLabel}>小说举报</div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <span className={ADMIN_STYLES.statValue}>
                     {summary.workReports.pending}
                   </span>
                   <span className="text-sm text-gray-500">待处理</span>
@@ -280,15 +277,16 @@ export default function AdminReportsView() {
               </div>
             </div>
           </div>
-      </div>
+        </div>
+    </div>
 
-        {/* Tab 切换 */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="border-b border-gray-200 dark:border-gray-700">
-            <nav className="flex -mb-px">
+      {/* Tab 切换 + 列表内容 */}
+      <div className={ADMIN_STYLES.tableContainer}>
+        <div className="border-b border-gray-200 dark:border-gray-700">
+          <nav className="flex -mb-px">
             <button
               onClick={() => setActiveTab('messages')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex-1 text-center px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'messages'
                   ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
@@ -297,14 +295,14 @@ export default function AdminReportsView() {
               <MessageSquare className="w-4 h-4 inline-block mr-2" />
               消息举报
               {summary.messageReports.pending > 0 && (
-                <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded-full">
+                <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded">
                   {summary.messageReports.pending}
                 </span>
               )}
             </button>
             <button
               onClick={() => setActiveTab('comments')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex-1 text-center px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'comments'
                   ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
@@ -313,14 +311,14 @@ export default function AdminReportsView() {
               <MessageCircle className="w-4 h-4 inline-block mr-2" />
               评论举报
               {summary.commentReports.pending > 0 && (
-                <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded-full">
+                <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded">
                   {summary.commentReports.pending}
                 </span>
               )}
             </button>
             <button
               onClick={() => setActiveTab('works')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex-1 text-center px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'works'
                   ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
@@ -329,17 +327,14 @@ export default function AdminReportsView() {
               <Book className="w-4 h-4 inline-block mr-2" />
               小说举报
               {summary.workReports.pending > 0 && (
-                <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded-full">
+                <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded">
                   {summary.workReports.pending}
                 </span>
               )}
             </button>
           </nav>
         </div>
-      </div>
-    </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         {/* 列表内容 */}
         <div className="p-4">
           {loading ? (

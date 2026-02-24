@@ -15,7 +15,6 @@ const ServiceObtainView = React.lazy(() => import('../views/ServiceObtainView'))
 const AdminDashboardView = React.lazy(() => import('../views/AdminDashboardView'));
 const AdminUsersView = React.lazy(() => import('../views/AdminUsersView'));
 const AdminWorksView = React.lazy(() => import('../views/AdminWorksView'));
-const AdminAIModelsView = React.lazy(() => import('../views/AdminAIModelsView'));
 const AdminCostView = React.lazy(() => import('../views/AdminCostView'));
 const AdminInvitationsView = React.lazy(() => import('../views/AdminInvitationsView'));
 const AdminCreditsView = React.lazy(() => import('../views/AdminCreditsView'));
@@ -23,7 +22,6 @@ const AdminNotificationsView = React.lazy(() => import('../views/AdminNotificati
 const AdminTasksView = React.lazy(() => import('../views/AdminTasksView'));
 const AdminChannelsView = React.lazy(() => import('../views/AdminChannelsView'));
 const AdminReportsView = React.lazy(() => import('../views/AdminReportsView'));
-const AdminPricingView = React.lazy(() => import('../views/AdminPricingView'));
 const SettingsView = React.lazy(() => import('../views/SettingsView'));
 const ChangePasswordView = React.lazy(() => import('../views/ChangePasswordView'));
 const ChangeEmailView = React.lazy(() => import('../views/ChangeEmailView'));
@@ -314,26 +312,10 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: 'ai-models',
-            element: (
-              <SuspenseWrapper>
-                <AdminAIModelsView />
-              </SuspenseWrapper>
-            ),
-          },
-          {
             path: 'cost',
             element: (
               <SuspenseWrapper>
                 <AdminCostView />
-              </SuspenseWrapper>
-            ),
-          },
-          {
-            path: 'pricing',
-            element: (
-              <SuspenseWrapper>
-                <AdminPricingView />
               </SuspenseWrapper>
             ),
           },
