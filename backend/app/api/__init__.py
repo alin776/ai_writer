@@ -34,7 +34,6 @@ from app.api.v1 import (
     chapters_fs,
     admin_config,
 )
-from app.api.v1.endpoints import books
 from app.api.v1 import export as export_routes
 from app.api.v1 import import_routes
 from app.api import ai_logs
@@ -58,7 +57,6 @@ api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(rewrite_history.router, prefix="/rewrite-history", tags=["rewrite-history"])
 api_router.include_router(agent.router, prefix="/agent", tags=["agent"])
-api_router.include_router(books.router, prefix="/books", tags=["books"])
 api_router.include_router(ws.router, tags=["websocket"])
 api_router.include_router(export_routes.router, prefix="/export", tags=["export"])
 api_router.include_router(import_routes.router, tags=["import"])

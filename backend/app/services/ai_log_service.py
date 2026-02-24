@@ -5,11 +5,10 @@ AI调用日志服务
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, and_, extract, select
-from typing import Optional, Dict, Any, List
+from sqlalchemy import func, and_, select
+from typing import Optional, List
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
-import uuid as uuid_lib
 
 from app.models.ai_call_log import AICallLog
 from app.schemas.ai_call_log import (
@@ -24,128 +23,6 @@ class AILogService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-
-    # ==================== 新增: 便捷日志方法 ====================
-
-    async def log_ai_call_start(
-        self,
-        user_id: UUID,
-        operation: str,
-        prompt_text: str,
-        model_name: str
-    ) -> UUID:
-        """
-        记录 AI 调用开始
-
-        Args:
-            user_id: 用户ID
-            operation: 操作类型 (如 "chapter_review", "task_generation")
-            prompt_text: 提示词
-            model_name: 模型名称
-
-        Returns:
-            UUID: 日志ID
-        """
-        log_id = uuid_lib.uuid4()
-        log = AICallLog(
-            id=log_id,
-            user_id=user_id,
-            operation_type=operation,
-            model_name=model_name,
-            is_success=False,  # 初始为失败,成功时更新
-            extra_data={"prompt_preview": prompt_text[:500]}  # 存储提示词预览到 extra_data
-            # created_at 会自动使用 server_default
-        )
-        self.db.add(log)
-        await self.db.flush()  # 立即写入,获取ID
-        return log_id
-
-    async def log_ai_call_success(
-        self,
-        log_id: UUID,
-        response_text: str,
-        prompt_tokens: int,
-        completion_tokens: int
-    ):
-        """
-        记录 AI 调用成功
-
-        Args:
-            log_id: 日志ID
-            response_text: AI 响应文本
-            prompt_tokens: 输入token数
-            completion_tokens: 输出token数
-        """
-        result = await self.db.execute(
-            select(AICallLog).where(AICallLog.id == log_id)
-        )
-        log = result.scalar_one_or_none()
-
-        if log:
-            log.is_success = True
-            log.prompt_tokens = prompt_tokens
-            log.completion_tokens = completion_tokens
-            log.total_tokens = prompt_tokens + completion_tokens
-
-            # 使用 CostCalculator 计算真实成本
-            from app.utils.cost_calculator import CostCalculator
-
-            cost_data = CostCalculator.calculate_cost(
-                model_name=log.model_name,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens
-            )
-
-            log.prompt_cost = cost_data["prompt_cost"]
-            log.completion_cost = cost_data["completion_cost"]
-            log.total_cost = cost_data["total_cost"]
-
-            # 存储响应预览到 extra_data
-            if log.extra_data:
-                log.extra_data["response_preview"] = response_text[:500]
-            else:
-                log.extra_data = {"response_preview": response_text[:500]}
-
-            # 计算耗时
-            if log.created_at:
-                from datetime import datetime, timezone
-                now = datetime.now(timezone.utc)
-                duration = (now - log.created_at).total_seconds() * 1000
-                log.duration_ms = int(duration)
-
-            await self.db.commit()
-
-    async def log_ai_call_error(
-        self,
-        log_id: UUID,
-        error_message: str
-    ):
-        """
-        记录 AI 调用失败
-
-        Args:
-            log_id: 日志ID
-            error_message: 错误信息
-        """
-        result = await self.db.execute(
-            select(AICallLog).where(AICallLog.id == log_id)
-        )
-        log = result.scalar_one_or_none()
-
-        if log:
-            log.is_success = False
-            log.error_message = error_message[:1000]  # 限制长度
-
-            # 计算耗时
-            if log.created_at:
-                from datetime import datetime, timezone
-                now = datetime.now(timezone.utc)
-                duration = (now - log.created_at).total_seconds() * 1000
-                log.duration_ms = int(duration)
-
-            await self.db.commit()
-
-    # ==================== 原有方法 ====================
 
     async def create_log(
         self,

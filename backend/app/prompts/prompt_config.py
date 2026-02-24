@@ -58,13 +58,6 @@ class PromptConfig:
             category=PromptCategory.AI_SERVICE,
             version="1.0.0"
         ),
-        "evaluation_prompts": PromptModuleInfo(
-            path="app.services.ai.evaluation_prompts",
-            description="AI 评估 Prompt",
-            category=PromptCategory.EVALUATION,
-            version="1.0.0"
-        ),
-
         # 主 Prompt 模块
         "review_prompts": PromptModuleInfo(
             path="app.prompts.review_prompts",
