@@ -525,7 +525,7 @@ def main():
             sys.exit(1)
         text = ' '.join(remaining)
     elif args:
-        filename = args[0]
+        filename = os.path.normpath(args[0])
         if not os.path.isfile(filename):
             print('错误: 找不到文件 - ' + filename, file=sys.stderr)
             sys.exit(1)

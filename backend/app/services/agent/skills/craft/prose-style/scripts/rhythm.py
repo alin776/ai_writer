@@ -20,6 +20,7 @@ import sys
 import re
 import json
 import math
+import os
 
 
 # ---------------------------------------------------------------------------
@@ -447,7 +448,7 @@ def main():
             sys.exit(1)
         text = ' '.join(args[idx + 1:])
     elif args:
-        filepath = args[0]
+        filepath = os.path.normpath(args[0])
         try:
             with open(filepath, 'r', encoding='utf-8') as fh:
                 text = fh.read()

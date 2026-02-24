@@ -14,6 +14,7 @@ Usage:
 import sys
 import re
 import json
+import os
 
 
 # ---------------------------------------------------------------------------
@@ -486,6 +487,7 @@ def main():
     else:
         file_path = next((a for a in args if not a.startswith('--')), None)
         if file_path:
+            file_path = os.path.normpath(file_path)
             try:
                 text = open(file_path, 'r', encoding='utf-8').read()
             except Exception as e:

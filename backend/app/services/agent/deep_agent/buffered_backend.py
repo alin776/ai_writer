@@ -391,6 +391,8 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                 command = command.replace(cwd_posix, "/workspace")
             # 清理残余反斜杠（Windows 路径遗留），确保命令在 Linux 容器中合法
             command = command.replace("\\", "/")
+            # 清理多余斜杠（Agent 偶尔生成 //chapters/ 等双斜杠路径）
+            command = re.sub(r'(?<!:)/{2,}', '/', command)
 
             try:
                 from app.services.agent.deep_agent.docker_sandbox import DockerSandbox
@@ -423,6 +425,8 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
             )
 
         # ── 原有 subprocess 执行分支（向后兼容） ──
+        # 清理多余斜杠（Agent 偶尔生成 //chapters/ 等双斜杠路径）
+        command = re.sub(r'(?<!:)/{2,}', '/', command)
         try:
             result = subprocess.run(
                 command, shell=True, capture_output=True, text=True,
