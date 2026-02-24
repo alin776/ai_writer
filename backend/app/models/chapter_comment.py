@@ -2,7 +2,7 @@
 章节评论模型
 支持章节级、段落级、句子级三种评论粒度
 """
-from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey, Boolean, Enum, UniqueConstraint
+from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey, Boolean, Enum, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -23,9 +23,13 @@ class ChapterComment(Base):
     """章节评论模型"""
 
     __tablename__ = "chapter_comments"
+    __table_args__ = (
+        Index("ix_chapter_comments_work_chapter", "work_id", "chapter_num"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    chapter_id = Column(UUID(as_uuid=True), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False, index=True)
+    work_id = Column(UUID(as_uuid=True), ForeignKey("works.id", ondelete="CASCADE"), nullable=False)
+    chapter_num = Column(Integer, nullable=False, comment="章节序号（文件系统标识）")
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # 位置定位
@@ -55,13 +59,13 @@ class ChapterComment(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # 关联关系
-    chapter = relationship("Chapter", backref="chapter_comments")
+    work = relationship("Work", backref="chapter_comments")
     user = relationship("User", foreign_keys=[user_id], backref="chapter_comments")
     reply_to_user = relationship("User", foreign_keys=[reply_to_user_id])
     parent = relationship("ChapterComment", remote_side=[id], backref="replies")
 
     def __repr__(self):
-        return f"<ChapterComment chapter_id={self.chapter_id} user_id={self.user_id} location={self.location_type}>"
+        return f"<ChapterComment work_id={self.work_id} chapter_num={self.chapter_num} user_id={self.user_id} location={self.location_type}>"
 
 
 class ChapterCommentLike(Base):

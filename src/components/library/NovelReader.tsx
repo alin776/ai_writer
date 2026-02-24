@@ -123,14 +123,14 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
   );
 
   // 加载评论统计
-  const loadCommentStats = useCallback(async (chapterId: string) => {
+  const loadCommentStats = useCallback(async (chapterNum: number) => {
     try {
-      const stats = await chapterCommentApi.getStats(chapterId);
+      const stats = await chapterCommentApi.getStats(workId, chapterNum);
       setCommentStats(stats);
     } catch (err) {
       console.error('加载评论统计失败:', err);
     }
-  }, []);
+  }, [workId]);
 
   // 防止 StrictMode 双重渲染导致的重复调用
   const hasLoadedChaptersRef = useRef<string | null>(null);
@@ -196,7 +196,7 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
       });
 
       // 加载评论统计
-      loadCommentStats(targetChapterId);
+      loadCommentStats(chapterData.order);
     } catch (error) {
       console.error('加载章节失败:', error);
       showError('加载章节失败');
@@ -876,7 +876,8 @@ export function NovelReader({ workId, chapterId, onBack, initialChapters, novelT
         {/* 评论面板 - 集成到右侧面板区域 */}
         {currentChapter && showCommentPanel && (
           <ChapterCommentPanel
-            chapterId={currentChapter.id}
+            workId={workId}
+            chapterNum={currentChapter.order}
             isOpen={showCommentPanel}
             onClose={() => setShowCommentPanel(false)}
             filter={commentFilter}

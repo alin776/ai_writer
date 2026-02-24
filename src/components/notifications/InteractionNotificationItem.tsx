@@ -172,8 +172,10 @@ export function InteractionNotificationItem({
 
     setIsSubmitting(true);
     try {
-      if (isChapterComment && actionParams?.chapterId) {
-        await chapterCommentApi.createComment(actionParams.chapterId, {
+      if (isChapterComment && actionParams?.chapterId && workId) {
+        const chapterNum = Number(actionParams.chapterId);
+        if (isNaN(chapterNum)) return;
+        await chapterCommentApi.createComment(workId, chapterNum, {
           content: trimmed,
           parentId: parentCommentId,
           replyToUserId: metadata?.replierId,

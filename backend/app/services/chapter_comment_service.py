@@ -101,7 +101,8 @@ def parse_sentences_from_paragraph(paragraph_text: str) -> List[str]:
 
 async def cleanup_invalid_comments(
     db: AsyncSession,
-    chapter_id: UUID,
+    work_id: UUID,
+    chapter_num: int,
     new_content: str,
     old_content: Optional[str] = None
 ) -> int:
@@ -122,12 +123,13 @@ async def cleanup_invalid_comments(
     for i, para in enumerate(new_paragraphs):
         new_sentences_by_paragraph[i] = parse_sentences_from_paragraph(para)
 
-    logger.info(f"[ChapterCommentService] 章节 {chapter_id} 内容更新，新段落数: {len(new_paragraphs)}")
+    logger.info(f"[ChapterCommentService] 作品 {work_id} 章节 {chapter_num} 内容更新，新段落数: {len(new_paragraphs)}")
 
     # 获取该章节的所有非章节级评论
     query = select(ChapterComment).where(
         and_(
-            ChapterComment.chapter_id == chapter_id,
+            ChapterComment.work_id == work_id,
+            ChapterComment.chapter_num == chapter_num,
             ChapterComment.is_deleted == False,
             ChapterComment.location_type != 'chapter'
         )
@@ -180,12 +182,12 @@ async def cleanup_invalid_comments(
 
     if deleted_count > 0:
         await db.commit()
-        logger.info(f"[ChapterCommentService] 章节 {chapter_id} 清理了 {deleted_count} 条失效评论")
+        logger.info(f"[ChapterCommentService] 作品 {work_id} 章节 {chapter_num} 清理了 {deleted_count} 条失效评论")
 
     return deleted_count
 
 
-async def delete_all_chapter_comments(db: AsyncSession, chapter_id: UUID) -> int:
+async def delete_all_chapter_comments(db: AsyncSession, work_id: UUID, chapter_num: int) -> int:
     """
     删除章节的所有评论（当章节被删除时调用）
     使用软删除
@@ -193,7 +195,8 @@ async def delete_all_chapter_comments(db: AsyncSession, chapter_id: UUID) -> int
     # 软删除所有评论
     query = select(ChapterComment).where(
         and_(
-            ChapterComment.chapter_id == chapter_id,
+            ChapterComment.work_id == work_id,
+            ChapterComment.chapter_num == chapter_num,
             ChapterComment.is_deleted == False
         )
     )
@@ -207,6 +210,6 @@ async def delete_all_chapter_comments(db: AsyncSession, chapter_id: UUID) -> int
 
     if deleted_count > 0:
         await db.commit()
-        logger.info(f"[ChapterCommentService] 章节 {chapter_id} 删除，清理了 {deleted_count} 条评论")
+        logger.info(f"[ChapterCommentService] 作品 {work_id} 章节 {chapter_num} 删除，清理了 {deleted_count} 条评论")
 
     return deleted_count

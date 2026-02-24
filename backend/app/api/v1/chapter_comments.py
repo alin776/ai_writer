@@ -13,9 +13,9 @@ import logging
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
-from app.models.chapter import Chapter
 from app.models.work import Work
 from app.services.notification_service import NotificationService
+from app.services.chapter_fs_helpers import get_chapters_dir, resolve_chapter_path
 from app.models.chapter_comment import (
     ChapterComment,
     ChapterCommentLike,
@@ -40,6 +40,23 @@ logger = logging.getLogger(__name__)
 
 # ==================== 辅助函数 ====================
 
+async def _validate_chapter_exists(db: AsyncSession, work_id: UUID, chapter_num: int):
+    """验证作品存在且章节文件存在，返回 Work 对象"""
+    work = await db.get(Work, work_id)
+    if not work:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="作品不存在"
+        )
+    chapters_dir = get_chapters_dir(str(work.author_id), str(work_id))
+    if resolve_chapter_path(chapters_dir, chapter_num) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="章节不存在"
+        )
+    return work
+
+
 def build_comment_tree(
     all_comments: list,
     current_user_id: UUID,
@@ -53,7 +70,8 @@ def build_comment_tree(
             # 构建当前评论响应
             comment_response = ChapterCommentResponse(
                 id=comment.id,
-                chapter_id=comment.chapter_id,
+                work_id=comment.work_id,
+                chapter_num=comment.chapter_num,
                 user_id=comment.user_id,
                 content=comment.content,
                 location_type=comment.location_type,
@@ -88,7 +106,8 @@ def build_comment_tree(
                     if reply.parent_id == comment.id and not reply.is_deleted:
                         reply_response = ChapterCommentResponse(
                             id=reply.id,
-                            chapter_id=reply.chapter_id,
+                            work_id=reply.work_id,
+                            chapter_num=reply.chapter_num,
                             user_id=reply.user_id,
                             content=reply.content,
                             location_type=reply.location_type,
@@ -142,7 +161,8 @@ def build_comment_response(
 
     return ChapterCommentResponse(
         id=comment.id,
-        chapter_id=comment.chapter_id,
+        work_id=comment.work_id,
+        chapter_num=comment.chapter_num,
         user_id=comment.user_id,
         content=comment.content,
         location_type=comment.location_type,
@@ -172,9 +192,10 @@ def build_comment_response(
 
 # ==================== 获取章节评论列表 ====================
 
-@router.get("/chapters/{chapter_id}/comments", response_model=ChapterCommentListResponse)
+@router.get("/works/{work_id}/chapters/{chapter_num}/comments", response_model=ChapterCommentListResponse)
 async def get_chapter_comments(
-    chapter_id: UUID,
+    work_id: UUID,
+    chapter_num: int,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     location_type: Optional[str] = Query(default=None, description="筛选位置类型"),
@@ -184,17 +205,12 @@ async def get_chapter_comments(
     current_user: User = Depends(get_current_active_user)
 ):
     """获取章节评论列表（两层结构：一级评论 + 平铺回复）"""
-    # 验证章节存在
-    chapter = await db.get(Chapter, chapter_id)
-    if not chapter:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="章节不存在"
-        )
+    await _validate_chapter_exists(db, work_id, chapter_num)
 
     # 构建顶级评论查询条件
     top_level_conditions = [
-        ChapterComment.chapter_id == chapter_id,
+        ChapterComment.work_id == work_id,
+        ChapterComment.chapter_num == chapter_num,
         ChapterComment.is_deleted == False,
         ChapterComment.parent_id == None  # 只查询顶级评论用于分页
     ]
@@ -281,25 +297,21 @@ async def get_chapter_comments(
 
 # ==================== 获取评论位置统计 ====================
 
-@router.get("/chapters/{chapter_id}/comments/stats", response_model=CommentLocationStats)
+@router.get("/works/{work_id}/chapters/{chapter_num}/comments/stats", response_model=CommentLocationStats)
 async def get_comment_stats(
-    chapter_id: UUID,
+    work_id: UUID,
+    chapter_num: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """获取章节评论位置统计"""
-    # 验证章节存在
-    chapter = await db.get(Chapter, chapter_id)
-    if not chapter:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="章节不存在"
-        )
+    await _validate_chapter_exists(db, work_id, chapter_num)
 
     # 查询所有未删除的评论
     query = select(ChapterComment).where(
         and_(
-            ChapterComment.chapter_id == chapter_id,
+            ChapterComment.work_id == work_id,
+            ChapterComment.chapter_num == chapter_num,
             ChapterComment.is_deleted == False
         )
     )
@@ -331,21 +343,16 @@ async def get_comment_stats(
 
 # ==================== 创建评论 ====================
 
-@router.post("/chapters/{chapter_id}/comments", response_model=ChapterCommentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/works/{work_id}/chapters/{chapter_num}/comments", response_model=ChapterCommentResponse, status_code=status.HTTP_201_CREATED)
 async def create_chapter_comment(
-    chapter_id: UUID,
+    work_id: UUID,
+    chapter_num: int,
     comment_data: ChapterCommentCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """创建章节评论"""
-    # 验证章节存在
-    chapter = await db.get(Chapter, chapter_id)
-    if not chapter:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="章节不存在"
-        )
+    work = await _validate_chapter_exists(db, work_id, chapter_num)
 
     # 验证位置类型
     if comment_data.location_type not in ['chapter', 'paragraph', 'sentence']:
@@ -377,7 +384,7 @@ async def create_chapter_comment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="父评论不存在"
             )
-        if parent_comment.chapter_id != chapter_id:
+        if parent_comment.work_id != work_id or parent_comment.chapter_num != chapter_num:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="父评论不属于当前章节"
@@ -392,7 +399,8 @@ async def create_chapter_comment(
 
     # 创建评论
     comment = ChapterComment(
-        chapter_id=chapter_id,
+        work_id=work_id,
+        chapter_num=chapter_num,
         user_id=current_user.id,
         content=comment_data.content,
         location_type=comment_data.location_type,
@@ -419,7 +427,7 @@ async def create_chapter_comment(
     result = await db.execute(query)
     comment = result.scalar_one()
 
-    logger.info(f"用户 {current_user.username} 在章节 {chapter_id} 创建了评论")
+    logger.info(f"用户 {current_user.username} 在作品 {work_id} 章节 {chapter_num} 创建了评论")
 
     # 如果是回复评论，发送通知给被回复者
     try:
@@ -434,8 +442,6 @@ async def create_chapter_comment(
 
         # 如果有需要通知的用户，且不是自己
         if notify_user_id and notify_user_id != current_user.id:
-            # 获取作品信息用于通知内容
-            work = await db.get(Work, chapter.work_id)
             work_title = work.title if work else "未知作品"
 
             notification_service = NotificationService(db)
@@ -447,11 +453,11 @@ async def create_chapter_comment(
                 replier_id=current_user.id,
                 replier_avatar=current_user.avatar,
                 comment_preview=comment_preview,
-                work_id=str(chapter.work_id),
+                work_id=str(work_id),
                 work_title=work_title,
                 comment_id=str(comment.id),
                 parent_comment_id=str(comment_data.parent_id) if comment_data.parent_id else None,
-                action_url=f"/library/novel-square?openNovel={chapter.work_id}&chapter={chapter_id}&chapterComment={comment.id}"
+                action_url=f"/library/novel-square?openNovel={work_id}&chapter={chapter_num}&chapterComment={comment.id}"
             )
             logger.info(f"已发送章节评论回复通知给用户 {notify_user_id}")
     except Exception as e:

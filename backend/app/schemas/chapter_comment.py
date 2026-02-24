@@ -41,7 +41,8 @@ class ChapterCommentUpdate(BaseModel):
 class ChapterCommentResponse(ChapterCommentBase):
     """章节评论响应"""
     id: UUID
-    chapter_id: UUID
+    work_id: UUID
+    chapter_num: int
     user_id: UUID
     location_type: str
     paragraph_index: Optional[int] = None

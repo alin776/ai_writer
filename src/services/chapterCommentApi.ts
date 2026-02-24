@@ -58,7 +58,8 @@ export interface UserInfo {
 
 export interface ChapterComment {
   id: string;
-  chapterId: string;
+  workId: string;
+  chapterNum: number;
   userId: string;
   content: string;
   locationType: 'chapter' | 'paragraph' | 'sentence';
@@ -123,7 +124,8 @@ export interface ReportData {
 
 export const chapterCommentApi = {
   getComments: async (
-    chapterId: string,
+    workId: string,
+    chapterNum: number,
     params?: {
       page?: number;
       pageSize?: number;
@@ -139,19 +141,20 @@ export const chapterCommentApi = {
     if (params?.paragraphIndex !== undefined) queryParams.set('paragraph_index', params.paragraphIndex.toString());
     if (params?.sentenceIndex !== undefined) queryParams.set('sentence_index', params.sentenceIndex.toString());
 
-    const url = `${getBaseUrl()}/chapter-comments/chapters/${chapterId}/comments${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const url = `${getBaseUrl()}/chapter-comments/works/${workId}/chapters/${chapterNum}/comments${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     const response = await axios.get(url, { headers: getAuthHeader() });
     return convertKeysToCamelCase(response.data);
   },
 
-  getStats: async (chapterId: string): Promise<CommentLocationStats> => {
-    const url = `${getBaseUrl()}/chapter-comments/chapters/${chapterId}/comments/stats`;
+  getStats: async (workId: string, chapterNum: number): Promise<CommentLocationStats> => {
+    const url = `${getBaseUrl()}/chapter-comments/works/${workId}/chapters/${chapterNum}/comments/stats`;
     const response = await axios.get(url, { headers: getAuthHeader() });
     return convertKeysToCamelCase(response.data);
   },
 
   createComment: async (
-    chapterId: string,
+    workId: string,
+    chapterNum: number,
     data: CreateChapterCommentData
   ): Promise<ChapterComment> => {
     // 转换为 snake_case
@@ -164,7 +167,7 @@ export const chapterCommentApi = {
       parent_id: data.parentId,
       reply_to_user_id: data.replyToUserId,
     };
-    const url = `${getBaseUrl()}/chapter-comments/chapters/${chapterId}/comments`;
+    const url = `${getBaseUrl()}/chapter-comments/works/${workId}/chapters/${chapterNum}/comments`;
     const response = await axios.post(url, payload, { headers: { ...getAuthHeader(), 'Content-Type': 'application/json' } });
     return convertKeysToCamelCase(response.data);
   },

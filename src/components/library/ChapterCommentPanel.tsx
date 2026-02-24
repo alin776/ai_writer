@@ -27,7 +27,8 @@ import { zhCN } from 'date-fns/locale';
 import EmojiPicker from '../../views/ChannelsView/components/EmojiPicker';
 
 interface ChapterCommentPanelProps {
-  chapterId: string;
+  workId: string;
+  chapterNum: number;
   isOpen: boolean;
   onClose: () => void;
   filter?: {
@@ -48,7 +49,8 @@ interface ChapterCommentPanelProps {
 }
 
 export function ChapterCommentPanel({
-  chapterId,
+  workId,
+  chapterNum,
   isOpen,
   onClose,
   filter = { type: 'all' },
@@ -192,7 +194,7 @@ export function ChapterCommentPanel({
 
   // 加载评论
   const loadComments = useCallback(async () => {
-    if (!chapterId) return;
+    if (!workId || !chapterNum) return;
 
     try {
       setLoading(true);
@@ -207,7 +209,7 @@ export function ChapterCommentPanel({
         let found = false;
 
         while (!found) {
-          const response = await chapterCommentApi.getComments(chapterId, {
+          const response = await chapterCommentApi.getComments(workId, chapterNum, {
             page,
             pageSize,
             locationType,
@@ -232,7 +234,7 @@ export function ChapterCommentPanel({
 
         setComments(aggregated);
       } else {
-        const response = await chapterCommentApi.getComments(chapterId, {
+        const response = await chapterCommentApi.getComments(workId, chapterNum, {
           page: 1,
           pageSize: 100,
           locationType,
@@ -247,19 +249,19 @@ export function ChapterCommentPanel({
     } finally {
       setLoading(false);
     }
-  }, [chapterId, filter.type, filter.paragraphIndex, filter.sentenceIndex, highlightCommentId, showError]);
+  }, [workId, chapterNum, filter.type, filter.paragraphIndex, filter.sentenceIndex, highlightCommentId, showError]);
 
   // 加载评论统计
   const loadStats = useCallback(async () => {
-    if (!chapterId || !onStatsUpdate) return;
+    if (!workId || !chapterNum || !onStatsUpdate) return;
 
     try {
-      const stats = await chapterCommentApi.getStats(chapterId);
+      const stats = await chapterCommentApi.getStats(workId, chapterNum);
       onStatsUpdate(stats);
     } catch (err) {
       console.error('加载评论统计失败:', err);
     }
-  }, [chapterId, onStatsUpdate]);
+  }, [workId, chapterNum, onStatsUpdate]);
 
   useEffect(() => {
     if (isOpen) {
@@ -374,7 +376,7 @@ export function ChapterCommentPanel({
 
     try {
       setSubmitting(true);
-      await chapterCommentApi.createComment(chapterId, {
+      await chapterCommentApi.createComment(workId, chapterNum, {
         content: contentToSend,
         locationType: filter.type === 'all' ? 'chapter' : filter.type,
         paragraphIndex: filter.paragraphIndex,
