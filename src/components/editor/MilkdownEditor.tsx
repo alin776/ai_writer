@@ -44,6 +44,7 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const destroyedRef = useRef(false);
   const [wordCount, setWordCount] = useState(0);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved'>('saved');
 
   // 获取编辑器当前内容
   const getMarkdown = useCallback((): string => {
@@ -58,6 +59,7 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
   // 自动保存逻辑
   const scheduleSave = useCallback(() => {
     if (!onSave) return;
+    setSaveStatus('unsaved');
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
     }
@@ -67,8 +69,16 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
         lastSavedRef.current = md;
         onSave(md);
       }
+      setSaveStatus('saved');
     }, autoSaveInterval);
   }, [onSave, autoSaveInterval, getMarkdown]);
+
+  // ref 持有最新 scheduleSave，避免 useEffect 闭包陈旧
+  const scheduleSaveRef = useRef(scheduleSave);
+  useEffect(() => { scheduleSaveRef.current = scheduleSave; }, [scheduleSave]);
+
+  // 标记程序化内容更新（replaceAll），避免误触发 scheduleSave
+  const isProgrammaticUpdateRef = useRef(false);
 
   // 计算字数
   const updateWordCount = useCallback((md: string) => {
@@ -148,7 +158,8 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
       listener.markdownUpdated((_ctx: any, md: string) => {
         updateWordCount(md);
         backupToStorage(md);
-        scheduleSave();
+        if (isProgrammaticUpdateRef.current) return;
+        scheduleSaveRef.current();
       });
     });
 
@@ -177,7 +188,9 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
         const pending = pendingContentRef.current;
         pendingContentRef.current = null;
         try {
+          isProgrammaticUpdateRef.current = true;
           crepe.editor.action(replaceAll(pending));
+          isProgrammaticUpdateRef.current = false;
           syncedContentRef.current = pending;
           lastSavedRef.current = pending;
           updateWordCount(pending);
@@ -193,13 +206,6 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
       destroyedRef.current = true;
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
-      }
-      // 卸载前保存
-      if (crepeRef.current && onSave) {
-        const md = getMarkdown();
-        if (md && md !== lastSavedRef.current) {
-          onSave(md);
-        }
       }
       crepe.destroy();
       crepeRef.current = null;
@@ -217,7 +223,9 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
     syncedContentRef.current = content;
     lastSavedRef.current = content;
     try {
+      isProgrammaticUpdateRef.current = true;
       crepeRef.current.editor.action(replaceAll(content));
+      isProgrammaticUpdateRef.current = false;
       updateWordCount(content);
     } catch {
       // editor not ready
@@ -227,14 +235,55 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
 
   // 监听内联 Diff 事件
   useEffect(() => {
-    const handleInlineDiff = (e: Event) => {
-      const { oldString, newString, append } = (e as CustomEvent).detail || {};
-      // oldString 可以为空字符串（create 操作），只检查 newString 和编辑器实例
-      if (newString == null || !crepeRef.current) return;
+    type QueuedInlineDiff = {
+      oldString: string;
+      newString: string;
+      append?: boolean;
+      retriesLeft: number;
+    };
+
+    const inlineDiffQueue: QueuedInlineDiff[] = [];
+    let queueTimer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+
+    const clearQueueTimer = () => {
+      if (queueTimer) {
+        clearTimeout(queueTimer);
+        queueTimer = null;
+      }
+    };
+
+    const normalizeForLocate = (value: string) => value.replace(/\r\n/g, '\n');
+    const stripLeadingSpaces = (value: string) =>
+      value.split('\n').map((line) => line.replace(/^[\s\u3000]+/, '')).join('\n');
+
+    const canLocateOldString = (docText: string, oldText: string): boolean => {
+      if (!oldText) return true;
+      const normalizedDoc = normalizeForLocate(docText);
+      const normalizedOld = normalizeForLocate(oldText);
+      if (normalizedDoc.includes(normalizedOld)) return true;
+
+      const collapsedDoc = normalizedDoc.replace(/\n{2,}/g, '\n');
+      const collapsedOld = normalizedOld.replace(/\n{2,}/g, '\n');
+      if (collapsedDoc.includes(collapsedOld)) return true;
+
+      const strippedDoc = stripLeadingSpaces(collapsedDoc);
+      const strippedOld = stripLeadingSpaces(collapsedOld);
+      if (strippedDoc.includes(strippedOld)) return true;
+
+      return false;
+    };
+
+    const applyInlineDiff = (payload: Pick<QueuedInlineDiff, 'oldString' | 'newString' | 'append'>) => {
+      if (!crepeRef.current) return;
       try {
         crepeRef.current.editor.action((ctx) => {
           const view = ctx.get(editorViewCtx);
-          const tr = view.state.tr.setMeta(diffPluginKey, { oldString: oldString ?? '', newString, append });
+          const tr = view.state.tr.setMeta(diffPluginKey, {
+            oldString: payload.oldString,
+            newString: payload.newString,
+            append: payload.append,
+          });
           view.dispatch(tr);
         });
       } catch {
@@ -242,7 +291,73 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
       }
     };
 
+    const scheduleProcess = (delayMs: number) => {
+      clearQueueTimer();
+      queueTimer = setTimeout(processQueue, delayMs);
+    };
+
+    const processQueue = () => {
+      if (disposed) return;
+      if (inlineDiffQueue.length === 0) return;
+
+      const current = inlineDiffQueue[0];
+      if (!crepeRef.current) {
+        if (current.retriesLeft > 0) {
+          current.retriesLeft -= 1;
+          scheduleProcess(120);
+        } else {
+          inlineDiffQueue.shift();
+          processQueue();
+        }
+        return;
+      }
+
+      const markdown = getMarkdown();
+      const canApplyNow = canLocateOldString(markdown, current.oldString);
+      if (!canApplyNow && current.retriesLeft > 0) {
+        current.retriesLeft -= 1;
+        scheduleProcess(120);
+        return;
+      }
+
+      // 规范化 oldString：使换行格式与 getMarkdown() 输出一致，确保 buildCharMap 能定位
+      let normalizedOldString = current.oldString;
+      if (normalizedOldString) {
+        if (!markdown.includes(normalizedOldString)) {
+          const collapsed = normalizedOldString.replace(/\n\n/g, '\n');
+          if (markdown.includes(collapsed)) {
+            normalizedOldString = collapsed;
+          } else {
+            const expanded = normalizedOldString.replace(/\n/g, '\n\n');
+            if (markdown.includes(expanded)) {
+              normalizedOldString = expanded;
+            }
+          }
+        }
+      }
+
+      applyInlineDiff({ ...current, oldString: normalizedOldString });
+      inlineDiffQueue.shift();
+      processQueue();
+    };
+
+    const handleInlineDiff = (e: Event) => {
+      const { oldString, newString, append } = (e as CustomEvent).detail || {};
+      if (typeof newString !== 'string') return;
+      inlineDiffQueue.push({
+        oldString: typeof oldString === 'string' ? oldString : '',
+        newString,
+        append,
+        retriesLeft: 10,
+      });
+      if (inlineDiffQueue.length === 1) {
+        scheduleProcess(0);
+      }
+    };
+
     const handleClearDiff = () => {
+      inlineDiffQueue.length = 0;
+      clearQueueTimer();
       if (!crepeRef.current) return;
       try {
         crepeRef.current.editor.action((ctx) => {
@@ -258,18 +373,32 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
     window.addEventListener('editor-inline-diff', handleInlineDiff);
     window.addEventListener('editor-hide-diff', handleClearDiff);
     return () => {
+      disposed = true;
+      inlineDiffQueue.length = 0;
+      clearQueueTimer();
       window.removeEventListener('editor-inline-diff', handleInlineDiff);
       window.removeEventListener('editor-hide-diff', handleClearDiff);
     };
-  }, []);
+  }, [getMarkdown]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       {/* 编辑器主体 */}
       <div
         ref={containerRef}
         className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-visible"
       />
+      {/* 右下角保存状态提示 */}
+      {onSave && (
+        <div className="absolute bottom-3 right-4 pointer-events-none select-none">
+          {saveStatus === 'unsaved' && (
+            <span className="text-xs text-zinc-400 dark:text-slate-500">未保存</span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="text-xs text-zinc-300 dark:text-slate-600">已保存</span>
+          )}
+        </div>
+      )}
     </div>
   );
 };

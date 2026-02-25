@@ -567,7 +567,9 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
     def _read_disk_content(self, file_path: str) -> str | None:
         """Read normalized UTF-8 text from disk. Return None when file is missing."""
         try:
-            file_path = self._resolve_existing_chapter_path(file_path)
+            file_path = self._resolve_existing_chapter_path(
+                file_path, include_buffer_alias=False
+            )
             resolved = self._resolve_path(file_path)
             if not resolved.exists() or not resolved.is_file():
                 return None
@@ -584,9 +586,76 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
             normalized = f"/{normalized.lstrip('/')}"
         return normalized or "/"
 
-    def _resolve_existing_chapter_path(self, path: str) -> str:
-        """Resolve stale /chapters/{num}-*.md aliases to current on-disk filename."""
+    def _resolve_pending_rename_alias(self, path: str) -> str:
+        """Follow pending rename chain for a path and return the latest alias."""
+        current = self._normalize_tool_path(path)
+        visited: set[str] = set()
+
+        while current not in visited:
+            visited.add(current)
+            next_path: str | None = None
+            for op in self._buffer:
+                if op.op_type != "rename":
+                    continue
+                src = self._normalize_tool_path(op.path)
+                dst = self._normalize_tool_path(op.new_path or "")
+                if src == current and dst:
+                    next_path = dst
+            if not next_path or next_path == current:
+                break
+            current = next_path
+
+        return current
+
+    def _path_exists_in_buffer_view(self, path: str) -> bool:
+        """Check whether path exists after applying pending ops (without reading file text)."""
         normalized = self._normalize_tool_path(path)
+        try:
+            resolved = super()._resolve_path(normalized)
+            exists = resolved.exists() and resolved.is_file()
+        except Exception:
+            exists = False
+
+        for op in self._buffer:
+            op_path = self._normalize_tool_path(op.path)
+            if op.op_type == "write":
+                if op_path == normalized:
+                    exists = True
+                continue
+
+            if op.op_type == "delete":
+                if op_path == normalized:
+                    exists = False
+                continue
+
+            if op.op_type == "rename":
+                new_path = self._normalize_tool_path(op.new_path or "")
+                if op_path == normalized:
+                    exists = False
+                if new_path == normalized:
+                    exists = True
+
+        return exists
+
+    def _resolve_existing_chapter_path(
+        self,
+        path: str,
+        *,
+        include_buffer_alias: bool = True,
+    ) -> str:
+        """Resolve stale chapter aliases to current filename (buffer-aware)."""
+        normalized = self._normalize_tool_path(path)
+
+        if include_buffer_alias:
+            # 1) Path already exists in pending view (disk + buffer) -> keep as is.
+            if self._path_exists_in_buffer_view(normalized):
+                return normalized
+
+            # 2) Follow pending rename aliases (old_path -> new_path -> ...).
+            aliased = self._resolve_pending_rename_alias(normalized)
+            if aliased != normalized and self._path_exists_in_buffer_view(aliased):
+                return aliased
+
         match = _CHAPTER_FILE_PATH_RE.match(normalized)
         if not match:
             return normalized
@@ -594,7 +663,11 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         try:
             current = super()._resolve_path(normalized)
             if current.exists() and current.is_file():
-                return normalized
+                if include_buffer_alias and not self._path_exists_in_buffer_view(normalized):
+                    # Disk file exists, but pending ops have hidden/renamed this path.
+                    pass
+                else:
+                    return normalized
         except Exception:
             return normalized
 
@@ -615,13 +688,20 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
             except OSError:
                 continue
 
+            candidate_path = ""
             if self.virtual_mode:
                 try:
-                    return f"/{candidate.resolve().relative_to(self.cwd).as_posix()}"
+                    candidate_path = f"/{candidate.resolve().relative_to(self.cwd).as_posix()}"
                 except Exception:
                     continue
+            else:
+                candidate_path = self._normalize_tool_path(str(candidate))
 
-            return self._normalize_tool_path(str(candidate))
+            if include_buffer_alias and not self._path_exists_in_buffer_view(candidate_path):
+                # Candidate exists on disk but has been renamed/deleted in pending buffer.
+                continue
+
+            return candidate_path
 
         return normalized
 
@@ -1048,7 +1128,9 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         if current is None:
             return f"Error: File '{old_path}' not found"
 
-        if self._replay(new_path) is not None:
+        # 目标路径按“精确路径”判重，不做章节号别名回退，
+        # 否则 /chapters/05-new.md 会被误映射为现存 /chapters/05-old.md。
+        if self._path_exists_in_buffer_view(new_path):
             return f"Error: Target '{new_path}' already exists"
 
         self._buffer.append(BufferOp(
@@ -1090,6 +1172,8 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         file_path = self._resolve_existing_chapter_path(file_path)
         replayed = self._replay(file_path)
         if replayed is None:
+            if not self._path_exists_in_buffer_view(file_path):
+                return f"Error: File '{file_path}' not found"
             return super().read(file_path, offset, limit)
 
         lines = replayed.splitlines()
@@ -1177,6 +1261,11 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                 item["new_string"] = parsed["content"]
                 if parsed["title"]:
                     item["chapter_title"] = parsed["title"]
+                # 读取磁盘旧内容作为 old_string，供前端做真正的 diff
+                # 若文件不存在（真正新建），old_string 保持空字符串，前端走 create 逻辑
+                old_raw = self._read_disk_content(op.path) or ""
+                if old_raw:
+                    item["old_string"] = parse_chapter(old_raw)["content"]
             elif op.op_type == "edit":
                 item["old_string"] = op.old_string
                 item["new_string"] = op.new_string

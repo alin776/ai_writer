@@ -25,6 +25,7 @@ from app.schemas.worldview import (
     # 世界观同步相关
     WorldviewChangesResponse, ExtractChangesRequest, ScanChangesRequest,
     ApplyChangesRequest, ApplyChangesResponse, WorldviewScanProgressResponse,
+    KnowledgeToWorldviewSyncRequest, KnowledgeToWorldviewSyncResponse,
     WorldviewChangeCreateRequest, WorldviewChangeApplyRequest,
     WorldviewChangeRejectRequest, WorldviewChangeResponse,
     WorldviewChangeListResponse
@@ -533,6 +534,49 @@ async def sync_worldview_cards_to_knowledge(
 
     bridge = WorldviewKnowledgeBridge(db)
     result = await bridge.mirror_from_cards(work_id)
+    return {"status": "ok", **result}
+
+
+@router.post(
+    "/works/{work_id}/knowledge/sync-to-worldview",
+    response_model=KnowledgeToWorldviewSyncResponse,
+)
+async def sync_knowledge_to_worldview_cards(
+    work_id: str,
+    request: KnowledgeToWorldviewSyncRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """手动触发：将指定 knowledge 文件同步到世界观卡片。"""
+    work_service = WorkService(db)
+    work = await work_service.get_work_by_id(work_id)
+    if not work:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work not found")
+    if str(work.author_id) != str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    normalized_paths: list[str] = []
+    for raw_path in request.touched_paths or []:
+        rel_path = (raw_path or "").strip().replace("\\", "/")
+        while rel_path.startswith("./"):
+            rel_path = rel_path[2:]
+        rel_path = rel_path.lstrip("/")
+        if rel_path:
+            normalized_paths.append(rel_path)
+
+    if normalized_paths and not WorldviewKnowledgeBridge.has_tracked_path(normalized_paths):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No tracked worldview knowledge file in touched_paths",
+        )
+
+    bridge = WorldviewKnowledgeBridge(db)
+    result = await bridge.sync_cards_from_knowledge(
+        work_id=work_id,
+        touched_paths=normalized_paths or None,
+        sync_mode=request.sync_mode or "upsert",
+        mirror=False,
+    )
     return {"status": "ok", **result}
 
 

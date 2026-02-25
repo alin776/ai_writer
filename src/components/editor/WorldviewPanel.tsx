@@ -17,12 +17,21 @@ interface WorldviewPanelProps {
   targetItemId?: string;
   onTargetItemScrolled?: () => void;
   onWorldDataUpdate?: () => void;  // 世界观数据更新后的回调
+  onBeforeSyncKnowledgeToWorldview?: () => Promise<void> | void;
 }
 
-export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, onTargetItemScrolled, onWorldDataUpdate }: WorldviewPanelProps) {
+export function WorldviewPanel({
+  workId,
+  worldData,
+  initialTab,
+  targetItemId,
+  onTargetItemScrolled,
+  onWorldDataUpdate,
+  onBeforeSyncKnowledgeToWorldview,
+}: WorldviewPanelProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { success: showSuccess, error: showError } = useToast();
+  const { success: showSuccess, info: showInfo, warning: showWarning, error: showError } = useToast();
   const [worldviewTab, setWorldviewTab] = React.useState<'characters' | 'places' | 'settings'>(initialTab || 'characters');
   const [highlightedItemId, setHighlightedItemId] = React.useState<string | undefined>(undefined);
 
@@ -34,12 +43,13 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
   const [syncError, setSyncError] = React.useState<string | null>(null);
   const [syncMode, setSyncMode] = React.useState<'extract' | 'scan'>('scan');
   const [syncingKnowledge, setSyncingKnowledge] = React.useState(false);
+  const [syncingKnowledgeToWorldview, setSyncingKnowledgeToWorldview] = React.useState(false);
   const [syncProgress, setSyncProgress] = React.useState<{
     visible: boolean;
     value: number;
     title: string;
     detail?: string;
-    tone: 'running' | 'success' | 'error';
+    tone: 'running' | 'success' | 'warning' | 'error';
   }>({
     visible: false,
     value: 0,
@@ -168,13 +178,13 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
     return () => clearProgressTimers();
   }, [clearProgressTimers]);
 
-  const startSyncProgress = React.useCallback(() => {
+  const startSyncProgress = React.useCallback((title: string, detail: string) => {
     clearProgressTimers();
     setSyncProgress({
       visible: true,
       value: 8,
-      title: '正在同步到知识库...',
-      detail: '正在生成并写入 knowledge/*.md',
+      title,
+      detail,
       tone: 'running',
     });
     progressTimerRef.current = setInterval(() => {
@@ -186,25 +196,30 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
     }, 280);
   }, [clearProgressTimers]);
 
-  const finishSyncProgress = React.useCallback((ok: boolean, detail: string) => {
+  const finishSyncProgress = React.useCallback((state: 'success' | 'warning' | 'error', detail: string) => {
     clearProgressTimers();
     setSyncProgress({
       visible: true,
-      value: 100,
-      title: ok ? '同步完成' : '同步失败',
+      value: state === 'warning' ? 96 : 100,
+      title:
+        state === 'success'
+          ? '同步完成'
+          : state === 'warning'
+            ? '同步完成（未发现变化）'
+            : '同步失败',
       detail,
-      tone: ok ? 'success' : 'error',
+      tone: state,
     });
     progressCloseTimerRef.current = setTimeout(() => {
       setSyncProgress((prev) => ({ ...prev, visible: false }));
-    }, ok ? 1400 : 2200);
+    }, state === 'error' ? 2200 : 1600);
   }, [clearProgressTimers]);
 
   // 手动将卡片同步到 knowledge/*.md
   const handleSyncCardsToKnowledge = async () => {
     if (syncingKnowledge) return;
     setSyncingKnowledge(true);
-    startSyncProgress();
+    startSyncProgress('正在同步到知识库...', '正在生成并写入 knowledge/*.md');
     try {
       const result = await DataService.syncWorldviewCardsToKnowledge(workId);
       const updatedFiles = result.updatedFiles || [];
@@ -219,14 +234,78 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
       );
       // 触发父层刷新（世界观数据 + 文件树）
       onWorldDataUpdate?.();
-      finishSyncProgress(true, message);
+      finishSyncProgress('success', message);
     } catch (err: any) {
       console.error('卡片同步到知识库失败:', err);
       const errorMsg = err?.message || '请稍后重试';
       showError('同步失败', errorMsg);
-      finishSyncProgress(false, errorMsg);
+      finishSyncProgress('error', errorMsg);
     } finally {
       setSyncingKnowledge(false);
+    }
+  };
+
+  // Sync the currently relevant knowledge file into worldview cards.
+  const handleSyncFileToWorldview = async () => {
+    if (syncingKnowledgeToWorldview) return;
+
+    const targetPath = worldviewTab === 'characters'
+      ? 'knowledge/characters.md'
+      : 'knowledge/worldview.md';
+    const targetLabel = worldviewTab === 'characters' ? '\u4eba\u7269\u6587\u4ef6' : '\u4e16\u754c\u89c2\u6587\u4ef6';
+
+    setSyncingKnowledgeToWorldview(true);
+    startSyncProgress('\u6b63\u5728\u4ece\u5bf9\u5e94\u6587\u4ef6\u540c\u6b65\u5230\u4e16\u754c\u89c2...', `\u6b63\u5728\u89e3\u6790 ${targetPath} \u5e76\u66f4\u65b0\u5361\u7247`);
+    try {
+      await onBeforeSyncKnowledgeToWorldview?.();
+
+      const result = await DataService.syncKnowledgeToWorldviewCards(workId, [targetPath]);
+      const createdCount = (result.created.characters || 0) + (result.created.locations || 0) + (result.created.settings || 0);
+      const updatedCount = (result.updated.characters || 0) + (result.updated.locations || 0) + (result.updated.settings || 0);
+      const deletedCount = (result.deleted.characters || 0) + (result.deleted.locations || 0) + (result.deleted.settings || 0);
+      const changedCount = createdCount + updatedCount + deletedCount;
+
+      const parsedCounts = result.parsedCounts || { characters: 0, locations: 0, settings: 0 };
+      const parsedTotal = (parsedCounts.characters || 0) + (parsedCounts.locations || 0) + (parsedCounts.settings || 0);
+      const missingFiles = result.missingFiles || [];
+      const message = result.hasDbChanges
+        ? `\u65b0\u589e ${createdCount} / \u66f4\u65b0 ${updatedCount} / \u5220\u9664 ${deletedCount}`
+        : `\u5df2\u68c0\u67e5 ${parsedTotal} \u6761\uff0c\u5f53\u524d\u5361\u7247\u5df2\u662f\u6700\u65b0`;
+
+      if (result.hasDbChanges) {
+        showSuccess(
+          `${targetLabel}\u5df2\u540c\u6b65\u5230\u4e16\u754c\u89c2`,
+          `${targetPath} - ${message}`
+        );
+        finishSyncProgress('success', `\u5df2\u5e94\u7528 ${changedCount} \u9879\u53d8\u5316`);
+      } else if (missingFiles.length > 0) {
+        showWarning(
+          `${targetLabel}\u540c\u6b65\u5b8c\u6210\uff0c\u4f46\u7f3a\u5c11\u53ef\u8bfb\u53d6\u6587\u4ef6`,
+          `\u672a\u627e\u5230\uff1a${missingFiles.join(', ')}`
+        );
+        finishSyncProgress('warning', `\u7f3a\u5c11\u6587\u4ef6\uff1a${missingFiles.join(', ')}`);
+      } else if (parsedTotal > 0) {
+        showInfo(
+          `${targetLabel}\u540c\u6b65\u5b8c\u6210\uff08\u65e0\u6570\u636e\u5e93\u53d8\u66f4\uff09`,
+          `${targetPath} - ${message}`
+        );
+        finishSyncProgress('success', message);
+      } else {
+        showWarning(
+          `${targetLabel}\u5df2\u6267\u884c\u540c\u6b65\uff0c\u4f46\u672a\u8bc6\u522b\u5230\u53ef\u89e3\u6790\u6761\u76ee`,
+          `${targetPath} - \u8bf7\u786e\u8ba4\u6587\u4ef6\u5df2\u4fdd\u5b58\uff0c\u5e76\u4f7f\u7528 heading + \u5b57\u6bb5\uff08\u5982\uff1a\u89d2\u8272/\u63cf\u8ff0\uff09\u683c\u5f0f`
+        );
+        finishSyncProgress('warning', '\u672a\u8bc6\u522b\u5230\u53ef\u89e3\u6790\u6761\u76ee');
+      }
+
+      onWorldDataUpdate?.();
+    } catch (err: any) {
+      console.error('\u6587\u4ef6\u540c\u6b65\u5230\u4e16\u754c\u89c2\u5931\u8d25:', err);
+      const errorMsg = err?.message || '\u8bf7\u7a0d\u540e\u91cd\u8bd5';
+      showError('\u540c\u6b65\u5931\u8d25', errorMsg);
+      finishSyncProgress('error', errorMsg);
+    } finally {
+      setSyncingKnowledgeToWorldview(false);
     }
   };
 
@@ -271,11 +350,12 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleOpenSyncDialog}
-              className="h-6 w-6 p-0 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 rounded-md transition-all"
-              title="从章节同步世界观"
+              onClick={handleSyncFileToWorldview}
+              disabled={syncingKnowledgeToWorldview}
+              className="h-6 w-6 p-0 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 rounded-md transition-all disabled:opacity-60"
+              title={worldviewTab === 'characters' ? '从人物文件同步到世界观' : '从世界观文件同步到世界观'}
             >
-              <RefreshCw className="h-3.5 w-3.5" />
+              <RefreshCw className={`h-3.5 w-3.5 ${syncingKnowledgeToWorldview ? 'animate-spin' : ''}`} />
             </Button>
             <Button
               variant="ghost"
@@ -440,9 +520,11 @@ export function WorldviewPanel({ workId, worldData, initialTab, targetItemId, on
             className={`h-1.5 bg-zinc-200 dark:bg-slate-700 ${
               syncProgress.tone === 'error'
                 ? '[&>div]:bg-red-500'
-                : syncProgress.tone === 'success'
-                  ? '[&>div]:bg-emerald-500'
-                  : '[&>div]:bg-blue-500'
+                : syncProgress.tone === 'warning'
+                  ? '[&>div]:bg-amber-500'
+                  : syncProgress.tone === 'success'
+                    ? '[&>div]:bg-emerald-500'
+                    : '[&>div]:bg-blue-500'
             }`}
           />
           {syncProgress.detail && (

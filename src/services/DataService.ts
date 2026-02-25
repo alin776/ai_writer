@@ -1711,6 +1711,31 @@ class DataServiceClass {
   }> {
     return this.adapter.post(`/worldview/works/${workId}/knowledge/sync`, {});
   }
+
+  /**
+   * 手动将知识文件同步到世界观卡片（knowledge -> cards）
+   * @param workId 作品ID
+   * @param touchedPaths 指定同步的 knowledge 文件路径（可选）
+   */
+  async syncKnowledgeToWorldviewCards(
+    workId: string,
+    touchedPaths?: string[],
+  ): Promise<{
+    status: string;
+    created: { characters: number; locations: number; settings: number };
+    updated: { characters: number; locations: number; settings: number };
+    deleted: { characters: number; locations: number; settings: number };
+    mirroredFiles: string[];
+    hasDbChanges: boolean;
+    parsedCounts: { characters: number; locations: number; settings: number };
+    checkedFiles: string[];
+    missingFiles: string[];
+    syncMode: string;
+  }> {
+    return this.adapter.post(`/worldview/works/${workId}/knowledge/sync-to-worldview`, {
+      touched_paths: touchedPaths,
+    });
+  }
 }
 
 // 导出单例
