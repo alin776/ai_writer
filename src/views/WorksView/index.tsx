@@ -1327,7 +1327,7 @@ const WorksView: React.FC = () => {
                       setCoverPreview(previewUrl);
                       setPendingCoverFile(file);
                     }}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-gray-900 dark:focus:border-gray-400 transition-colors cursor-pointer rounded-lg"
                     style={{ fontSize: '12px' }}
                   />
                   {(coverPreview || editFormData.coverImage) && (
@@ -1375,8 +1375,8 @@ const WorksView: React.FC = () => {
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); }}
         >
-          <div className="bg-white dark:bg-gray-800 w-[550px] max-h-[80vh] overflow-hidden rounded-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 overflow-y-auto scrollbar-hide">
+          <div className="bg-white dark:bg-gray-800 w-[550px] overflow-hidden rounded-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
               {/* 标题栏 */}
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base text-gray-900 dark:text-gray-100">{t('works.import.title')}</h2>
@@ -1718,11 +1718,11 @@ const WorksView: React.FC = () => {
                   <h2 className="text-lg text-gray-900 dark:text-gray-100">
                     {publishingWork.isPublished ? '管理发布章节' : '发布到小说广场'}
                   </h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {publishingWork.isPublished
-                      ? '勾选要发布的章节，取消全部勾选将下架作品'
-                      : '选择要发布的章节'}
-                  </p>
+                  {publishingWork.isPublished && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      勾选要发布的章节，取消全部勾选将下架作品
+                    </p>
+                  )}
                 </div>
                 <button onClick={closePublishModal} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg">
                   <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
@@ -1740,17 +1740,15 @@ const WorksView: React.FC = () => {
               </div>
 
               {/* 章节选择说明 */}
+              {publishingWork.isPublished && (
               <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300 rounded-lg">
-                {publishingWork.isPublished ? (
                   <div className="space-y-1">
                     <p>• 勾选新章节可以添加到发布列表</p>
                     <p>• 取消勾选章节将从小说广场移除该章节</p>
                     <p>• 取消全部勾选将下架整个作品</p>
                   </div>
-                ) : (
-                  <p>选择要发布到小说广场的章节。读者将只能看到已发布的章节。</p>
-                )}
               </div>
+              )}
 
               {/* 全选按钮 */}
               <div className="mb-3 flex items-center justify-between">
@@ -1807,7 +1805,7 @@ const WorksView: React.FC = () => {
                 <button
                   onClick={handlePublish}
                   disabled={isPublishing}
-                  className={`flex-1 px-4 py-2.5 transition-colors flex items-center justify-center gap-2 ${
+                  className={`flex-1 px-4 py-2.5 transition-colors flex items-center justify-center gap-2 rounded-lg ${
                     isPublishing
                       ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                       : selectedChapters.size === 0
