@@ -5,9 +5,18 @@
  * 🟢 Read(chapter_1.md)  — running（绿色闪烁圆点）
  * ⚫ Read(chapter_1.md)  — done（灰色圆点）
  * 🔴 Read(chapter_1.md)  — error（红色圆点）
+ *
+ * Task 嵌套展示（Claude Code 风格）：
+ * ● Task("阅读第1-5章，分析每章的爽点分布")
+ *   └ ● Read(chapters/03-蕴养筋脉.md)      ← 实时最新子步骤
+ *       +4 more                              ← 折叠已完成数
+ *
+ * 完成后：
+ * ● Task("阅读第1-5章，分析每章的爽点分布")
+ *   └ Done (7 tool uses)                     ← 完成摘要
  */
 
-import type { StepFlowData } from '@/types/agent';
+import type { StepFlowData, ChildStepData } from '@/types/agent';
 
 // 工具名 → 显示动词映射
 const TOOL_VERB_MAP: Record<string, string> = {
@@ -78,11 +87,72 @@ function formatToolLine(toolName?: string, toolInput?: any, fallbackTitle?: stri
   }
 }
 
+/**
+ * 渲染 Task 子步骤嵌套内容
+ */
+function TaskChildContent({
+  status,
+  childSteps,
+  childToolCount,
+}: {
+  status: StepFlowData['status'];
+  childSteps?: ChildStepData[];
+  childToolCount?: number;
+}) {
+  // 完成态：摘要
+  if (status === 'done') {
+    const count = childToolCount ?? childSteps?.length ?? 0;
+    if (count > 0) {
+      return (
+        <div className="flex items-center gap-2 py-0.5 text-base font-mono text-gray-400 dark:text-gray-500">
+          <span>└</span>
+          <span>Done ({count} tool uses)</span>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  // 运行态：最新子步骤 + 折叠计数
+  if (childSteps && childSteps.length > 0) {
+    const latest = childSteps[childSteps.length - 1];
+    const doneCount = childSteps.filter(c => c.status === 'done').length;
+    const collapsed = latest.status === 'done' ? doneCount - 1 : doneCount;
+
+    return (
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2 py-0.5 text-base font-mono text-gray-400 dark:text-gray-500">
+          <span>└</span>
+          <span className="truncate">
+            {formatToolLine(latest.toolName, latest.toolInput, latest.title)}
+          </span>
+        </div>
+        {collapsed > 0 && (
+          <div className="ml-6 text-base font-mono text-gray-400 dark:text-gray-500">
+            +{collapsed} more tool uses
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}
+
 interface ToolLineProps extends StepFlowData {
   children?: React.ReactNode;
 }
 
-export function ToolLine({ status, toolName, toolInput, title, children }: ToolLineProps) {
+export function ToolLine({
+  status,
+  toolName,
+  toolInput,
+  title,
+  isTask,
+  childSteps,
+  childToolCount,
+  children,
+}: ToolLineProps) {
   const displayText = formatToolLine(toolName, toolInput, title);
 
   // write_todos 不单独渲染为 ToolLine（由 TodoBlock 接管）
@@ -90,8 +160,11 @@ export function ToolLine({ status, toolName, toolInput, title, children }: ToolL
     return children ? <>{children}</> : null;
   }
 
+  const isTaskStep = isTask || toolName === 'task';
+
   return (
     <div className="flex flex-col">
+      {/* 主行 */}
       <div className="flex items-center gap-2 py-0.5 text-base font-mono">
         {/* 状态圆点 */}
         <span
@@ -108,6 +181,16 @@ export function ToolLine({ status, toolName, toolInput, title, children }: ToolL
           {displayText}
         </span>
       </div>
+      {/* 子步骤嵌套区（仅 task 步骤） */}
+      {isTaskStep && (
+        <div className="ml-4">
+          <TaskChildContent
+            status={status}
+            childSteps={childSteps}
+            childToolCount={childToolCount}
+          />
+        </div>
+      )}
       {/* 内嵌的 RevisionCard 等子元素 */}
       {children && <div className="ml-4">{children}</div>}
     </div>

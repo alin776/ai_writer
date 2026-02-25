@@ -6,7 +6,7 @@ import { DataService } from '@/services/DataService';
 import { useConversationPersistence } from './useConversationPersistence';
 import { getGlobalSessionManager } from '@/contexts/SessionContext';
 import type { SessionState } from './SessionStateManager';
-import type { AgentChatRequest, AgentChatResponse, FlowItem, StepFlowData, RevisionFlowData, RevisionStatus, TodoFlowData } from '@/types/agent';
+import type { AgentChatRequest, AgentChatResponse, FlowItem, StepFlowData, ChildStepData, RevisionFlowData, RevisionStatus, TodoFlowData } from '@/types/agent';
 import TypewriterWorker from '@/workers/typewriterWorker?worker';
 
 // 清理任务描述中的 UUID（兜底过滤）
@@ -603,6 +603,26 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 case 'step_start': {
                   stepStartTimes.set(event.stepId, Date.now());  // v6.7: 记录开始时间
 
+                  // 子步骤：嵌入父 task 的 childSteps，不创建独立 FlowItem
+                  if (event.parentStepId) {
+                    const parentId = event.parentStepId;
+                    currentFlowItems = currentFlowItems.map(item => {
+                      if (item.type === 'step' && (item.data as StepFlowData).stepId === parentId) {
+                        const sd = item.data as StepFlowData;
+                        const child: ChildStepData = {
+                          stepId: event.stepId,
+                          title: cleanTaskDescription(event.title),
+                          status: 'running',
+                          toolName: event.toolName,
+                          toolInput: event.toolInput,
+                        };
+                        return { ...item, data: { ...sd, childSteps: [...(sd.childSteps || []), child] } };
+                      }
+                      return item;
+                    });
+                    break;
+                  }
+
                   // V2: write_todos 特殊处理 — 生成 todo FlowItem
                   if (event.toolName === 'write_todos' && event.toolInput?.todos) {
                     const todoData: TodoFlowData = {
@@ -631,6 +651,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     status: 'running',
                     toolName: event.toolName,
                     toolInput: event.toolInput,
+                    isTask: event.isTask || false,
+                    childSteps: event.isTask ? [] : undefined,
                   };
                   const item: FlowItem = {
                     id: `flow-${Date.now()}-step-${event.stepId}`,
@@ -653,6 +675,22 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   // 保存事件数据，供延迟回调使用
                   const eventDescription = event.description;
                   const eventToolCall = event.toolCall;
+                  const eventChildToolCount = event.childToolCount;
+
+                  // 子步骤完成：更新父 task 的 childSteps 状态
+                  if (event.parentStepId) {
+                    currentFlowItems = currentFlowItems.map(item => {
+                      if (item.type === 'step' && (item.data as StepFlowData).stepId === event.parentStepId) {
+                        const sd = item.data as StepFlowData;
+                        const updatedChildren = (sd.childSteps || []).map(c =>
+                          c.stepId === stepId ? { ...c, status: 'done' as const } : c
+                        );
+                        return { ...item, data: { ...sd, childSteps: updatedChildren } };
+                      }
+                      return item;
+                    });
+                    break;
+                  }
 
                   if (delayMs > 0) {
                     // 延迟更新：使用 setTimeout，在回调中从消息获取最新 flowItems
@@ -673,7 +711,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                           const finalDescription = cleanTaskDescription(eventDescription) || stepData.description;
                           return {
                             ...item,
-                            data: { ...stepData, status: 'done' as const, description: finalDescription, toolCall: eventToolCall }
+                            data: { ...stepData, status: 'done' as const, description: finalDescription, toolCall: eventToolCall, childToolCount: eventChildToolCount ?? stepData.childToolCount }
                           };
                         }
                         return item;
@@ -697,7 +735,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                         const finalDescription = cleanTaskDescription(eventDescription) || stepData.description;
                         return {
                           ...item,
-                          data: { ...stepData, status: 'done' as const, description: finalDescription, toolCall: eventToolCall }
+                          data: { ...stepData, status: 'done' as const, description: finalDescription, toolCall: eventToolCall, childToolCount: eventChildToolCount ?? stepData.childToolCount }
                         };
                       }
                       return item;
@@ -1081,6 +1119,25 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     });
                   }
                 }
+
+                // 子步骤清理：将所有 task 步骤内 running 的子步骤标记为 done
+                currentFlowItems = currentFlowItems.map(item => {
+                  if (item.type === 'step') {
+                    const sd = item.data as StepFlowData;
+                    if (sd.childSteps && sd.childSteps.some(c => c.status === 'running')) {
+                      return {
+                        ...item,
+                        data: {
+                          ...sd,
+                          childSteps: sd.childSteps.map(c =>
+                            c.status === 'running' ? { ...c, status: 'done' as const } : c
+                          ),
+                        },
+                      };
+                    }
+                  }
+                  return item;
+                });
 
                 // v6.8: 同步更新 flowItems 中 output 类型项的 content
                 const finalFlowItems = currentFlowItems.map(item => {

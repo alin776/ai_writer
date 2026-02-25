@@ -380,7 +380,7 @@ class AgentApiService {
               callbacks.onFlowEvent?.({ type: 'text', data: data.data, timestamp: data.timestamp });
               break;
             case 'step_start':
-              callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, description: data.description, toolName: data.tool_name, toolInput: data.tool_input, status: data.status, timestamp: data.timestamp });
+              callbacks.onFlowEvent?.({ type: 'step_start', stepId: data.step_id, title: data.title, description: data.description, toolName: data.tool_name, toolInput: data.tool_input, status: data.status, timestamp: data.timestamp, parentStepId: data.parent_step_id, isTask: data.is_task });
               break;
             case 'skill_loaded':
               callbacks.onFlowEvent?.({ type: 'skill_loaded', skillName: data.skill_name, timestamp: data.timestamp });
@@ -389,7 +389,7 @@ class AgentApiService {
               callbacks.onFlowEvent?.({ type: 'skill_switched', skillName: data.skill_name, timestamp: data.timestamp });
               break;
             case 'step_complete':
-              callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolName: data.tool_name, toolCall: data.tool_call, status: data.status, timestamp: data.timestamp });
+              callbacks.onFlowEvent?.({ type: 'step_complete', stepId: data.step_id, description: data.description, toolName: data.tool_name, toolCall: data.tool_call, status: data.status, timestamp: data.timestamp, parentStepId: data.parent_step_id, isTask: data.is_task, childToolCount: data.child_tool_count });
               break;
             case 'output_ready':
               callbacks.onFlowEvent?.({ type: 'output_ready', title: data.title, content: data.content, intro: data.intro, introHighlight: data.intro_highlight, isApplicable: data.is_applicable, timestamp: data.timestamp });

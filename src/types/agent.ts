@@ -367,6 +367,20 @@ export interface StepFlowData {
   };
   revision?: RevisionFlowData;  // 内嵌的修订胶囊（v7.3）
   revisionItemId?: string;      // 关联的 FlowItem ID（用于回调）
+  // ── 子 Agent 嵌套字段 ──
+  parentStepId?: number;           // 非空 = 这是子步骤
+  isTask?: boolean;                // true = task 工具调用
+  childSteps?: ChildStepData[];    // 子步骤列表（仅 task 步骤有）
+  childToolCount?: number;         // 后端返回的子工具总数
+}
+
+/** 子步骤数据（轻量，只保留展示所需字段） */
+export interface ChildStepData {
+  stepId: number;
+  title: string;
+  status: 'running' | 'done';
+  toolName?: string;
+  toolInput?: any;
 }
 
 /**

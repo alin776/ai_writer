@@ -1022,35 +1022,43 @@ async def agent_v2_chat_stream(
                         yield f"data: {json.dumps(translated, ensure_ascii=False)}\n\n"
 
                     # 检测 Skill 切换：Agent 读取其他 SKILL.md 时发送 skill_switched 事件
+                    # 子 Agent 读取 SKILL.md 不触发 skill_switched
                     kind = event.get("event", "")
+                    parent_ids = event.get("parent_ids", [])
+                    is_child_event = counter.find_parent_task(parent_ids) is not None
+
                     if kind == "on_tool_start" and event.get("name") == "read_file":
-                        _rf_path = str((event.get("data") or {}).get("input", {}).get("file_path", ""))
-                        if "SKILL.md" in _rf_path:
-                            _sk_m = re.search(r'/skills/[^/]+/([^/]+)/SKILL\.md', _rf_path)
-                            if _sk_m:
-                                _switched = _sk_m.group(1)
-                                if _switched not in emitted_skills:
-                                    emitted_skills.add(_switched)
-                                    yield f"data: {json.dumps({'type': 'skill_switched', 'skill_name': _switched, 'timestamp': get_utc_now().isoformat()}, ensure_ascii=False)}\n\n"
+                        if not is_child_event:  # 子 Agent 读 SKILL.md 不触发
+                            _rf_path = str((event.get("data") or {}).get("input", {}).get("file_path", ""))
+                            if "SKILL.md" in _rf_path:
+                                _sk_m = re.search(r'/skills/[^/]+/([^/]+)/SKILL\.md', _rf_path)
+                                if _sk_m:
+                                    _switched = _sk_m.group(1)
+                                    if _switched not in emitted_skills:
+                                        emitted_skills.add(_switched)
+                                        yield f"data: {json.dumps({'type': 'skill_switched', 'skill_name': _switched, 'timestamp': get_utc_now().isoformat()}, ensure_ascii=False)}\n\n"
                     if kind == "on_tool_end" and len(backend._buffer) > _last_buffer_len:
-                        # 从 translated step_complete 事件提取精确 step_id（防嵌套调用错位）
-                        _step_id = (translated or {}).get("step_id", counter.current)
-                        # 逐条发送新增的 buffer 操作
-                        while _last_buffer_len < len(backend._buffer):
-                            op_dict = _buffer_op_to_change(backend._buffer[_last_buffer_len], _last_buffer_len)
-                            _last_buffer_len += 1
-                            # 补充 chapter_id
-                            m = re.search(r'chapters/(\d+)-[^/]+\.md', op_dict["path"])
-                            if m:
-                                op_dict["chapter_id"] = f"fs-{int(m.group(1))}"
-                            else:
-                                clean_path = op_dict["path"].lstrip("/")
-                                op_dict["chapter_id"] = f"doc:{clean_path}"
-                                if not op_dict.get("chapter_title"):
-                                    op_dict["chapter_title"] = PurePosixPath(op_dict["path"]).stem
-                            rev = make_revision_event(op_dict)
-                            rev["step_id"] = _step_id
-                            yield f"data: {json.dumps(rev, ensure_ascii=False)}\n\n"
+                        if not is_child_event:  # 子 Agent 写操作静默
+                            # 从 translated step_complete 事件提取精确 step_id（防嵌套调用错位）
+                            _step_id = (translated or {}).get("step_id", counter.current)
+                            # 逐条发送新增的 buffer 操作
+                            while _last_buffer_len < len(backend._buffer):
+                                op_dict = _buffer_op_to_change(backend._buffer[_last_buffer_len], _last_buffer_len)
+                                _last_buffer_len += 1
+                                # 补充 chapter_id
+                                m = re.search(r'chapters/(\d+)-[^/]+\.md', op_dict["path"])
+                                if m:
+                                    op_dict["chapter_id"] = f"fs-{int(m.group(1))}"
+                                else:
+                                    clean_path = op_dict["path"].lstrip("/")
+                                    op_dict["chapter_id"] = f"doc:{clean_path}"
+                                    if not op_dict.get("chapter_title"):
+                                        op_dict["chapter_title"] = PurePosixPath(op_dict["path"]).stem
+                                rev = make_revision_event(op_dict)
+                                rev["step_id"] = _step_id
+                                yield f"data: {json.dumps(rev, ensure_ascii=False)}\n\n"
+                        else:
+                            _last_buffer_len = len(backend._buffer)  # 静默推进指针
 
                 # Agent 完成：获取改动列表（用于 completion 统计和 pending 缓存）
                 changes = backend.get_changes()

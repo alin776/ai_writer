@@ -42,6 +42,8 @@ class StepCounter:
     def __init__(self):
         self._counter = 0
         self._run_to_step: dict[str, int] = {}  # run_id → step_id 映射
+        # 子 Agent 并行追踪（支持多 Task 并行）
+        self._active_tasks: dict[str, dict] = {}  # run_id → {step_id, child_count}
 
     def next_id(self, run_id: str | None = None) -> int:
         self._counter += 1
@@ -58,6 +60,25 @@ class StepCounter:
     @property
     def current(self) -> int:
         return self._counter
+
+    # ── 子 Agent 并行追踪 ──
+
+    def register_task(self, step_id: int, run_id: str) -> None:
+        """注册一个 task 工具执行。"""
+        self._active_tasks[run_id] = {"step_id": step_id, "child_count": 0}
+
+    def unregister_task(self, run_id: str) -> dict | None:
+        """注销 task 并返回其信息（含 child_count）。"""
+        return self._active_tasks.pop(run_id, None)
+
+    def find_parent_task(self, parent_ids: list[str]) -> dict | None:
+        """通过事件的 parent_ids 查找所属的活跃 Task。
+        parent_ids 从根到直接父级排列，反向遍历优先匹配最近的 Task。
+        """
+        for pid in reversed(parent_ids):
+            if pid in self._active_tasks:
+                return self._active_tasks[pid]
+        return None
 
 
 def _now() -> str:
@@ -78,9 +99,14 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
     name = event.get("name", "")
     data = event.get("data", {})
     run_id = event.get("run_id", "")
+    parent_ids = event.get("parent_ids", [])
 
     # ─── LLM 逐 token 流式输出 ───
     if kind == "on_chat_model_stream":
+        # 子 Agent 的 LLM 文本流：抑制（不发送到前端）
+        if counter.find_parent_task(parent_ids):
+            return None
+
         chunk = data.get("chunk")
         if chunk and hasattr(chunk, "content") and chunk.content:
             raw = chunk.content
@@ -110,6 +136,35 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
         # 生成友好的工具描述
         desc = _tool_description(tool_name, tool_input)
 
+        # task 工具：注册到活跃 Task 字典
+        if tool_name == "task":
+            counter.register_task(step_id, run_id)
+            return {
+                "type": "step_start",
+                "step_id": step_id,
+                "title": desc,
+                "tool_name": tool_name,
+                "tool_input": tool_input,
+                "status": "running",
+                "timestamp": _now(),
+                "is_task": True,
+            }
+
+        # 子 Agent 内的工具调用：通过 parent_ids 精确匹配父 Task
+        parent_task = counter.find_parent_task(parent_ids)
+        if parent_task:
+            parent_task["child_count"] += 1
+            return {
+                "type": "step_start",
+                "step_id": step_id,
+                "title": desc,
+                "tool_name": tool_name,
+                "tool_input": tool_input,
+                "status": "running",
+                "timestamp": _now(),
+                "parent_step_id": parent_task["step_id"],
+            }
+
         return {
             "type": "step_start",
             "step_id": step_id,
@@ -125,9 +180,39 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
         tool_name = name
         icon = _TOOL_ICONS.get(tool_name, "Wrench")
 
+        # task 工具结束：从活跃 Task 字典注销，附加子工具统计
+        if tool_name == "task":
+            task_info = counter.unregister_task(run_id)
+            child_count = task_info["child_count"] if task_info else 0
+            return {
+                "type": "step_complete",
+                "step_id": counter.get_step_id(run_id),
+                "description": f"{tool_name} 完成",
+                "tool_name": tool_name,
+                "tool_call": {"icon": icon, "name": tool_name},
+                "status": "done",
+                "timestamp": _now(),
+                "is_task": True,
+                "child_tool_count": child_count,
+            }
+
+        # 子 Agent 内的工具结束：通过 parent_ids 精确匹配父 Task
+        parent_task = counter.find_parent_task(parent_ids)
+        if parent_task:
+            return {
+                "type": "step_complete",
+                "step_id": counter.get_step_id(run_id),
+                "description": f"{tool_name} 完成",
+                "tool_name": tool_name,
+                "tool_call": {"icon": icon, "name": tool_name},
+                "status": "done",
+                "timestamp": _now(),
+                "parent_step_id": parent_task["step_id"],
+            }
+
         return {
             "type": "step_complete",
-            "step_id": counter.get_step_id(run_id),  # 通过 run_id 找回正确的 step_id
+            "step_id": counter.get_step_id(run_id),
             "description": f"{tool_name} 完成",
             "tool_name": tool_name,
             "tool_call": {"icon": icon, "name": tool_name},
