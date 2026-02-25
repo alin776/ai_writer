@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User
@@ -28,6 +29,7 @@ from app.services.agent.deep_agent.frontmatter import (
     build_chapter, chapter_filename, parse_chapter,
 )
 from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
+from app.services.knowledge_sync_scheduler import request_worldview_sync
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -117,15 +119,16 @@ async def _sync_worldview_cards_from_knowledge(
     work_dir: Path,
     touched_paths: list[str],
 ) -> None:
-    """Best-effort: when tracked knowledge files change, upsert worldview cards."""
+    """Best-effort: debounced knowledge->worldview sync."""
     if not WorldviewKnowledgeBridge.has_tracked_path(touched_paths):
         return
     try:
-        bridge = WorldviewKnowledgeBridge(db)
-        await bridge.sync_cards_from_knowledge(
+        await request_worldview_sync(
+            db=db,
             work_id=work_id,
-            touched_paths=touched_paths,
             work_dir=work_dir,
+            touched_paths=touched_paths,
+            sync_mode=settings.WORLDVIEW_KNOWLEDGE_SYNC_MODE,
         )
     except Exception as exc:
         logger.warning("[chapters_fs] knowledge->worldview sync skipped: %s", exc)

@@ -148,6 +148,7 @@ export function ToolLine({
   toolName,
   toolInput,
   title,
+  description,
   isTask,
   childSteps,
   childToolCount,
@@ -181,6 +182,12 @@ export function ToolLine({
           {displayText}
         </span>
       </div>
+      {/* 错误描述（工具失败时显示） */}
+      {status === 'error' && description && (
+        <div className="ml-4 text-xs text-red-500 dark:text-red-400 break-all">
+          {description}
+        </div>
+      )}
       {/* 子步骤嵌套区（仅 task 步骤） */}
       {isTaskStep && (
         <div className="ml-4">
