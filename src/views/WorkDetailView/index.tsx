@@ -122,8 +122,10 @@ const WorkDetailView: React.FC = () => {
   const editorChapterIdRef = React.useRef<string | undefined>(undefined);
   // diff 预览标志：RevisionCard 跳转时设为 true，跳过自动保存避免覆写未采纳内容
   const diffPreviewRef = React.useRef(false);
+  // Track in-flight editor save so worldview sync can wait for disk flush.
+  const pendingEditorSaveRef = React.useRef<Promise<void> | null>(null);
 
-  // 世界观数据
+  // Worldview data
   const [worldData, setWorldData] = useState<WorldData>({
     characters: [],
     locations: [],
@@ -178,6 +180,17 @@ const WorkDetailView: React.FC = () => {
     void refreshWorldData();
     void refreshFileTree();
   }, [refreshWorldData, refreshFileTree]);
+
+  const waitForPendingEditorSave = useCallback(async () => {
+    const pending = pendingEditorSaveRef.current;
+    if (!pending) return;
+    try {
+      await pending;
+    } catch (error) {
+      console.warn('[WorkDetailView] Failed while waiting for editor save; continue sync:', error);
+    }
+  }, []);
+
   const hasWorldviewCards = worldData.characters.length + worldData.locations.length + worldData.settings.length > 0;
 
   useEffect(() => {
@@ -1063,61 +1076,72 @@ const WorkDetailView: React.FC = () => {
    */
   const handleEditorSave = useCallback(async (content: string, json: any) => {
     if (!currentChapterId || !workId) {
-      console.warn('[WorkDetailView] 保存失败：没有选中的章节');
+      console.warn('[WorkDetailView] Save skipped: no active chapter');
       return;
     }
 
-    // diff 预览期间跳过自动保存，避免覆写未采纳的 Agent 修改
+    // Skip autosave while previewing diff to avoid overwriting unapplied agent edits.
     if (diffPreviewRef.current) {
       return;
     }
 
     const chapterIdToSave = editorChapterIdRef.current;
     if (!chapterIdToSave || chapterIdToSave !== currentChapterId) {
-      console.warn('[WorkDetailView] 保存失败：章节ID不匹配');
+      console.warn('[WorkDetailView] Save skipped: chapter id mismatch');
       return;
     }
 
-    try {
-      // doc: 文件 — 直接写入
-      if (isDocId(currentChapterId)) {
-        const path = docIdToPath(currentChapterId);
-        await docsFs.write(workId, path, content);
-        console.log('[WorkDetailView] 保存文档:', path);
-        return;
+    const saveTask = (async () => {
+      try {
+        // doc: file - write directly.
+        if (isDocId(currentChapterId)) {
+          const path = docIdToPath(currentChapterId);
+          await docsFs.write(workId, path, content);
+          console.log('[WorkDetailView] Saved document:', path);
+          return;
+        }
+
+        const num = chapterIdToNum(currentChapterId);
+        if (num === null) return;
+
+        // Optimistic local update.
+        setChapters((prev) =>
+          prev.map((c) =>
+            c.id === currentChapterId
+              ? { ...c, content, updatedAt: new Date().toISOString() }
+              : c
+          )
+        );
+
+        // Persist to FS API.
+        const saved = await chaptersFs.update(workId, num, { content });
+        // Apply server-reported word count.
+        setChapters((prev) =>
+          prev.map((c) =>
+            c.id === currentChapterId
+              ? { ...c, wordCount: saved.wordCount }
+              : c
+          )
+        );
+
+        console.log('[WorkDetailView] Saved chapter:', {
+          chapterId: currentChapterId,
+          num,
+          contentPreview: content.substring(0, 50) + '...',
+        });
+      } catch (error) {
+        showToast('error', t('workDetail.toast.saveFailed'));
+        console.error('Failed to save chapter:', error);
       }
+    })();
 
-      const num = chapterIdToNum(currentChapterId);
-      if (num === null) return;
-
-      // 乐观更新本地状态
-      setChapters((prev) =>
-        prev.map((c) =>
-          c.id === currentChapterId
-            ? { ...c, content, updatedAt: new Date().toISOString() }
-            : c
-        )
-      );
-
-      // 异步保存到 FS API
-      const saved = await chaptersFs.update(workId, num, { content });
-      // 用后端返回的数据更新字数
-      setChapters((prev) =>
-        prev.map((c) =>
-          c.id === currentChapterId
-            ? { ...c, wordCount: saved.wordCount }
-            : c
-        )
-      );
-
-      console.log('[WorkDetailView] 保存章节:', {
-        chapterId: currentChapterId,
-        num,
-        contentPreview: content.substring(0, 50) + '...',
-      });
-    } catch (error) {
-      showToast('error', t('workDetail.toast.saveFailed'));
-      console.error('Failed to save chapter:', error);
+    pendingEditorSaveRef.current = saveTask;
+    try {
+      await saveTask;
+    } finally {
+      if (pendingEditorSaveRef.current === saveTask) {
+        pendingEditorSaveRef.current = null;
+      }
     }
   }, [currentChapterId, workId, showToast]);
 
@@ -1687,13 +1711,27 @@ const WorkDetailView: React.FC = () => {
 
         const activeChapterId = editorChapterIdRef.current || currentChapterId;
         if (activeChapterId) {
-          try {
-            const num = chapterIdToNum(activeChapterId);
-            if (num === null) return;
-            const full = await chaptersFs.get(workId, num);
-            setCurrentChapterContent(full.content || '');
-          } catch {
-            // 章节可能已被删除
+          if (isDocId(activeChapterId)) {
+            // doc: 文件（知识库/世界观文件）刷新
+            try {
+              const path = docIdToPath(activeChapterId);
+              const file = await docsFs.read(workId, path);
+              setCurrentChapterContent(file.content);
+            } catch { /* 文件可能已被删除 */ }
+            // 刷新右侧世界观卡片数据
+            try {
+              await refreshWorldData();
+            } catch { /* ignore */ }
+          } else {
+            // fs: 章节文件刷新
+            try {
+              const num = chapterIdToNum(activeChapterId);
+              if (num === null) return;
+              const full = await chaptersFs.get(workId, num);
+              setCurrentChapterContent(full.content || '');
+            } catch {
+              // 章节可能已被删除
+            }
           }
         }
 
@@ -1738,49 +1776,172 @@ const WorkDetailView: React.FC = () => {
         path: revisionPath,
       } = customEvent.detail || {};
       if (targetWorkId && targetWorkId !== workId) return;
+      const normalizeTargetFileId = (value?: string): string | undefined => {
+        if (typeof value !== 'string') return undefined;
+        const trimmed = value.trim();
+        if (!trimmed) return undefined;
+        if (trimmed.startsWith('doc:')) {
+          const normalizedPath = trimmed.slice(4).replace(/\\/g, '/').replace(/^\/+/, '');
+          return `doc:${normalizedPath}`;
+        }
+        if (trimmed.startsWith('fs-')) {
+          const num = parseInt(trimmed.slice(3), 10);
+          return Number.isNaN(num) ? trimmed : `fs-${num}`;
+        }
+        return trimmed;
+      };
+      const normalizedRevisionPath = typeof revisionPath === 'string'
+        ? revisionPath.replace(/\\/g, '/').replace(/^\/+/, '')
+        : '';
+      const inferredTargetChapterId = (() => {
+        if (!normalizedRevisionPath) return undefined;
+        const chapterMatch = normalizedRevisionPath.match(/^chapters\/(\d+)-[^/]+\.md$/i);
+        if (chapterMatch) return `fs-${parseInt(chapterMatch[1], 10)}`;
+        return `doc:${normalizedRevisionPath}`;
+      })();
+      const resolvedTargetChapterId = normalizeTargetFileId(targetChapterId) || inferredTargetChapterId;
+      const normalizedCurrentChapterId = normalizeTargetFileId(currentChapterId) || currentChapterId;
       const previewBaseContent = (
         typeof oldString === 'string' && oldString.length > 0 ? oldString : undefined
       ) ?? (typeof originalContent === 'string' ? originalContent : '');
+      const normalizedDiffPairs = Array.isArray(diffPairs)
+        ? diffPairs
+            .filter((pair) => typeof pair?.newString === 'string' && pair.newString.length > 0)
+            .map((pair) => ({
+              oldString: typeof pair.oldString === 'string' ? pair.oldString : '',
+              newString: pair.newString as string,
+            }))
+        : [];
+      const anchoredDiffPairs = normalizedDiffPairs.filter((pair) => pair.oldString.length > 0);
 
       // 标记进入 diff 预览模式，跳过自动保存
       diffPreviewRef.current = true;
 
-      // doc: 文件 — 打开文档并显示 diff
-      if (targetChapterId?.startsWith('doc:')) {
-        if (isEditorCollapsed) setIsEditorCollapsed(false);
-        const path = docIdToPath(targetChapterId);
-        const fileName = path.split('/').pop() || path;
-        openEditorTab({ id: targetChapterId, title: fileName, order: 0 });
-        setCurrentChapterId(targetChapterId);
+      const hasDirectNewString = typeof newString === 'string' && newString.length > 0;
+      const hasDirectOldString = typeof oldString === 'string' && oldString.length > 0;
+      const canUseDirectDiff = hasDirectNewString && (hasDirectOldString || revisionType === 'create');
 
-        const dispatchDiff = () => {
-          if (!modifiedContent) return;
+      const hasFallbackModified = typeof modifiedContent === 'string' && modifiedContent.length > 0;
+      const hasFallbackOriginal =
+        typeof originalContent === 'string' && (originalContent.length > 0 || revisionType === 'create');
+      const canUseFallbackDiff = hasFallbackModified && hasFallbackOriginal;
+
+      const dispatchBestEffortDiff = (baseText: string): boolean => {
+        if (anchoredDiffPairs.length > 0) {
+          // 顺序回放：后续 oldString 可能只在前一个 diff 应用后才出现
+          const replayablePairs: Array<{ oldString: string; newString: string }> = [];
+          let simulatedText = baseText;
+          for (const pair of anchoredDiffPairs) {
+            if (!pair.oldString || !simulatedText.includes(pair.oldString)) continue;
+            replayablePairs.push(pair);
+            simulatedText = simulatedText.replace(pair.oldString, pair.newString);
+          }
+
+          if (replayablePairs.length > 0) {
+            replayablePairs.forEach((pair, index) => {
+              window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+                detail: {
+                  oldString: pair.oldString,
+                  newString: pair.newString,
+                  append: index > 0,
+                }
+              }));
+            });
+            return true;
+          }
+        }
+
+        if (canUseDirectDiff) {
+          const directOld = oldString ?? '';
+          const canDispatchDirect = !hasDirectOldString || (baseText.length > 0 && baseText.includes(directOld));
+          if (canDispatchDirect) {
+            window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+              detail: { oldString: directOld, newString: newString as string }
+            }));
+            return true;
+          }
+        }
+
+        if (canUseFallbackDiff) {
+          const fallbackOld = originalContent ?? '';
+          const hasFallbackOld = fallbackOld.length > 0;
+          const canDispatchFallback = !hasFallbackOld || (baseText.length > 0 && baseText.includes(fallbackOld));
+          if (canDispatchFallback) {
+            window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+              detail: { oldString: fallbackOld, newString: modifiedContent as string }
+            }));
+            return true;
+          }
+        }
+
+        return false;
+      };
+
+      // doc: 文件 — 打开文档并显示 diff
+      if (resolvedTargetChapterId?.startsWith('doc:')) {
+        if (isEditorCollapsed) setIsEditorCollapsed(false);
+        const normalizeDocPath = (value: string) => value.replace(/\\/g, '/').replace(/^\/+/, '');
+        const pathFromDocId = normalizeDocPath(docIdToPath(resolvedTargetChapterId));
+        const pathFromRevision = normalizedRevisionPath && !normalizedRevisionPath.startsWith('chapters/')
+          ? normalizeDocPath(normalizedRevisionPath)
+          : '';
+        const docPathCandidates = Array.from(
+          new Set([pathFromDocId, pathFromRevision].filter((value): value is string => Boolean(value)))
+        );
+        if (docPathCandidates.length === 0) {
+          setCurrentChapterContent(previewBaseContent);
+          return;
+        }
+
+        const openDocTab = (docPath: string) => {
+          const docId = `doc:${docPath}`;
+          const fileName = docPath.split('/').pop() || docPath;
+          openEditorTab({ id: docId, title: fileName, order: 0 });
+          setCurrentChapterId(docId);
+          return docId;
+        };
+
+        let activeDocPath = docPathCandidates[0];
+        openDocTab(activeDocPath);
+
+        const dispatchDiff = (baseText: string) => {
+          if (!modifiedContent && anchoredDiffPairs.length === 0 && !canUseDirectDiff) return;
           // doc: 文件需要更长延迟：React 状态更新 + EditorWrapper key 重挂载 + Milkdown 初始化
           setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('editor-inline-diff', {
-              detail: oldString && newString
-                ? { oldString, newString }
-                : { oldString: originalContent || '', newString: modifiedContent }
-            }));
+            dispatchBestEffortDiff(baseText);
+            // 注意：定位失败时不截断编辑器内容，避免只显示一小块
           }, 600);
         };
 
-        // edit_file: 从磁盘读取完整文件，diff 插件在其中定位 oldString 标红
-        // create/write_file: 无磁盘文件，直接用 modifiedContent
-        if (oldString && newString && workId) {
-          setCurrentChapterContent(''); // 先清空，避免新编辑器用旧内容初始化
-          docsFs.read(workId, path).then(file => {
-            setCurrentChapterContent(file.content);
-            dispatchDiff();
-          }).catch((err) => {
-            console.warn('[handleJumpRevision] docsFs.read failed:', err);
-            setCurrentChapterContent(previewBaseContent);
-            dispatchDiff();
-          });
-        } else {
-          setCurrentChapterContent(previewBaseContent);
-          dispatchDiff();
+        const applyPreview = (baseText: string) => {
+          setCurrentChapterContent(baseText);
+          dispatchDiff(baseText);
+        };
+
+        if (!workId) {
+          applyPreview(previewBaseContent);
+          return;
         }
+
+        setCurrentChapterContent(''); // 先清空，避免新编辑器用旧内容初始化
+        void (async () => {
+          for (const candidatePath of docPathCandidates) {
+            try {
+              const file = await docsFs.read(workId, candidatePath);
+              if (candidatePath !== activeDocPath) {
+                activeDocPath = candidatePath;
+                openDocTab(activeDocPath);
+              }
+              applyPreview(file.content || '');
+              return;
+            } catch {
+              // try next candidate
+            }
+          }
+          console.warn('[handleJumpRevision] docsFs.read failed for all candidates:', docPathCandidates);
+          setCurrentChapterContent(previewBaseContent);
+          dispatchDiff(previewBaseContent);
+        })();
         return;
       }
 
@@ -1790,22 +1951,22 @@ const WorkDetailView: React.FC = () => {
 
       // 切换章节（如果不同）
       let needDelay = false;
-      if (targetChapterId && targetChapterId !== currentChapterId) {
-        const chapterExists = chapters.find((c) => c.id === targetChapterId);
+      if (resolvedTargetChapterId && resolvedTargetChapterId !== normalizedCurrentChapterId) {
+        const chapterExists = chapters.find((c) => c.id === resolvedTargetChapterId);
         if (chapterExists) {
           // 章节在磁盘上 → 正常切换
-          handleChapterSelect(targetChapterId);
+          handleChapterSelect(resolvedTargetChapterId);
           needDelay = true;
         } else {
           // 章节不在磁盘上（缓冲区新建）→ 添加虚拟章节 + 创建标签页
-          const num = chapterIdToNum(targetChapterId);
+          const num = chapterIdToNum(resolvedTargetChapterId);
           const title = targetChapterTitle || `第${num ?? '?'}章`;
           // 添加到 chapters 列表（防止 useEditorTabs 清理标签）
           setChapters(prev => {
-            if (prev.find(c => c.id === targetChapterId)) return prev;
+            if (prev.find(c => c.id === resolvedTargetChapterId)) return prev;
             const now = new Date().toISOString();
             return [...prev, {
-              id: targetChapterId,
+              id: resolvedTargetChapterId,
               workId: workId || '',
               title,
               content: '',
@@ -1822,76 +1983,41 @@ const WorkDetailView: React.FC = () => {
               _diffModified: modifiedContent || '',
             } as any];
           });
-          openEditorTab({ id: targetChapterId, title, order: num ?? 0 });
+          openEditorTab({ id: resolvedTargetChapterId, title, order: num ?? 0 });
           setCurrentChapterContent(previewBaseContent);
-          setCurrentChapterId(targetChapterId);
+          setCurrentChapterId(resolvedTargetChapterId);
         }
       }
 
       // 打开 diff 视图（如果有修改内容）
-      const normalizedDiffPairs = Array.isArray(diffPairs)
-        ? diffPairs
-            .filter((pair) => typeof pair?.newString === 'string' && pair.newString.length > 0)
-            .map((pair) => ({
-              oldString: typeof pair.oldString === 'string' ? pair.oldString : '',
-              newString: pair.newString as string,
-            }))
-        : [];
-      const anchoredDiffPairs = normalizedDiffPairs.filter((pair) => pair.oldString.length > 0);
-      // 仅回放可定位的 diff；混入 oldString 为空的片段会让预览“漂移到开头”
-      const replayDiffPairs = anchoredDiffPairs.length > 0
-        ? anchoredDiffPairs
-        : (normalizedDiffPairs.length > 0 ? [normalizedDiffPairs[normalizedDiffPairs.length - 1]] : []);
-
-      const hasDirectNewString = typeof newString === 'string' && newString.length > 0;
-      const hasDirectOldString = typeof oldString === 'string' && oldString.length > 0;
-      const canUseDirectDiff = hasDirectNewString && (hasDirectOldString || revisionType === 'create');
-
-      const hasFallbackModified = typeof modifiedContent === 'string' && modifiedContent.length > 0;
-      const hasFallbackOriginal =
-        typeof originalContent === 'string' && (originalContent.length > 0 || revisionType === 'create');
-      const canUseFallbackDiff = hasFallbackModified && hasFallbackOriginal;
-
-      if (replayDiffPairs.length > 0 || canUseDirectDiff || canUseFallbackDiff) {
-        const requiresBaseReset =
-          replayDiffPairs.length > 0 && replayDiffPairs.every((pair) => pair.oldString.length === 0);
-        if (requiresBaseReset) {
-          // 无锚点预览必须基于旧内容渲染，否则会出现“预览 + 正文重复”。
-          setCurrentChapterContent(previewBaseContent);
-        }
-        // 已存在章节: 等 FS 加载 (500ms)
-        // 虚拟章节: 等 EditorWrapper key 重挂载 (100ms)
-        // 同一章节: 无需等待
-        const baseDelay = needDelay ? 500 : (targetChapterId !== currentChapterId ? 100 : 0);
-        const delay = baseDelay + (requiresBaseReset ? 120 : 0);
+      // 优先使用磁盘内容做匹配，只回放能命中的 diff，避免 oldString 找不到
+      if (anchoredDiffPairs.length > 0 || canUseDirectDiff || canUseFallbackDiff) {
+        const shouldReloadFromDisk = typeof resolvedTargetChapterId === 'string' && resolvedTargetChapterId.startsWith('fs-');
+        const baseDelay = needDelay ? 500 : (resolvedTargetChapterId !== normalizedCurrentChapterId ? 100 : 0);
         setTimeout(() => {
-          if (replayDiffPairs.length > 0) {
-            replayDiffPairs.forEach((pair, index) => {
-              window.dispatchEvent(new CustomEvent('editor-inline-diff', {
-                detail: {
-                  oldString: pair.oldString,
-                  newString: pair.newString,
-                  append: index > 0 && pair.oldString.length > 0
+          const runDispatch = async () => {
+            let baseText = previewBaseContent;
+            if (shouldReloadFromDisk && workId) {
+              const chapterNum = chapterIdToNum(resolvedTargetChapterId || '');
+              if (chapterNum !== null) {
+                try {
+                  const full = await chaptersFs.get(workId, chapterNum);
+                  baseText = full.content || '';
+                  setCurrentChapterContent(baseText);
+                } catch {
+                  // ignore and fallback to previewBaseContent
                 }
-              }));
-            });
-            return;
-          }
-
-          if (canUseDirectDiff) {
-            // edit_file/create 操作：直接使用后端提供的 diff 字符串
-            window.dispatchEvent(new CustomEvent('editor-inline-diff', {
-              detail: { oldString: oldString ?? '', newString: newString as string }
-            }));
-            return;
-          }
-
-          // 兜底：使用完整快照（适用于 create 或 replace_all）
-          window.dispatchEvent(new CustomEvent('editor-inline-diff', {
-            detail: { oldString: originalContent ?? '', newString: modifiedContent as string }
-          }));
-        }, delay);
+              }
+            }
+            const matched = dispatchBestEffortDiff(baseText);
+            if (!matched) {
+              // 定位失败时静默放弃，不截断编辑器内容
+            }
+          };
+          void runDispatch();
+        }, baseDelay);
       }
+
     };
 
     window.addEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
@@ -2039,6 +2165,7 @@ const WorkDetailView: React.FC = () => {
                 targetItemId={worldviewTargetItemId}
                 onTargetItemScrolled={() => setWorldviewTargetItemId(undefined)}
                 onWorldDataUpdate={handleWorldviewPanelDataUpdate}
+                onBeforeSyncKnowledgeToWorldview={waitForPendingEditorSave}
               />
             ) : (
               <EditorWrapper

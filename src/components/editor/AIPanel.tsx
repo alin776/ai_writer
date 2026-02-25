@@ -136,6 +136,41 @@ const getQuotedRangeLocateHint = (message: string) => {
   return {};
 };
 
+const inferRevisionTargetChapterIdFromPath = (path?: string): string | undefined => {
+  if (typeof path !== 'string' || !path.trim()) return undefined;
+  const normalizedPath = path.replace(/\\/g, '/').replace(/^\/+/, '');
+  const chapterMatch = normalizedPath.match(/^chapters\/(\d+)-[^/]+\.md$/i);
+  if (chapterMatch) {
+    return `fs-${parseInt(chapterMatch[1], 10)}`;
+  }
+  return `doc:${normalizedPath}`;
+};
+
+const normalizeRevisionTargetId = (value?: string): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith('doc:')) {
+    const normalizedPath = trimmed.slice(4).replace(/\\/g, '/').replace(/^\/+/, '');
+    return `doc:${normalizedPath}`;
+  }
+  if (trimmed.startsWith('fs-')) {
+    const num = parseInt(trimmed.slice(3), 10);
+    return Number.isNaN(num) ? trimmed : `fs-${num}`;
+  }
+  return trimmed;
+};
+
+const resolveRevisionTargetChapterId = (
+  revisionData: RevisionFlowData | null | undefined,
+  fallbackChapterId?: string,
+): string | undefined => {
+  const chapterId = normalizeRevisionTargetId(revisionData?.chapterId);
+  if (chapterId) return chapterId;
+  const pathChapterId = inferRevisionTargetChapterIdFromPath((revisionData as any)?.path);
+  return pathChapterId || normalizeRevisionTargetId(fallbackChapterId);
+};
+
 
 // ✅ 优化：缓存 remarkPlugins 和 rehypePlugins，避免每次渲染都创建新数组
 const remarkPluginsCache = [remarkGfm];
@@ -1773,7 +1808,7 @@ ${selectionContext.selected_text}
                           console.log('[AIPanel] RevisionCard jump:', { itemId, requestId });
                           const revisionData = findRevisionByItemId(itemId);
                           const resolvedRequestId = requestId || revisionData?.requestId;
-                          const targetChapterId = revisionData?.chapterId || chapterId;
+                          const targetChapterId = resolveRevisionTargetChapterId(revisionData, chapterId);
                           const targetRevisionId = resolvedRequestId || itemId;
                           const rawDiffPairs = (revisionData as any)?.diffPairs as Array<{
                             oldString?: string;
@@ -1788,11 +1823,12 @@ ${selectionContext.selected_text}
                           const isCreateRevision = revisionData?.revisionType === 'create';
                           const hasRawOldString = typeof rawOldString === 'string' && rawOldString.length > 0;
                           const hasRawNewString = typeof rawNewString === 'string' && rawNewString.length > 0;
-                          const canUseRawDiff = hasRawNewString && (hasRawOldString || isCreateRevision);
+                          const hasMultipleDiffPairs = diffPairs.length > 1;
+                          const canUseRawDiff = hasRawNewString && (hasRawOldString || isCreateRevision) && !hasMultipleDiffPairs;
 
-                          // 累加修订时优先选择最后一个“可定位”的 diff 对，避免空 oldString 导致预览跑到开头
-                          const fallbackPair = [...diffPairs].reverse().find((pair) => (pair.oldString || '').length > 0)
-                            || diffPairs[diffPairs.length - 1];
+                          // 多次编辑合并时优先使用“第一个可定位”的 diff（更接近磁盘基线，匹配更稳定）
+                          const fallbackPair = diffPairs.find((pair) => (pair.oldString || '').length > 0)
+                            || diffPairs[0];
 
                           const previewOldString = canUseRawDiff
                             ? (rawOldString ?? '')

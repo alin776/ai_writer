@@ -122,6 +122,44 @@ const collectRevisionIndices = (flowItems: FlowItem[]): Set<number> => {
   return indices;
 };
 
+const inferFsChapterIdFromPath = (path?: string): string | undefined => {
+  if (typeof path !== 'string') return undefined;
+  const cleanPath = path.replace(/\\/g, '/').replace(/^\/+/, '');
+  const match = cleanPath.match(/^chapters\/(\d+)-[^/]+\.md$/i);
+  if (!match) return undefined;
+  return `fs-${parseInt(match[1], 10)}`;
+};
+
+const normalizeRevisionTargetId = (value?: string): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith('doc:')) {
+    const normalizedPath = trimmed.slice(4).replace(/\\/g, '/').replace(/^\/+/, '');
+    return `doc:${normalizedPath}`;
+  }
+  if (trimmed.startsWith('fs-')) {
+    const num = parseInt(trimmed.slice(3), 10);
+    return Number.isNaN(num) ? trimmed : `fs-${num}`;
+  }
+  return trimmed;
+};
+
+const resolveRevisionTargetChapterId = (revision: { chapterId?: string; path?: string } | null | undefined): string | undefined => {
+  if (!revision) return undefined;
+  const chapterId = normalizeRevisionTargetId(revision.chapterId);
+  if (chapterId) {
+    return chapterId;
+  }
+  const fsChapterId = inferFsChapterIdFromPath(revision.path);
+  if (fsChapterId) return fsChapterId;
+  if (typeof revision.path === 'string' && revision.path.trim()) {
+    const normalizedPath = revision.path.replace(/\\/g, '/').replace(/^\/+/, '');
+    return `doc:${normalizedPath}`;
+  }
+  return undefined;
+};
+
 interface Message {
   role: 'user' | 'agent';
   content: string;
@@ -219,6 +257,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   const lastPersistRef = useRef<number>(0);
   const lastUpdateRef = useRef<number>(0);
   const stopRequestedRef = useRef<boolean>(false);
+  const activeChapterIdRef = useRef<string | undefined>(normalizeRevisionTargetId(chapterId));
 
   // ✅ 打字机效果：缓冲队列和 Web Worker（后台标签页不会被节流）
   const typewriterQueueRef = useRef<string[]>([]);
@@ -259,6 +298,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   useEffect(() => {
     saveSessionRef.current = saveSession;
   }, [saveSession]);
+
+  useEffect(() => {
+    activeChapterIdRef.current = normalizeRevisionTargetId(chapterId);
+  }, [chapterId]);
 
   const persistMessages = useCallback(
     (messagesToSave: Message[], conversation?: string, mode?: 'plan' | 'chat') => {
@@ -358,7 +401,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
             lastRevision = rev;
           }
         }
-        if (lastRevision) {
+        const restoreChapterId = resolveRevisionTargetChapterId(lastRevision);
+        const normalizedActiveChapterId = normalizeRevisionTargetId(activeChapterIdRef.current);
+        const canRestorePreview =
+          !normalizedActiveChapterId
+          || !restoreChapterId
+          || restoreChapterId === normalizedActiveChapterId;
+        if (lastRevision && canRestorePreview) {
           // 轮询等 MilkdownEditor + diffDecorationPlugin 初始化完成后再派发
           const tryRestore = (attempts = 15) => {
             const editor = document.querySelector('.milkdown .ProseMirror');
@@ -994,12 +1043,23 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   }
 
                   // v8: edit_file 操作 — 派发内联 Diff 事件到编辑器
-                  // 仅章节文件才触发编辑器内联 diff（worldview.md 等非章节文件跳过）
-                  const isChapterFile = !revisionPath || /chapters\//.test(revisionPath);
+                  // 仅在“目标文件就是当前激活标签页”时预览，避免跨文件误预览
+                  const revisionTargetChapterId = resolveRevisionTargetChapterId({
+                    chapterId: revisionData.chapterId,
+                    path: revisionPath,
+                  });
+                  const isChapterFile =
+                    (typeof revisionPath === 'string' && /chapters\//.test(revisionPath))
+                    || (typeof revisionTargetChapterId === 'string' && revisionTargetChapterId.startsWith('fs-'));
+                  const hasTargetFileId = typeof revisionTargetChapterId === 'string' && revisionTargetChapterId.length > 0;
+                  const activeChapterId = normalizeRevisionTargetId(activeChapterIdRef.current);
+                  const shouldPreviewInActiveTab = activeChapterId
+                    ? (hasTargetFileId && revisionTargetChapterId === activeChapterId)
+                    : isChapterFile;
                   const hasNewString = typeof revisionData.newString === 'string' && revisionData.newString.length > 0;
                   const hasOldString = typeof revisionData.oldString === 'string' && revisionData.oldString.length > 0;
                   const isCreateRevision = revisionData.revisionType === 'create';
-                  if (isChapterFile && hasNewString && (hasOldString || isCreateRevision)) {
+                  if (shouldPreviewInActiveTab && hasNewString && (hasOldString || isCreateRevision)) {
                     window.dispatchEvent(new CustomEvent('editor-inline-diff', {
                       detail: {
                         oldString: revisionData.oldString ?? '',
@@ -1341,7 +1401,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         abortControllerRef.current = null;
       }
     },
-    [persistMessages, persistMessagesThrottled, sessionId, sessionManager]
+    [chapterId, persistMessages, persistMessagesThrottled, sessionId, sessionManager, useBackendSessions, workId]
   );
 
   const clearMessages = useCallback(() => {

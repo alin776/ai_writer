@@ -254,9 +254,16 @@ class WorldviewKnowledgeBridge:
         touched_paths: Optional[list[str]] = None,
         work_dir: Optional[Path] = None,
         sync_mode: str = "upsert",
+        mirror: bool = False,
     ) -> dict[str, Any]:
         """
         Parse tracked knowledge markdown files and upsert card data.
+
+        mirror=False (default): only update DB cards, do NOT overwrite the markdown files.
+          Use this when the AI has just written/edited the files — mirroring would clobber
+          free-form content that the AI added but the DB schema cannot represent.
+        mirror=True: after updating DB cards, regenerate the markdown mirrors from cards.
+          Use this only when the user explicitly requests "sync cards → files".
 
         Notes:
         - Upsert by natural key (name/title).
@@ -282,8 +289,12 @@ class WorldviewKnowledgeBridge:
         created = {"characters": 0, "locations": 0, "settings": 0}
         updated = {"characters": 0, "locations": 0, "settings": 0}
         deleted = {"characters": 0, "locations": 0, "settings": 0}
+        parsed_counts = {"characters": 0, "locations": 0, "settings": 0}
+        checked_files: list[str] = []
+        missing_files: list[str] = []
 
         if sync_characters:
+            checked_files.append("knowledge/characters.md")
             characters_path = self._pick_existing_path(
                 resolved_work_dir,
                 "knowledge/characters.md",
@@ -292,13 +303,17 @@ class WorldviewKnowledgeBridge:
             if characters_path and characters_path.exists():
                 raw_text = characters_path.read_text(encoding="utf-8")
                 parsed_characters = self._parse_characters_markdown(raw_text)
+                parsed_counts["characters"] = len(parsed_characters)
                 c_created, c_updated = await self._upsert_characters(work_id, parsed_characters)
                 created["characters"] += c_created
                 updated["characters"] += c_updated
                 if strict_mode:
                     deleted["characters"] += await self._delete_missing_characters(work_id, parsed_characters)
+            else:
+                missing_files.append("knowledge/characters.md")
 
         if sync_worldview:
+            checked_files.append("knowledge/worldview.md")
             worldview_path = self._pick_existing_path(
                 resolved_work_dir,
                 "knowledge/worldview.md",
@@ -307,6 +322,8 @@ class WorldviewKnowledgeBridge:
             if worldview_path and worldview_path.exists():
                 raw_text = worldview_path.read_text(encoding="utf-8")
                 parsed_worldview = self._parse_worldview_markdown(raw_text)
+                parsed_counts["locations"] = len(parsed_worldview["locations"])
+                parsed_counts["settings"] = len(parsed_worldview["settings"])
                 l_created, l_updated = await self._upsert_locations(work_id, parsed_worldview["locations"])
                 s_created, s_updated = await self._upsert_settings(work_id, parsed_worldview["settings"])
                 created["locations"] += l_created
@@ -316,6 +333,8 @@ class WorldviewKnowledgeBridge:
                 if strict_mode:
                     deleted["locations"] += await self._delete_missing_locations(work_id, parsed_worldview["locations"])
                     deleted["settings"] += await self._delete_missing_settings(work_id, parsed_worldview["settings"])
+            else:
+                missing_files.append("knowledge/worldview.md")
 
         has_db_changes = (
             any(value > 0 for value in created.values())
@@ -328,7 +347,9 @@ class WorldviewKnowledgeBridge:
 
         mirror_result = {"updated_files": []}
         # Only rewrite markdown when DB actually changed, avoid overriding user formatting on no-op edits.
-        if has_db_changes and (sync_characters or sync_worldview):
+        # Also requires the caller to explicitly opt-in via mirror=True — AI flush paths use mirror=False
+        # to prevent overwriting free-form content that the AI just wrote into the knowledge files.
+        if mirror and has_db_changes and (sync_characters or sync_worldview):
             mirror_result = await self.mirror_from_cards(work_id, work_dir=resolved_work_dir)
 
         return {
@@ -337,6 +358,9 @@ class WorldviewKnowledgeBridge:
             "deleted": deleted,
             "mirrored_files": mirror_result.get("updated_files", []),
             "has_db_changes": has_db_changes,
+            "parsed_counts": parsed_counts,
+            "checked_files": checked_files,
+            "missing_files": missing_files,
             "sync_mode": mode,
         }
 
@@ -393,9 +417,28 @@ class WorldviewKnowledgeBridge:
             if final_role:
                 lines.append(f"- 角色：{final_role}")
             lines.append(f"- 描述：{_flatten_text(description) or '待补充'}")
+            aliases = _safe_tags(character.aliases)
+            if aliases:
+                lines.append(f"- 别名：{'、'.join(aliases)}")
+            if character.status:
+                lines.append(f"- 状态：{character.status}")
+            if character.voice:
+                lines.append(f"- 口吻：{character.voice}")
             tags = _safe_tags(character.tags)
             if tags:
                 lines.append(f"- 标签：{'、'.join(tags)}")
+            if character.constraints:
+                for c in character.constraints:
+                    lines.append(f"- 约束：{c}")
+            if character.relationships:
+                for rel in character.relationships:
+                    if isinstance(rel, dict):
+                        target = rel.get("target") or rel.get("name") or ""
+                        relation = rel.get("relation") or rel.get("type") or ""
+                        if target:
+                            lines.append(f"- 关系：{target}（{relation}）" if relation else f"- 关系：{target}")
+                    elif isinstance(rel, str) and rel.strip():
+                        lines.append(f"- 关系：{rel}")
             lines.append("")
 
         return "\n".join(lines).rstrip() + "\n"
@@ -417,9 +460,19 @@ class WorldviewKnowledgeBridge:
                 if location.type:
                     lines.append(f"- 类型：{location.type}")
                 lines.append(f"- 描述：{_flatten_text(location.description) or '待补充'}")
+                aliases = _safe_tags(location.aliases)
+                if aliases:
+                    lines.append(f"- 别名：{'、'.join(aliases)}")
+                if location.status:
+                    lines.append(f"- 状态：{location.status}")
+                if location.voice:
+                    lines.append(f"- 氛围：{location.voice}")
                 tags = _safe_tags(location.tags)
                 if tags:
                     lines.append(f"- 标签：{'、'.join(tags)}")
+                if location.constraints:
+                    for c in location.constraints:
+                        lines.append(f"- 约束：{c}")
                 lines.append("")
         else:
             lines.extend(["（暂无地点卡片）", ""])
@@ -432,11 +485,19 @@ class WorldviewKnowledgeBridge:
                     lines.append(f"- 分类：{setting.category}")
                 if setting.content:
                     lines.append(f"- 内容：{_flatten_text(setting.content)}")
-                else:
-                    lines.append("- 内容：")
+                aliases = _safe_tags(setting.aliases)
+                if aliases:
+                    lines.append(f"- 别名：{'、'.join(aliases)}")
+                if setting.status:
+                    lines.append(f"- 状态：{setting.status}")
+                if setting.voice:
+                    lines.append(f"- 口吻：{setting.voice}")
                 tags = _safe_tags(setting.tags)
                 if tags:
                     lines.append(f"- 标签：{'、'.join(tags)}")
+                if setting.constraints:
+                    for c in setting.constraints:
+                        lines.append(f"- 约束：{c}")
                 lines.append("")
         else:
             lines.extend(["（暂无设定卡片）", ""])
@@ -510,6 +571,25 @@ class WorldviewKnowledgeBridge:
                     last_field = "description"
                 elif key in {"标签", "tags"}:
                     current["tags"] = _split_tags(value)
+                    last_field = None
+                elif key in {"别名", "aliases", "又名", "曾用名"}:
+                    current["aliases"] = _split_tags(value)
+                    last_field = None
+                elif key in {"状态", "status"}:
+                    current["status"] = value or None
+                    last_field = None
+                elif key in {"口吻", "语气", "voice"}:
+                    current["voice"] = value or None
+                    last_field = None
+                elif key in {"约束", "constraint", "constraints"}:
+                    current.setdefault("constraints", [])
+                    if value:
+                        current["constraints"].append(value)
+                    last_field = None
+                elif key in {"关系", "relationship", "关联"}:
+                    current.setdefault("relationships", [])
+                    if value:
+                        current["relationships"].append({"raw": value})
                     last_field = None
                 else:
                     _append_meta(current, kv_match.group(1), value)
@@ -608,6 +688,20 @@ class WorldviewKnowledgeBridge:
                     elif key in {"标签", "tags"}:
                         current_item["tags"] = _split_tags(value)
                         last_field = None
+                    elif key in {"别名", "aliases", "又名"}:
+                        current_item["aliases"] = _split_tags(value)
+                        last_field = None
+                    elif key in {"状态", "status"}:
+                        current_item["status"] = value or None
+                        last_field = None
+                    elif key in {"氛围", "口吻", "voice"}:
+                        current_item["voice"] = value or None
+                        last_field = None
+                    elif key in {"约束", "constraint", "constraints"}:
+                        current_item.setdefault("constraints", [])
+                        if value:
+                            current_item["constraints"].append(value)
+                        last_field = None
                     else:
                         _append_meta(current_item, kv_match.group(1), value)
                         last_field = None
@@ -620,6 +714,20 @@ class WorldviewKnowledgeBridge:
                         last_field = "content"
                     elif key in {"标签", "tags"}:
                         current_item["tags"] = _split_tags(value)
+                        last_field = None
+                    elif key in {"别名", "aliases", "又名"}:
+                        current_item["aliases"] = _split_tags(value)
+                        last_field = None
+                    elif key in {"状态", "status"}:
+                        current_item["status"] = value or None
+                        last_field = None
+                    elif key in {"口吻", "氛围", "voice"}:
+                        current_item["voice"] = value or None
+                        last_field = None
+                    elif key in {"约束", "constraint", "constraints"}:
+                        current_item.setdefault("constraints", [])
+                        if value:
+                            current_item["constraints"].append(value)
                         last_field = None
                     else:
                         _append_meta(current_item, kv_match.group(1), value)
@@ -721,6 +829,31 @@ class WorldviewKnowledgeBridge:
                     if _safe_tags(target.tags) != tags:
                         target.tags = tags
                         changed = True
+                if "aliases" in item:
+                    aliases = _safe_tags(item.get("aliases"))
+                    if _safe_tags(target.aliases) != aliases:
+                        target.aliases = aliases
+                        changed = True
+                if "status" in item:
+                    new_status = item.get("status")
+                    if target.status != new_status:
+                        target.status = new_status
+                        changed = True
+                if "voice" in item:
+                    new_voice = item.get("voice")
+                    if target.voice != new_voice:
+                        target.voice = new_voice
+                        changed = True
+                if "constraints" in item:
+                    new_constraints = item.get("constraints") or []
+                    if (target.constraints or []) != new_constraints:
+                        target.constraints = new_constraints
+                        changed = True
+                if "relationships" in item:
+                    new_rels = item.get("relationships") or []
+                    if (target.relationships or []) != new_rels:
+                        target.relationships = new_rels
+                        changed = True
 
                 if changed:
                     updated += 1
@@ -732,6 +865,11 @@ class WorldviewKnowledgeBridge:
                 description=(desc or "待补充"),
                 role=role,
                 tags=_safe_tags(item.get("tags")) if "tags" in item else [],
+                aliases=_safe_tags(item.get("aliases")) if "aliases" in item else [],
+                status=item.get("status"),
+                voice=item.get("voice"),
+                constraints=item.get("constraints") or [],
+                relationships=item.get("relationships") or [],
             )
             self.db.add(character)
             created += 1
@@ -776,6 +914,26 @@ class WorldviewKnowledgeBridge:
                     if _safe_tags(target.tags) != tags:
                         target.tags = tags
                         changed = True
+                if "aliases" in item:
+                    aliases = _safe_tags(item.get("aliases"))
+                    if _safe_tags(target.aliases) != aliases:
+                        target.aliases = aliases
+                        changed = True
+                if "status" in item:
+                    new_status = item.get("status")
+                    if target.status != new_status:
+                        target.status = new_status
+                        changed = True
+                if "voice" in item:
+                    new_voice = item.get("voice")
+                    if target.voice != new_voice:
+                        target.voice = new_voice
+                        changed = True
+                if "constraints" in item:
+                    new_constraints = item.get("constraints") or []
+                    if (target.constraints or []) != new_constraints:
+                        target.constraints = new_constraints
+                        changed = True
 
                 if changed:
                     updated += 1
@@ -787,6 +945,10 @@ class WorldviewKnowledgeBridge:
                 description=((item.get("description") or "").strip() or "待补充"),
                 type=((item.get("type") or "").strip() or None) if "type" in item else None,
                 tags=_safe_tags(item.get("tags")) if "tags" in item else [],
+                aliases=_safe_tags(item.get("aliases")) if "aliases" in item else [],
+                status=item.get("status"),
+                voice=item.get("voice"),
+                constraints=item.get("constraints") or [],
             )
             self.db.add(location)
             created += 1
@@ -831,6 +993,26 @@ class WorldviewKnowledgeBridge:
                     if _safe_tags(target.tags) != tags:
                         target.tags = tags
                         changed = True
+                if "aliases" in item:
+                    aliases = _safe_tags(item.get("aliases"))
+                    if _safe_tags(target.aliases) != aliases:
+                        target.aliases = aliases
+                        changed = True
+                if "status" in item:
+                    new_status = item.get("status")
+                    if target.status != new_status:
+                        target.status = new_status
+                        changed = True
+                if "voice" in item:
+                    new_voice = item.get("voice")
+                    if target.voice != new_voice:
+                        target.voice = new_voice
+                        changed = True
+                if "constraints" in item:
+                    new_constraints = item.get("constraints") or []
+                    if (target.constraints or []) != new_constraints:
+                        target.constraints = new_constraints
+                        changed = True
 
                 if changed:
                     updated += 1
@@ -842,6 +1024,10 @@ class WorldviewKnowledgeBridge:
                 content=((item.get("content") or "").strip() or None),
                 category=((item.get("category") or "").strip() or None) if "category" in item else None,
                 tags=_safe_tags(item.get("tags")) if "tags" in item else [],
+                aliases=_safe_tags(item.get("aliases")) if "aliases" in item else [],
+                status=item.get("status"),
+                voice=item.get("voice"),
+                constraints=item.get("constraints") or [],
             )
             self.db.add(setting)
             created += 1

@@ -64,7 +64,9 @@
       "Bash(git add:*)",
       "Bash(git stash:*)",
       "Bash(start:*)",
-      "Bash(copy CreateWorkWithAI.tsx CreateWorkWithAI.tsx.backup)"
+      "Bash(copy CreateWorkWithAI.tsx CreateWorkWithAI.tsx.backup)",
+      "Bash(cd /c/Users/Administrator/Desktop/ai-writer/backend && docker ps --filter \"name=redis\" --format \"{{.Names}}\\\\t{{.Image}}\\\\t{{.Status}}\" 2>&1)",
+      "Bash(cmd:*)"
     ],
     "deny": [],
     "ask": []

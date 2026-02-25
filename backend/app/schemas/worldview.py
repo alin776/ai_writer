@@ -386,6 +386,26 @@ class ApplyChangesResponse(BaseModel):
     relationships_created: int = 0
 
 
+class KnowledgeToWorldviewSyncRequest(BaseModel):
+    """从知识文件同步到世界观卡片的请求"""
+    touched_paths: Optional[List[str]] = None
+    sync_mode: Optional[str] = "upsert"
+
+
+class KnowledgeToWorldviewSyncResponse(BaseModel):
+    """从知识文件同步到世界观卡片的响应"""
+    status: str = "ok"
+    created: Dict[str, int] = Field(default_factory=dict)
+    updated: Dict[str, int] = Field(default_factory=dict)
+    deleted: Dict[str, int] = Field(default_factory=dict)
+    mirrored_files: List[str] = Field(default_factory=list)
+    has_db_changes: bool = False
+    parsed_counts: Dict[str, int] = Field(default_factory=dict)
+    checked_files: List[str] = Field(default_factory=list)
+    missing_files: List[str] = Field(default_factory=list)
+    sync_mode: str = "upsert"
+
+
 class WorldviewScanProgressResponse(BaseModel):
     """世界观扫描进度响应"""
     work_id: str
