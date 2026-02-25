@@ -82,4 +82,7 @@ class Work(Base):
     glossary_terms = relationship("GlossaryTerm", back_populates="work", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Work {self.title}>"
+        try:
+            return f"<Work {self.title}>"
+        except Exception:
+            return f"<Work id={self.id!r}>"

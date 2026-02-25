@@ -173,6 +173,7 @@ async def get_work(
     # FS 读时修复
     if await _read_repair_work_stats(work, str(current_user.id)):
         await db.commit()
+        await db.refresh(work)  # commit() 会 expire ORM 对象，async 模式下需手动 refresh
 
     return work
 
