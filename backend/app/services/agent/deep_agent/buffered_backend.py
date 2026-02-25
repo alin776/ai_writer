@@ -1262,10 +1262,9 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                 if parsed["title"]:
                     item["chapter_title"] = parsed["title"]
                 # 读取磁盘旧内容作为 old_string，供前端做真正的 diff
-                # 若文件不存在（真正新建），old_string 保持空字符串，前端走 create 逻辑
+                # 若文件不存在（真正新建），old_string 为空字符串，前端走 create 逻辑
                 old_raw = self._read_disk_content(op.path) or ""
-                if old_raw:
-                    item["old_string"] = parse_chapter(old_raw)["content"]
+                item["old_string"] = parse_chapter(old_raw)["content"] if old_raw else ""
             elif op.op_type == "edit":
                 item["old_string"] = op.old_string
                 item["new_string"] = op.new_string

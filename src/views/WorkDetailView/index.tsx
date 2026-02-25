@@ -120,6 +120,8 @@ const WorkDetailView: React.FC = () => {
   const [currentChapterContent, setCurrentChapterContent] = useState<string>('');
   // 用于追踪编辑器当前加载的章节 ID，防止异步保存时的竞态条件
   const editorChapterIdRef = React.useRef<string | undefined>(undefined);
+  // 防止 StrictMode 双重触发时重复创建默认章节
+  const isCreatingDefaultChapterRef = React.useRef(false);
   // diff 预览标志：RevisionCard 跳转时设为 true，跳过自动保存避免覆写未采纳内容
   const diffPreviewRef = React.useRef(false);
   // Track in-flight editor save so worldview sync can wait for disk flush.
@@ -608,8 +610,9 @@ const WorkDetailView: React.FC = () => {
           });
         }
 
-        // 如果没有章节，自动创建默认章节
-        if (chaptersData.length === 0) {
+        // 如果没有章节，自动创建默认章节（ref 防重，避免 StrictMode 双重触发）
+        if (chaptersData.length === 0 && !isCreatingDefaultChapterRef.current) {
+          isCreatingDefaultChapterRef.current = true;
           try {
             const fsDefault = await chaptersFs.create(workId, {
               title: t('workDetail.chapter.firstChapter'),
@@ -627,6 +630,8 @@ const WorkDetailView: React.FC = () => {
             // 保持章节列表为空，让用户手动创建
             showToast('error', t('workDetail.toast.createChapterFailed'));
             // 不设置currentChapterId为undefined，保持初始状态
+          } finally {
+            isCreatingDefaultChapterRef.current = false;
           }
         }
 
