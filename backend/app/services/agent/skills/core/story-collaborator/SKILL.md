@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: collaborative
   domain: fiction
-allowed-tools: read_file, write_file, edit_file, glob, grep, execute
+allowed-tools: read_file, write_file, edit_file, glob, grep, semantic_search, execute
 ---
 
 # Story Collaborator：网文写作搭档技能

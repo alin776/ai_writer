@@ -657,10 +657,12 @@ class ImportService:
 
     @staticmethod
     def _vectorize_chapters_background(work_id: str, chapters_dir: Path) -> None:
-        """后台线程调用 update_chapter_vectors 对所有章节进行向量化"""
+        """后台线程调用 update_chapter_vectors / update_knowledge_vectors 对章节和知识库进行向量化"""
         def _run():
             try:
                 from app.services.agent.deep_agent.frontmatter import parse_chapter
+                from app.services.agent.deep_agent.rag_tool import update_chapter_vectors, update_knowledge_vectors
+                # 索引章节
                 for md_file in sorted(chapters_dir.glob("*.md")):
                     raw = md_file.read_text(encoding="utf-8")
                     parsed = parse_chapter(raw)
@@ -669,6 +671,16 @@ class ImportService:
                         continue
                     path = f"/chapters/{md_file.name}"
                     update_chapter_vectors(work_id, path, content)
+
+                # 索引知识库文件
+                knowledge_dir = chapters_dir.parent / "knowledge"
+                if knowledge_dir.is_dir():
+                    for md_file in knowledge_dir.rglob("*.md"):
+                        raw = md_file.read_text(encoding="utf-8")
+                        if len(raw.strip()) < 50:
+                            continue
+                        rel_path = "/" + str(md_file.relative_to(chapters_dir.parent)).replace("\\", "/")
+                        update_knowledge_vectors(work_id, rel_path, raw)
             except Exception as exc:
                 logger.warning("[ImportService] 后台向量化失败: %s", exc)
 

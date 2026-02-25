@@ -49,7 +49,7 @@ async def create_timeline_event(
     await verify_work_owner(event.work_id, current_user.id, db)
     
     # 创建事件
-    db_event = TimelineEvent(**event.dict())
+    db_event = TimelineEvent(**event.model_dump())
     db.add(db_event)
     await db.commit()
     await db.refresh(db_event)
@@ -129,7 +129,7 @@ async def update_timeline_event(
     await verify_work_owner(db_event.work_id, current_user.id, db)
     
     # 更新字段
-    update_data = event_update.dict(exclude_unset=True)
+    update_data = event_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_event, field, value)
     

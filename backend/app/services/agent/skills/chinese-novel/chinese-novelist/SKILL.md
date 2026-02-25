@@ -6,7 +6,7 @@ description: |
 metadata:
   trigger: 创作中文小说、分章节故事、长篇小说创作
   source: 基于小说创作最佳实践设计
-allowed-tools: read_file, write_file, edit_file, glob, grep, execute
+allowed-tools: read_file, write_file, edit_file, glob, grep, semantic_search, execute
 ---
 
 # Chinese Novelist: 中文小说创作助手
@@ -138,36 +138,37 @@ Options:
 
 1. 读取 `/knowledge/outline.md` - 查看TODO list和已完成章节的摘要
 2. 读取 `/knowledge/outline.md` 中上一章的摘要
-3. 更新 `/knowledge/outline.md` 中 TODO list - 将本章标记为"进行中"
-4. 设计开头钩子 - **最关键**：前20%必须有即时冲突 → [chapter-guide.md](references/chapter-guide.md)（10种开头技巧）
-5. 规划场景 - 确定本章需要3-5个场景
+3. 一致性回顾 - 用 semantic_search 搜索本章涉及的关键角色/物品/地点在前文中的描写，确认细节一致（如"萧凌 修为"、"赤焰剑 外观"）。仅在已有 3 章以上时执行
+4. 更新 `/knowledge/outline.md` 中 TODO list - 将本章标记为"进行中"
+5. 设计开头钩子 - **最关键**：前20%必须有即时冲突 → [chapter-guide.md](references/chapter-guide.md)（10种开头技巧）
+6. 规划场景 - 确定本章需要3-5个场景
 
 #### 2. 撰写
 
-6. 创建章节文件到 `/chapters/` 目录 - 命名 `XX-标题.md`（如 `chapters/01-吞噬.md`），XX 为两位数字零填充。章节文件只包含正文，不加任何元数据。使用 `references/chapter-template.md` 模板
-7. 撰写正文 - **每章必须达到3000-5000字**
+7. 创建章节文件到 `/chapters/` 目录 - 命名 `XX-标题.md`（如 `chapters/01-吞噬.md`），XX 为两位数字零填充。章节文件只包含正文，不加任何元数据。使用 `references/chapter-template.md` 模板
+8. 撰写正文 - **每章必须达到3000-5000字**
    - 开头检查：前20%是否极其吸引人？
    - 对话规范 → [dialogue-writing.md](references/dialogue-writing.md)
    - 内容不足？使用 [content-expansion.md](references/content-expansion.md) 扩充技巧
-8. 设置结尾钩子 → [hook-techniques.md](references/hook-techniques.md)（10种钩子类型）
-9. **字数检查** - 必须使用脚本检查字数：`python scripts/check_chapter_wordcount.py chapters/01-标题.md`（使用相对路径，不要加前导 `/`）。低于3000字必须使用扩充技巧重写
+9. 设置结尾钩子 → [hook-techniques.md](references/hook-techniques.md)（10种钩子类型）
+10. **字数检查** - 必须使用脚本检查字数：`python scripts/check_chapter_wordcount.py chapters/01-标题.md`（使用相对路径，不要加前导 `/`）。低于3000字必须使用扩充技巧重写
 
 #### 3. 撰写后优化
 
-10. 连贯性检查 → [consistency.md](references/consistency.md) - 人物一致性、情节连贯、节奏控制
-11. **深度润色（去除AI味）** - 重点检查并修改：
+11. 连贯性检查 → [consistency.md](references/consistency.md) - 人物一致性、情节连贯、节奏控制
+12. **深度润色（去除AI味）** - 重点检查并修改：
     - **去除过度修饰的形容词**：删减"璀璨"、"瑰丽"、"绚烂"等AI常用词堆砌
     - **减少抽象陈述**：把"心中涌起复杂的情感"改为具体动作/对话
     - **打破四字格律**：避免"心潮澎湃、热血沸腾"等陈词滥调
     - **增加口语化表达**：人物对话要有个性，避免"书面语套话"
     - **优化节奏感**：长句和短句交替，避免句式单调
     - **细节具象化**：用具体的视觉/听觉/嗅觉细节替代笼统描述
-12. **字数检查** - 必须使用脚本检查字数：`python scripts/check_chapter_wordcount.py chapters/01-标题.md`（使用相对路径，不要加前导 `/`）。低于3000字必须使用扩充技巧重写
+13. **字数检查** - 必须使用脚本检查字数：`python scripts/check_chapter_wordcount.py chapters/01-标题.md`（使用相对路径，不要加前导 `/`）。低于3000字必须使用扩充技巧重写
 
 #### 4. 最后收尾
 
-13. 生成章节摘要 - 在 `/knowledge/outline.md` 添加摘要（300-500字）
-14. 更新状态 - `/knowledge/outline.md` 中 TODO list - 将本章标记为"完成"
+14. 生成章节摘要 - 在 `/knowledge/outline.md` 添加摘要（300-500字）
+15. 更新状态 - `/knowledge/outline.md` 中 TODO list - 将本章标记为"完成"
 
 ---
 

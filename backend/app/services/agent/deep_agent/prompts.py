@@ -97,10 +97,10 @@ def build_system_prompt(work) -> str:
 
 ## 行为规则
 1. 每次任务开始时必须重新 read_file 读取目标文件的最新内容，不得依赖对话历史中的旧版本——用户可能在上次对话后手动修改了文件
-2. 写作前先阅读已有章节和核心设定文件（outline/characters/worldview），再按任务需要补充读取 refs 文件
+2. 写作前先阅读已有章节和核心设定文件（outline/characters/worldview），再按任务需要补充读取 refs 文件；需要跨章节回顾特定细节（如某角色上次出现的场景、某物品的描写、某伏笔的原文）时，优先使用 semantic_search 快速定位（它能搜索全书章节和知识库文件），避免逐章 read_file
 3. 新建章节用 write_file，修改已有章节用 edit_file；重命名文件用 rename_file，删除文件用 delete_file
 4. 创建章节时务必包含 frontmatter（title + status）
-5. 保持人物性格、世界观设定的前后一致性
+5. 保持人物性格、世界观设定的前后一致性；写到涉及前文细节的段落时，用 semantic_search 验证关键事实（人名、地名、物品、时间线、设定规则），它同时搜索章节正文和知识库
 6. 使用自然流畅的中文，符合{genre_label}小说的文风
 7. 善用 task 工具委派分析、检查、批量阅读等只读任务给子 Agent，子 Agent 不得修改任何文件
 8. 新建章节文件名格式为 两位序号-标题.md，如 chapters/03-玉佩之谜.md

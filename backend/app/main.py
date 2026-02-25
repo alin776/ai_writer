@@ -1,7 +1,10 @@
+import warnings
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from contextlib import asynccontextmanager
 import logging
 import traceback
@@ -168,6 +171,23 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": exc.errors()}
+    )
+
+@app.exception_handler(ResponseValidationError)
+async def response_validation_exception_handler(request: Request, exc: ResponseValidationError):
+    """捕获响应序列化验证错误，记录字段级详情以便诊断"""
+    logger.error("="*60)
+    logger.error(f"ResponseValidationError - URL: {request.url.path}")
+    logger.error(f"请求方法: {request.method}")
+    try:
+        logger.error(f"响应验证错误详情: {exc.errors()}")
+    except Exception:
+        logger.error(f"响应验证异常: {exc}")
+    logger.error("="*60)
+
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal server error: response validation failed"}
     )
 
 @app.exception_handler(Exception)

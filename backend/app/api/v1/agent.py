@@ -1193,43 +1193,59 @@ async def agent_v2_chat_stream(
                             duration_ms = int((_time.time() - _stream_start) * 1000)
 
                             # 独立 DB 会话（SSE 生成器内端点 db 不可用）
-                            async with create_db_session() as billing_db:
-                                log_data = AICallLogCreate(
-                                    user_id=current_user.id,
-                                    model_name=settings.OPENAI_MODEL,
-                                    operation_type="v2_agent_chat",
-                                    prompt_tokens=total_input,
-                                    completion_tokens=total_output,
-                                    total_tokens=total_total,
-                                    cache_read_tokens=total_cache_read,
-                                    cache_creation_tokens=total_cache_creation,
-                                    reasoning_tokens=total_reasoning,
-                                    prompt_cost=cost_data["prompt_cost"],
-                                    completion_cost=cost_data["completion_cost"],
-                                    total_cost=cost_data["total_cost"],
-                                    duration_ms=duration_ms,
-                                    is_success=True,
-                                    extra_data={
-                                        "conversation_id": conversation_id,
-                                        "work_id": request.work_id,
-                                        "model_breakdown": model_breakdown,
-                                    },
-                                )
-                                log_svc = AILogService(billing_db)
-                                ai_log = await log_svc.create_log(log_data, auto_commit=False)
+                            # nowait 重试：锁冲突时短暂退避后重试
+                            from sqlalchemy.exc import DBAPIError as _DBErr
+                            _max_retries = 3
+                            for _attempt in range(_max_retries):
+                                try:
+                                    async with create_db_session() as billing_db:
+                                        log_data = AICallLogCreate(
+                                            user_id=current_user.id,
+                                            model_name=settings.OPENAI_MODEL,
+                                            operation_type="v2_agent_chat",
+                                            prompt_tokens=total_input,
+                                            completion_tokens=total_output,
+                                            total_tokens=total_total,
+                                            cache_read_tokens=total_cache_read,
+                                            cache_creation_tokens=total_cache_creation,
+                                            reasoning_tokens=total_reasoning,
+                                            prompt_cost=cost_data["prompt_cost"],
+                                            completion_cost=cost_data["completion_cost"],
+                                            total_cost=cost_data["total_cost"],
+                                            duration_ms=duration_ms,
+                                            is_success=True,
+                                            extra_data={
+                                                "conversation_id": conversation_id,
+                                                "work_id": request.work_id,
+                                                "model_breakdown": model_breakdown,
+                                            },
+                                        )
+                                        log_svc = AILogService(billing_db)
+                                        ai_log = await log_svc.create_log(log_data, auto_commit=False)
 
-                                credit_svc = CreditService(billing_db)
-                                _raw = (request.message or "").replace("\n", " ").strip()
-                                msg_preview = _raw[:20] + "…" if len(_raw) > 20 else _raw
-                                await credit_svc.consume(
-                                    user_id=current_user.id,
-                                    amount=credits_to_deduct,
-                                    description=f"{work.title} · {msg_preview}",
-                                    related_id=ai_log.id,
-                                    skip_check=current_user.is_admin,
-                                    auto_commit=False,
-                                )
-                                await billing_db.commit()
+                                        credit_svc = CreditService(billing_db)
+                                        _raw = (request.message or "").replace("\n", " ").strip()
+                                        msg_preview = _raw[:20] + "…" if len(_raw) > 20 else _raw
+                                        await credit_svc.consume(
+                                            user_id=current_user.id,
+                                            amount=credits_to_deduct,
+                                            description=f"{work.title} · {msg_preview}",
+                                            related_id=ai_log.id,
+                                            skip_check=current_user.is_admin,
+                                            auto_commit=False,
+                                            nowait=True,
+                                        )
+                                        await billing_db.commit()
+                                    break  # 成功，退出重试
+                                except (_DBErr, TimeoutError) as _lock_err:
+                                    if _attempt < _max_retries - 1:
+                                        logger.warning(
+                                            "[V2 Billing] 锁冲突/超时，重试 %d/%d: %s",
+                                            _attempt + 1, _max_retries, _lock_err,
+                                        )
+                                        await _asyncio.sleep(0.5 * (_attempt + 1))
+                                    else:
+                                        raise
 
                             token_usage_summary = {
                                 "input_tokens": total_input,
@@ -1327,40 +1343,55 @@ async def agent_v2_chat_stream(
                         )
                         duration_ms = int((_time.time() - _stream_start) * 1000) if _stream_start else 0
 
-                        async with create_db_session() as billing_db:
-                            log_data = AICallLogCreate(
-                                user_id=current_user.id,
-                                model_name=settings.OPENAI_MODEL,
-                                operation_type="v2_agent_chat",
-                                prompt_tokens=err_input,
-                                completion_tokens=err_output,
-                                total_tokens=err_total,
-                                cache_read_tokens=err_cache_read,
-                                cache_creation_tokens=err_cache_creation,
-                                reasoning_tokens=err_reasoning,
-                                prompt_cost=cost_data["prompt_cost"],
-                                completion_cost=cost_data["completion_cost"],
-                                total_cost=cost_data["total_cost"],
-                                duration_ms=duration_ms,
-                                is_success=False,
-                                error_message=str(e)[:1000],
-                                extra_data={"conversation_id": conversation_id, "work_id": request.work_id, "model_breakdown": err_model_breakdown},
-                            )
-                            log_svc = AILogService(billing_db)
-                            ai_log = await log_svc.create_log(log_data, auto_commit=False)
+                        _max_retries = 3
+                        from sqlalchemy.exc import DBAPIError as _DBErr
+                        for _attempt in range(_max_retries):
+                            try:
+                                async with create_db_session() as billing_db:
+                                    log_data = AICallLogCreate(
+                                        user_id=current_user.id,
+                                        model_name=settings.OPENAI_MODEL,
+                                        operation_type="v2_agent_chat",
+                                        prompt_tokens=err_input,
+                                        completion_tokens=err_output,
+                                        total_tokens=err_total,
+                                        cache_read_tokens=err_cache_read,
+                                        cache_creation_tokens=err_cache_creation,
+                                        reasoning_tokens=err_reasoning,
+                                        prompt_cost=cost_data["prompt_cost"],
+                                        completion_cost=cost_data["completion_cost"],
+                                        total_cost=cost_data["total_cost"],
+                                        duration_ms=duration_ms,
+                                        is_success=False,
+                                        error_message=str(e)[:1000],
+                                        extra_data={"conversation_id": conversation_id, "work_id": request.work_id, "model_breakdown": err_model_breakdown},
+                                    )
+                                    log_svc = AILogService(billing_db)
+                                    ai_log = await log_svc.create_log(log_data, auto_commit=False)
 
-                            credit_svc = CreditService(billing_db)
-                            _raw = (request.message or "").replace("\n", " ").strip()
-                            msg_preview = _raw[:20] + "…" if len(_raw) > 20 else _raw
-                            await credit_svc.consume(
-                                user_id=current_user.id,
-                                amount=credits_to_deduct,
-                                description=f"{work.title} · {msg_preview}(错误)",
-                                related_id=ai_log.id,
-                                skip_check=current_user.is_admin,
-                                auto_commit=False,
-                            )
-                            await billing_db.commit()
+                                    credit_svc = CreditService(billing_db)
+                                    _raw = (request.message or "").replace("\n", " ").strip()
+                                    msg_preview = _raw[:20] + "…" if len(_raw) > 20 else _raw
+                                    await credit_svc.consume(
+                                        user_id=current_user.id,
+                                        amount=credits_to_deduct,
+                                        description=f"{work.title} · {msg_preview}(错误)",
+                                        related_id=ai_log.id,
+                                        skip_check=current_user.is_admin,
+                                        auto_commit=False,
+                                        nowait=True,
+                                    )
+                                    await billing_db.commit()
+                                break  # 成功，退出重试
+                            except (_DBErr, TimeoutError) as _lock_err:
+                                if _attempt < _max_retries - 1:
+                                    logger.warning(
+                                        "[V2 Billing] 错误路径锁冲突/超时，重试 %d/%d: %s",
+                                        _attempt + 1, _max_retries, _lock_err,
+                                    )
+                                    await _asyncio.sleep(0.5 * (_attempt + 1))
+                                else:
+                                    raise
 
                         logger.info(
                             "[V2 Billing] error-path user=%s tokens=%d credits=%.2f",
@@ -1444,7 +1475,7 @@ async def accept_v2_changes(
         logger.warning(f"[V2] knowledge->worldview sync failed: {e}")
 
     # flush 后更新向量索引（直接读磁盘文件，而非 backend.read()）
-    from app.services.agent.deep_agent.rag_tool import update_chapter_vectors, remove_chapter_vectors
+    from app.services.agent.deep_agent.rag_tool import update_chapter_vectors, remove_chapter_vectors, update_knowledge_vectors
     from app.services.agent.deep_agent.frontmatter import parse_chapter
 
     for path in affected:
@@ -1460,6 +1491,17 @@ async def accept_v2_changes(
                 update_chapter_vectors(work_id, path, parsed["content"])
             except Exception as e:
                 logger.warning(f"[V2] Failed to update vectors for {path}: {e}")
+        elif "/knowledge/" in path:
+            try:
+                disk_path = backend._resolve_path(path)
+                work_id = Path(str(backend.cwd)).name
+                if not disk_path.exists() or not disk_path.is_file():
+                    remove_chapter_vectors(work_id, path)
+                    continue
+                raw = disk_path.read_text(encoding="utf-8")
+                update_knowledge_vectors(work_id, path, raw)
+            except Exception as e:
+                logger.warning(f"[V2] Failed to update knowledge vectors for {path}: {e}")
 
     return {"status": "accepted", "affected_paths": affected, "worldview_sync": worldview_sync}
 
@@ -1536,25 +1578,32 @@ async def accept_v2_single_change(
     except Exception as e:
         logger.warning(f"[V2] knowledge->worldview sync failed: {e}")
 
-    # 单个接受后同步章节向量索引（含 rename/delete 场景）
+    # 单个接受后同步章节/知识库向量索引（含 rename/delete 场景）
     try:
         from app.services.agent.deep_agent.rag_tool import (
             remove_chapter_vectors,
             update_chapter_vectors,
+            update_knowledge_vectors,
         )
         from app.services.agent.deep_agent.frontmatter import parse_chapter
 
         work_id = Path(str(backend.cwd)).name
         for touched_path in touched_paths:
-            if "/chapters/" not in touched_path:
-                continue
-            disk_path = backend._resolve_path(touched_path)
-            if not disk_path.exists() or not disk_path.is_file():
-                remove_chapter_vectors(work_id, touched_path)
-            else:
-                raw = disk_path.read_text(encoding="utf-8")
-                parsed = parse_chapter(raw)
-                update_chapter_vectors(work_id, touched_path, parsed["content"])
+            if "/chapters/" in touched_path:
+                disk_path = backend._resolve_path(touched_path)
+                if not disk_path.exists() or not disk_path.is_file():
+                    remove_chapter_vectors(work_id, touched_path)
+                else:
+                    raw = disk_path.read_text(encoding="utf-8")
+                    parsed = parse_chapter(raw)
+                    update_chapter_vectors(work_id, touched_path, parsed["content"])
+            elif "/knowledge/" in touched_path:
+                disk_path = backend._resolve_path(touched_path)
+                if not disk_path.exists() or not disk_path.is_file():
+                    remove_chapter_vectors(work_id, touched_path)
+                else:
+                    raw = disk_path.read_text(encoding="utf-8")
+                    update_knowledge_vectors(work_id, touched_path, raw)
     except Exception as e:
         logger.warning(f"[V2] Failed to update vectors for single change {path}: {e}")
 

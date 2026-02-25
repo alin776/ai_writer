@@ -144,7 +144,8 @@ class CreditService:
         description: str,
         related_id: Optional[UUID] = None,
         skip_check: bool = False,
-        auto_commit: bool = True  # ✅ 2025-12-14: 支持外层事务控制
+        auto_commit: bool = True,  # ✅ 2025-12-14: 支持外层事务控制
+        nowait: bool = False,  # True = 锁冲突立即失败(需调用方重试)
     ) -> Optional[CreditTransaction]:
         """
         消费积分（AI调用扣费）
@@ -156,6 +157,8 @@ class CreditService:
             related_id: 关联的 ai_call_log ID
             skip_check: 跳过检查（管理员豁免）
             auto_commit: 是否自动提交（默认True）。设为False时由外层控制事务
+            nowait: FOR UPDATE NOWAIT 模式（默认False）。True时锁冲突立即抛出
+                DBAPIError，需调用方自行重试；适用于长生命周期 session 场景
 
         Returns:
             CreditTransaction: 交易记录（管理员豁免时返回 None）
@@ -170,9 +173,10 @@ class CreditService:
             return None
 
         # ✅ Critical修复2: 获取用户积分记录（加锁）
+        # nowait=True: 获取不到锁立即失败，避免阻塞等待导致 command_timeout
         stmt = select(UserCredits).where(
             UserCredits.user_id == user_id
-        ).with_for_update()
+        ).with_for_update(nowait=nowait)
         result = await self.db.execute(stmt)
         credits = result.scalar_one_or_none()
 
