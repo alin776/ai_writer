@@ -285,17 +285,104 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         return results
 
     def grep_raw(self, pattern: str, path: str | None = None, glob: str | None = None) -> list | str:
-        """grep_raw with Windows path normalization.
+        """grep_raw with UTF-8 encoding fix and Windows path normalization.
 
-        grep_raw returns list[GrepMatch] on success or str on error.
-        Only normalize paths when the result is a list.
+        On Windows, the parent's ripgrep subprocess uses the system default
+        encoding (GBK/CP936) for both the pattern and stdout parsing.  When the
+        search pattern contains non-ASCII characters (e.g. Chinese), ripgrep
+        receives a garbled pattern and returns zero matches.  Because an empty
+        dict ``{}`` is not ``None``, the parent never falls back to its Python
+        search — which itself calls ``read_text()`` without an explicit encoding.
+
+        Fix: when the parent returns an empty list, retry with an explicit
+        UTF-8 Python search that works reliably on all platforms.
         """
         results = super().grep_raw(pattern, path, glob)
+
+        # Fallback: parent returned empty → retry with explicit UTF-8
+        if isinstance(results, list) and not results:
+            results = self._grep_utf8_fallback(pattern, path, glob)
+
         if os.name == "nt" and isinstance(results, list):
             for item in results:
                 if "path" in item:
                     item["path"] = item["path"].replace("\\", "/")
         return results
+
+    # 回退搜索时跳过的目录（无有效内容，且可能非常大）
+    _SKIP_DIRS = frozenset({
+        ".git", "__pycache__", ".venv", "venv", "node_modules", ".pytest_cache",
+    })
+
+    def _grep_utf8_fallback(
+        self, pattern: str, path: str | None, glob_pattern: str | None,
+    ) -> list[dict[str, Any]]:
+        """UTF-8 explicit Python search fallback.
+
+        Performs a literal string search across files using explicit UTF-8
+        encoding for ``read_text()``.  This avoids the Windows default encoding
+        (GBK) that silently breaks non-ASCII searches.
+        """
+        import wcmatch.glob as _wcglob
+
+        try:
+            base = self._resolve_path(path or ".")
+        except ValueError:
+            return []
+        if not base.exists():
+            return []
+
+        root = base if base.is_dir() else base.parent
+        matches: list[dict[str, Any]] = []
+
+        for fp in root.rglob("*"):
+            # 跳过特殊目录下的文件
+            if self._SKIP_DIRS.intersection(fp.parts):
+                continue
+
+            try:
+                if not fp.is_file():
+                    continue
+            except (PermissionError, OSError):
+                continue
+
+            if glob_pattern and not _wcglob.globmatch(
+                fp.name, glob_pattern, flags=_wcglob.BRACE,
+            ):
+                continue
+
+            try:
+                if fp.stat().st_size > self.max_file_size_bytes:
+                    continue
+            except OSError:
+                continue
+
+            try:
+                content = fp.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, PermissionError, OSError):
+                continue
+
+            for line_num, line in enumerate(content.splitlines(), 1):
+                if pattern in line:
+                    if self.virtual_mode:
+                        try:
+                            virt_path = "/" + str(
+                                fp.resolve().relative_to(self.cwd)
+                            ).replace("\\", "/")
+                        except Exception:
+                            continue
+                    else:
+                        virt_path = str(fp)
+                    matches.append({
+                        "path": virt_path, "line": line_num, "text": line,
+                    })
+
+        if matches:
+            _logger.info(
+                "[GREP-UTF8] fallback found %d matches for pattern %r",
+                len(matches), pattern[:30],
+            )
+        return matches
 
     # ─── 脚本执行（SandboxBackendProtocol） ───
 
