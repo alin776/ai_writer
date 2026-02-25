@@ -1892,6 +1892,22 @@ ${selectionContext.selected_text}
                           const revisionData = findRevisionByItemId(itemId);
                           const resolvedRequestId = requestId || revisionData?.requestId;
                           const targetChapterId = resolveRevisionTargetChapterId(revisionData, chapterId);
+
+                          // 已接受/已弃用的修订 → 只导航到文件，不再显示 diff
+                          if (revisionData?.status === 'accepted' || revisionData?.status === 'discarded') {
+                            window.dispatchEvent(
+                              new CustomEvent('agent-jump-revision', {
+                                detail: {
+                                  workId,
+                                  chapterId: targetChapterId,
+                                  chapterTitle: revisionData?.chapterTitle,
+                                  path: revisionData?.path,
+                                }
+                              })
+                            );
+                            return;
+                          }
+
                           const targetRevisionId = resolvedRequestId || itemId;
                           const rawDiffPairs = (revisionData as any)?.diffPairs as Array<{
                             oldString?: string;
