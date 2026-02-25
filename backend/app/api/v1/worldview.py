@@ -1244,6 +1244,14 @@ async def create_or_update_ai_guidelines(
     except Exception as e:
         logger.error(f"[AI Guidelines] 自动分发世界观数据失败: {e}", exc_info=True)
 
+    # 将数据库卡片镜像写入知识库文件（knowledge/characters.md, knowledge/worldview.md）
+    try:
+        bridge = WorldviewKnowledgeBridge(db)
+        await bridge.mirror_from_cards(work_id)
+        logger.info(f"[AI Guidelines] 知识库文件已同步 work_id={work_id}")
+    except Exception as e:
+        logger.warning(f"[AI Guidelines] 知识库文件同步失败（不影响主流程）: {e}", exc_info=True)
+
     # 🔧 2025-12-02: P0修复 - 失效缓存（失效ai-guidelines以及可能被自动填充的相关缓存）
     _invalidate_worldview_cache(work_id, ['ai-guidelines', 'characters', 'locations', 'settings', 'guidelines'])
 
@@ -1324,10 +1332,11 @@ async def generate_ai_guidelines(
   "main_locations": "主要场景（每个50-80字）。格式：【场景名】类型 | 特色 | 氛围，至少3个，换行分隔",
   "world_rules": "世界核心规则（150-200字）。包括：①社会阶层格局 ②资源获取方式 ③普通人上升路径 ④禁忌底线",
 
-  // === 力量体系（3个字段）===
-  "power_system_name": "力量体系名称（有独特性，避免通用名）",
-  "power_levels": "等级划分。格式：等级名 | 实力 | 能力 | 地位，6-9个等级，换行分隔",
-  "power_cost": "力量代价与限制（100-150字）。包括：①获取代价 ②使用限制 ③副作用风险 ④天花板",
+  // === 力量体系（3个字段，仅玄幻/仙侠/科幻/超能力等有能力升级体系的类型需填写）===
+  // 若为都市现实、言情、悬疑、历史等无超自然力量的类型，此3个字段填 null
+  "power_system_name": "力量体系名称（有独特性，避免通用名）。无超自然力量体系的类型填 null",
+  "power_levels": "等级划分。格式：等级名 | 实力 | 能力 | 地位，6-9个等级，换行分隔。无适用体系填 null",
+  "power_cost": "力量代价与限制（100-150字）。包括：①获取代价 ②使用限制 ③副作用风险 ④天花板。无适用体系填 null",
 
   // === 主角设定（4个字段）===
   "protagonist_name": "主角姓名（符合世界观，有寓意更好）",
@@ -1347,7 +1356,7 @@ async def generate_ai_guidelines(
 2. 内容要有**独特性和辨识度**，基于故事梗概深度推演
 3. 各字段要**相互呼应**，形成完整体系
 4. 返回严格的JSON格式，不要有任何解释文字
-5. 所有24个字段都必须填写，不能为空
+5. 所有24个字段都必须填写；力量体系3个字段若不适用当前类型可填 null
 6. **标题要有吸引力**，能让读者一眼记住
 7. **简介要有悬念**，能吸引读者点击阅读"""
 
