@@ -23,7 +23,7 @@ class SummaryService:
         初始化摘要服务
 
         Args:
-            ai_service: HTTPAIService实例（懒加载）
+            ai_service: LangChainAIService实例（懒加载）
         """
         self.ai_service = ai_service
         self.default_model = "gpt-5.2"

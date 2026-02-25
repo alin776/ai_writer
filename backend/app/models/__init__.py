@@ -17,7 +17,6 @@ from app.models.ai_call_log import AICallLog
 from app.models.evaluation_record import EvaluationRecord
 from app.models.knowledge_item import KnowledgeItem, KnowledgeCategory, KnowledgeSource
 from app.models.rewrite_history import RewriteSession, RewriteResult
-from app.models.book_analysis import BookAnalysisJob, JobStatus
 from app.models.worldview_suggestion import WorldviewSuggestion, SuggestionType, SuggestionAction, SuggestionStatus
 from app.models.worldview_change import WorldviewChange, WorldviewChangeStatus
 from app.models.user_credits import UserCredits
@@ -97,9 +96,7 @@ __all__ = [
     "KnowledgeSource",
     "RewriteSession",
     "RewriteResult",
-    "BookAnalysisJob",
-    "JobStatus",
-    "WorldviewSuggestion",
+"WorldviewSuggestion",
     "SuggestionType",
     "SuggestionAction",
     "SuggestionStatus",

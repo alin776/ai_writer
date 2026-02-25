@@ -90,7 +90,7 @@ async def ai_generate_relationship(
     db: AsyncSession = Depends(get_db)
 ):
     """AI 生成关系标签和描述"""
-    from app.services.ai.http_ai_service import HTTPAIService
+    from app.services.ai.langchain_ai_service import LangChainAIService
 
     logger.info(
         f"[AI生成关系] 用户: {current_user.username}, "
@@ -117,7 +117,7 @@ async def ai_generate_relationship(
     result_text = ""
     try:
         # 调用 AI 服务
-        ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
+        ai_service = LangChainAIService(db=db, user_id=str(current_user.id))
 
         # 收集流式响应
         async for chunk, usage in ai_service.stream_complete(

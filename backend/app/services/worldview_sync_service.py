@@ -21,7 +21,7 @@ from app.models.work import Work
 from app.models.relationship import EntityRelationship
 from app.services.worldview_service import WorldviewService
 from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
-from app.services.ai.http_ai_service import HTTPAIService
+from app.services.ai.langchain_ai_service import LangChainAIService
 from app.services.agent.model_selector import TaskType
 from app.services.chapter_fs_helpers import (
     ChapterData,
@@ -244,25 +244,25 @@ class WorldviewSyncService:
         default_model = settings.WORLDVIEW_SCAN_MODEL
         if default_model:
             fast_model = default_model
-        shared_ai_service: Optional[HTTPAIService] = None
-        shared_fast_ai_service: Optional[HTTPAIService] = None
+        shared_ai_service: Optional[LangChainAIService] = None
+        shared_fast_ai_service: Optional[LangChainAIService] = None
         if concurrency == 1:
             if default_model:
-                shared_ai_service = HTTPAIService(
+                shared_ai_service = LangChainAIService(
                     db=self.db,
                     user_id=self.user_id,
                     model=default_model,
                     enable_model_selector=False
                 )
             else:
-                shared_ai_service = HTTPAIService(
+                shared_ai_service = LangChainAIService(
                     db=self.db,
                     user_id=self.user_id,
                     model=settings.OPENAI_MODEL,
                     enable_model_selector=True
                 )
             if fast_model and fast_model != default_model:
-                shared_fast_ai_service = HTTPAIService(
+                shared_fast_ai_service = LangChainAIService(
                     db=self.db,
                     user_id=self.user_id,
                     model=fast_model,
@@ -880,7 +880,7 @@ class WorldviewSyncService:
 
         try:
             # 统一使用快模型进行世界观分析
-            ai_service = HTTPAIService(
+            ai_service = LangChainAIService(
                 db=self.db,
                 user_id=self.user_id,
                 model=settings.WORLDVIEW_SINGLE_CHAPTER_MODEL or "gpt-5.2",
@@ -912,7 +912,7 @@ class WorldviewSyncService:
         combined_content: str,
         existing_summary: str,
         chapter_count: int,
-        ai_service: Optional[HTTPAIService] = None,
+        ai_service: Optional[LangChainAIService] = None,
         task_type: Optional[TaskType] = None,
         enable_cost_tracking: bool = True,
         model_override: Optional[str] = None
@@ -967,7 +967,7 @@ class WorldviewSyncService:
             # 使用 gemini 模型进行世界观分析（更稳定）
             if ai_service is None:
                 if model_override:
-                    ai_service = HTTPAIService(
+                    ai_service = LangChainAIService(
                         db=self.db if enable_cost_tracking else None,
                         user_id=self.user_id if enable_cost_tracking else None,
                         model=model_override,
@@ -975,7 +975,7 @@ class WorldviewSyncService:
                         enable_cost_tracking=enable_cost_tracking
                     )
                 else:
-                    ai_service = HTTPAIService(
+                    ai_service = LangChainAIService(
                         db=self.db if enable_cost_tracking else None,
                         user_id=self.user_id if enable_cost_tracking else None,
                         model=settings.OPENAI_MODEL,

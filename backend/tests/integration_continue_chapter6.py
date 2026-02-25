@@ -243,10 +243,10 @@ async def main():
 
     # 2. 创建 Agent 实例
     print("\n[2/4] 创建 Agent 实例 ...")
-    from app.services.ai.http_ai_service import HTTPAIService
+    from app.services.ai.langchain_ai_service import LangChainAIService
     from app.services.agent.langgraph_agent import WritingAgentGraph
 
-    ai_service = HTTPAIService(enable_model_selector=True)
+    ai_service = LangChainAIService(enable_model_selector=True)
     agent = WritingAgentGraph(ai_service)
     print("  Agent 创建成功")
 

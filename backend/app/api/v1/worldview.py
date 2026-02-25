@@ -1295,7 +1295,7 @@ async def generate_ai_guidelines(
     2. 旧版本：基于15个创作规范字段生成17个核心设定字段
     """
     user_id = str(current_user.id)
-    from app.services.ai.http_ai_service import HTTPAIService
+    from app.services.ai.langchain_ai_service import LangChainAIService
     import json
 
     # 🆕 判断使用哪种模式
@@ -1424,7 +1424,7 @@ async def generate_ai_guidelines(
     # 调用AI服务生成内容
     full_response = ""
     try:
-        ai_service = HTTPAIService(db=db, user_id=user_id)
+        ai_service = LangChainAIService(db=db, user_id=user_id)
 
         async for chunk, usage in ai_service._stream_chat(
             messages=[
@@ -1881,7 +1881,7 @@ async def ai_generate_entity(
     db: AsyncSession = Depends(get_db)
 ):
     """AI 生成实体描述（角色/地点/设定）"""
-    from app.services.ai.http_ai_service import HTTPAIService
+    from app.services.ai.langchain_ai_service import LangChainAIService
     import json
 
     logger.info(
@@ -1911,7 +1911,7 @@ async def ai_generate_entity(
     result_text = ""
     try:
         # 调用 AI 服务
-        ai_service = HTTPAIService(db=db, user_id=str(current_user.id))
+        ai_service = LangChainAIService(db=db, user_id=str(current_user.id))
 
         # 收集流式响应
         async for chunk, usage in ai_service.stream_complete(

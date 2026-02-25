@@ -1006,7 +1006,7 @@ class ContextManager:
         用于在创建ContextManager后注入AI服务
 
         Args:
-            ai_service: HTTPAIService实例
+            ai_service: LangChainAIService实例
         """
         self.ai_service = ai_service
         self._summary_service = None  # 重置摘要服务，下次使用时重新初始化

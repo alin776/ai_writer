@@ -8,7 +8,7 @@ import time
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.ai.http_ai_service import HTTPAIService
+from app.services.ai.langchain_ai_service import LangChainAIService
 from app.services.agent.model_selector import TaskType  # ✅ 新增：用于成本追踪
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class NovelMacroAnalysisService:
         self.user_id = user_id
         self.db = db
         self.work_id = work_id
-        self.ai_service = HTTPAIService(db=db, user_id=str(user_id) if user_id else None)
+        self.ai_service = LangChainAIService(db=db, user_id=str(user_id) if user_id else None)
         self._load_prompts()
     
     def _load_prompts(self):
@@ -225,7 +225,7 @@ class NovelMacroAnalysisService:
         final_usage = None
         start_time = time.time()
 
-        # ✅ HTTPAIService会自动追踪成本，传递task_type即可
+        # ✅ LangChainAIService会自动追踪成本，传递task_type即可
         async for chunk in self.ai_service._stream_chat(
             messages=messages,
             max_tokens=6000,  # 宏观分析需要更多token生成报告
