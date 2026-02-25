@@ -16,7 +16,7 @@ from app.models.system_config import SystemConfig
 _DEFAULT_MODEL_PRICING = {
     "gpt-5.2": {
         "input": 0.875,
-        "cached_input": 0.875,
+        "cached_input": 0.1094,
         "output": 7.0,
         "reasoning": 7.0,
         "cache_creation": 0.875,
@@ -30,7 +30,7 @@ _DEFAULT_MODEL_PRICING = {
     },
 }
 
-_DEFAULT_CREDITS_PER_DOLLAR = 12400
+_DEFAULT_CREDITS_PER_DOLLAR = 5000
 
 
 class SystemConfigService:

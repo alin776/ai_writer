@@ -302,8 +302,8 @@ class Settings(BaseSettings):
     # 管理员积分豁免
     ADMIN_CREDITS_EXEMPT: bool = True  # 管理员使用AI功能是否豁免积分检查
 
-    # 美元兑积分比例（基于混合使用模型：1 USD = 12,400 积分）
-    CREDITS_PER_DOLLAR: int = 12400
+    # 美元兑积分比例（1 USD = 5,000 积分）
+    CREDITS_PER_DOLLAR: int = 5000
 
     # 新用户赠送积分（混合写500,000字）
     NEW_USER_GIFT_CREDITS: float = 50000.00

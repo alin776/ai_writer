@@ -26,7 +26,7 @@ const TokenDetailCard: React.FC<{
   if (!d) return null;
 
   const modelPricing = pricingInfo?.modelPricing?.[d.modelName] ?? pricingInfo?.modelPricing?.['default'] ?? FALLBACK_PRICING;
-  const creditsPerDollar = pricingInfo?.creditsPerDollar ?? 12400;
+  const creditsPerDollar = pricingInfo?.creditsPerDollar ?? 5000;
 
   // 计算 new input（排除 cache 部分）
   const newInput = Math.max(d.promptTokens - d.cacheReadTokens - d.cacheCreationTokens, 0);
