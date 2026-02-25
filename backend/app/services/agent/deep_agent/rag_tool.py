@@ -134,6 +134,25 @@ def update_chapter_vectors(
     logger.info("Updated %d chunks for %s in work %s", len(docs), path, work_id)
 
 
+def remove_chapter_vectors(
+    work_id: str,
+    path: str,
+    persist_dir: str = "./data/chroma_db",
+) -> None:
+    """Remove all vector chunks for a chapter path."""
+    client = chromadb.PersistentClient(path=persist_dir)
+    collection_name = f"work_{work_id.replace('-', '_')}"
+    try:
+        collection = client.get_or_create_collection(collection_name)
+        existing = collection.get(where={"source": path})
+        ids = existing.get("ids") or []
+        if ids:
+            collection.delete(ids=ids)
+            logger.info("Removed %d vector chunks for %s in work %s", len(ids), path, work_id)
+    except Exception as e:
+        logger.warning("Failed to remove vectors for %s: %s", path, e)
+
+
 def _split_chinese_text(
     text: str,
     chunk_size: int = 500,

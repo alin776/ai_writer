@@ -24,6 +24,8 @@ _TOOL_ICONS = {
     "read_file": "FileText",
     "write_file": "PenTool",
     "edit_file": "Edit3",
+    "rename_file": "FileType",
+    "delete_file": "Trash2",
     "ls": "FolderOpen",
     "glob": "Search",
     "grep": "Search",
@@ -262,10 +264,19 @@ def make_revision_event(op: dict) -> dict[str, Any]:
     add_lines = new_norm.count("\n") + 1 if new_norm else 0
     del_lines = old_norm.count("\n") + 1 if old_norm else 0
 
+    op_type = op.get("op_type")
+    if op_type == "write":
+        revision_type = "create"
+    elif op_type == "rename":
+        revision_type = "rename"
+    else:
+        revision_type = "replace"
+
     return {
         "type": "revision",
         "data": {
-            "revisionType": "create" if op["op_type"] == "write" else "replace",
+            "revisionType": revision_type,
+            "operation": op_type,
             "path": op["path"],
             "status": "pending",
             "contentPreview": op.get("content_preview", ""),
@@ -273,6 +284,8 @@ def make_revision_event(op: dict) -> dict[str, Any]:
             "newString": op.get("new_string", ""),
             "chapterId": op.get("chapter_id", ""),
             "chapterTitle": op.get("chapter_title", ""),
+            "oldTitle": op.get("old_title", ""),
+            "newTitle": op.get("new_title", ""),
             "addLines": add_lines,
             "delLines": del_lines,
             "index": op.get("index"),
@@ -290,6 +303,10 @@ def _tool_description(tool_name: str, tool_input: Any) -> str:
             return f"创建 {tool_input.get('file_path', '文件')}"
         if tool_name == "edit_file":
             return f"编辑 {tool_input.get('file_path', '文件')}"
+        if tool_name == "rename_file":
+            return f"重命名 {tool_input.get('old_path', '文件')}"
+        if tool_name == "delete_file":
+            return f"删除 {tool_input.get('file_path', '文件')}"
         if tool_name == "ls":
             return f"查看目录 {tool_input.get('path', '/')}"
         if tool_name in ("grep", "glob"):

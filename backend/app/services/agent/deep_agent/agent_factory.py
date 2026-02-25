@@ -12,6 +12,7 @@ Agent 工厂函数
 import logging
 import shutil
 from pathlib import Path
+from shutil import copytree
 from typing import Any
 
 from langchain_openai import ChatOpenAI
@@ -19,12 +20,15 @@ from langchain_openai import ChatOpenAI
 from app.core.config import settings
 from app.services.agent.deep_agent import DATA_ROOT
 from app.services.agent.deep_agent.buffered_backend import BufferedFilesystemBackend
+from app.services.agent.deep_agent.file_ops_tools import create_file_ops_tools
 from app.services.agent.deep_agent.prompts import build_system_prompt
 from app.services.agent.deep_agent.rag_tool import create_semantic_search_tool
 
 logger = logging.getLogger(__name__)
 
 SKILLS_ROOT = Path(__file__).parent.parent / "skills"
+WORK_SKILLS_DIR = ".skills"
+DEFAULT_SKILL_SETS = ("quality", "review", "statistics", "process")
 
 # Skills 分组目录名（与 skills/ 下的子目录对应）
 _SKILL_GROUPS = [
@@ -120,6 +124,7 @@ def create_writing_agent(
 
     # 4. 创建语义搜索工具
     search_tool = create_semantic_search_tool(work_id)
+    file_ops_tools = create_file_ops_tools(backend)
 
     # 5. 构建 LLM（复用现有配置）
     llm = ChatOpenAI(
@@ -134,7 +139,7 @@ def create_writing_agent(
     # 6. 组装 Agent（skills 使用相对路径，在 backend 沙箱内可达）
     agent = create_deep_agent(
         model=llm,
-        tools=[search_tool],
+        tools=[search_tool, *file_ops_tools],
         system_prompt=system_prompt,
         backend=backend,
         checkpointer=checkpointer,

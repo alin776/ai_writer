@@ -316,6 +316,7 @@
       "draft": "草稿"
     },
     "toolbar": {
+      "collapseChapterList": "收起目錄",
       "expandChapterList": "展開目錄",
       "expandRightPanel": "展開右側面板",
       "aiAutoComplete": "AI 自動補全",

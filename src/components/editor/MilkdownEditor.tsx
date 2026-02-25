@@ -268,7 +268,7 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
       {/* 编辑器主体 */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto scrollbar-hide"
+        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-visible"
       />
     </div>
   );

@@ -20,6 +20,7 @@ from app.models.setting import Setting
 from app.models.work import Work
 from app.models.relationship import EntityRelationship
 from app.services.worldview_service import WorldviewService
+from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
 from app.services.ai.http_ai_service import HTTPAIService
 from app.services.agent.model_selector import TaskType
 from app.services.chapter_fs_helpers import (
@@ -591,6 +592,11 @@ class WorldviewSyncService:
             work_id,
             ['characters', 'locations', 'settings', 'guidelines']
         )
+        try:
+            bridge = WorldviewKnowledgeBridge(self.db)
+            await bridge.mirror_from_cards(work_id)
+        except Exception as exc:
+            logger.warning("[世界观同步] 卡片镜像到 knowledge 失败: %s", exc)
         return stats
 
     def _iter_scan_batches(

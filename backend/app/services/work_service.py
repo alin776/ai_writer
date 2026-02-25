@@ -1,13 +1,17 @@
-from typing import List, Optional
+import re
+from pathlib import Path
+from typing import Any, List, Optional
+from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 import asyncio
 from pathlib import Path
 
 from app.models.work import Work
-from app.models.chapter import Chapter
+from app.models.chapter import Chapter, ChapterStatus
 from app.schemas.work import WorkCreate, WorkUpdate
 from app.utils.cache import cache_result, CacheInvalidator
 from app.core.redis import CacheKey, CacheExpire
@@ -15,11 +19,68 @@ from app.services.agent.deep_agent import DATA_ROOT
 from app.services.agent.deep_agent.frontmatter import parse_chapter, build_chapter
 
 
+_FS_CHAPTER_ID_RE = re.compile(r"^fs-(\d+)$", re.IGNORECASE)
+_FS_CHAPTER_FILE_RE = re.compile(r"^(\d+)-.+\.md$")
+
+
 class WorkService:
     """作品服务"""
     
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    @staticmethod
+    def _split_chapter_ids(chapter_ids: List[str]) -> tuple[list[UUID], list[int]]:
+        """Split chapter ids into DB UUID ids and fs-N numeric orders."""
+        uuid_ids: list[UUID] = []
+        fs_orders: list[int] = []
+        for raw in chapter_ids:
+            text = (raw or "").strip()
+            if not text:
+                continue
+            fs_match = _FS_CHAPTER_ID_RE.match(text)
+            if fs_match:
+                fs_orders.append(int(fs_match.group(1)))
+                continue
+            try:
+                uuid_ids.append(UUID(text))
+            except ValueError:
+                continue
+        return uuid_ids, fs_orders
+
+    @staticmethod
+    def _load_fs_chapters(work: Work) -> dict[int, dict[str, Any]]:
+        """Load chapter metadata/content from filesystem for the given work."""
+        chapters_dir = DATA_ROOT / str(work.author_id) / "works" / str(work.id) / "chapters"
+        if not chapters_dir.exists():
+            return {}
+
+        fs_chapters: dict[int, dict[str, Any]] = {}
+        for md_file in sorted(chapters_dir.glob("*.md")):
+            if not md_file.is_file():
+                continue
+            match = _FS_CHAPTER_FILE_RE.match(md_file.name)
+            if not match:
+                continue
+            order = int(match.group(1))
+            try:
+                raw = md_file.read_text("utf-8")
+                parsed = parse_chapter(raw)
+            except Exception:
+                continue
+
+            title = (parsed.get("title") or "").strip()
+            if not title:
+                stem_parts = Path(md_file.stem).name.split("-", 1)
+                title = stem_parts[1] if len(stem_parts) > 1 else f"Chapter {order}"
+
+            fs_chapters[order] = {
+                "title": title,
+                "content": parsed.get("content") or "",
+                "word_count": int(parsed.get("word_count") or 0),
+            }
+
+        return fs_chapters
     
     async def get_work_by_id(self, work_id: str, use_cache: bool = True) -> Optional[Work]:
         """

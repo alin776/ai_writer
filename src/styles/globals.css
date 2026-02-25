@@ -1027,6 +1027,11 @@ select option {
   outline: none;
 }
 
+/* 小说正文段落默认首行缩进（不影响列表/引用等容器内段落） */
+.milkdown .ProseMirror > p {
+  text-indent: 2em;
+}
+
 /* b) 字体对齐 - 与 app 全局字体一致 */
 .milkdown {
   --crepe-font-title: 'Noto Serif SC', serif;

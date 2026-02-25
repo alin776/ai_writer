@@ -25,7 +25,7 @@ export interface ChangesResponse {
 }
 
 /** 后端 op_type → 前端 op 映射 */
-const OP_MAP: Record<string, string> = { write: 'create', edit: 'modify', delete: 'delete' };
+const OP_MAP: Record<string, string> = { write: 'create', edit: 'modify', rename: 'modify', delete: 'delete' };
 
 /** 获取待审批的变更列表 */
 async function list(conversationId: string): Promise<ChangesResponse> {

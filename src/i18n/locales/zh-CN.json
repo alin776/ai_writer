@@ -318,6 +318,7 @@
       "draft": "草稿"
     },
     "toolbar": {
+      "collapseChapterList": "收起目录",
       "expandChapterList": "展开目录",
       "expandRightPanel": "展开右侧面板",
       "aiAutoComplete": "AI 自动补全",
