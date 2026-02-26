@@ -6,7 +6,7 @@
 
 import enum
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, Float, ForeignKey, func
+from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, Float, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
 
@@ -43,7 +43,7 @@ class WorldviewSuggestion(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    job_id = Column(UUID(as_uuid=True), ForeignKey("book_analysis_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    job_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     work_id = Column(UUID(as_uuid=True))  # 关联作品ID (可选)
 
     # 建议内容

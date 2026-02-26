@@ -7,7 +7,7 @@ version: '3.8'
 services:
   # ==================== 数据库 ====================
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: wenshu_postgres
     restart: always
     shm_size: 256m
@@ -95,6 +95,9 @@ services:
     restart: always
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - backend
     networks:
