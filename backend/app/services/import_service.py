@@ -511,6 +511,21 @@ class ImportService:
             'content_start_line': content_start_line
         }
 
+    @staticmethod
+    def _normalize_content(lines: list) -> str:
+        """将行列表拼成章节正文，确保相邻段落间有空行（Markdown 分段需要 \\n\\n）。
+
+        兼容两种 TXT 格式：
+        1. 每段一行（无空行）→ 在相邻非空行之间插入空行
+        2. 段落间已有空行   → 保持原样，折叠多余空行
+        """
+        joined = '\n'.join(lines).strip('\n')
+        # 将相邻非空行之间的单个 \n 替换为 \n\n，使 Milkdown 正确识别段落
+        normalized = re.sub(r'([^\n])\n([^\n])', r'\1\n\n\2', joined)
+        # 折叠超过两个连续的空行
+        normalized = re.sub(r'\n{3,}', '\n\n', normalized)
+        return normalized
+
     def _split_chapters(self, text: str) -> List[Dict[str, str]]:
         """智能分割章节
 
@@ -588,7 +603,7 @@ class ImportService:
             if chapter_title:
                 # 保存上一章节
                 if current_chapter:
-                    raw_content = '\n'.join(current_content).strip('\n\r\t ')
+                    raw_content = self._normalize_content(current_content)
                     chapters.append({
                         'title': current_chapter,
                         'content': raw_content
@@ -605,7 +620,7 @@ class ImportService:
 
         # 保存最后一章
         if current_chapter and current_content:
-            raw_content = '\n'.join(current_content).strip('\n\r\t ')
+            raw_content = self._normalize_content(current_content)
             chapters.append({
                 'title': current_chapter,
                 'content': raw_content
