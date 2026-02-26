@@ -383,10 +383,12 @@ select {
 /**
  * 图片样式
  */
-img {
-  max-width: 100%;
-  height: auto;
-  display: block;
+@layer base {
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
 }
 
 /**
