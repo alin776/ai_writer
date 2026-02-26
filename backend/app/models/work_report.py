@@ -4,7 +4,7 @@
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Boolean, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 import uuid
 import enum
 
@@ -55,7 +55,7 @@ class WorkReport(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # 关联关系
-    work = relationship("Work", backref="reports")
+    work = relationship("Work", backref=backref("reports", passive_deletes=True))
     reporter = relationship("User", foreign_keys=[reporter_id], backref="work_reports_submitted")
     reviewer = relationship("User", foreign_keys=[reviewed_by])
 
