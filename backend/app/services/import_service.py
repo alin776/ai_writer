@@ -407,7 +407,10 @@ class ImportService:
         encodings = ['utf-8', 'gbk', 'gb18030']
         for encoding in encodings:
             try:
-                return content.decode(encoding)
+                text = content.decode(encoding)
+                # 统一换行符：将 Windows CRLF(\r\n) 和单独 CR(\r) 都转为 LF(\n)
+                # 避免在 Linux 服务器上因 \r 残留导致分段失效
+                return text.replace('\r\n', '\n').replace('\r', '\n')
             except (UnicodeDecodeError, LookupError):
                 continue
         raise ValueError("无法识别文件编码，请将文件转换为 UTF-8 编码后重试")
@@ -597,7 +600,8 @@ class ImportService:
             else:
                 # 累积内容（只有在已经开始章节后才累积）
                 if current_chapter is not None:
-                    current_content.append(line)
+                    # 去除段首缩进（普通空格、制表符、中文全角空格）
+                    current_content.append(re.sub(r'^[ \t　]+', '', line))
 
         # 保存最后一章
         if current_chapter and current_content:
