@@ -1,0 +1,138 @@
+/* ===== Shimmer text effect (复刻 ExecutionFlow.module.css) ===== */
+.shimmerText {
+  background: linear-gradient(
+    90deg,
+    currentColor 0%,
+    currentColor 40%,
+    #10b981 50%,
+    currentColor 60%,
+    currentColor 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShimmer 2s ease-in-out infinite;
+}
+
+@keyframes textShimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: -100% 50%; }
+}
+
+/* ===== Typewriter cursor blink ===== */
+.cursorBlink {
+  animation: cursorBlink 0.8s step-end infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ===== Prose streaming cursor ===== */
+.proseCursor::after {
+  content: '▍';
+  animation: cursorBlink 0.8s step-end infinite;
+  color: #0ea5e9;
+}
+
+/* ===== Floating particles ===== */
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  animation: floatParticle 20s ease-in-out infinite;
+}
+
+.particle:nth-child(1) { animation-delay: 0s; }
+.particle:nth-child(2) { animation-delay: -4s; }
+.particle:nth-child(3) { animation-delay: -8s; }
+.particle:nth-child(4) { animation-delay: -12s; }
+.particle:nth-child(5) { animation-delay: -16s; }
+
+@keyframes floatParticle {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+  25% { transform: translate(30px, -50px) scale(1.1); opacity: 0.6; }
+  50% { transform: translate(-20px, -80px) scale(0.9); opacity: 0.3; }
+  75% { transform: translate(40px, -30px) scale(1.05); opacity: 0.5; }
+}
+
+/* ===== Shadow glow for Demo card ===== */
+.shadowGlow {
+  box-shadow: 0 0 60px rgba(255, 255, 255, 0.04), 0 0 120px rgba(255, 255, 255, 0.02);
+}
+
+/* ===== Fade transition for demo loop ===== */
+.demoFadeOut {
+  animation: demoFadeOut 800ms ease-out forwards;
+}
+
+@keyframes demoFadeOut {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ===== Check mark pop ===== */
+.checkPop {
+  animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes checkPop {
+  0% { transform: scale(0); }
+  100% { transform: scale(1); }
+}
+
+/* ===== Demo step fade-in (纯 opacity, 不含 transform/scale) ===== */
+.stepFadeIn {
+  animation: stepFadeIn 300ms ease-out both;
+}
+
+.stepFadeInFast {
+  animation: stepFadeIn 200ms ease-out both;
+}
+
+@keyframes stepFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ===== Noise texture overlay ===== */
+.noiseOverlay {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  pointer-events: none;
+}
+
+/* ===== prefers-reduced-motion: 禁用所有 CSS keyframe 动画 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .shimmerText {
+    animation: none;
+    -webkit-text-fill-color: currentColor;
+    background: none;
+  }
+
+  .cursorBlink,
+  .proseCursor::after {
+    animation: none;
+  }
+
+  .particle {
+    animation: none;
+    opacity: 0.2;
+  }
+
+  .demoFadeOut {
+    animation: none;
+    opacity: 0;
+  }
+
+  .checkPop {
+    animation: none;
+  }
+
+  .stepFadeIn,
+  .stepFadeInFast {
+    animation: none;
+  }
+}

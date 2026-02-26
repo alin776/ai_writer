@@ -5,13 +5,13 @@
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import ChapterHomePage from './ChapterHomePage';
+import VibingHomePage from './VibingHomePage';
 
 const HomeView: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <ChapterHomePage
+    <VibingHomePage
       onNavigateToAuth={() => navigate('/login')}
       onNavigateToSubscription={() => navigate('/subscription')}
       onNavigateToContact={() => navigate('/contact')}
