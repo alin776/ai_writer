@@ -781,15 +781,19 @@ const WorkDetailView: React.FC = () => {
 
     // 虚拟章节（缓冲区新建，磁盘不存在）→ 跳过 FS 加载，重新显示 diff
     if ((chapter as any)._pending) {
-      setCurrentChapterContent((chapter as any)._diffModified || chapter.content || '');
+      // 编辑器加载原始内容（_diffOriginal），diff 插件才能在其中定位 oldString
+      // 若无 _diffOriginal（未附加 diff 信息的纯预览章节），降级到新内容
+      const diffOriginal = (chapter as any)._diffOriginal;
+      const diffModified = (chapter as any)._diffModified;
+      const editorBase = diffOriginal !== undefined ? diffOriginal : (diffModified || chapter.content || '');
+      setCurrentChapterContent(editorBase);
       setCurrentChapterId(tabId);
       editorChapterIdRef.current = tabId;
       // EditorWrapper key 重挂载后重新触发 diff
-      const diffModified = (chapter as any)._diffModified;
       if (diffModified) {
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('editor-inline-diff', {
-            detail: { oldString: (chapter as any)._diffOriginal || '', newString: diffModified }
+            detail: { oldString: diffOriginal ?? '', newString: diffModified }
           }));
         }, 100);
       }
@@ -1661,6 +1665,8 @@ const WorkDetailView: React.FC = () => {
             status: 'draft',
             // 乐观更新标记
             _pending: true,
+            _diffOriginal: '',       // 新建章节无原始内容
+            _diffModified: content || '', // 新建章节全部为新增
             _request_id: request_id
           } as any;
           console.log('[WorkDetailView] 🆕 添加预览章节:', chapter_title);
@@ -1984,19 +1990,28 @@ const WorkDetailView: React.FC = () => {
 
       // 切换章节（如果不同）
       let needDelay = false;
+      let isPendingChapter = false;
       if (resolvedTargetChapterId && resolvedTargetChapterId !== normalizedCurrentChapterId) {
         const chapterExists = chapters.find((c) => c.id === resolvedTargetChapterId);
-        if (chapterExists) {
-          // 章节在磁盘上 → 正常切换
+        // _pending 章节仅存在于内存中（未落盘），不能走 handleChapterSelect 磁盘加载路径
+        isPendingChapter = !!(chapterExists && (chapterExists as any)._pending);
+        if (chapterExists && !isPendingChapter) {
+          // 章节已在磁盘上 → 正常切换
           handleChapterSelect(resolvedTargetChapterId);
           needDelay = true;
         } else {
-          // 章节不在磁盘上（缓冲区新建）→ 添加虚拟章节 + 创建标签页
+          // 章节不在磁盘上（缓冲区新建 或 已有 _pending 章节缺少 diff 字段）→ 虚拟章节路径
           const num = chapterIdToNum(resolvedTargetChapterId);
-          const title = targetChapterTitle || `第${num ?? '?'}章`;
-          // 添加到 chapters 列表（防止 useEditorTabs 清理标签）
+          const title = targetChapterTitle || chapterExists?.title || `第${num ?? '?'}章`;
+          // 若章节已存在（由 handleChapterPreview 创建）则更新 diff 字段；否则新增
           setChapters(prev => {
-            if (prev.find(c => c.id === resolvedTargetChapterId)) return prev;
+            const existing = prev.find(c => c.id === resolvedTargetChapterId);
+            if (existing) {
+              return prev.map(c => c.id === resolvedTargetChapterId
+                ? { ...c, _diffOriginal: previewBaseContent, _diffModified: modifiedContent || '' } as any
+                : c
+              );
+            }
             const now = new Date().toISOString();
             return [...prev, {
               id: resolvedTargetChapterId,
@@ -2025,7 +2040,8 @@ const WorkDetailView: React.FC = () => {
       // 打开 diff 视图（如果有修改内容）
       // 优先使用磁盘内容做匹配，只回放能命中的 diff，避免 oldString 找不到
       if (anchoredDiffPairs.length > 0 || canUseDirectDiff || canUseFallbackDiff) {
-        const shouldReloadFromDisk = typeof resolvedTargetChapterId === 'string' && resolvedTargetChapterId.startsWith('fs-');
+        // _pending 章节未落盘，跳过磁盘重新加载，直接用 previewBaseContent
+        const shouldReloadFromDisk = !isPendingChapter && typeof resolvedTargetChapterId === 'string' && resolvedTargetChapterId.startsWith('fs-');
         const baseDelay = needDelay ? 500 : (resolvedTargetChapterId !== normalizedCurrentChapterId ? 100 : 0);
         setTimeout(() => {
           const runDispatch = async () => {
