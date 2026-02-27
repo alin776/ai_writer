@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { ChannelList, type Channel } from './components/ChannelList';
 import { ChatArea, type Message } from './components/ChatArea';
@@ -12,6 +13,7 @@ import {
   joinChannel,
   leaveChannel,
   getChannelMessages,
+  getMessageReactions,
   getMessagesAround,
   sendMessage as apiSendMessage,
   sendMessageWithAttachments as apiSendMessageWithAttachments,
@@ -93,6 +95,7 @@ const convertApiMessageToMessage = (apiMessage: ChannelMessage): Message => {
     editedAt: apiMessage.editedAt ? new Date(apiMessage.editedAt) : undefined,
     forwardedFrom,
     attachments: attachments.length > 0 ? attachments : undefined,
+    reactions: apiMessage.reactions || [],
   };
 };
 
@@ -480,18 +483,14 @@ const ChannelsView: React.FC = () => {
     const loadMessages = async () => {
       try {
         const response = await getChannelMessages(activeChannelId, { skip: 0, limit: 50 });
-        console.log('[DEBUG] 加载的消息:', response.messages); // 调试日志
-
         // 先转换所有消息（不包含回复信息）
         const messages = response.messages.map(convertApiMessageToMessage);
 
         // 然后添加回复信息
         const messagesWithReply = messages.map(msg => {
           const apiMsg = response.messages.find(m => m.id === msg.id);
-          console.log('[DEBUG] 检查消息回复:', { msgId: msg.id, replyToId: apiMsg?.replyToId }); // 调试日志
           if (apiMsg?.replyToId) {
             const replyToMsg = messages.find(m => m.id === apiMsg.replyToId);
-            console.log('[DEBUG] 找到被回复的消息:', replyToMsg); // 调试日志
             if (replyToMsg) {
               return {
                 ...msg,
@@ -506,11 +505,30 @@ const ChannelsView: React.FC = () => {
           return msg;
         });
 
-        console.log('[DEBUG] 处理后的消息:', messagesWithReply); // 调试日志
         setChannelMessages(prev => ({
           ...prev,
           [activeChannelId]: messagesWithReply,
         }));
+
+        // 批量拉取有反应的消息的详细数据
+        const msgsWithReactions = response.messages.filter(m => m.reactionCount > 0);
+        if (msgsWithReactions.length > 0) {
+          const reactionResults = await Promise.all(
+            msgsWithReactions.map(m =>
+              getMessageReactions(activeChannelId, m.id).catch(() => null)
+            )
+          );
+          setChannelMessages(prev => ({
+            ...prev,
+            [activeChannelId]: (prev[activeChannelId] || []).map(msg => {
+              const idx = msgsWithReactions.findIndex(m => m.id === msg.id);
+              if (idx >= 0 && reactionResults[idx]) {
+                return { ...msg, reactions: reactionResults[idx]!.reactions };
+              }
+              return msg;
+            }),
+          }));
+        }
 
         // 检查是否有待滚动的消息（从转发消息跳转过来）
         if (pendingScrollToMessageId) {
@@ -587,8 +605,6 @@ const ChannelsView: React.FC = () => {
         type,
         replyToId
       );
-      console.log('[DEBUG] sendMessageWithAttachments response:', response);
-
       // 转换附件数据（ApiAdapter 已经转换为 camelCase）
       const attachments: MessageAttachment[] = response.attachments?.map((att: any) => ({
         id: att.id,
@@ -641,18 +657,8 @@ const ChannelsView: React.FC = () => {
 
   // WebSocket 收到新消息
   const handleNewMessage = useCallback((wsMessage: WsChannelMessage) => {
-    console.log('[DEBUG] WebSocket 收到新消息:', {
-      messageId: wsMessage.id,
-      channelId: wsMessage.channel_id,
-      userId: wsMessage.user_id,
-      content: wsMessage.content?.substring(0, 50),
-      currentUserId: user?.id
-    });
-
     // 跳过自己发送的消息（已经在 handleSendMessage 中本地添加了）
-    // 注意：后端已经通过 exclude_user 排除了发送者，所以这个检查是备用的
     if (wsMessage.user_id === user?.id) {
-      console.log('[DEBUG] 跳过自己发送的消息:', wsMessage.id);
       return;
     }
 
@@ -709,7 +715,6 @@ const ChannelsView: React.FC = () => {
       // 检查是否已存在（防止重复）
       const existingMessages = prev[wsMessage.channel_id] || [];
       if (existingMessages.some(m => m.id === wsMessage.id)) {
-        console.log('[DEBUG] 消息已存在，跳过:', wsMessage.id);
         return prev;
       }
 
@@ -724,12 +729,6 @@ const ChannelsView: React.FC = () => {
           };
         }
       }
-
-      console.log('[DEBUG] 添加新消息到频道:', {
-        channelId: wsMessage.channel_id,
-        messageId: wsMessage.id,
-        existingCount: existingMessages.length
-      });
 
       return {
         ...prev,
@@ -768,6 +767,9 @@ const ChannelsView: React.FC = () => {
 
   // WebSocket 收到反应添加
   const handleReactionAdd = useCallback((event: ReactionEvent) => {
+    // 自己的操作已由 onReactionsChange 处理，跳过避免双重更新
+    if (event.user_id === user?.id) return;
+
     setChannelMessages(prev => {
       const channelMsgs = prev[activeChannelId] || [];
       return {
@@ -793,10 +795,13 @@ const ChannelsView: React.FC = () => {
         }),
       };
     });
-  }, [activeChannelId]);
+  }, [activeChannelId, user?.id]);
 
   // WebSocket 收到反应移除
   const handleReactionRemove = useCallback((event: ReactionEvent) => {
+    // 自己的操作已由 onReactionsChange 处理，跳过避免双重更新
+    if (event.user_id === user?.id) return;
+
     setChannelMessages(prev => {
       const channelMsgs = prev[activeChannelId] || [];
       return {
@@ -817,21 +822,23 @@ const ChannelsView: React.FC = () => {
         }),
       };
     });
-  }, [activeChannelId]);
+  }, [activeChannelId, user?.id]);
 
   // 本地反应状态变化（用户自己添加/移除反应）
   const handleReactionsChange = useCallback((messageId: string, reactions: ReactionSummary[]) => {
     if (!activeChannelId) return;
 
-    setChannelMessages(prev => ({
-      ...prev,
-      [activeChannelId]: (prev[activeChannelId] || []).map(msg => {
-        if (msg.id === messageId) {
-          return { ...msg, reactions };
-        }
-        return msg;
-      }),
-    }));
+    flushSync(() => {
+      setChannelMessages(prev => ({
+        ...prev,
+        [activeChannelId]: (prev[activeChannelId] || []).map(msg => {
+          if (msg.id === messageId) {
+            return { ...msg, reactions };
+          }
+          return msg;
+        }),
+      }));
+    });
   }, [activeChannelId]);
 
   const handleJoinChannel = async (channelId: string) => {

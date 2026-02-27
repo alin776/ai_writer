@@ -2,13 +2,13 @@
  * 消息反应组件
  *
  * 显示消息的 Emoji 反应，支持添加/移除反应
+ * 使用本地 state + flushSync 保证点击后立即同步渲染。
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { Smile, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { channelApi, type ReactionSummary } from '@/services/channelApi';
-import { useAuthStore } from '@/store/authStore';
 
 interface MessageReactionsProps {
   channelId: string;
@@ -30,14 +30,21 @@ const allEmojis = [
 export const MessageReactions: React.FC<MessageReactionsProps> = ({
   channelId,
   messageId,
-  reactions,
+  reactions: reactionsProp,
   onReactionsChange,
 }) => {
-  const { user } = useAuthStore();
+  const [localReactions, setLocalReactions] = useState<ReactionSummary[]>(reactionsProp);
   const [showPicker, setShowPicker] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // 从 props 同步到本地 state（"setState during render" 模式）
+  const propKey = reactionsProp.map(r => `${r.emoji}:${r.count}:${r.hasReacted}`).join(',');
+  const localKey = localReactions.map(r => `${r.emoji}:${r.count}:${r.hasReacted}`).join(',');
+  if (propKey !== localKey && !loading) {
+    setLocalReactions(reactionsProp);
+  }
 
   // 点击外部关闭选择器
   useEffect(() => {
@@ -52,70 +59,73 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
         setShowPicker(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showPicker]);
 
-  // 处理反应点击（切换）
   const handleReactionClick = async (emoji: string, hasReacted: boolean) => {
     if (loading) return;
 
+    const originalReactions = localReactions;
+    let newReactions: ReactionSummary[];
+    if (hasReacted) {
+      newReactions = localReactions
+        .map(r => r.emoji === emoji ? { ...r, count: r.count - 1, hasReacted: false } : r)
+        .filter(r => r.count > 0);
+    } else {
+      const idx = localReactions.findIndex(r => r.emoji === emoji);
+      if (idx >= 0) {
+        newReactions = localReactions.map((r, i) =>
+          i === idx ? { ...r, count: r.count + 1, hasReacted: true } : r
+        );
+      } else {
+        newReactions = [...localReactions, { emoji, count: 1, hasReacted: true }];
+      }
+    }
+
+    // 立即更新本地 state
+    setLocalReactions(newReactions);
     setLoading(emoji);
+    setShowPicker(false);
+
+    // 同步通知父组件
+    onReactionsChange?.(newReactions);
+
     try {
       if (hasReacted) {
-        // 移除反应
         await channelApi.removeReaction(channelId, messageId, emoji);
-        // 更新本地状态
-        const newReactions = reactions
-          .map((r) => {
-            if (r.emoji === emoji) {
-              return { ...r, count: r.count - 1, hasReacted: false };
-            }
-            return r;
-          })
-          .filter((r) => r.count > 0);
-        onReactionsChange?.(newReactions);
       } else {
-        // 添加反应
         await channelApi.addReaction(channelId, messageId, emoji);
-        // 更新本地状态
-        const existingIndex = reactions.findIndex((r) => r.emoji === emoji);
-        let newReactions: ReactionSummary[];
-        if (existingIndex >= 0) {
-          newReactions = reactions.map((r, i) => {
-            if (i === existingIndex) {
-              return { ...r, count: r.count + 1, hasReacted: true };
-            }
-            return r;
-          });
-        } else {
-          newReactions = [...reactions, { emoji, count: 1, hasReacted: true }];
-        }
-        onReactionsChange?.(newReactions);
+      }
+      // API 成功后从服务器拉取最新数据
+      try {
+        const fresh = await channelApi.getMessageReactions(channelId, messageId);
+        setLocalReactions(fresh.reactions);
+        onReactionsChange?.(fresh.reactions);
+      } catch {
+        // 拉取失败不影响
       }
     } catch (error) {
       console.error('反应操作失败:', error);
+      setLocalReactions(originalReactions);
+      onReactionsChange?.(originalReactions);
     } finally {
       setLoading(null);
-      setShowPicker(false);
     }
   };
 
-  // 处理快速添加反应
   const handleQuickReaction = async (emoji: string) => {
-    const existing = reactions.find((r) => r.emoji === emoji);
+    const existing = localReactions.find(r => r.emoji === emoji);
     await handleReactionClick(emoji, existing?.hasReacted || false);
   };
 
-  if (reactions.length === 0 && !showPicker) {
+  if (localReactions.length === 0 && !showPicker) {
     return null;
   }
 
   return (
     <div className="flex flex-wrap items-center gap-1 mt-1.5">
-      {/* 已有反应 */}
-      {reactions.map((reaction) => (
+      {localReactions.map((reaction) => (
         <button
           key={reaction.emoji}
           onClick={() => handleReactionClick(reaction.emoji, reaction.hasReacted)}
@@ -134,7 +144,6 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
         </button>
       ))}
 
-      {/* 添加反应按钮 */}
       <div className="relative">
         <button
           ref={buttonRef}
@@ -145,14 +154,12 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
           <Plus className="w-3 h-3" />
         </button>
 
-        {/* 反应选择器 */}
         {showPicker && (
           <div
             ref={pickerRef}
             className="absolute bottom-full left-0 mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 z-50"
             style={{ minWidth: '200px' }}
           >
-            {/* 快捷反应 */}
             <div className="flex gap-1 pb-2 border-b border-gray-100 dark:border-gray-700 mb-2">
               {quickReactions.map((emoji) => (
                 <button
@@ -164,8 +171,6 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
                 </button>
               ))}
             </div>
-
-            {/* 完整表情列表 */}
             <div className="grid grid-cols-6 gap-1">
               {allEmojis.map((emoji) => (
                 <button

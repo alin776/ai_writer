@@ -93,6 +93,7 @@ export interface ChannelMessage {
     }[];
   };
   reactionCount: number;
+  reactions?: ReactionSummary[];
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;

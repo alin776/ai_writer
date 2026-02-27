@@ -24,6 +24,9 @@ import { checkFriendship, sendFriendRequest } from '@/services/friendApi';
 import { useChannelWebSocket, type ChannelMessage, type ReactionEvent } from '@/hooks/useChannelWebSocket';
 import { TypingIndicator } from './TypingIndicator';
 import { MessageReactions } from './MessageReactions';
+
+// 稳定的空数组引用，避免每次渲染创建新 [] 导致 MessageReactions 的 useEffect 误触发
+const EMPTY_REACTIONS: ReactionSummary[] = [];
 import EmojiPicker from './EmojiPicker';
 import { FileUploader, FilePreview, ALLOWED_TYPES, formatFileSize } from './FileUploader';
 import MessageAttachments from './MessageAttachments';
@@ -770,10 +773,24 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
   const insertEmoji = async (emoji: string) => {
     // 如果是添加反应模式
     if (reactionTargetMessageId) {
-      try {
-        await channelApi.addReaction(channel.id, reactionTargetMessageId, emoji);
-      } catch (e) {
-        console.error('添加反应失败', e);
+      const targetMessage = messages.find(m => m.id === reactionTargetMessageId);
+      const currentReactions = targetMessage?.reactions || [];
+      const existing = currentReactions.find(r => r.emoji === emoji);
+      // 乐观更新
+      if (existing?.hasReacted) {
+        const newReactions = currentReactions
+          .map(r => r.emoji === emoji ? { ...r, count: r.count - 1, hasReacted: false } : r)
+          .filter(r => r.count > 0);
+        onReactionsChange?.(reactionTargetMessageId, newReactions);
+        try { await channelApi.removeReaction(channel.id, reactionTargetMessageId, emoji); }
+        catch (e) { onReactionsChange?.(reactionTargetMessageId, currentReactions); }
+      } else {
+        const newReactions = existing
+          ? currentReactions.map(r => r.emoji === emoji ? { ...r, count: r.count + 1, hasReacted: true } : r)
+          : [...currentReactions, { emoji, count: 1, hasReacted: true }];
+        onReactionsChange?.(reactionTargetMessageId, newReactions);
+        try { await channelApi.addReaction(channel.id, reactionTargetMessageId, emoji); }
+        catch (e) { onReactionsChange?.(reactionTargetMessageId, currentReactions); }
       }
       setReactionTargetMessageId(null);
       setShowEmojiPicker(false);
@@ -1045,11 +1062,25 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
 
   // 快速添加表情反应
   const handleQuickReact = async (messageId: string, emoji: string) => {
-    try {
-      await channelApi.addReaction(channel.id, messageId, emoji);
-    } catch (error: any) {
-      console.error('添加反应失败:', error);
-      showError(error.response?.data?.detail || '添加反应失败');
+    const targetMessage = messages.find(m => m.id === messageId);
+    const currentReactions = targetMessage?.reactions || [];
+    const existing = currentReactions.find(r => r.emoji === emoji);
+
+    // 乐观更新（与右键菜单逻辑一致）
+    if (existing?.hasReacted) {
+      const newReactions = currentReactions
+        .map(r => r.emoji === emoji ? { ...r, count: r.count - 1, hasReacted: false } : r)
+        .filter(r => r.count > 0);
+      onReactionsChange?.(messageId, newReactions);
+      try { await channelApi.removeReaction(channel.id, messageId, emoji); }
+      catch (e) { onReactionsChange?.(messageId, currentReactions); }
+    } else {
+      const newReactions = existing
+        ? currentReactions.map(r => r.emoji === emoji ? { ...r, count: r.count + 1, hasReacted: true } : r)
+        : [...currentReactions, { emoji, count: 1, hasReacted: true }];
+      onReactionsChange?.(messageId, newReactions);
+      try { await channelApi.addReaction(channel.id, messageId, emoji); }
+      catch (e) { onReactionsChange?.(messageId, currentReactions); }
     }
   };
 
@@ -1745,7 +1776,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                   <MessageReactions
                     channelId={channel.id}
                     messageId={message.id}
-                    reactions={message.reactions || []}
+                    reactions={message.reactions ?? EMPTY_REACTIONS}
                     onReactionsChange={(reactions) => onReactionsChange?.(message.id, reactions)}
                   />
                 </div>
@@ -2246,10 +2277,23 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
               const moreReactions = ['❤️', '😊', '😢', '😮', '😡', '🎉', '🔥', '👀', '🙏', '💪', '✅', '❌'];
               const handleQuickReaction = async (emoji: string) => {
                 if (message) {
-                  try {
-                    await channelApi.addReaction(channel.id, message.id, emoji);
-                  } catch (e) {
-                    console.error('添加反应失败', e);
+                  const currentReactions = message.reactions || [];
+                  const existing = currentReactions.find(r => r.emoji === emoji);
+                  // 乐观更新
+                  if (existing?.hasReacted) {
+                    const newReactions = currentReactions
+                      .map(r => r.emoji === emoji ? { ...r, count: r.count - 1, hasReacted: false } : r)
+                      .filter(r => r.count > 0);
+                    onReactionsChange?.(message.id, newReactions);
+                    try { await channelApi.removeReaction(channel.id, message.id, emoji); }
+                    catch (e) { onReactionsChange?.(message.id, currentReactions); }
+                  } else {
+                    const newReactions = existing
+                      ? currentReactions.map(r => r.emoji === emoji ? { ...r, count: r.count + 1, hasReacted: true } : r)
+                      : [...currentReactions, { emoji, count: 1, hasReacted: true }];
+                    onReactionsChange?.(message.id, newReactions);
+                    try { await channelApi.addReaction(channel.id, message.id, emoji); }
+                    catch (e) { onReactionsChange?.(message.id, currentReactions); }
                   }
                 }
                 setContextMenu(null);
