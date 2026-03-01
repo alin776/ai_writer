@@ -183,18 +183,18 @@ def get_redis_client():
     """获取同步Redis客户端（使用连接池）"""
     global _redis_pool
 
-    # 🔧 修复：使用全局连接池，避免每次都创建新连接
     if _redis_pool is None:
-        _redis_pool = redis.ConnectionPool(
-            host='localhost',
-            port=6379,
-            db=1,  # 使用db1，避免与缓存服务冲突
+        # 从 settings.REDIS_URL 构建连接池，将 db 切换为 1 避免与缓存服务冲突
+        base_url = settings.REDIS_URL.rsplit("/", 1)[0]  # 去掉尾部 /N
+        pool_url = f"{base_url}/1"
+        _redis_pool = redis.ConnectionPool.from_url(
+            pool_url,
             decode_responses=False,
-            max_connections=10,  # 最大连接数
-            socket_connect_timeout=5,  # 连接超时5秒
-            socket_timeout=5,  # 操作超时5秒
+            max_connections=10,
+            socket_connect_timeout=5,
+            socket_timeout=5,
         )
-        logger.info("[Redis] 全局连接池已创建")
+        logger.info("[Redis] 全局连接池已创建: %s", pool_url)
 
     return redis.Redis(connection_pool=_redis_pool)
 
@@ -1044,7 +1044,7 @@ async def agent_v2_chat_stream(
                 input_msg = {"messages": [{"role": "user", "content": user_content}]}
                 config = {
                     "configurable": {"thread_id": conversation_id},
-                    "recursion_limit": 500,
+                    "recursion_limit": 150,
                 }
 
                 # 发送 agent_header
@@ -1400,9 +1400,25 @@ async def agent_v2_chat_stream(
                 except Exception as billing_err:
                     logger.error("[V2 Billing] 错误路径计费失败: %s", billing_err, exc_info=True)
 
+            # 识别常见的 LLM API 错误，给用户更有用的提示
+            error_str = str(e)
+            error_hint = ""
+            _err_lower = error_str.lower()
+            if any(kw in _err_lower for kw in [
+                "input stream", "context length", "too long", "max tokens",
+                "maximum context", "token limit", "content too large",
+            ]):
+                error_hint = (
+                    "（可能原因：对话上下文过长。"
+                    "建议：开启新对话，减少单次任务涉及的章节数量，"
+                    "或使用语义搜索代替逐章阅读）"
+                )
+            elif "timeout" in _err_lower or "timed out" in _err_lower:
+                error_hint = "（可能原因：AI 服务响应超时，请稍后重试）"
+
             error_event = {
                 "type": "error",
-                "error": str(e),
+                "error": error_str + error_hint,
                 "error_type": type(e).__name__,
             }
             yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"

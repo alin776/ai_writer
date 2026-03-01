@@ -19,7 +19,7 @@ import { DataService } from '../../services/DataService';
 import { chaptersFs } from '../../services/chaptersFs';
 import { docsFs } from '../../services/docsFs';
 import type { FileNode } from '../../services/docsFs';
-import { fsToChapter, chapterIdToNum, isDocId, docIdToPath } from '../../utils/fsChapterAdapter';
+import { fsToChapter, chapterIdToNum, isDocId, docIdToPath, stripLeakedFrontmatter } from '../../utils/fsChapterAdapter';
 import { FileTreePanel } from '../../components/sidebar/FileTreePanel';
 import { useGlobalStore } from '../../store/globalStore';
 import { useAuthStore } from '../../store/authStore';
@@ -561,7 +561,7 @@ const WorkDetailView: React.FC = () => {
             const num = chapterIdToNum(targetChapter.id);
             if (num === null) return;
             const full = await chaptersFs.get(workId, num);
-            const content = full.content || '';
+            const content = stripLeakedFrontmatter(full.content || '');
             setCurrentChapterContent(content);
             // 更新本地缓存
             setChapters(prev => prev.map(c =>
@@ -710,14 +710,14 @@ const WorkDetailView: React.FC = () => {
         const num = chapterIdToNum(chapterId);
         if (num === null) return;
         const full = await chaptersFs.get(workId!, num);
-        const content = full.content || '';
+        const content = stripLeakedFrontmatter(full.content || '');
         setCurrentChapterContent(content);
         // 更新本地缓存
         setChapters(prev => prev.map(c =>
           c.id === chapterId ? { ...c, content } : c
         ));
       } catch {
-        setCurrentChapterContent(chapter.content || '');
+        setCurrentChapterContent(stripLeakedFrontmatter(chapter.content || ''));
       }
 
       // 保存当前章节ID到 store，用于下次返回时恢复
@@ -746,7 +746,7 @@ const WorkDetailView: React.FC = () => {
       setCurrentChapterId(fileId);
       try {
         const file = await docsFs.read(workId!, path);
-        setCurrentChapterContent(file.content);
+        setCurrentChapterContent(stripLeakedFrontmatter(file.content));
       } catch {
         setCurrentChapterContent('');
       }
@@ -771,7 +771,7 @@ const WorkDetailView: React.FC = () => {
       editorChapterIdRef.current = tabId;
       try {
         const file = await docsFs.read(workId!, path);
-        setCurrentChapterContent(file.content);
+        setCurrentChapterContent(stripLeakedFrontmatter(file.content));
       } catch { /* ignore */ }
       return;
     }
@@ -801,12 +801,12 @@ const WorkDetailView: React.FC = () => {
     }
 
     // 先加载内容，确保 EditorWrapper 重新挂载时有正确内容
-    let content = chapter.content || '';
+    let content = stripLeakedFrontmatter(chapter.content || '');
     try {
       const num = chapterIdToNum(tabId);
       if (num !== null) {
         const full = await chaptersFs.get(workId!, num);
-        content = full.content || '';
+        content = stripLeakedFrontmatter(full.content || '');
       }
     } catch {
       // 使用本地缓存
@@ -976,7 +976,7 @@ const WorkDetailView: React.FC = () => {
 
         // 选中新章节
         setCurrentChapterId(savedChapter.id);
-        setCurrentChapterContent(savedChapter.content);
+        setCurrentChapterContent(stripLeakedFrontmatter(savedChapter.content));
 
         showToast('success', t('workDetail.toast.chapterAddSuccess'));
       } else {
@@ -1130,10 +1130,14 @@ const WorkDetailView: React.FC = () => {
 
     const saveTask = (async () => {
       try {
+        // 安全网：清除编辑器输出中可能残留的 frontmatter 元数据，
+        // 防止 YAML 元数据被写入文件造成二次污染
+        const cleanContent = stripLeakedFrontmatter(content);
+
         // doc: file - write directly.
         if (isDocId(currentChapterId)) {
           const path = docIdToPath(currentChapterId);
-          await docsFs.write(workId, path, content);
+          await docsFs.write(workId, path, cleanContent);
           console.log('[WorkDetailView] Saved document:', path);
           return;
         }
@@ -1145,13 +1149,13 @@ const WorkDetailView: React.FC = () => {
         setChapters((prev) =>
           prev.map((c) =>
             c.id === currentChapterId
-              ? { ...c, content, updatedAt: new Date().toISOString() }
+              ? { ...c, content: cleanContent, updatedAt: new Date().toISOString() }
               : c
           )
         );
 
         // Persist to FS API.
-        const saved = await chaptersFs.update(workId, num, { content });
+        const saved = await chaptersFs.update(workId, num, { content: cleanContent });
         // Apply server-reported word count.
         setChapters((prev) =>
           prev.map((c) =>
@@ -1161,10 +1165,16 @@ const WorkDetailView: React.FC = () => {
           )
         );
 
+        // 后端会清理正文中残留的 frontmatter 元数据（如 status: draft\ntitle: xxx），
+        // 若清理后内容与编辑器当前内容不同，自动同步到编辑器（自愈机制）
+        if (saved.content !== undefined && saved.content !== cleanContent) {
+          setCurrentChapterContent(stripLeakedFrontmatter(saved.content));
+        }
+
         console.log('[WorkDetailView] Saved chapter:', {
           chapterId: currentChapterId,
           num,
-          contentPreview: content.substring(0, 50) + '...',
+          contentPreview: cleanContent.substring(0, 50) + '...',
         });
       } catch (error) {
         showToast('error', t('workDetail.toast.saveFailed'));
@@ -1755,7 +1765,7 @@ const WorkDetailView: React.FC = () => {
             try {
               const path = docIdToPath(activeChapterId);
               const file = await docsFs.read(workId, path);
-              setCurrentChapterContent(file.content);
+              setCurrentChapterContent(stripLeakedFrontmatter(file.content));
             } catch { /* 文件可能已被删除 */ }
             // 刷新右侧世界观卡片数据
             try {
@@ -1767,7 +1777,7 @@ const WorkDetailView: React.FC = () => {
               const num = chapterIdToNum(activeChapterId);
               if (num === null) return;
               const full = await chaptersFs.get(workId, num);
-              setCurrentChapterContent(full.content || '');
+              setCurrentChapterContent(stripLeakedFrontmatter(full.content || ''));
             } catch {
               // 章节可能已被删除
             }
@@ -2130,7 +2140,29 @@ const WorkDetailView: React.FC = () => {
                 activeFileId={currentChapterId || null}
                 onFileSelect={handleFileSelect}
                 onChapterCreate={handleInlineChapterCreate}
-                onTreeChange={setFileTree}
+                onTreeChange={async (tree) => {
+                  setFileTree(tree);
+                  // 文件树变化后（如重命名），刷新章节列表以同步编辑器标签标题
+                  if (workId) {
+                    try {
+                      const fsList = await chaptersFs.list(workId);
+                      setChapters(fsList.map(fs => fsToChapter(fs, workId)));
+
+                      // 文件树变化后（如重命名），重新加载当前章节内容
+                      // 避免编辑器中残留 frontmatter 元数据（status: draft title: xxx）
+                      const activeId = editorChapterIdRef.current || currentChapterId;
+                      if (activeId && !isDocId(activeId)) {
+                        const num = chapterIdToNum(activeId);
+                        if (num !== null) {
+                          try {
+                            const full = await chaptersFs.get(workId, num);
+                            setCurrentChapterContent(stripLeakedFrontmatter(full.content || ''));
+                          } catch { /* chapter might have been deleted */ }
+                        }
+                      }
+                    } catch { /* ignore */ }
+                  }
+                }}
               />
             </div>
           )}

@@ -59,6 +59,12 @@ function chapterNumFromPath(path: string): number | null {
   return m ? parseInt(m[1], 10) : null;
 }
 
+/** 从章节文件名提取标题部分：01-考核之日.md → 考核之日 */
+function chapterTitleFromName(name: string): string | null {
+  const m = name.match(/^\d+-(.+)\.md$/);
+  return m ? m[1] : null;
+}
+
 /** 将文件路径转为编辑器可用的 ID */
 function pathToFileId(path: string): string {
   const num = chapterNumFromPath(path);
@@ -261,7 +267,9 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
       return;
     }
     const trimmed = newName.trim();
-    if (trimmed === editingNode.originalName) {
+    // 章节文件：与提取的标题比较；普通文件：与完整文件名比较
+    const compareName = chapterTitleFromName(editingNode.originalName) ?? editingNode.originalName;
+    if (trimmed === compareName) {
       setEditingNode(null);
       return;
     }
@@ -405,14 +413,12 @@ export const FileTreePanel: React.FC<FileTreePanelProps> = ({
           <input
             autoFocus
             type="text"
-            defaultValue={editingNodeRef.current!.originalName}
+            defaultValue={chapterTitleFromName(editingNodeRef.current!.originalName) ?? editingNodeRef.current!.originalName}
             className="flex-1 h-5 text-[13px] bg-transparent border-b border-blue-500 dark:border-blue-400 outline-none text-zinc-900 dark:text-slate-100"
             ref={(el) => {
               if (el) {
-                // 选中文件名部分（不含后缀）
-                const name = el.value;
-                const dotIdx = name.lastIndexOf('.');
-                el.setSelectionRange(0, dotIdx > 0 ? dotIdx : name.length);
+                // 全选文本
+                el.setSelectionRange(0, el.value.length);
               }
             }}
             onKeyDown={(e) => {

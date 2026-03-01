@@ -26,7 +26,7 @@ from app.models.user import User
 from app.models.work import Work
 from app.services.agent.deep_agent import DATA_ROOT
 from app.services.agent.deep_agent.frontmatter import (
-    build_chapter, chapter_filename, parse_chapter,
+    build_chapter, chapter_filename, parse_chapter, sanitize_title,
 )
 from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
 from app.services.knowledge_sync_scheduler import request_worldview_sync
@@ -494,7 +494,12 @@ async def read_file(
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
 
-    content = await asyncio.to_thread(file_path.read_text, "utf-8")
+    raw = await asyncio.to_thread(file_path.read_text, "utf-8")
+    # 章节文件剥离 frontmatter，只返回正文
+    if path.startswith("chapters/") and file_path.suffix == ".md":
+        content = parse_chapter(raw)["content"]
+    else:
+        content = raw
     return FileContentResponse(path=path, content=content)
 
 
@@ -515,7 +520,15 @@ async def write_file(
     file_path = _safe_path(work_dir, path)
 
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    await asyncio.to_thread(file_path.write_text, request.content, "utf-8")
+
+    # 章节文件：保留已有的 frontmatter（title/status），只更新正文
+    if path.startswith("chapters/") and file_path.suffix == ".md" and file_path.exists():
+        raw = await asyncio.to_thread(file_path.read_text, "utf-8")
+        parsed = parse_chapter(raw)
+        final_content = build_chapter(parsed["title"], parsed["status"], request.content)
+    else:
+        final_content = request.content
+    await asyncio.to_thread(file_path.write_text, final_content, "utf-8")
 
     rel_path = _to_posix_rel_path(path)
     await _sync_worldview_cards_from_knowledge(
@@ -616,11 +629,29 @@ async def rename_file(
     new_name = request.new_name.strip()
     if "/" in new_name or "\\" in new_name or new_name.startswith("."):
         raise HTTPException(status_code=400, detail="Invalid name")
-    new_path = target.parent / new_name
+
+    # 章节文件特殊处理：维护 NN-Title.md 命名规范 + 更新 frontmatter
+    chapter_match = re.match(r"^(\d+)-(.+)\.md$", target.name)
+    is_chapter = path.startswith("chapters/") and target.is_file() and chapter_match
+    if is_chapter:
+        num = int(chapter_match.group(1))
+        # 用户输入的新名称作为新标题（去掉 .md 后缀，如果有的话）
+        new_title = new_name.removesuffix(".md").strip() or "untitled"
+        # 构建规范的章节文件名
+        new_path = target.parent / chapter_filename(num, new_title)
+        # 更新文件内的 frontmatter title
+        raw = await asyncio.to_thread(target.read_text, "utf-8")
+        parsed = parse_chapter(raw)
+        updated_content = build_chapter(new_title, parsed["status"], parsed["content"])
+        await asyncio.to_thread(target.write_text, updated_content, "utf-8")
+    else:
+        new_path = target.parent / new_name
+
     _safe_path(work_dir, str(new_path.relative_to(work_dir.resolve())))
-    if new_path.exists():
+    if new_path != target and new_path.exists():
         raise HTTPException(status_code=409, detail="Target already exists")
-    await asyncio.to_thread(target.rename, new_path)
+    if new_path != target:
+        await asyncio.to_thread(target.rename, new_path)
     return await asyncio.to_thread(_build_file_tree, work_dir)
 
 

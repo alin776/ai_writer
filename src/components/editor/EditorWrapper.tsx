@@ -4,10 +4,11 @@
  * 接收与 NovelEditor 相同的 props 签名，内部代理到 MilkdownEditor。
  * 保留顶部工具栏（章节标题 + 面板折叠按钮）。
  */
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import MilkdownEditor from './MilkdownEditor';
 import EditorTabBar from './EditorTabBar';
 import type { EditorTab } from '../../hooks/useEditorTabs';
+import { stripLeakedFrontmatter } from '../../utils/fsChapterAdapter';
 
 interface EditorWrapperProps {
   content?: string;
@@ -63,6 +64,9 @@ const EditorWrapper: React.FC<EditorWrapperProps> = ({
     onSave?.(md, null);
   }, [onSave]);
 
+  // 安全网：清除所有可能残留的 frontmatter 元数据，防止 YAML 元数据显示在编辑器中
+  const cleanContent = useMemo(() => stripLeakedFrontmatter(content), [content]);
+
   return (
     <div className="flex flex-col h-full">
       {/* 顶部：标签栏 or 章节标题 */}
@@ -85,7 +89,7 @@ const EditorWrapper: React.FC<EditorWrapperProps> = ({
       {/* 编辑器内容区域 — 始终渲染 MilkdownEditor（内联 Diff 由 diffDecorationPlugin 处理） */}
       <div className="flex-1 min-h-0">
         <MilkdownEditor
-          content={content}
+          content={cleanContent}
           onSave={handleSave}
           autoSaveInterval={autoSaveInterval}
           placeholder={placeholder}

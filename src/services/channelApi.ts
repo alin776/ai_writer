@@ -93,7 +93,6 @@ export interface ChannelMessage {
     }[];
   };
   reactionCount: number;
-  reactions?: ReactionSummary[];
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;
@@ -107,6 +106,8 @@ export interface ChannelMessage {
   userOnlineStatus?: 'online' | 'idle' | 'dnd' | 'offline';
   // 附件
   attachments?: MessageAttachment[];
+  // 反应列表（按 emoji 分组汇总）
+  reactions?: ReactionSummary[];
 }
 
 export interface ChannelMessageListResponse {

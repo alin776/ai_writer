@@ -19,6 +19,17 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+class _ChapterObj:
+    """将 dict 包装为可通过属性访问的对象，兼容下游 .title/.content 等调用。"""
+    def __init__(self, d: dict):
+        self.id = d.get("num", d.get("id", ""))
+        self.title = d.get("title", "")
+        self.content = d.get("content", "")
+        self.order = d.get("num", d.get("order", 0))
+        self.word_count = d.get("word_count", 0)
+        self.status = d.get("status", "")
+
+
 class NovelAnalysisOrchestrator:
     """小说分析流程编排器"""
     
@@ -130,12 +141,18 @@ class NovelAnalysisOrchestrator:
             )
 
             # 4. 获取所有章节
-            chapters = await self.analysis_service.get_chapters_for_analysis(work_id)
+            chapters_raw = await self.analysis_service.get_chapters_for_analysis(work_id)
 
-            if not chapters:
+            if not chapters_raw:
                 raise Exception(f"作品 {work_id} 没有章节可供分析")
 
-            # ✅ 修复：检查章节内容是否为空
+            # 统一转为对象，兼容下游 .title/.content 等属性访问
+            chapters = [
+                _ChapterObj(ch) if isinstance(ch, dict) else ch
+                for ch in chapters_raw
+            ]
+
+            # ✅ 检查章节内容是否为空
             from app.core.config import settings
             MIN_CONTENT_LENGTH = settings.ANALYSIS_MIN_CONTENT_LENGTH
             empty_chapters = []

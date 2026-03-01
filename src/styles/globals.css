@@ -343,15 +343,18 @@ body {
 
 /**
  * 链接样式
+ * 放入 @layer base，确保 Tailwind utility（如 text-white）可以覆盖
  */
-a {
-  color: var(--color-primary);
-  text-decoration: none;
-  transition: color var(--transition-fast);
-}
+@layer base {
+  a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+  }
 
-a:hover {
-  color: var(--color-primary-dark);
+  a:hover {
+    color: var(--color-primary-dark);
+  }
 }
 
 /**

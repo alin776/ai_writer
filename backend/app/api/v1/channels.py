@@ -15,6 +15,7 @@ from app.models.work import Work
 from app.models.channel import Channel, ChannelType, ChannelStatus
 from app.models.channel_member import ChannelMember, MemberRole
 from app.models.channel_message import ChannelMessage, MessageType
+from app.models.message_reaction import MessageReaction
 from app.models.message_report import MessageReport
 from app.models.channel_read_state import ChannelReadState
 from app.models.channel_join_request import ChannelJoinRequest
@@ -33,6 +34,7 @@ from app.schemas.channel import (
     ChannelMessageListResponse,
     MessageEditRequest,
     CoverUploadResponse,
+    ReactionSummary,
     JoinRequestCreate,
     JoinRequestResponse,
     JoinRequestListResponse,
@@ -1196,6 +1198,23 @@ async def kick_member(
     return {"message": "成员已被踢出"}
 
 
+def _build_reaction_summaries(reactions, current_user_id) -> list:
+    """将消息的 reactions ORM 列表按 emoji 分组汇总"""
+    if not reactions:
+        return []
+    from collections import defaultdict
+    grouped = defaultdict(lambda: {"count": 0, "has_reacted": False})
+    for r in reactions:
+        g = grouped[r.emoji]
+        g["count"] += 1
+        if r.user_id == current_user_id:
+            g["has_reacted"] = True
+    return [
+        ReactionSummary(emoji=emoji, count=data["count"], has_reacted=data["has_reacted"])
+        for emoji, data in grouped.items()
+    ]
+
+
 @router.get("/{channel_id}/messages", response_model=ChannelMessageListResponse)
 async def get_channel_messages(
     channel_id: UUID,
@@ -1234,6 +1253,7 @@ async def get_channel_messages(
         .options(
             selectinload(ChannelMessage.user),
             selectinload(ChannelMessage.attachments),
+            selectinload(ChannelMessage.reactions),
             selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.user),
             selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.channel),
             selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.attachments)
@@ -1354,7 +1374,8 @@ async def get_channel_messages(
             user_online_status=msg.user.online_status if msg.user else None,
             user_title=member.custom_title if member else None,
             user_title_color=member.title_color if member else None,
-            attachments=attachments_data
+            attachments=attachments_data,
+            reactions=_build_reaction_summaries(msg.reactions, current_user.id)
         ))
 
     has_more = skip + limit < total
@@ -1456,6 +1477,7 @@ async def get_messages_around(
         .options(
             selectinload(ChannelMessage.user),
             selectinload(ChannelMessage.attachments),
+            selectinload(ChannelMessage.reactions),
             selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.user),
             selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.channel),
             selectinload(ChannelMessage.forwarded_from).selectinload(ChannelMessage.attachments)
@@ -1547,7 +1569,7 @@ async def get_messages_around(
             pinned_by=msg.pinned_by,
             created_at=msg.created_at,
             updated_at=msg.updated_at,
-            reactions=msg.reactions or {},
+            reactions=_build_reaction_summaries(msg.reactions, current_user.id),
             user_role=m.role if m else None,
             user_title=m.title if m else None,
             is_creator=m.is_creator if m else False,

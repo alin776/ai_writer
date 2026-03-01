@@ -173,6 +173,9 @@ class ChannelMessageResponse(ChannelMessageBase):
     # 附件列表
     attachments: List["AttachmentResponse"] = []
 
+    # 反应列表（按 emoji 分组汇总）
+    reactions: List["ReactionSummary"] = []
+
     model_config = ConfigDict(from_attributes=True)
 class ChannelMessageListResponse(BaseModel):
     """消息列表响应"""
