@@ -14,6 +14,13 @@ from app.models.system_config import SystemConfig
 
 # 默认定价（无 DB 连接时的 fallback）
 _DEFAULT_MODEL_PRICING = {
+    "gpt-5.4": {
+        "input": 0.625,
+        "cached_input": 0.0781,
+        "output": 5.0,
+        "reasoning": 5.0,
+        "cache_creation": 0.625,
+    },
     "gpt-5.2": {
         "input": 0.875,
         "cached_input": 0.1094,

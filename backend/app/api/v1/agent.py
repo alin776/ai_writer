@@ -1404,7 +1404,14 @@ async def agent_v2_chat_stream(
             error_str = str(e)
             error_hint = ""
             _err_lower = error_str.lower()
-            if any(kw in _err_lower for kw in [
+            if isinstance(e, json.JSONDecodeError) or "expecting value" in _err_lower:
+                error_hint = (
+                    "（可能原因：AI 服务返回了空响应或无效数据。"
+                    "建议：稍后重试，若反复出现请检查 AI 服务配置或联系管理员）"
+                )
+                # 用更友好的消息替代原始 JSON 解析错误
+                error_str = "AI 服务返回了无效响应"
+            elif any(kw in _err_lower for kw in [
                 "input stream", "context length", "too long", "max tokens",
                 "maximum context", "token limit", "content too large",
             ]):
@@ -1415,6 +1422,11 @@ async def agent_v2_chat_stream(
                 )
             elif "timeout" in _err_lower or "timed out" in _err_lower:
                 error_hint = "（可能原因：AI 服务响应超时，请稍后重试）"
+            elif any(kw in _err_lower for kw in [
+                "connection", "connect", "refused", "reset",
+                "eof", "broken pipe", "network",
+            ]):
+                error_hint = "（可能原因：AI 服务连接异常，请稍后重试）"
 
             error_event = {
                 "type": "error",

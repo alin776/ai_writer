@@ -128,11 +128,16 @@ class LangChainAIService:
 
     @staticmethod
     def _extract_usage(usage_metadata: dict) -> dict:
-        """LangChain usage_metadata → OpenAI 风格 usage dict"""
+        """LangChain usage_metadata → OpenAI 风格 usage dict（含 cache/reasoning 细分）"""
+        in_details = usage_metadata.get("input_token_details") or {}
+        out_details = usage_metadata.get("output_token_details") or {}
         return {
             "prompt_tokens": usage_metadata.get("input_tokens", 0),
             "completion_tokens": usage_metadata.get("output_tokens", 0),
             "total_tokens": usage_metadata.get("total_tokens", 0),
+            "cache_read": in_details.get("cache_read", 0) or 0,
+            "cache_creation": in_details.get("cache_creation", 0) or 0,
+            "reasoning": out_details.get("reasoning", 0) or 0,
         }
 
     # ------------------------------------------------------------------ #
@@ -174,10 +179,13 @@ class LangChainAIService:
                     if user and not user.is_admin:
                         credit_service = CreditService(db)
                         from app.utils.cost_calculator import CostCalculator
+                        from app.services.system_config_service import SystemConfigService
+                        _precheck_pricing = await SystemConfigService.get_model_pricing(db)
                         estimated_cost_data = CostCalculator.calculate_cost(
                             model_name=self.model,
                             prompt_tokens=len(str(messages)) // 4,
                             completion_tokens=max_tokens,
+                            model_pricing=_precheck_pricing,
                         )
                         estimated_credits = estimated_cost_data["total_cost"] * settings.CREDITS_PER_DOLLAR
 
@@ -1000,11 +1008,24 @@ class LangChainAIService:
 
             prompt_tokens = usage_info.get("prompt_tokens", 0)
             completion_tokens = usage_info.get("completion_tokens", 0)
+            cache_read = usage_info.get("cache_read", 0)
+            cache_creation = usage_info.get("cache_creation", 0)
+            reasoning = usage_info.get("reasoning", 0)
+
+            # 从 DB 获取模型定价（带内存缓存）
+            from app.services.system_config_service import SystemConfigService
+            from app.core.database import create_db_session as _create_pricing_session
+            async with _create_pricing_session() as pricing_db:
+                model_pricing = await SystemConfigService.get_model_pricing(pricing_db)
 
             cost_data = CostCalculator.calculate_cost(
                 model_name=model_to_track,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
+                cache_read=cache_read,
+                cache_creation=cache_creation,
+                reasoning=reasoning,
+                model_pricing=model_pricing,
             )
 
             duration_ms = int((get_utc_now() - start_time).total_seconds() * 1000)
@@ -1016,6 +1037,9 @@ class LangChainAIService:
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=prompt_tokens + completion_tokens,
+                cache_read_tokens=cache_read,
+                cache_creation_tokens=cache_creation,
+                reasoning_tokens=reasoning,
                 prompt_cost=cost_data["prompt_cost"],
                 completion_cost=cost_data["completion_cost"],
                 total_cost=cost_data["total_cost"],

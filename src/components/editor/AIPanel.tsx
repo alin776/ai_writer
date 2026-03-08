@@ -473,6 +473,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const [selectedSkill, setSelectedSkill] = useState<{ name: string; description: string; group: string } | null>(null);
   const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; group: string }>>([]);
   const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillTooltip, setSkillTooltip] = useState<{ description: string; x: number; y: number } | null>(null);
+  const skillTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectionContext, setSelectionContext] = useState<{
     selected_text?: string;
     selected_text_html?: string;
@@ -1124,6 +1126,13 @@ ${context.selected_text}
     loadSkills();
   }, [atMenuOpen, atStage, skillsList.length, skillsLoading]);
 
+  // Cleanup tooltip timer on unmount
+  useEffect(() => {
+    return () => {
+      if (skillTooltipTimer.current) clearTimeout(skillTooltipTimer.current);
+    };
+  }, []);
+
   const closeAtMenu = useCallback(() => {
     setAtMenuOpen(false);
     setManualMenuOpen(false);
@@ -1132,6 +1141,8 @@ ${context.selected_text}
     setAtQuery('');
     setHighlightIndex(0);
     setAtTriggerIndex(null);
+    setSkillTooltip(null);
+    if (skillTooltipTimer.current) { clearTimeout(skillTooltipTimer.current); skillTooltipTimer.current = null; }
   }, []);
 
   useEffect(() => {
@@ -2417,6 +2428,10 @@ ${selectionContext.selected_text}
                   <div
                     className="max-h-[180px] overflow-y-auto overscroll-contain custom-scrollbar px-2 py-1"
                     onWheel={stopMenuScrollChain}
+                    onScroll={() => {
+                      setSkillTooltip(null);
+                      if (skillTooltipTimer.current) { clearTimeout(skillTooltipTimer.current); skillTooltipTimer.current = null; }
+                    }}
                   >
                     <div className="space-y-0.5">
                       {skillsLoading && (
@@ -2438,7 +2453,30 @@ ${selectionContext.selected_text}
                             type="button"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => handleSkillSelect(skill)}
-                            onMouseEnter={() => setHighlightIndex(idx)}
+                            onMouseEnter={(e) => {
+                              setHighlightIndex(idx);
+                              if (skillTooltipTimer.current) clearTimeout(skillTooltipTimer.current);
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              skillTooltipTimer.current = setTimeout(() => {
+                                const tooltipMaxW = 260;
+                                const tooltipEstH = 60;
+                                let x = rect.right + 8;
+                                let y = rect.top;
+                                // 右侧溢出 → 改为显示在左侧
+                                if (x + tooltipMaxW > window.innerWidth) {
+                                  x = rect.left - tooltipMaxW - 8;
+                                }
+                                // 底部溢出 → 上移
+                                if (y + tooltipEstH > window.innerHeight) {
+                                  y = Math.max(4, window.innerHeight - tooltipEstH - 4);
+                                }
+                                setSkillTooltip({ description: skill.description, x, y });
+                              }, 300);
+                            }}
+                            onMouseLeave={() => {
+                              if (skillTooltipTimer.current) { clearTimeout(skillTooltipTimer.current); skillTooltipTimer.current = null; }
+                              setSkillTooltip(null);
+                            }}
                             className={`w-full px-3 py-2 rounded-xl flex items-start gap-2.5 text-left transition-colors ${
                               isCurrentSkill
                                 ? 'bg-amber-50 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:ring-amber-700/60'
@@ -2582,6 +2620,19 @@ ${selectionContext.selected_text}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Skill tooltip portal */}
+      {skillTooltip && createPortal(
+        <div
+          className="pointer-events-none fixed z-[9999]"
+          style={{ left: skillTooltip.x, top: skillTooltip.y }}
+        >
+          <div className="max-w-[260px] px-3 py-2 rounded-md bg-slate-900 dark:bg-slate-700 text-[11px] leading-relaxed text-slate-100 shadow-lg border border-slate-700 dark:border-slate-600">
+            {skillTooltip.description}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

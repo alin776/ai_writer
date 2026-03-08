@@ -353,7 +353,12 @@ async def update_chapter(
     content = request.content if request.content is not None else parsed["content"]
     chapter_status = request.status if request.status is not None else parsed["status"]
 
-    new_content = build_chapter(title, chapter_status, content)
+    # 保留已有的 published_at，如果状态首次变为 published 则设置
+    existing_published_at = parsed.get("published_at")
+    if chapter_status == "published" and not existing_published_at:
+        existing_published_at = datetime.now(timezone.utc).isoformat()
+
+    new_content = build_chapter(title, chapter_status, content, published_at=existing_published_at)
     await asyncio.to_thread(chapter_path.write_text, new_content, "utf-8")
 
     # 标题变更时重命名文件
@@ -521,11 +526,11 @@ async def write_file(
 
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 章节文件：保留已有的 frontmatter（title/status），只更新正文
+    # 章节文件：保留已有的 frontmatter（title/status/published_at），只更新正文
     if path.startswith("chapters/") and file_path.suffix == ".md" and file_path.exists():
         raw = await asyncio.to_thread(file_path.read_text, "utf-8")
         parsed = parse_chapter(raw)
-        final_content = build_chapter(parsed["title"], parsed["status"], request.content)
+        final_content = build_chapter(parsed["title"], parsed["status"], request.content, published_at=parsed.get("published_at"))
     else:
         final_content = request.content
     await asyncio.to_thread(file_path.write_text, final_content, "utf-8")
@@ -642,7 +647,7 @@ async def rename_file(
         # 更新文件内的 frontmatter title
         raw = await asyncio.to_thread(target.read_text, "utf-8")
         parsed = parse_chapter(raw)
-        updated_content = build_chapter(new_title, parsed["status"], parsed["content"])
+        updated_content = build_chapter(new_title, parsed["status"], parsed["content"], published_at=parsed.get("published_at"))
         await asyncio.to_thread(target.write_text, updated_content, "utf-8")
     else:
         new_path = target.parent / new_name

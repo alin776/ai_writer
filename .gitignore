@@ -157,6 +157,7 @@ Backend.md
 
 # ChromaDB数据文件
 backend/data/
+backend-data/
 data/
 
 backend/nul

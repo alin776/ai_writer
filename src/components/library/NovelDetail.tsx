@@ -971,10 +971,19 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
       <NovelReader
         workId={novel.id}
         chapterId={selectedChapterId}
-        onBack={() => {
+        onBack={async () => {
           setShowReader(false);
           // 从阅读器返回时，更新状态为不在阅读中（但保持小说选中状态）
           setCurrentReadingState(novel.id, false);
+          // 重新加载章节列表以刷新阅读量等统计（使用轻量接口，不增加浏览量）
+          try {
+            const chaptersRes = await DataService.getNovelChapters(novel.id);
+            if (Array.isArray(chaptersRes)) {
+              setChapters(chaptersRes);
+            }
+          } catch {
+            // 静默失败，不影响返回体验
+          }
         }}
         initialChapters={chapters}
         novelTitle={novelData?.title}

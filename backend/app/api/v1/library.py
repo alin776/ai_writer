@@ -5,6 +5,9 @@ from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime, timezone
 import logging
+import json
+import asyncio
+from pathlib import Path
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
@@ -12,7 +15,7 @@ from app.models.user import User
 from app.models.work import Work, WorkGenre
 from app.models.bookshelf import Bookshelf
 from app.models.rating import WorkRating
-from app.models.channel import Channel, ChannelType, ChannelStatus
+from app.models.channel import Channel, ChannelType
 from app.models.channel_member import ChannelMember, MemberRole
 from app.schemas.work import WorkResponse
 from pydantic import BaseModel, ConfigDict
@@ -22,10 +25,45 @@ from app.services.chapter_fs_helpers import (
     count_published_chapters as _count_published_chapters,
     get_published_chapters as _get_published_chapters,
     read_chapter_by_num as _read_chapter_by_num,
+    get_chapters_dir as _get_chapters_dir,
 )
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _get_stats_path(author_id: str, work_id: str) -> Path:
+    """获取章节统计文件路径: data/users/{author_id}/works/{work_id}/chapter_stats.json"""
+    return _get_chapters_dir(author_id, work_id).parent / "chapter_stats.json"
+
+
+async def _load_chapter_stats(author_id: str, work_id: str) -> dict:
+    """加载章节统计数据（view_count 等）。"""
+    stats_path = _get_stats_path(author_id, work_id)
+    try:
+        raw = await asyncio.to_thread(stats_path.read_text, "utf-8")
+        return json.loads(raw)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+async def _save_chapter_stats(author_id: str, work_id: str, stats: dict) -> None:
+    """保存章节统计数据。"""
+    stats_path = _get_stats_path(author_id, work_id)
+    stats_path.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(stats_path.write_text, json.dumps(stats, ensure_ascii=False), "utf-8")
+
+
+async def _increment_chapter_view(author_id: str, work_id: str, chapter_num: int) -> int:
+    """递增章节阅读量并返回新值。"""
+    stats = await _load_chapter_stats(author_id, work_id)
+    key = str(chapter_num)
+    if key not in stats:
+        stats[key] = {"view_count": 0}
+    stats[key]["view_count"] = stats[key].get("view_count", 0) + 1
+    new_count = stats[key]["view_count"]
+    await _save_chapter_stats(author_id, work_id, stats)
+    return new_count
 
 
 class PublishedChapterResponse(BaseModel):
@@ -134,7 +172,7 @@ async def get_published_novels(
     limit: int = Query(20, ge=1, le=100),
     genre: Optional[WorkGenre] = None,
     search: Optional[str] = None,
-    sort_by: str = Query("latest", regex="^(latest|popular|words)$"),
+    sort_by: str = Query("latest", pattern="^(latest|popular|words)$"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -265,6 +303,9 @@ async def get_published_novel_detail(
     published_chapters = await _get_published_chapters(str(work.author_id), str(work.id))
     published_chapter_count = len(published_chapters)
 
+    # 加载章节统计数据（阅读量）
+    chapter_stats = await _load_chapter_stats(str(work.author_id), str(work.id))
+
     # 计算平均评分
     avg_rating_result = await db.execute(
         select(func.avg(WorkRating.rating)).where(
@@ -274,17 +315,29 @@ async def get_published_novel_detail(
     average_rating = avg_rating_result.scalar() or 0.0
 
     # 构建章节响应数据
-    chapter_responses = [
-        PublishedChapterResponse(
+    chapter_responses = []
+    for ch in published_chapters:
+        ch_num_str = str(ch["num"])
+        ch_view_count = chapter_stats.get(ch_num_str, {}).get("view_count", 0)
+        ch_published_at = ch.get("published_at")
+        # 解析章节的 published_at，回退到作品的 published_at
+        ch_published_dt = None
+        if ch_published_at:
+            try:
+                ch_published_dt = datetime.fromisoformat(ch_published_at)
+            except (ValueError, TypeError):
+                ch_published_dt = work.published_at
+        else:
+            ch_published_dt = work.published_at
+
+        chapter_responses.append(PublishedChapterResponse(
             id=str(ch["num"]),
             title=ch["title"],
             order=ch["num"],
             word_count=ch["word_count"],
-            view_count=0,
-            published_at=work.published_at
-        )
-        for ch in published_chapters
-    ]
+            view_count=ch_view_count,
+            published_at=ch_published_dt,
+        ))
 
     return LibraryWorkDetailResponse(
         id=str(work.id),
@@ -305,6 +358,64 @@ async def get_published_novel_detail(
         published_chapter_count=published_chapter_count,
         chapters=chapter_responses
     )
+
+
+@router.get("/novels/{work_id}/chapters", response_model=List[PublishedChapterResponse])
+async def get_published_chapter_list(
+    work_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    获取已发布作品的章节列表（不增加作品浏览量）
+
+    用于阅读器返回后刷新章节统计数据（阅读量等），
+    避免重复增加作品浏览次数。
+
+    - **work_id**: 作品ID
+    """
+    # 查询作品
+    result = await db.execute(
+        select(Work).where(Work.id == work_id, Work.is_published == True)
+    )
+    work = result.scalar_one_or_none()
+
+    if not work:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="作品不存在或未发布"
+        )
+
+    # 获取已发布的章节列表（从文件系统读取）
+    published_chapters = await _get_published_chapters(str(work.author_id), str(work.id))
+
+    # 加载章节统计数据（阅读量）
+    chapter_stats = await _load_chapter_stats(str(work.author_id), str(work.id))
+
+    # 构建章节响应数据
+    chapter_responses = []
+    for ch in published_chapters:
+        ch_num_str = str(ch["num"])
+        ch_view_count = chapter_stats.get(ch_num_str, {}).get("view_count", 0)
+        ch_published_at = ch.get("published_at")
+        ch_published_dt = None
+        if ch_published_at:
+            try:
+                ch_published_dt = datetime.fromisoformat(ch_published_at)
+            except (ValueError, TypeError):
+                ch_published_dt = work.published_at
+        else:
+            ch_published_dt = work.published_at
+
+        chapter_responses.append(PublishedChapterResponse(
+            id=str(ch["num"]),
+            title=ch["title"],
+            order=ch["num"],
+            word_count=ch["word_count"],
+            view_count=ch_view_count,
+            published_at=ch_published_dt,
+        ))
+
+    return chapter_responses
 
 
 @router.get("/novels/{work_id}/chapters/{chapter_id}", response_model=dict)
@@ -347,6 +458,20 @@ async def get_published_chapter_content(
             detail="章节不存在或未发布"
         )
 
+    # 递增章节阅读量
+    new_view_count = await _increment_chapter_view(str(work.author_id), str(work.id), chapter_num)
+
+    # 解析章节的 published_at（read_chapter_by_num 已包含文件修改时间回退），最后回退到作品发布时间
+    ch_published_at = chapter_data.get("published_at")
+    ch_published_dt = None
+    if ch_published_at:
+        try:
+            ch_published_dt = datetime.fromisoformat(ch_published_at)
+        except (ValueError, TypeError):
+            ch_published_dt = None
+    if ch_published_dt is None:
+        ch_published_dt = work.published_at
+
     return {
         "id": str(chapter_num),
         "work_id": str(work_id),
@@ -354,8 +479,8 @@ async def get_published_chapter_content(
         "content": chapter_data["content"],
         "order": chapter_num,
         "word_count": chapter_data["word_count"],
-        "view_count": 0,
-        "published_at": work.published_at
+        "view_count": new_view_count,
+        "published_at": ch_published_dt
     }
 
 

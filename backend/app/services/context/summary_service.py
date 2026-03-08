@@ -26,7 +26,7 @@ class SummaryService:
             ai_service: LangChainAIService实例（懒加载）
         """
         self.ai_service = ai_service
-        self.default_model = "gpt-5.2"
+        self.default_model = "gpt-5.4"
 
     async def summarize_conversation(
         self,

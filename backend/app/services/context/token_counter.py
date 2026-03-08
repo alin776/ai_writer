@@ -25,7 +25,7 @@ except ImportError:
 class TokenCounter:
     """Token计数器 - 支持多种策略"""
 
-    def __init__(self, model: str = "gpt-5.2", fallback_enabled: bool = True):
+    def __init__(self, model: str = "gpt-5.4", fallback_enabled: bool = True):
         """
         初始化Token计数器
 
@@ -47,6 +47,7 @@ class TokenCounter:
         # Gemini 模型映射到 cl100k_base（与 GPT-4 相同的 tokenizer）
         # 这是一个近似值，但比降级策略更准确
         GEMINI_MODEL_MAPPING = {
+            "gpt-5.4": "cl100k_base",
             "gpt-5.2": "cl100k_base",
             "gemini-2.0-flash": "cl100k_base",
             "gemini-1.5-pro": "cl100k_base",
@@ -185,7 +186,7 @@ class TokenCounter:
 _model_counters: Dict[str, TokenCounter] = {}
 
 
-def get_token_counter(model: str = "gpt-5.2") -> TokenCounter:
+def get_token_counter(model: str = "gpt-5.4") -> TokenCounter:
     """获取指定模型的Token计数器实例（按模型缓存）"""
     global _model_counters
     if model not in _model_counters:
@@ -193,7 +194,7 @@ def get_token_counter(model: str = "gpt-5.2") -> TokenCounter:
     return _model_counters[model]
 
 
-def count_tokens(text: str, model: str = "gpt-5.2") -> int:
+def count_tokens(text: str, model: str = "gpt-5.4") -> int:
     """便捷函数：计数Token"""
     counter = get_token_counter(model)
     return counter.count_tokens(text)

@@ -7,6 +7,7 @@
 import asyncio
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -102,11 +103,20 @@ async def get_published_chapters(author_id: str, work_id: str) -> list[dict]:
             raw = await asyncio.to_thread(path.read_text, "utf-8")
             ch = parse_chapter(raw)
             if ch["status"] == "published":
+                # 获取 published_at：优先使用 frontmatter 中的值，回退到文件修改时间
+                published_at = ch.get("published_at")
+                if not published_at:
+                    try:
+                        mtime = await asyncio.to_thread(lambda p=path: p.stat().st_mtime)
+                        published_at = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+                    except Exception:
+                        pass
                 result.append({
                     "num": num,
                     "title": ch["title"],
                     "word_count": ch["word_count"],
                     "content": ch["content"],
+                    "published_at": published_at,
                 })
         except Exception:
             continue
@@ -116,7 +126,10 @@ async def get_published_chapters(author_id: str, work_id: str) -> list[dict]:
 async def read_chapter_by_num(
     author_id: str, work_id: str, num: int
 ) -> Optional[dict]:
-    """读取单个章节，返回 dict 或 None。"""
+    """读取单个章节，返回 dict 或 None。
+
+    published_at 优先取 frontmatter，回退到文件修改时间。
+    """
     chapters_dir = get_chapters_dir(author_id, work_id)
     path = resolve_chapter_path(chapters_dir, num)
     if not path:
@@ -125,6 +138,13 @@ async def read_chapter_by_num(
         raw = await asyncio.to_thread(path.read_text, "utf-8")
         ch = parse_chapter(raw)
         ch["num"] = num
+        # 如果 frontmatter 中没有 published_at，使用文件修改时间作为回退
+        if not ch.get("published_at"):
+            try:
+                mtime = await asyncio.to_thread(lambda p=path: p.stat().st_mtime)
+                ch["published_at"] = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+            except Exception:
+                pass
         return ch
     except Exception:
         return None

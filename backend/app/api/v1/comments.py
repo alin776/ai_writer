@@ -303,11 +303,18 @@ async def create_comment(
                 detail="父评论不存在"
             )
 
-    # 创建评论
+    # 创建评论 — proxy external sticker URLs to COS for permanence
+    comment_content = comment_data.content
+    try:
+        from app.services.sticker_proxy import proxy_sticker_urls_in_content
+        comment_content = await proxy_sticker_urls_in_content(comment_content)
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Failed to proxy sticker in comment: {e}")
+
     comment = Comment(
         work_id=work_id,
         user_id=current_user.id,
-        content=comment_data.content,
+        content=comment_content,
         parent_id=comment_data.parent_id,
         reply_to_user_id=comment_data.reply_to_user_id
     )

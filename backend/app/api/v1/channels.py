@@ -6,7 +6,10 @@ from sqlalchemy.exc import IntegrityError
 from typing import Optional, List
 from uuid import UUID
 import logging
+import re
 import uuid
+
+import httpx
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user, get_current_user_optional
@@ -41,6 +44,8 @@ from app.schemas.channel import (
     JoinRequestReview,
     JoinChannelResponse,
 )
+
+from app.services.sticker_proxy import proxy_sticker_urls_in_content
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -202,9 +207,6 @@ def build_channel_response(channel: Channel, work: Optional[Work] = None) -> dic
             data["cover_image"] = work.cover_image
 
     return data
-
-
-import re
 
 
 async def extract_mentions(content: str, db: AsyncSession) -> List[str]:
@@ -1522,59 +1524,82 @@ async def get_messages_around(
     message_responses = []
     for msg in messages:
         m = member_dict.get(msg.user_id)
+        # 构建附件列表
         attachments_data = [
             {
                 "id": att.id,
                 "file_name": att.file_name,
-                "file_url": att.file_url,
                 "file_type": att.file_type,
-                "file_size": att.file_size
+                "file_size": att.file_size,
+                "file_url": att.file_url,
+                "thumbnail_url": att.thumbnail_url,
+                "created_at": att.created_at
             }
             for att in (msg.attachments or [])
         ]
 
+        # 构建转发来源信息
         forwarded_from_data = None
-        if msg.forwarded_from:
-            fwd = msg.forwarded_from
+        if msg.forwarded_from_id and msg.forwarded_from:
+            orig = msg.forwarded_from
+            orig_attachments = [
+                {
+                    "id": str(att.id),
+                    "file_name": att.file_name,
+                    "file_type": att.file_type,
+                    "file_url": att.file_url,
+                    "thumbnail_url": att.thumbnail_url
+                }
+                for att in (orig.attachments or [])
+            ]
+            # 处理频道名称：私聊频道显示"私聊"而不是 UUID
+            if orig.channel:
+                if orig.channel.type == ChannelType.PRIVATE:
+                    channel_name = "私聊"
+                else:
+                    channel_name = orig.channel.name
+            else:
+                channel_name = "已删除频道"
             forwarded_from_data = {
-                "messageId": str(fwd.id),
-                "channelId": str(fwd.channel_id),
-                "channelName": fwd.channel.name if fwd.channel else "未知频道",
-                "userName": fwd.user.full_name if fwd.user else "未知用户",
-                "content": fwd.content[:100] if fwd.content else "",
-                "createdAt": fwd.created_at.isoformat() if fwd.created_at else None,
-                "attachments": [
-                    {
-                        "id": att.id,
-                        "file_name": att.file_name,
-                        "file_url": att.file_url,
-                        "file_type": att.file_type,
-                        "file_size": att.file_size
-                    }
-                    for att in (fwd.attachments or [])
-                ]
+                "message_id": str(orig.id),
+                "channel_id": str(orig.channel_id),
+                "channel_name": channel_name,
+                "user_id": str(orig.user_id) if orig.user_id else None,
+                "user_name": orig.user.username if orig.user else "已删除用户",
+                "user_avatar": orig.user.avatar if orig.user else None,
+                "user_bio": orig.user.bio if orig.user else None,
+                "user_honor": orig.user.honor if orig.user else None,
+                "content": orig.content,
+                "created_at": orig.created_at.isoformat() if orig.created_at else None,
+                "attachments": orig_attachments
             }
 
         message_responses.append(ChannelMessageResponse(
             id=msg.id,
             channel_id=msg.channel_id,
             user_id=msg.user_id,
-            user_name=msg.user.full_name if msg.user else "未知用户",
-            user_avatar=msg.user.avatar if msg.user else None,
             content=msg.content,
-            message_type=msg.message_type,
-            reply_to_id=msg.reply_to_id,
+            type=msg.type,
             is_pinned=msg.is_pinned,
-            pinned_at=msg.pinned_at,
-            pinned_by=msg.pinned_by,
+            is_deleted=msg.is_deleted,
+            is_edited=msg.is_edited,
+            reply_to_id=msg.reply_to_id,
+            forwarded_from_id=msg.forwarded_from_id,
+            forwarded_from=forwarded_from_data,
+            reaction_count=msg.reaction_count,
             created_at=msg.created_at,
             updated_at=msg.updated_at,
-            reactions=_build_reaction_summaries(msg.reactions, current_user.id),
-            user_role=m.role if m else None,
-            user_title=m.title if m else None,
-            is_creator=m.is_creator if m else False,
+            deleted_at=msg.deleted_at,
+            edited_at=msg.edited_at,
+            user_name=msg.user.username if msg.user else "已删除用户",
+            user_avatar=msg.user.avatar if msg.user else None,
+            user_bio=msg.user.bio if msg.user else None,
+            user_honor=msg.user.honor if msg.user else None,
+            user_online_status=msg.user.online_status if msg.user else None,
+            user_title=m.custom_title if m else None,
+            user_title_color=m.title_color if m else None,
             attachments=attachments_data,
-            forwarded_from=forwarded_from_data
+            reactions=_build_reaction_summaries(msg.reactions, current_user.id)
         ))
 
     has_more = skip + len(messages) < total
@@ -1698,6 +1723,8 @@ async def send_message(
             )
 
     # 创建消息
+    # Proxy external sticker URLs to COS for permanence
+    content = await proxy_sticker_urls_in_content(content)
     message = ChannelMessage(
         id=uuid.uuid4(),
         channel_id=channel_id,
@@ -3670,6 +3697,8 @@ async def send_message_with_attachments(
 
     # 创建消息（允许纯附件消息，内容为空）
     message_content = content.strip()
+    # Proxy external sticker URLs to COS for permanence
+    message_content = await proxy_sticker_urls_in_content(message_content)
     message = ChannelMessage(
         id=uuid.uuid4(),
         channel_id=channel_id,
@@ -4248,7 +4277,7 @@ from datetime import timedelta
 async def create_invite(
     channel_id: UUID,
     max_uses: Optional[int] = Query(None, ge=1, le=1000),
-    expires_hours: Optional[int] = Query(None, ge=1, le=168),  # 最长7天
+    expires_hours: Optional[float] = Query(None, gt=0, le=168),  # 支持小数（如0.5=30分钟），最长7天
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -4770,8 +4799,6 @@ async def update_notification_settings(
 
 
 # ===== GIF/贴纸搜索 API =====
-
-import httpx
 
 
 @router.get("/gif/search")

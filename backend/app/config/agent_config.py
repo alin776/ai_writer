@@ -28,12 +28,12 @@ class AgentConfig(BaseSettings):
 
     # 默认模型
     DEFAULT_MODEL: str = Field(
-        default="gpt-5.2",
+        default="gpt-5.4",
         description="默认使用的AI模型"
     )
 
     FALLBACK_MODEL: str = Field(
-        default="gpt-5.2",
+        default="gpt-5.4",
         description="降级使用的AI模型"
     )
 
@@ -317,7 +317,7 @@ class AgentConfig(BaseSettings):
                 "max_tokens": 2000
             },
             "complex": {
-                "model": "gpt-5.2",
+                "model": "gpt-5.4",
                 "temperature": 0.8,
                 "max_tokens": 4000
             }

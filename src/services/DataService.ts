@@ -844,8 +844,16 @@ class DataServiceClass {
    * @param workId 作品ID
    * @returns Promise<AnalysisStatusResponse>
    */
-  async getAnalysisStatus(workId: string): Promise<AnalysisStatusResponse> {
-    return this.adapter.get(`/analysis/works/${workId}/status`);
+  async getAnalysisStatus(workId: string): Promise<AnalysisStatusResponse | null> {
+    try {
+      return await this.adapter.get(`/analysis/works/${workId}/status`);
+    } catch (error: any) {
+      // 404 表示该作品尚未进行过分析，属于正常情况
+      if (error?.response?.status === 404 || error?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**

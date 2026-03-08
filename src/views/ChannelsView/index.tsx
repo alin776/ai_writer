@@ -235,7 +235,9 @@ const ChannelsView: React.FC = () => {
                   isPinned: apiMsg.isPinned,
                   replyTo: {
                     id: replyToMsg.id,
+                    userId: replyToMsg.userId,
                     userName: replyToMsg.userName,
+                    userAvatar: replyToMsg.userAvatar,
                     content: replyToMsg.content,
                   },
                 };
@@ -303,7 +305,9 @@ const ChannelsView: React.FC = () => {
               ...msg,
               replyTo: {
                 id: replyToMsg.id,
+                userId: replyToMsg.userId,
                 userName: replyToMsg.userName,
+                userAvatar: replyToMsg.userAvatar,
                 content: replyToMsg.content,
               },
             };
@@ -496,7 +500,9 @@ const ChannelsView: React.FC = () => {
                 ...msg,
                 replyTo: {
                   id: replyToMsg.id,
+                  userId: replyToMsg.userId,
                   userName: replyToMsg.userName,
+                  userAvatar: replyToMsg.userAvatar,
                   content: replyToMsg.content,
                 },
               };
@@ -571,7 +577,9 @@ const ChannelsView: React.FC = () => {
             ...newMessage,
             replyTo: {
               id: replyToMsg.id,
+              userId: replyToMsg.userId,
               userName: replyToMsg.userName,
+              userAvatar: replyToMsg.userAvatar,
               content: replyToMsg.content,
             },
           };
@@ -639,7 +647,9 @@ const ChannelsView: React.FC = () => {
         if (replyToMsg) {
           newMessage.replyTo = {
             id: replyToMsg.id,
+            userId: replyToMsg.userId,
             userName: replyToMsg.userName,
+            userAvatar: replyToMsg.userAvatar,
             content: replyToMsg.content,
           };
         }
@@ -724,7 +734,9 @@ const ChannelsView: React.FC = () => {
         if (replyToMsg) {
           newMessage.replyTo = {
             id: replyToMsg.id,
+            userId: replyToMsg.userId,
             userName: replyToMsg.userName,
+            userAvatar: replyToMsg.userAvatar,
             content: replyToMsg.content,
           };
         }

@@ -249,7 +249,7 @@ class LLMCache:
     def _estimate_cost(self, model: str, tokens: int) -> float:
         """估算成本"""
         cost_per_million = {
-            "gpt-5.2": {"input": 1.0, "output": 2.0},
+            "gpt-5.4": {"input": 1.0, "output": 2.0},
             "gpt-4": {"input": 10.00, "output": 30.00},
             "gpt-3.5-turbo": {"input": 0.50, "output": 1.50}
         }
@@ -267,7 +267,7 @@ class LLMOptimizer:
         self.batch_processor = LLMBatchProcessor(batch_size=5, max_wait_time=0.5)
         self._request_stats = defaultdict(list)
         self._model_costs = {
-            "gpt-5.2": {"input": 1.0, "output": 2.0}
+            "gpt-5.4": {"input": 1.0, "output": 2.0}
         }
 
     @cache_result(ttl=1800)  # 30分钟缓存
@@ -291,18 +291,18 @@ class LLMOptimizer:
         # return chinese_chars // 2 + english_chars // 4
 
         # ✅ 新代码：使用统一的Token计数器
-        model = model or "gpt-5.2"
+        model = model or "gpt-5.4"
         return count_tokens(text, model=model)
 
     def get_optimal_model(self, complexity: str, max_cost: Optional[float] = None) -> str:
         """获取最优模型"""
         model_mapping = {
-            "simple": "gpt-5.2",
-            "medium": "gpt-5.2",
-            "complex": "gpt-5.2"
+            "simple": "gpt-5.4",
+            "medium": "gpt-5.4",
+            "complex": "gpt-5.4"
         }
 
-        base_model = model_mapping.get(complexity, "gpt-5.2")
+        base_model = model_mapping.get(complexity, "gpt-5.4")
 
         # 如果有成本限制，选择最便宜的模型
         if max_cost is not None:

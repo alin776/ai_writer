@@ -2,7 +2,7 @@
  * 小说概括面板组件
  * 提供"小说概括"和"当前章节概括"两个选项
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button, Loading } from '../common';
 import { DataService } from '@/services/DataService';
 import { NovelAnalysisStatus } from '@/types';
@@ -28,6 +28,7 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
   // 小说概括
   const [novelSummary, setNovelSummary] = useState<string>('');
   const [isLoadingNovel, setIsLoadingNovel] = useState(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // 章节概括
   const [chapterSummary, setChapterSummary] = useState<string>('');
@@ -168,7 +169,12 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
       const checkStatus = async (): Promise<boolean> => {
         try {
           const status = await DataService.getAnalysisStatus(workId);
-          
+
+          // 404 → null：尚未创建分析任务，继续等待
+          if (!status) {
+            return false;
+          }
+
           if (status.status === NovelAnalysisStatus.COMPLETED) {
             // 分析完成，加载结果
             await loadNovelSummary();
@@ -209,20 +215,27 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
           return false;
         }
       };
-      
-      const pollInterval = setInterval(async () => {
+
+      // 清理之前可能残留的轮询
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+      pollIntervalRef.current = setInterval(async () => {
         attempts++;
-        
+
         const done = await checkStatus();
-        
+
         if (done || attempts >= maxAttempts) {
-          clearInterval(pollInterval);
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
           setIsLoadingNovel(false);
-          
+
           if (!done) {
             const waitedMinutes = Math.floor(attempts * 5 / 60);
             onToast(
-              'warning', 
+              'warning',
               `分析超时（已等待${waitedMinutes}分钟），请稍后刷新查看结果或检查后端日志`
             );
             console.error(
@@ -313,6 +326,16 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
       setIsExtractingWorldview(false);
     }
   };
+
+  // 组件卸载时清理轮询定时器
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   /**
    * 初始加载和标签切换时加载数据

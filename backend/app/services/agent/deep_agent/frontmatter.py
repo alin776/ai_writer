@@ -131,10 +131,11 @@ def parse_chapter(content: str) -> dict:
         content: 完整的章节 Markdown 文件内容
 
     Returns:
-        {"title": str, "status": str, "content": str, "word_count": int}
+        {"title": str, "status": str, "published_at": str|None, "content": str, "word_count": int}
     """
     title = ""
     status = "draft"
+    published_at = None
     body = content
 
     if content.startswith("---"):
@@ -151,6 +152,9 @@ def parse_chapter(content: str) -> dict:
                     meta = {}
                 title = meta.get("title", "") or ""
                 status = meta.get("status", "draft") or "draft"
+                raw_pa = meta.get("published_at")
+                if raw_pa is not None:
+                    published_at = str(raw_pa)
                 body = parts[2].lstrip("\n")
 
     # 如果正常解析未提取到 title，尝试从 Milkdown 损坏的 thematic break
@@ -180,26 +184,31 @@ def parse_chapter(content: str) -> dict:
     return {
         "title": title,
         "status": status,
+        "published_at": published_at,
         "content": body,
         "word_count": word_count,
     }
 
 
-def build_chapter(title: str, status: str, content: str) -> str:
+def build_chapter(title: str, status: str, content: str, published_at: str = None) -> str:
     """构建带 frontmatter 的章节文件内容。
 
     Args:
         title: 章节标题
-        status: 章节状态（draft/completed）
+        status: 章节状态（draft/completed/published）
         content: 正文内容
+        published_at: 发布时间 ISO 格式字符串（可选）
 
     Returns:
         完整的 Markdown 文件内容（frontmatter + 正文）
     """
     # 在构建前清理内容中可能残留的 frontmatter，防止二次包裹
     content = _strip_leaked_frontmatter(content)
+    meta_dict = {"title": title, "status": status}
+    if published_at:
+        meta_dict["published_at"] = published_at
     meta = yaml.dump(
-        {"title": title, "status": status},
+        meta_dict,
         allow_unicode=True,
         default_flow_style=False,
     ).strip()

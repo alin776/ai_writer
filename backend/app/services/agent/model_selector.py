@@ -97,22 +97,22 @@ class ModelTier(BaseModel):
 # ==================== 预定义模型配置 ====================
 
 # 参考价格 (单位: USD per 1M tokens)
-# GPT-5.2 (当前使用):
-# - gpt-5.2: 统一模型，用于所有任务
+# GPT-5.4 (当前使用):
+# - gpt-5.4: 统一模型，用于所有任务
 #
 # 其他模型参考:
 # - GPT-3.5 Turbo: $0.50 input / $1.50 output
 # - GPT-4 Turbo: $10.00 input / $30.00 output
 # - DeepSeek: $0.14 input / $0.28 output
 
-# 注意: 当前统一使用 gpt-5.2 模型
+# 注意: 当前统一使用 gpt-5.4 模型
 
 MODEL_TIERS: Dict[TaskComplexity, ModelTier] = {
     # 简单任务
     TaskComplexity.SIMPLE: ModelTier(
-        name="GPT-5.2",
+        name="GPT-5.4",
         provider="openai",
-        model_id="gpt-5.2",
+        model_id="gpt-5.4",
         cost_per_1m_input=1.0,
         cost_per_1m_output=2.0,
         max_tokens=4096,
@@ -123,9 +123,9 @@ MODEL_TIERS: Dict[TaskComplexity, ModelTier] = {
 
     # 中等任务
     TaskComplexity.MEDIUM: ModelTier(
-        name="GPT-5.2",
+        name="GPT-5.4",
         provider="openai",
-        model_id="gpt-5.2",
+        model_id="gpt-5.4",
         cost_per_1m_input=1.0,
         cost_per_1m_output=2.0,
         max_tokens=8192,
@@ -136,9 +136,9 @@ MODEL_TIERS: Dict[TaskComplexity, ModelTier] = {
 
     # 复杂任务
     TaskComplexity.COMPLEX: ModelTier(
-        name="GPT-5.2",
+        name="GPT-5.4",
         provider="openai",
-        model_id="gpt-5.2",
+        model_id="gpt-5.4",
         cost_per_1m_input=1.0,
         cost_per_1m_output=2.0,
         max_tokens=8192,

@@ -883,7 +883,7 @@ class WorldviewSyncService:
             ai_service = LangChainAIService(
                 db=self.db,
                 user_id=self.user_id,
-                model=settings.WORLDVIEW_SINGLE_CHAPTER_MODEL or "gpt-5.2",
+                model=settings.WORLDVIEW_SINGLE_CHAPTER_MODEL or "gpt-5.4",
                 enable_model_selector=False
             )
             full_response = ""

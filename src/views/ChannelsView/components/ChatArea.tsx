@@ -1487,7 +1487,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     >
                       {/* 被引用用户小头像 */}
                       <img
-                        src={message.replyTo.userAvatar || message.userAvatar || '/default-avatar.png'}
+                        src={message.replyTo.userAvatar || '/default-avatar.png'}
                         alt={getDisplayName(message.replyTo.userId || '', message.replyTo.userName)}
                         className="w-4 h-4 rounded-full"
                         onError={(e) => {

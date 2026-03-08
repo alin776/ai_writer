@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     # OpenAI 配置
     OPENAI_API_KEY: str
     OPENAI_BASE_URL: str = "https://204992.xyz:8443/v1"
-    OPENAI_MODEL: str = "gpt-5.2"  # 默认模型，可通过环境变量修改
+    OPENAI_MODEL: str = "gpt-5.4"  # 默认模型，可通过环境变量修改
 
     @field_validator("OPENAI_TIMEOUT", mode="before")
     @classmethod
@@ -101,25 +101,25 @@ class Settings(BaseSettings):
     AGENT_USE_DUAL_PROMPT: bool = False  # True=双Prompt架构（系统层+创作层），False=传统单Prompt架构
 
     # 评审功能专用模型配置
-    REVIEW_MODEL: str = "gpt-5.2"  # 评审专用模型
+    REVIEW_MODEL: str = "gpt-5.4"  # 评审专用模型
     REVIEW_TIMEOUT: int = 60  # 评审超时时间(秒),gemini速度快
 
     # 图书分析专用模型配置
-    BOOK_ANALYSIS_MODEL: str = "gpt-5.2"  # 图书分析专用模型
+    BOOK_ANALYSIS_MODEL: str = "gpt-5.4"  # 图书分析专用模型
     BOOK_ANALYSIS_TIMEOUT: int = 60  # 图书分析超时时间(秒)
 
     # AI 改写助手配置
     # 可用模型列表（可通过修改 enabled 字段启用/禁用模型）
     REWRITE_MODELS: dict = {
-        "gpt-5.2": {
-            "name": "GPT-5.2",
+        "gpt-5.4": {
+            "name": "GPT-5.4",
             "description": "默认模型，擅长创意和细节描写",
             "enabled": True
         }
     }
 
     # 默认使用的模型列表
-    REWRITE_DEFAULT_MODELS: List[str] = ["gpt-5.2"]
+    REWRITE_DEFAULT_MODELS: List[str] = ["gpt-5.4"]
 
     # 最多可同时使用的模型数量
     REWRITE_MAX_MODELS: int = 4
@@ -159,9 +159,9 @@ class Settings(BaseSettings):
     QUALITY_LOOP_PASS_THRESHOLD: float = 8.0  # 质量通过阈值（0-10分）
 
     # 模型选择配置
-    MODEL_SIMPLE_TASK: str = "gpt-5.2"  # 简单任务使用的模型
-    MODEL_MEDIUM_TASK: str = "gpt-5.2"  # 中等任务使用的模型
-    MODEL_COMPLEX_TASK: str = "gpt-5.2"  # 复杂任务使用的模型
+    MODEL_SIMPLE_TASK: str = "gpt-5.4"  # 简单任务使用的模型
+    MODEL_MEDIUM_TASK: str = "gpt-5.4"  # 中等任务使用的模型
+    MODEL_COMPLEX_TASK: str = "gpt-5.4"  # 复杂任务使用的模型
 
     # 成本控制配置
     ENABLE_COST_TRACKING: bool = True  # 启用成本追踪
@@ -244,9 +244,9 @@ class Settings(BaseSettings):
     WORLDVIEW_SCAN_FIRST_BATCH_CHAPTERS: int = 1  # 首批章节数（用于快速反馈）
     WORLDVIEW_SCAN_FIRST_BATCH_MAX_CHARS: int = 4000  # 首批最大字符数
     WORLDVIEW_SCAN_CONCURRENCY: int = 1  # 批次并发数（>1会禁用成本追踪）
-    WORLDVIEW_SCAN_FIRST_BATCH_MODEL: Optional[str] = "gpt-5.2"  # 首批快模型（None表示不特殊处理）
-    WORLDVIEW_SCAN_MODEL: Optional[str] = "gpt-5.2"  # 全量/后续批次模型
-    WORLDVIEW_SINGLE_CHAPTER_MODEL: Optional[str] = "gpt-5.2"  # 单章解析模型
+    WORLDVIEW_SCAN_FIRST_BATCH_MODEL: Optional[str] = "gpt-5.4"  # 首批快模型（None表示不特殊处理）
+    WORLDVIEW_SCAN_MODEL: Optional[str] = "gpt-5.4"  # 全量/后续批次模型
+    WORLDVIEW_SINGLE_CHAPTER_MODEL: Optional[str] = "gpt-5.4"  # 单章解析模型
 
     @field_validator("WORLDVIEW_KNOWLEDGE_SYNC_MODE", mode="before")
     @classmethod

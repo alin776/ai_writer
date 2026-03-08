@@ -26,9 +26,9 @@ import type { AnalysisStatusResponse } from '@/types';
  */
 export const useAnalysisStatus = (
   workId: string | undefined,
-  options?: Omit<UseQueryOptions<AnalysisStatusResponse, Error>, 'queryKey' | 'queryFn'>
+  options?: Omit<UseQueryOptions<AnalysisStatusResponse | null, Error>, 'queryKey' | 'queryFn'>
 ) => {
-  return useQuery<AnalysisStatusResponse, Error>({
+  return useQuery<AnalysisStatusResponse | null, Error>({
     queryKey: queryKeys.analysis.status(workId || ''),
     queryFn: async () => {
       if (!workId) throw new Error('Work ID is required');

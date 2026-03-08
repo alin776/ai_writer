@@ -5,6 +5,7 @@ from sqlalchemy import select, delete
 from typing import Optional, List
 from pydantic import BaseModel
 import httpx
+import logging
 import uuid
 
 from app.core.database import get_db
@@ -12,8 +13,10 @@ from app.core.config import settings
 from app.models.user import User
 from app.models.user_sticker import UserSticker, UserFavoriteSticker, StickerSource
 from app.core.security import get_current_active_user
+from app.services.sticker_proxy import proxy_url_to_cos
 
 router = APIRouter(prefix="/stickers", tags=["贴图"])
+logger = logging.getLogger(__name__)
 
 
 # ==================== Pydantic 模型 ====================
@@ -104,18 +107,18 @@ async def search_stickers(
         for result in data.get("results", []):
             media_formats = result.get("media_formats", {})
 
-            # 按优先级尝试获取 URL
+            # 按优先级尝试获取 URL（优先较小格式，便于代理到 COS）
             url = None
             preview_url = None
 
-            # 原图优先级：gif > mediumgif > tinygif > webp
-            for fmt in ["gif", "mediumgif", "tinygif", "webp", "mp4"]:
+            # 原图优先级：mediumgif > tinygif > gif > webp（避免超大 GIF）
+            for fmt in ["mediumgif", "tinygif", "gif", "webp", "mp4"]:
                 if fmt in media_formats and media_formats[fmt].get("url"):
                     url = media_formats[fmt]["url"]
                     break
 
-            # 预览图优先级：tinygif > nanogif > gif
-            for fmt in ["tinygif", "nanogif", "gif", "webp"]:
+            # 预览图优先级：tinygif > nanogif > mediumgif
+            for fmt in ["tinygif", "nanogif", "mediumgif", "webp"]:
                 if fmt in media_formats and media_formats[fmt].get("url"):
                     preview_url = media_formats[fmt]["url"]
                     break
@@ -421,12 +424,19 @@ async def add_favorite_sticker(
             detail="已收藏该贴图"
         )
 
-    # 创建收藏记录
+    # 创建收藏记录 - proxy external URLs to COS for permanence
+    sticker_url = await proxy_url_to_cos(request.sticker_url)
+    preview_url = request.preview_url
+    if preview_url and preview_url != request.sticker_url:
+        preview_url = await proxy_url_to_cos(preview_url)
+    elif preview_url:
+        preview_url = sticker_url  # same as sticker, reuse proxied URL
+
     source = StickerSource.TENOR if request.source == "tenor" else StickerSource.UPLOAD
     favorite = UserFavoriteSticker(
         user_id=current_user.id,
-        sticker_url=request.sticker_url,
-        preview_url=request.preview_url,
+        sticker_url=sticker_url,
+        preview_url=preview_url,
         source=source,
         tenor_id=request.tenor_id
     )

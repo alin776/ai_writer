@@ -213,11 +213,13 @@ class WorkService:
         if not work:
             return None
 
-        # 设置作品为已发布
+        # 设置作品为已发布（仅首次发布时设置 published_at）
         work.is_published = True
-        work.published_at = datetime.now(timezone.utc)
+        if work.published_at is None:
+            work.published_at = datetime.now(timezone.utc)
 
-        # 更新文件系统中章节的 status
+        # 更新文件系统中章节的 status 和 published_at
+        now_iso = datetime.now(timezone.utc).isoformat()
         chapters_dir = self._get_work_dir(user_id, work_id) / "chapters"
         if chapters_dir.exists():
             chapter_files = await asyncio.to_thread(self._list_chapter_files, chapters_dir)
@@ -225,10 +227,18 @@ class WorkService:
             for num, path in chapter_files:
                 raw = await asyncio.to_thread(path.read_text, "utf-8")
                 parsed = parse_chapter(raw)
-                if num in nums_set and parsed["status"] != "published":
-                    new_content = build_chapter(parsed["title"] or f"Chapter {num}", "published", parsed["content"])
-                    await asyncio.to_thread(path.write_text, new_content, "utf-8")
+                if num in nums_set:
+                    # 发布章节：如果尚未发布或缺少 published_at，则更新 frontmatter
+                    if parsed["status"] != "published" or not parsed.get("published_at"):
+                        new_content = build_chapter(
+                            parsed["title"] or f"Chapter {num}",
+                            "published",
+                            parsed["content"],
+                            published_at=parsed.get("published_at") or now_iso,
+                        )
+                        await asyncio.to_thread(path.write_text, new_content, "utf-8")
                 elif num not in nums_set and parsed["status"] == "published":
+                    # 取消发布的章节：恢复为 draft
                     new_content = build_chapter(parsed["title"] or f"Chapter {num}", "draft", parsed["content"])
                     await asyncio.to_thread(path.write_text, new_content, "utf-8")
 
