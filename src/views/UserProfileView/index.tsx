@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MoreHorizontal, Heart, BookOpen, Flag, User, Ban } from 'lucide-react';
+import { MoreHorizontal, Heart, BookOpen, Flag, User, Ban, ArrowLeft } from 'lucide-react';
 import { getUserProfile, UserProfile } from '@/services/userApi';
 import { sendFriendRequest, handleFriendRequest, reportUser } from '@/services/friendApi';
 import { getMyChannels, type Channel, inviteToChannel } from '@/services/channelApi';
@@ -235,7 +235,16 @@ const UserProfileView = () => {
   const { user, stats, relation, works } = profile;
 
   return (
-    <div className="h-full w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white overflow-auto">
+    <div className="h-full w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white overflow-auto relative">
+      {/* 返回按钮 */}
+      <button
+        onClick={() => navigate(-1)}
+        className="absolute top-3 left-3 z-10 flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        aria-label="返回"
+      >
+        <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+      </button>
+
       <div className="max-w-4xl mx-auto px-4">
         {/* 用户信息区 */}
         <section className="py-8">
