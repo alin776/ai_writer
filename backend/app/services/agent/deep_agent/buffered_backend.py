@@ -1375,37 +1375,58 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                 return None
 
         self._buffer.pop(index)
+        affected_path: str | None = None
         try:
             if op.op_type == "write":
                 resolved = self._resolve_path(op.path)
                 resolved.parent.mkdir(parents=True, exist_ok=True)
                 resolved.write_text(op.content or "", encoding="utf-8")
-                return op.path
-            if op.op_type == "edit":
+                affected_path = op.path
+            elif op.op_type == "edit":
                 resolved = self._resolve_path(op.path)
                 content = resolved.read_text(encoding="utf-8")
                 result = perform_string_replacement(
                     content, op.old_string or "", op.new_string or "", op.replace_all
                 )
-                if isinstance(result, str):
-                    return None
-                new_content, _ = result
-                resolved.write_text(new_content, encoding="utf-8")
-                return op.path
-            if op.op_type == "rename":
+                if not isinstance(result, str):
+                    new_content, _ = result
+                    resolved.write_text(new_content, encoding="utf-8")
+                    affected_path = op.path
+            elif op.op_type == "rename":
                 new_path = self._normalize_tool_path(op.new_path or "")
                 src = self._resolve_path(op.path)
                 dst = self._resolve_path(new_path)
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 os.rename(src, dst)
-                return new_path
-            if op.op_type == "delete":
+                affected_path = new_path
+            elif op.op_type == "delete":
                 target = self._resolve_path(op.path)
                 target.unlink()
-                return op.path
-            return None
+                affected_path = op.path
         except Exception:
-            return None
+            pass
+
+        # 清理预落盘跟踪状态：flush 接受后需更新 _preflushed_originals，
+        # 防止后续 discard_single() 基于过时的原始内容回滚已接受的变更
+        if affected_path and op.path in self._preflushed_originals:
+            remaining = [o for o in self._buffer if o.path == op.path]
+            if not remaining:
+                # 该路径没有其他待审批操作 → 移除预落盘跟踪
+                self._preflushed_originals.pop(op.path, None)
+                self._preflushed_paths.discard(op.path)
+            else:
+                # 还有待审批操作 → 更新基线为当前磁盘状态（含已接受的变更），
+                # 这样后续 discard_single() 回滚时不会撤销已接受的变更
+                try:
+                    resolved = self._resolve_path(op.path)
+                    if resolved.exists():
+                        self._preflushed_originals[op.path] = resolved.read_text(encoding="utf-8")
+                    else:
+                        self._preflushed_originals[op.path] = None
+                except OSError:
+                    pass
+
+        return affected_path
 
     def discard(self) -> None:
         """审批拒绝：丢弃缓冲区，回滚预落盘文件。"""
@@ -1425,10 +1446,44 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         self._buffer.clear()
 
     def discard_single(self, index: int) -> bool:
-        """单个拒绝：丢弃指定索引的操作。"""
+        """单个拒绝：丢弃指定索引的操作，回滚该文件的预落盘。"""
         if index < 0 or index >= len(self._buffer):
             return False
-        self._buffer.pop(index)
+        op = self._buffer.pop(index)
+
+        # 回滚预落盘：如果 _flush_for_execute() 已将内容写入磁盘，需要恢复
+        if op.path in self._preflushed_originals:
+            remaining_for_path = [o for o in self._buffer if o.path == op.path]
+            resolved = self._resolve_path(op.path)
+            original = self._preflushed_originals.get(op.path)
+            if not remaining_for_path:
+                # 该路径没有其他待审批操作 → 恢复原始内容
+                self._preflushed_originals.pop(op.path, None)
+                try:
+                    if original is None:
+                        resolved.unlink(missing_ok=True)
+                    else:
+                        resolved.write_text(original, encoding="utf-8")
+                except OSError:
+                    pass
+                self._preflushed_paths.discard(op.path)
+            else:
+                # 该路径还有其他操作 → 先恢复原始内容到磁盘，
+                # 再用 _replay 基于原始内容重放剩余操作得到正确状态
+                try:
+                    if original is None:
+                        resolved.unlink(missing_ok=True)
+                    else:
+                        resolved.write_text(original, encoding="utf-8")
+                except OSError:
+                    pass
+                content = self._replay(op.path)
+                if content is not None:
+                    try:
+                        resolved.write_text(content, encoding="utf-8")
+                    except OSError:
+                        pass
+
         return True
 
     # ─── 持久化（JSON 文件备份） ───

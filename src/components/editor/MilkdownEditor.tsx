@@ -343,6 +343,9 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
 
     const handleInlineDiff = (e: Event) => {
       const { oldString, newString, append } = (e as CustomEvent).detail || {};
+      // [DEBUG] 追踪谁触发了 diff
+      console.log('[MilkdownEditor] editor-inline-diff received', { oldString: oldString?.slice(0, 50), newString: newString?.slice(0, 50), append });
+      console.trace('[MilkdownEditor] editor-inline-diff call stack');
       if (typeof newString !== 'string') return;
       inlineDiffQueue.push({
         oldString: typeof oldString === 'string' ? oldString : '',

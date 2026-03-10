@@ -396,10 +396,15 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         let lastRevision: any = null;
         for (const item of flowItems) {
           const rev = item.type === 'step' ? (item.data as any)?.revision : item.type === 'revision' ? item.data : null;
-          if (rev?.oldString && rev?.newString) {
+          // [DEBUG] 打印每个 revision 的 status 和 oldString 状态
+          if (rev) {
+            console.log('[useAgentChat:restore] rev status=', rev.status, 'hasOld=', !!rev.oldString, 'hasNew=', !!rev.newString);
+          }
+          if (rev?.oldString && rev?.newString && (!rev?.status || rev.status === 'pending')) {
             lastRevision = rev;
           }
         }
+        console.log('[useAgentChat:restore] lastRevision=', lastRevision ? 'FOUND' : 'NULL');
         const restoreChapterId = resolveRevisionTargetChapterId(lastRevision);
         const normalizedActiveChapterId = normalizeRevisionTargetId(activeChapterIdRef.current);
         const canRestorePreview =
@@ -407,6 +412,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           || !restoreChapterId
           || restoreChapterId === normalizedActiveChapterId;
         if (lastRevision && canRestorePreview) {
+          console.log('[useAgentChat:restore] >>> DISPATCHING editor-inline-diff <<<');
           // 轮询等 MilkdownEditor + diffDecorationPlugin 初始化完成后再派发
           const tryRestore = (attempts = 15) => {
             const editor = document.querySelector('.milkdown .ProseMirror');
@@ -1731,6 +1737,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
         const updatedFlowItems = msg.flowItems.map((item: FlowItem) => {
           // v7.3: 处理嵌入在 step 中的 revision
+          // 弃用/采纳后清除 diff 展示字段，防止会话恢复时重新显示 diff
+          const isDismissed = status === 'discarded' || status === 'accepted';
+          const diffClearFields = isDismissed
+            ? { oldString: undefined, newString: undefined, diffPairs: undefined }
+            : {};
+
           if (item.type === 'step') {
             const stepData = item.data as StepFlowData;
             // v7.4: 支持 revisionItemId 或 item.id 匹配
@@ -1742,7 +1754,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   revision: {
                     ...stepData.revision,
                     status,
-                    ...(snapshot || {})
+                    ...(snapshot || {}),
+                    ...diffClearFields,
                   }
                 }
               };
@@ -1757,7 +1770,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 ...(item.data as RevisionFlowData),
                 status,
                 // v7.2: 保存快照数据用于撤销/重做
-                ...(snapshot || {})
+                ...(snapshot || {}),
+                ...diffClearFields,
               }
             };
           }

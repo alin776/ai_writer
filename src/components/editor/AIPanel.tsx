@@ -1885,12 +1885,20 @@ ${selectionContext.selected_text}
                               console.log('[AIPanel] V2 changesApi.rejectOne:', { conversationId, sorted });
                               (async () => {
                                 for (const idx of sorted) {
-                                  await changesApi.rejectOne(conversationId!, idx);
+                                  try {
+                                    await changesApi.rejectOne(conversationId!, idx);
+                                  } catch (err) {
+                                    console.error(`[AIPanel] changesApi.rejectOne(${idx}) 失败:`, err);
+                                  }
                                 }
                                 recheckOperations();
-                              })().catch((err) => {
-                                console.error('[AIPanel] changesApi.rejectOne 失败:', err);
-                              });
+                                // 弃用后刷新编辑器内容，确保从磁盘加载原始内容
+                                if (workId) {
+                                  window.dispatchEvent(new CustomEvent('agent-operations-rollback', {
+                                    detail: { conversationId }
+                                  }));
+                                }
+                              })();
                             }
                           } else if (resolvedRequestId) {
                             // 回退路径：旧版 agentApi

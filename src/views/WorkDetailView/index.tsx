@@ -1792,10 +1792,12 @@ const WorkDetailView: React.FC = () => {
 
     // v8.0: 监听操作回滚事件，刷新章节列表
     const handleOperationsRollback = async () => {
+      diffPreviewRef.current = false;
       await refreshChaptersAndContent();
     };
 
     const handleOperationsApplied = async () => {
+      diffPreviewRef.current = false;
       await refreshChaptersAndContent();
     };
 
@@ -2079,12 +2081,29 @@ const WorkDetailView: React.FC = () => {
 
     };
 
+    // 监听 editor-hide-diff 事件，重置 diff 预览状态（解除自动保存阻断）
+    // 同时清除当前章节的 _diffModified，防止 handleEditorTabSwitch 对 _pending 章节重复显示 diff
+    const handleEditorHideDiff = () => {
+      diffPreviewRef.current = false;
+      const chId = editorChapterIdRef.current;
+      if (chId) {
+        setChapters(prev => prev.map(c => {
+          if (c.id === chId && (c as any)._diffModified !== undefined) {
+            const { _diffModified, _diffOriginal, ...rest } = c as any;
+            return rest;
+          }
+          return c;
+        }));
+      }
+    };
+
     window.addEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
     window.addEventListener('agent-chapter-revert', handleChapterRevert as EventListener);
     window.addEventListener('agent-chapter-confirm', handleChapterConfirm as EventListener);
     window.addEventListener('agent-operations-rollback', handleOperationsRollback as EventListener);
     window.addEventListener('agent-operations-applied', handleOperationsApplied as EventListener);
     window.addEventListener('agent-jump-revision', handleJumpRevision as EventListener);
+    window.addEventListener('editor-hide-diff', handleEditorHideDiff);
 
     return () => {
       window.removeEventListener('agent-chapter-preview', handleChapterPreview as EventListener);
@@ -2093,6 +2112,7 @@ const WorkDetailView: React.FC = () => {
       window.removeEventListener('agent-operations-rollback', handleOperationsRollback as EventListener);
       window.removeEventListener('agent-operations-applied', handleOperationsApplied as EventListener);
       window.removeEventListener('agent-jump-revision', handleJumpRevision as EventListener);
+      window.removeEventListener('editor-hide-diff', handleEditorHideDiff);
     };
   }, [workId, currentChapterId, handleChapterSelect, isEditorCollapsed, chapters, openEditorTab]);
 
