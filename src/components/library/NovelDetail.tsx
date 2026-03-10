@@ -15,7 +15,7 @@ import {
 import { Novel } from './NovelCard';
 import { ImageWithFallback } from './ImageWithFallback';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { DataService } from '../../services/DataService';
 import Modal from '../common/Modal';
 import { useGlobalStore } from '../../store/globalStore';
@@ -778,22 +778,24 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
             }}
           />
           <div className="flex gap-3 relative group/reply overflow-visible">
-          {/* 头像 */}
-          {reply.user?.avatar ? (
-            <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
-              <img src={reply.user.avatar} alt={reply.user.username} className="w-full h-full object-cover" />
-            </div>
-          ) : (
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#2196f3] to-[#4caf50] flex items-center justify-center text-white text-[10px] font-medium flex-shrink-0">
-              {reply.user?.username?.[0]?.toUpperCase() || '?'}
-            </div>
-          )}
+          {/* 头像 - 点击跳转到用户主页 */}
+          <Link to={reply.user?.id ? `/user/${reply.user.id}` : '#'} className="flex-shrink-0">
+            {reply.user?.avatar ? (
+              <div className="w-6 h-6 rounded-full overflow-hidden">
+                <img src={reply.user.avatar} alt={reply.user.username} className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#2196f3] to-[#4caf50] flex items-center justify-center text-white text-[10px] font-medium">
+                {reply.user?.username?.[0]?.toUpperCase() || '?'}
+              </div>
+            )}
+          </Link>
 
           <div className="flex-1 min-w-0 overflow-visible">
             <div className="flex items-center gap-2 mb-0.5">
-              <span onClick={() => reply.user?.id && navigate(`/user/${reply.user.id}`)} className="text-[13px] font-medium text-gray-900 dark:text-[#f1f1f1] cursor-pointer hover:underline">
+              <Link to={reply.user?.id ? `/user/${reply.user.id}` : '#'} className="text-[13px] font-medium text-gray-900 dark:text-[#f1f1f1] hover:underline">
                 @{reply.user?.username || '匿名用户'}
-              </span>
+              </Link>
               <span className="text-xs text-gray-500 dark:text-[#aaa]">{formatTime(reply.createdAt)}</span>
               {depth > 0 && <span className="text-[10px] text-gray-400 dark:text-[#666]">Lv.{depth + 1}</span>}
               <button onClick={() => handleReportComment(reply.id)} className="ml-auto p-1 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-[#272727] opacity-0 group-hover/reply:opacity-100">
@@ -801,7 +803,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
               </button>
             </div>
             <p className="text-sm text-gray-800 dark:text-[#f1f1f1] leading-relaxed">
-              {reply.replyToUser && <span onClick={() => navigate(`/user/${reply.replyToUser!.id}`)} className="text-[#3ea6ff] cursor-pointer hover:underline mr-1">@{reply.replyToUser.username}</span>}
+              {reply.replyToUser && <Link to={`/user/${reply.replyToUser.id}`} className="text-[#3ea6ff] hover:underline mr-1">@{reply.replyToUser.username}</Link>}
               {reply.content}
             </p>
 
@@ -1394,30 +1396,32 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
                           : ''
                       }`}
                     >
-                      {/* 头像 */}
-                      {comment.user?.avatar ? (
-                        <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-                          <img
-                            src={comment.user.avatar}
-                            alt={comment.user.username}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#e91e63] to-[#9c27b0] flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-                          {comment.user?.username ? comment.user.username[0].toUpperCase() : '?'}
-                        </div>
-                      )}
+                      {/* 头像 - 点击跳转到用户主页 */}
+                      <Link to={comment.user?.id ? `/user/${comment.user.id}` : '#'} className="flex-shrink-0">
+                        {comment.user?.avatar ? (
+                          <div className="w-10 h-10 rounded-full overflow-hidden">
+                            <img
+                              src={comment.user.avatar}
+                              alt={comment.user.username}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#e91e63] to-[#9c27b0] flex items-center justify-center text-white text-sm font-medium">
+                            {comment.user?.username ? comment.user.username[0].toUpperCase() : '?'}
+                          </div>
+                        )}
+                      </Link>
 
                       {/* 评论内容 */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span
-                            onClick={() => comment.user?.id && navigate(`/user/${comment.user.id}`)}
-                            className="text-[13px] font-medium text-gray-900 dark:text-[#f1f1f1] cursor-pointer hover:underline"
+                          <Link
+                            to={comment.user?.id ? `/user/${comment.user.id}` : '#'}
+                            className="text-[13px] font-medium text-gray-900 dark:text-[#f1f1f1] hover:underline"
                           >
                             @{comment.user?.username || '匿名用户'}
-                          </span>
+                          </Link>
                           <span className="text-xs text-gray-500 dark:text-[#aaa]">
                             {formatTime(comment.createdAt)}
                           </span>
