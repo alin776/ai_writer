@@ -7,7 +7,7 @@
 /**
  * Google Fonts 导入
  */
-@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;500;600;700&family=ZCOOL+XiaoWei&display=swap');
+@import url('https://fonts.loli.net/css2?family=Inter:wght@400;500;600;700&family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;500;600;700&family=ZCOOL+XiaoWei&display=swap');
 
 /* Streamdown AI Markdown 组件样式（必须在所有 @import 之后） */
 @source "../node_modules/streamdown/dist/*.js";
@@ -34,6 +34,75 @@
 /* 暗色模式：代码体 token 文字强制浅色（覆盖 Shiki inline --sdm-c / --shiki-dark） */
 .dark [data-streamdown="code-block-body"] code span span {
   color: #e2e8f0 !important;
+}
+
+/* Streamdown 粗体文字 - ChatGPT 风格高对比 */
+[data-streamdown] strong {
+  font-weight: 700 !important;
+  color: var(--ai-text-bold) !important;
+}
+
+/* ========================================
+ * AI 聊天文字 - ChatGPT 风格
+ * 用 CSS 变量绕过 Tailwind v4 @custom-variant dark 的选择器吞噬
+ * ======================================== */
+.ai-chat-text,
+.ai-chat-text p,
+.ai-chat-text li,
+.ai-chat-text span,
+.ai-chat-text td,
+.ai-chat-text th,
+.ai-chat-text div {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  color: var(--ai-text) !important;
+}
+/* 引用块(blockquote)保留原始灰色样式，不被 ai-chat-text 颜色覆盖 */
+.ai-chat-text blockquote {
+  color: #52525b !important;  /* zinc-600 */
+}
+.dark .ai-chat-text blockquote {
+  color: #94a3b8 !important;  /* slate-400 */
+}
+.ai-chat-text blockquote p,
+.ai-chat-text blockquote span,
+.ai-chat-text blockquote div {
+  color: inherit !important;
+}
+/* TodoBlock 颜色覆盖 — 绕过 .ai-chat-text 全局 !important 规则 */
+.ai-chat-text .todo-block .todo-header {
+  color: #6b7280 !important;  /* gray-500 */
+}
+.ai-chat-text .todo-block .todo-text-completed {
+  color: #9ca3af !important;  /* gray-400 */
+}
+.ai-chat-text .todo-block .todo-text-in-progress {
+  color: #047857 !important;  /* emerald-700 */
+}
+.ai-chat-text .todo-block .todo-text-pending {
+  color: #4b5563 !important;  /* gray-600 */
+}
+.dark .ai-chat-text .todo-block .todo-header {
+  color: #9ca3af !important;  /* gray-400 */
+}
+.dark .ai-chat-text .todo-block .todo-text-completed {
+  color: #6b7280 !important;  /* gray-500 */
+}
+.dark .ai-chat-text .todo-block .todo-text-in-progress {
+  color: #34d399 !important;  /* emerald-400 */
+}
+.dark .ai-chat-text .todo-block .todo-text-pending {
+  color: #d1d5db !important;  /* gray-300 */
+}
+.ai-chat-text strong {
+  font-weight: 700 !important;
+  color: var(--ai-text-bold) !important;
+}
+.ai-chat-text h1,
+.ai-chat-text h2,
+.ai-chat-text h3,
+.ai-chat-text h4 {
+  color: var(--ai-text-bold) !important;
+  font-weight: 700 !important;
 }
 
 /**
@@ -150,6 +219,10 @@
   --color-location: #10b981; /* 绿色 - 地点 */
   --color-setting: #a855f7; /* 紫色 - 设定 */
   --color-relationship: #f97316; /* 橙色 - 关系 */
+
+  /* AI 聊天文字 - ChatGPT 风格 */
+  --ai-text: #0d0d0d;
+  --ai-text-bold: #000000;
 }
 
 /**
@@ -235,6 +308,10 @@
   --scrollbar-track: #1e293b;
   --scrollbar-thumb: #475569;
   --scrollbar-thumb-hover: #64748b;
+
+  /* AI 聊天文字 - 暗色模式 */
+  --ai-text: #ececec;
+  --ai-text-bold: #ffffff;
 }
 
 /**

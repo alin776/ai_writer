@@ -83,7 +83,7 @@ export function ExecutionFlow({
             // 防御：LLM chunk.content 可能是对象（如工具调用中间态），确保只渲染字符串
             const textContent = typeof textData.content === 'string' ? textData.content : String(textData.content);
             return (
-              <div key={item.id} className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+              <div key={item.id} className="text-base leading-relaxed">
                 <Streamdown mode="static" plugins={{ code, cjk }}>
                   {textContent}
                 </Streamdown>

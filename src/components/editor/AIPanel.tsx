@@ -204,6 +204,10 @@ const MarkdownContent: React.FC<{ content: string }> = React.memo(({ content }) 
               </code>
             );
           },
+          // 粗体 - ChatGPT 风格：高对比色突出
+          strong({ children }) {
+            return <strong className="font-semibold text-black dark:text-slate-100">{children}</strong>;
+          },
           // 段落
           p({ children }) {
             return <p className="mb-1.5 last:mb-0 text-[14px]">{children}</p>;
@@ -1756,7 +1760,7 @@ ${selectionContext.selected_text}
           };
 
           return (
-            <div key={index} className="space-y-2">
+            <div key={index} className="space-y-2 ai-chat-text">
               {showFlowBlock && (
                 <div className="flex items-start">
                   <div className="flex-1 min-w-0 !border-none !bg-transparent">
@@ -1995,7 +1999,7 @@ ${selectionContext.selected_text}
               {(message.content || lastOutputItem) && (
                 <div className="flex items-start">
                   <div className="flex flex-col gap-1 w-full min-w-0 group">
-                    <div className="text-zinc-500 dark:text-slate-300">
+                    <div>
                       {/* v6.5: 统一使用 ExecutionFlow 样式，删除纯文本降级逻辑 */}
                       <ExecutionFlow
                         items={[{

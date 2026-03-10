@@ -1,12 +1,331 @@
-.panel {
+/**
+ * NovelAnalysisPanel 样式
+ * 小说概括 / 章节概括面板
+ */
+
+/* ==================== 容器 ==================== */
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  overflow: hidden;
+}
+
+:global(.dark) .container {
+  background: #0f172a;
+}
+
+/* ==================== 标签栏 ==================== */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+:global(.dark) .tabs {
+  border-bottom-color: #1e293b;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: #64748b;
+  background: #f8fafc;
+}
+
+:global(.dark) .tab:hover {
+  color: #cbd5e1;
+  background: #1e293b;
+}
+
+.tab.active {
+  color: #0f172a;
+  border-bottom-color: #3b82f6;
+}
+
+:global(.dark) .tab.active {
+  color: #f1f5f9;
+  border-bottom-color: #60a5fa;
+}
+
+/* ==================== 操作按钮栏 ==================== */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+:global(.dark) .actions {
+  border-bottom-color: #1e293b;
+}
+
+/* ==================== 内容区 ==================== */
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 16px;
 }
 
-/* 暗色模式 */
-:global(.dark) .panel {
+/* 自定义滚动条 */
+.content::-webkit-scrollbar {
+  width: 4px;
+}
+.content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+:global(.dark) .content::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+/* ==================== 加载状态 ==================== */
+.loadingContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 16px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+:global(.dark) .loadingContainer {
+  color: #64748b;
+}
+
+/* ==================== 空状态 ==================== */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+:global(.dark) .emptyState {
+  color: #64748b;
+}
+
+/* ==================== 报告容器 ==================== */
+.reportContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ==================== 报告分段 ==================== */
+.reportSection {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  transition: border-color 150ms ease;
+}
+
+.reportSection:hover {
+  border-color: #cbd5e1;
+}
+
+:global(.dark) .reportSection {
   background: #1e293b;
   border-color: #334155;
+}
+
+:global(.dark) .reportSection:hover {
+  border-color: #475569;
+}
+
+/* ==================== 报告标题 ==================== */
+.reportTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 10px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  line-height: 1.5;
+}
+
+:global(.dark) .reportTitle {
+  color: #f1f5f9;
+  border-bottom-color: #334155;
+}
+
+/* ==================== 报告内容 (Markdown) ==================== */
+.reportContent {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #334155;
+}
+
+:global(.dark) .reportContent {
+  color: #cbd5e1;
+}
+
+/* Markdown 元素样式 */
+.reportContent :global(h1),
+.reportContent :global(h2),
+.reportContent :global(h3) {
+  font-weight: 600;
+  color: #0f172a;
+  margin: 16px 0 8px;
+  line-height: 1.5;
+}
+
+:global(.dark) .reportContent :global(h1),
+:global(.dark) .reportContent :global(h2),
+:global(.dark) .reportContent :global(h3) {
+  color: #f1f5f9;
+}
+
+.reportContent :global(h1) { font-size: 17px; }
+.reportContent :global(h2) { font-size: 15px; }
+.reportContent :global(h3) { font-size: 14px; }
+
+.reportContent :global(p) {
+  margin: 0 0 8px;
+}
+
+.reportContent :global(ul),
+.reportContent :global(ol) {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+
+.reportContent :global(ul) { list-style-type: disc; }
+.reportContent :global(ol) { list-style-type: decimal; }
+
+.reportContent :global(li) {
+  margin-bottom: 4px;
+  line-height: 1.7;
+}
+
+.reportContent :global(strong) {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+:global(.dark) .reportContent :global(strong) {
+  color: #f1f5f9;
+}
+
+.reportContent :global(blockquote) {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 3px solid #3b82f6;
+  background: #eff6ff;
+  border-radius: 0 6px 6px 0;
+  color: #1e40af;
+  font-style: italic;
+}
+
+:global(.dark) .reportContent :global(blockquote) {
+  background: #1e3a5f;
+  border-left-color: #60a5fa;
+  color: #93c5fd;
+}
+
+.reportContent :global(code) {
+  font-size: 12px;
+  padding: 2px 5px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  color: #be185d;
+}
+
+:global(.dark) .reportContent :global(code) {
+  background: #334155;
+  color: #f472b6;
+}
+
+.reportContent :global(hr) {
+  margin: 12px 0;
+  border: none;
+  border-top: 1px solid #e2e8f0;
+}
+
+:global(.dark) .reportContent :global(hr) {
+  border-top-color: #334155;
+}
+
+/* ==================== 章节概括内容 ==================== */
+.summaryContent {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #334155;
+}
+
+:global(.dark) .summaryContent {
+  color: #cbd5e1;
+}
+
+/* 同样为概括内容添加 Markdown 样式 */
+.summaryContent :global(h1),
+.summaryContent :global(h2),
+.summaryContent :global(h3) {
+  font-weight: 600;
+  color: #0f172a;
+  margin: 14px 0 8px;
+  line-height: 1.5;
+}
+
+:global(.dark) .summaryContent :global(h1),
+:global(.dark) .summaryContent :global(h2),
+:global(.dark) .summaryContent :global(h3) {
+  color: #f1f5f9;
+}
+
+.summaryContent :global(h1) { font-size: 17px; }
+.summaryContent :global(h2) { font-size: 15px; }
+.summaryContent :global(h3) { font-size: 14px; }
+
+.summaryContent :global(p) { margin: 0 0 8px; }
+.summaryContent :global(ul),
+.summaryContent :global(ol) {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+.summaryContent :global(ul) { list-style-type: disc; }
+.summaryContent :global(ol) { list-style-type: decimal; }
+.summaryContent :global(li) { margin-bottom: 4px; }
+.summaryContent :global(strong) { font-weight: 600; color: #0f172a; }
+:global(.dark) .summaryContent :global(strong) { color: #f1f5f9; }
+
+/* ==================== 旋转动画 ==================== */
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

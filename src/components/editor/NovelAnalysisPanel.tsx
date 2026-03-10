@@ -3,11 +3,16 @@
  * 提供"小说概括"和"当前章节概括"两个选项
  */
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button, Loading } from '../common';
 import { DataService } from '@/services/DataService';
 import { NovelAnalysisStatus } from '@/types';
 import { BookOpen, FileText, RefreshCw, PlayCircle, Download } from 'lucide-react';
 import styles from './NovelAnalysisPanel.module.css';
+
+/** 缓存 remark 插件数组，避免每次渲染重建 */
+const remarkPlugins = [remarkGfm];
 
 interface NovelAnalysisPanelProps {
   workId: string;
@@ -454,7 +459,7 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
     }
 
     const sections = parseReportIntoSections(novelSummary);
-    
+
     return (
       <div className={styles.reportContainer}>
         {sections.map((section, index) => (
@@ -463,7 +468,9 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
               {section.title}
             </h3>
             <div className={styles.reportContent}>
-              {section.content}
+              <ReactMarkdown remarkPlugins={remarkPlugins}>
+                {section.content}
+              </ReactMarkdown>
             </div>
           </div>
         ))}
@@ -500,7 +507,13 @@ const NovelAnalysisPanel: React.FC<NovelAnalysisPanelProps> = ({
 
     return (
       <div className={styles.summaryContent}>
-        {chapterSummary || '请先选择一个章节'}
+        {chapterSummary ? (
+          <ReactMarkdown remarkPlugins={remarkPlugins}>
+            {chapterSummary}
+          </ReactMarkdown>
+        ) : (
+          '请先选择一个章节'
+        )}
       </div>
     );
   };

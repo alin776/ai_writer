@@ -28,7 +28,7 @@ export function TodoBlock({ todos, currentTask }: TodoBlockProps) {
         : `Planning(${total} tasks)`;
 
   return (
-    <div className="py-1">
+    <div className="py-1 todo-block">
       {/* 标题行 */}
       <div className="flex items-center gap-2 text-base font-mono">
         <span
@@ -38,7 +38,7 @@ export function TodoBlock({ todos, currentTask }: TodoBlockProps) {
               : 'bg-emerald-500 animate-pulse'
           }`}
         />
-        <span className="text-gray-500 dark:text-gray-400">
+        <span className="todo-header">
           {headerText}
         </span>
       </div>
@@ -53,13 +53,13 @@ export function TodoBlock({ todos, currentTask }: TodoBlockProps) {
             <span className="flex-shrink-0 w-4 text-center">
               {todo.status === 'completed' ? '✅' : '☐'}
             </span>
-            <span className={`${
+            <span className={
               todo.status === 'completed'
-                ? 'text-gray-400 dark:text-gray-500 line-through'
+                ? 'todo-text-completed line-through'
                 : todo.status === 'in_progress'
-                  ? 'text-emerald-700 dark:text-emerald-400'
-                  : 'text-gray-600 dark:text-gray-300'
-            }`}>
+                  ? 'todo-text-in-progress'
+                  : 'todo-text-pending'
+            }>
               {typeof todo.description === 'string' ? todo.description : String(todo.description ?? '')}
             </span>
           </div>
