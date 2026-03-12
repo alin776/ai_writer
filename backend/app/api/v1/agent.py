@@ -177,7 +177,7 @@ async def toggle_skill(
 
 # ==================== Redis 连接池 ====================
 _redis_pool = None
-SESSION_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 天缓存 TTL，用于热数据
+SESSION_CACHE_TTL_SECONDS = 2 * 24 * 60 * 60  # 2 天缓存 TTL，用于热数据
 
 def get_redis_client():
     """获取同步Redis客户端（使用连接池）"""
@@ -719,7 +719,7 @@ async def _get_checkpointer():
             from langgraph.checkpoint.redis.aio import AsyncRedisSaver
             cp = AsyncRedisSaver(
                 redis_url=settings.REDIS_URL,
-                ttl={"default_ttl": 60 * 24 * 7},  # 7 天后自动过期（分钟）
+                ttl={"default_ttl": 60 * 24 * 3},  # 3 天后自动过期（分钟）
             )
             await cp.setup()
             _checkpointer = cp
@@ -1071,51 +1071,100 @@ async def agent_v2_chat_stream(
                 if loaded_skill_name:
                     emitted_skills.add(loaded_skill_dir)
 
-                async for event in agent.astream_events(
-                    input_msg, config=config, version="v2"
-                ):
-                    translated = translate_event(event, counter)
-                    if translated:
-                        yield f"data: {json.dumps(translated, ensure_ascii=False)}\n\n"
+                # ── SSE 心跳保活（防 Cloudflare 100s 空闲超时） ──
+                _HEARTBEAT_INTERVAL = 15  # 秒
+                _SENTINEL_DONE = object()
+                _SENTINEL_HEARTBEAT = object()
+                _event_queue: _asyncio.Queue = _asyncio.Queue()
 
-                    # 检测 Skill 切换：Agent 读取其他 SKILL.md 时发送 skill_switched 事件
-                    # 子 Agent 读取 SKILL.md 不触发 skill_switched
-                    kind = event.get("event", "")
-                    parent_ids = event.get("parent_ids", [])
-                    is_child_event = counter.find_parent_task(parent_ids) is not None
+                async def _stream_producer():
+                    """后台任务：将 Agent 事件逐个放入队列"""
+                    try:
+                        async for ev in agent.astream_events(
+                            input_msg, config=config, version="v2"
+                        ):
+                            await _event_queue.put(ev)
+                    except Exception as exc:
+                        await _event_queue.put(exc)
+                    finally:
+                        await _event_queue.put(_SENTINEL_DONE)
 
-                    if kind == "on_tool_start" and event.get("name") == "read_file":
-                        if not is_child_event:  # 子 Agent 读 SKILL.md 不触发
-                            _rf_path = str((event.get("data") or {}).get("input", {}).get("file_path", ""))
-                            if "SKILL.md" in _rf_path:
-                                _sk_m = re.search(r'/skills/[^/]+/([^/]+)/SKILL\.md', _rf_path)
-                                if _sk_m:
-                                    _switched = _sk_m.group(1)
-                                    if _switched not in emitted_skills:
-                                        emitted_skills.add(_switched)
-                                        yield f"data: {json.dumps({'type': 'skill_switched', 'skill_name': _switched, 'timestamp': get_utc_now().isoformat()}, ensure_ascii=False)}\n\n"
-                    if kind == "on_tool_end" and len(backend._buffer) > _last_buffer_len:
-                        if not is_child_event:  # 子 Agent 写操作静默
-                            # 从 translated step_complete 事件提取精确 step_id（防嵌套调用错位）
-                            _step_id = (translated or {}).get("step_id", counter.current)
-                            # 逐条发送新增的 buffer 操作
-                            while _last_buffer_len < len(backend._buffer):
-                                op_dict = _buffer_op_to_change(backend._buffer[_last_buffer_len], _last_buffer_len)
-                                _last_buffer_len += 1
-                                # 补充 chapter_id
-                                m = re.search(r'chapters/(\d+)-[^/]+\.md', op_dict["path"])
-                                if m:
-                                    op_dict["chapter_id"] = f"fs-{int(m.group(1))}"
-                                else:
-                                    clean_path = op_dict["path"].lstrip("/")
-                                    op_dict["chapter_id"] = f"doc:{clean_path}"
-                                    if not op_dict.get("chapter_title"):
-                                        op_dict["chapter_title"] = PurePosixPath(op_dict["path"]).stem
-                                rev = make_revision_event(op_dict)
-                                rev["step_id"] = _step_id
-                                yield f"data: {json.dumps(rev, ensure_ascii=False)}\n\n"
-                        else:
-                            _last_buffer_len = len(backend._buffer)  # 静默推进指针
+                async def _heartbeat_producer():
+                    """后台任务：每 N 秒放入心跳哨兵"""
+                    try:
+                        while True:
+                            await _asyncio.sleep(_HEARTBEAT_INTERVAL)
+                            await _event_queue.put(_SENTINEL_HEARTBEAT)
+                    except _asyncio.CancelledError:
+                        pass
+
+                _producer_task = _asyncio.create_task(_stream_producer())
+                _heartbeat_task = _asyncio.create_task(_heartbeat_producer())
+
+                try:
+                    while True:
+                        item = await _event_queue.get()
+                        if item is _SENTINEL_DONE:
+                            break
+                        if item is _SENTINEL_HEARTBEAT:
+                            yield ": heartbeat\n\n"
+                            continue
+                        if isinstance(item, Exception):
+                            raise item
+
+                        event = item
+                        translated = translate_event(event, counter)
+                        if translated:
+                            yield f"data: {json.dumps(translated, ensure_ascii=False)}\n\n"
+
+                        # 检测 Skill 切换：Agent 读取其他 SKILL.md 时发送 skill_switched 事件
+                        # 子 Agent 读取 SKILL.md 不触发 skill_switched
+                        kind = event.get("event", "")
+                        parent_ids = event.get("parent_ids", [])
+                        is_child_event = counter.find_parent_task(parent_ids) is not None
+
+                        if kind == "on_tool_start" and event.get("name") == "read_file":
+                            if not is_child_event:  # 子 Agent 读 SKILL.md 不触发
+                                _rf_path = str((event.get("data") or {}).get("input", {}).get("file_path", ""))
+                                if "SKILL.md" in _rf_path:
+                                    _sk_m = re.search(r'/skills/[^/]+/([^/]+)/SKILL\.md', _rf_path)
+                                    if _sk_m:
+                                        _switched = _sk_m.group(1)
+                                        if _switched not in emitted_skills:
+                                            emitted_skills.add(_switched)
+                                            yield f"data: {json.dumps({'type': 'skill_switched', 'skill_name': _switched, 'timestamp': get_utc_now().isoformat()}, ensure_ascii=False)}\n\n"
+                        if kind == "on_tool_end" and len(backend._buffer) > _last_buffer_len:
+                            if not is_child_event:  # 子 Agent 写操作静默
+                                # 从 translated step_complete 事件提取精确 step_id（防嵌套调用错位）
+                                _step_id = (translated or {}).get("step_id", counter.current)
+                                # 逐条发送新增的 buffer 操作
+                                while _last_buffer_len < len(backend._buffer):
+                                    op_dict = _buffer_op_to_change(backend._buffer[_last_buffer_len], _last_buffer_len)
+                                    _last_buffer_len += 1
+                                    # 补充 chapter_id
+                                    m = re.search(r'chapters/(\d+)-[^/]+\.md', op_dict["path"])
+                                    if m:
+                                        op_dict["chapter_id"] = f"fs-{int(m.group(1))}"
+                                    else:
+                                        clean_path = op_dict["path"].lstrip("/")
+                                        op_dict["chapter_id"] = f"doc:{clean_path}"
+                                        if not op_dict.get("chapter_title"):
+                                            op_dict["chapter_title"] = PurePosixPath(op_dict["path"]).stem
+                                    rev = make_revision_event(op_dict)
+                                    rev["step_id"] = _step_id
+                                    yield f"data: {json.dumps(rev, ensure_ascii=False)}\n\n"
+                            else:
+                                _last_buffer_len = len(backend._buffer)  # 静默推进指针
+                finally:
+                    _heartbeat_task.cancel()
+                    if not _producer_task.done():
+                        _producer_task.cancel()
+                    # 等待任务真正结束，防止 aclose() 时任务泄漏
+                    for _t in (_heartbeat_task, _producer_task):
+                        try:
+                            await _t
+                        except (_asyncio.CancelledError, Exception):
+                            pass
 
                 # Agent 完成：获取改动列表（用于 completion 统计和 pending 缓存）
                 changes = backend.get_changes()
@@ -1411,6 +1460,17 @@ async def agent_v2_chat_stream(
                 )
                 # 用更友好的消息替代原始 JSON 解析错误
                 error_str = "AI 服务返回了无效响应"
+            elif "help.openai.com" in _err_lower or "an error occurred while processing your request" in _err_lower:
+                # OpenAI API 500 服务端错误，替换为友好消息，不暴露上游细节
+                logger.error("[V2 Agent] OpenAI API 服务端错误（原始信息）: %s", error_str)
+                error_str = "AI 服务暂时不可用"
+                error_hint = "（AI 服务上游出现临时故障，请稍后重试）"
+            elif any(kw in _err_lower for kw in [
+                "rate limit", "rate_limit", "429", "too many requests",
+                "quota", "insufficient_quota",
+            ]):
+                error_str = "AI 服务请求频率超限"
+                error_hint = "（请稍等片刻后再试）"
             elif any(kw in _err_lower for kw in [
                 "input stream", "context length", "too long", "max tokens",
                 "maximum context", "token limit", "content too large",
@@ -1427,6 +1487,20 @@ async def agent_v2_chat_stream(
                 "eof", "broken pipe", "network",
             ]):
                 error_hint = "（可能原因：AI 服务连接异常，请稍后重试）"
+            elif any(kw in _err_lower for kw in [
+                "401", "unauthorized", "authentication", "invalid api key",
+                "invalid_api_key", "incorrect api key",
+            ]):
+                logger.error("[V2 Agent] API 认证失败: %s", error_str)
+                error_str = "AI 服务认证失败"
+                error_hint = "（请联系管理员检查 API 配置）"
+            elif any(kw in _err_lower for kw in [
+                "500", "502", "503", "504", "internal server error",
+                "bad gateway", "service unavailable", "server error",
+            ]):
+                logger.error("[V2 Agent] API 服务端错误: %s", error_str)
+                error_str = "AI 服务暂时不可用"
+                error_hint = "（AI 服务上游出现临时故障，请稍后重试）"
 
             error_event = {
                 "type": "error",

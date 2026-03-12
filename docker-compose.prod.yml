@@ -42,7 +42,7 @@ services:
     image: redis/redis-stack-server:latest
     container_name: wenshu_redis
     restart: always
-    command: redis-stack-server --appendonly yes
+    command: redis-stack-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:

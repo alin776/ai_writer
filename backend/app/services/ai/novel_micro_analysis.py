@@ -169,7 +169,7 @@ class NovelMicroAnalysisService:
                         chapter_content=chapter_text,
                         result=result,
                         analysis_type="micro",
-                        ttl=60 * 60 * 24 * 7  # 7天
+                        ttl=60 * 60 * 24 * 2  # 2天
                     )
 
                 logger.info(f"章节 {chapter_id} 分析成功，提取事件数: {len(result.get('detailed_events', []))}")

@@ -135,7 +135,7 @@ class RedisCacheService:
         chapter_content: str,
         result: Dict[str, Any],
         analysis_type: str = "micro",
-        ttl: int = 60 * 60 * 24 * 7  # 默认7天
+        ttl: int = 60 * 60 * 24 * 2  # 默认2天
     ) -> bool:
         """
         缓存分析结果
@@ -235,7 +235,7 @@ class RedisCacheService:
         self,
         texts: List[str],
         embeddings: List[List[float]],
-        ttl: int = 60 * 60 * 24 * 7  # 7天
+        ttl: int = 60 * 60 * 24 * 2  # 2天
     ) -> bool:
         """
         缓存向量化结果
@@ -308,7 +308,7 @@ class RedisCacheService:
         self,
         file_content: str,
         chapters: List[Dict[str, Any]],
-        ttl: int = 60 * 60 * 24 * 7  # 7天
+        ttl: int = 60 * 60 * 24 * 2  # 2天
     ) -> bool:
         """
         缓存章节解析结果

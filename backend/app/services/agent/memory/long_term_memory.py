@@ -90,7 +90,7 @@ class LongTermMemoryService:
             redis_client: Redis客户端实例
         """
         self.redis = redis_client
-        self.memory_ttl = 60 * 60 * 24 * 90  # 90天过期
+        self.memory_ttl = 60 * 60 * 24 * 14  # 14天过期
 
     # ==================== 用户偏好管理 ====================
 
