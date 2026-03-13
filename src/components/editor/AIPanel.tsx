@@ -1,5 +1,6 @@
 ﻿import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useDebouncedCallback } from 'use-debounce';
 import { Button } from '../ui/button';
 import { Send, Loader2, Square, BookOpen, ChevronRight, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus, Zap, Search, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -390,6 +391,19 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   const { saveDraft, getDraft, clearDraft } = useChatDraftStore();
 
   const [inputValue, setInputValue] = useState('');
+  const inputValueRef = useRef('');
+
+  // 统一更新 inputValue 的辅助函数（用于编程式设置，如发送清空、选择知识库等）
+  const syncInputValue = useCallback((value: string) => {
+    inputValueRef.current = value;
+    if (inputRef.current) inputRef.current.value = value;
+    setInputValue(value);
+  }, []);
+
+  // 打字时延迟同步 state，避免每个字符都触发整个组件重渲染
+  const debouncedSyncInputState = useDebouncedCallback((value: string) => {
+    setInputValue(value);
+  }, 150);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesContentRef = useRef<HTMLDivElement>(null);
@@ -504,6 +518,8 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     if (sessionId) {
       const draft = getDraft(sessionId);
       if (draft) {
+        inputValueRef.current = draft.inputValue;
+        if (inputRef.current) inputRef.current.value = draft.inputValue;
         setInputValue(draft.inputValue);
         setSelectedDocs(draft.selectedDocs);
         setSelectionContext(draft.selectionContext);
@@ -512,23 +528,31 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 只在挂载时执行一次
 
-  // 实时保存草稿：每当内容变化时自动保存
+  // 实时保存草稿：防抖保存，避免每次按键都写入 store
+  const debouncedSaveDraft = useDebouncedCallback(
+    (sid: string, draft: { inputValue: string; selectedDocs: typeof selectedDocs; selectionContext: typeof selectionContext }) => {
+      const hasContent = draft.inputValue.trim() || draft.selectedDocs.length > 0 || draft.selectionContext;
+      if (hasContent) {
+        saveDraft(sid, draft);
+      } else {
+        clearDraft(sid);
+      }
+    },
+    500
+  );
+
   useEffect(() => {
     if (!sessionId) return;
+    debouncedSaveDraft(sessionId, { inputValue, selectedDocs, selectionContext });
+  }, [sessionId, inputValue, selectedDocs, selectionContext, debouncedSaveDraft]);
 
-    const hasContent = inputValue.trim() || selectedDocs.length > 0 || selectionContext;
-
-    if (hasContent) {
-      saveDraft(sessionId, {
-        inputValue,
-        selectedDocs,
-        selectionContext,
-      });
-    } else {
-      // 如果没有内容，清除草稿
-      clearDraft(sessionId);
-    }
-  }, [sessionId, inputValue, selectedDocs, selectionContext, saveDraft, clearDraft]);
+  // 组件卸载时立即 flush 待保存的草稿，防止数据丢失
+  useEffect(() => {
+    return () => {
+      debouncedSyncInputState.flush();
+      debouncedSaveDraft.flush();
+    };
+  }, [debouncedSyncInputState, debouncedSaveDraft]);
 
   // 流式输出：真正的字符流，前端直接显示，不在前端处理换行效果
 
@@ -1024,10 +1048,9 @@ ${context.selected_text}
 
   const syncAtStateFromRef = useCallback(() => {
     const el = inputRef.current;
-    const caret = el?.selectionStart ?? null;
-    const value = el?.value ?? inputValue;
-    updateAtState(value, caret);
-  }, [inputValue, updateAtState]);
+    if (!el) return;
+    updateAtState(el.value, el.selectionStart ?? null);
+  }, [updateAtState]);
 
   const handleInputFocus = useCallback(() => {
     isInputFocusedRef.current = true;
@@ -1062,7 +1085,7 @@ ${context.selected_text}
     if (containsAt) {
       syncAtStateFromRef();
     }
-  }, [containsAt, inputValue, manualMenuOpen, syncAtStateFromRef]);
+  }, [containsAt, manualMenuOpen, syncAtStateFromRef]);
 
   useEffect(() => {
     if (!atMenuOpen || atStage === 'knowledge') return;
@@ -1179,17 +1202,18 @@ ${context.selected_text}
 
   const stripCurrentToken = useCallback(() => {
     const el = inputRef.current;
-    const caret = el?.selectionStart ?? inputValue.length;
-    const trigger = atTriggerIndex ?? Math.max(...AT_CHARS.map((c) => inputValue.lastIndexOf(c, caret - 1)));
-    if (trigger < 0) return inputValue;
-    const rest = inputValue.slice(trigger);
+    const value = inputValueRef.current;
+    const caret = el?.selectionStart ?? value.length;
+    const trigger = atTriggerIndex ?? Math.max(...AT_CHARS.map((c) => value.lastIndexOf(c, caret - 1)));
+    if (trigger < 0) return value;
+    const rest = value.slice(trigger);
     const nextSpaceIndex = rest.search(/[\s]/);
-    const end = nextSpaceIndex === -1 ? inputValue.length : trigger + nextSpaceIndex;
-    const before = inputValue.slice(0, trigger).trimEnd();
-    const after = inputValue.slice(end).trimStart();
+    const end = nextSpaceIndex === -1 ? value.length : trigger + nextSpaceIndex;
+    const before = value.slice(0, trigger).trimEnd();
+    const after = value.slice(end).trimStart();
     const combined = before && after ? `${before} ${after}` : before || after;
     return combined;
-  }, [atTriggerIndex, inputValue]);
+  }, [atTriggerIndex]);
 
   const handleRootOption = useCallback(
     (option: RootCommandOption) => {
@@ -1254,21 +1278,21 @@ ${context.selected_text}
   const handleKnowledgeSelect = useCallback(
     (doc: { id: string; title: string }) => {
       setSelectedDocs((prev) => (prev.find((d) => d.id === doc.id) ? prev : [...prev, doc]));
-      setInputValue(stripCurrentToken());
+      syncInputValue(stripCurrentToken());
       closeAtMenu();
       requestAnimationFrame(() => inputRef.current?.focus());
     },
-    [closeAtMenu, stripCurrentToken]
+    [closeAtMenu, stripCurrentToken, syncInputValue]
   );
 
   const handleSkillSelect = useCallback(
     (skill: { name: string; description: string; group: string }) => {
       setSelectedSkill(skill);
-      setInputValue(stripCurrentToken());
+      syncInputValue(stripCurrentToken());
       closeAtMenu();
       requestAnimationFrame(() => inputRef.current?.focus());
     },
-    [closeAtMenu, stripCurrentToken]
+    [closeAtMenu, stripCurrentToken, syncInputValue]
   );
 
   const removeSkill = useCallback(() => {
@@ -1299,11 +1323,12 @@ ${context.selected_text}
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const value = e.target.value;
-      setInputValue(value);
+      inputValueRef.current = value;
       updateAtState(value, e.target.selectionStart ?? value.length);
       adjustInputHeight();
+      debouncedSyncInputState(value);
     },
-    [adjustInputHeight, updateAtState]
+    [updateAtState, adjustInputHeight, debouncedSyncInputState]
   );
 
   const removeKnowledgeTag = useCallback((tag: string) => {
@@ -1311,9 +1336,11 @@ ${context.selected_text}
   }, []);
 
   const handleSend = async () => {
-    if (!inputValue.trim() || isLoading) return;
+    debouncedSyncInputState.flush();
+    const currentValue = inputValueRef.current;
+    if (!currentValue.trim() || isLoading) return;
 
-    const message = inputValue.trim();
+    const message = currentValue.trim();
     const knowledgeDocIds = selectedDocs.map((d) => d.id);
     const chapterContent = currentChapter?.content?.trim();
 
@@ -1360,7 +1387,7 @@ ${selectionContext.selected_text}
       },
     };
 
-    setInputValue('');
+    syncInputValue('');
     closeAtMenu();
     adjustInputHeight();
     setSelectedDocs([]);
@@ -1436,7 +1463,7 @@ ${selectionContext.selected_text}
       }
 
       // 当输入框内容为空时，Backspace 删除最后一个标签（先知识文档，再 skill）
-      if (e.key === 'Backspace' && !inputValue.trim()) {
+      if (e.key === 'Backspace' && !inputValueRef.current.trim()) {
         if (selectedDocs.length > 0) {
           e.preventDefault();
           const last = selectedDocs[selectedDocs.length - 1];
@@ -1462,7 +1489,6 @@ ${selectionContext.selected_text}
       handleSend,
       handleSkillSelect,
       highlightIndex,
-      inputValue,
       removeKnowledgeTag,
       removeSkill,
       selectedDocs,
@@ -1601,7 +1627,6 @@ ${selectionContext.selected_text}
 
                 <textarea
                   ref={inputRef}
-                  value={inputValue}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onClick={syncAtStateFromRef}
@@ -2092,7 +2117,7 @@ ${selectionContext.selected_text}
                 <button
                   key={idx}
                   onClick={() => {
-                    setInputValue(action);
+                    syncInputValue(action);
                   }}
                   className="px-2 py-1 text-[10px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded transition-colors dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300"
                 >
@@ -2200,7 +2225,6 @@ ${selectionContext.selected_text}
 
                 <textarea
                   ref={inputRef}
-                  value={inputValue}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onClick={syncAtStateFromRef}

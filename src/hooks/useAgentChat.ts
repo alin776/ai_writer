@@ -271,6 +271,13 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
   // v6.7: 使用字符串 key 支持 step 和 task 的 timer（如 "step-1", "task-1"）
   const pendingTaskTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  // ✅ 性能优化：flowEvent 节流更新，避免高频 SSE 事件每次都触发 React 重渲染
+  const pendingFlowItemsRef = useRef<FlowItem[] | null>(null);
+  const flowUpdateRafRef = useRef<number | null>(null);
+
+  // ✅ 性能优化：typewriter 队列索引（ref 化，以便 finishStream 访问）
+  const queueReadIndexRef = useRef(0);
+
   const {
     sessionId: persistedSessionId,
     saveSession,
@@ -579,6 +586,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
         typewriterWorkerRef.current = null;
       }
       typewriterQueueRef.current = [];
+      queueReadIndexRef.current = 0;
 
       // ✅ 清理上一次请求的 pending 任务定时器
       pendingTaskTimersRef.current.forEach((timerId) => clearTimeout(timerId));
@@ -684,7 +692,8 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               const currentSession = sessionManager.getSession(sessionId);
               const currentMessages = currentSession?.messages || baseMessages;
               const targetMessage = currentMessages[agentMessageIndex] as Message;
-              let currentFlowItems = targetMessage?.flowItems || [];
+              // ✅ 优先从 pendingFlowItemsRef 读取（rAF 尚未刷新时，保证连续事件不丢数据）
+              let currentFlowItems = pendingFlowItemsRef.current || targetMessage?.flowItems || [];
 
               switch (event.type) {
                 case 'agent_header': {
@@ -1123,34 +1132,46 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 }
               }
 
-              // 更新消息的flowItems
-              const updated = [...currentMessages];
-              if (updated[agentMessageIndex]) {
-                // v6.8: 合并 flowItems，保留 output 类型项已有的 content（避免被覆盖）
-                const existingFlowItems = (updated[agentMessageIndex] as Message).flowItems || [];
-                const mergedFlowItems = currentFlowItems.map(item => {
-                  if (item.type === 'output') {
-                    // 查找已有的 output item，保留其 content
-                    const existingOutput = existingFlowItems.find(
-                      e => e.type === 'output' && e.id === item.id
-                    );
-                    if (existingOutput && (existingOutput.data as any).content) {
-                      return {
-                        ...item,
-                        data: { ...item.data, content: (existingOutput.data as any).content }
-                      };
-                    }
-                  }
-                  return item;
-                });
+              // 更新消息的flowItems（使用 rAF 节流，避免高频 SSE 事件触发过多 React 重渲染）
+              // 先暂存最新 flowItems，然后合并到下一帧一次性更新
+              pendingFlowItemsRef.current = currentFlowItems;
+              if (flowUpdateRafRef.current === null) {
+                flowUpdateRafRef.current = requestAnimationFrame(() => {
+                  flowUpdateRafRef.current = null;
+                  const latestFlowItems = pendingFlowItemsRef.current;
+                  pendingFlowItemsRef.current = null;
+                  if (!latestFlowItems) return;
 
-                updated[agentMessageIndex] = {
-                  ...updated[agentMessageIndex],
-                  flowItems: mergedFlowItems,
-                };
-                sessionManager.updateSession(sessionId, { messages: updated });
-                // 节流持久化，确保切换章节时 flowItems 不丢失
-                persistMessagesThrottled(updated, streamConversationId, uiMode, false);
+                  const currentSession = sessionManager.getSession(sessionId);
+                  const currentMessages = currentSession?.messages || baseMessages;
+                  const updated = [...currentMessages];
+                  if (updated[agentMessageIndex]) {
+                    // v6.8: 合并 flowItems，保留 output 类型项已有的 content（避免被覆盖）
+                    const existingFlowItems = (updated[agentMessageIndex] as Message).flowItems || [];
+                    const mergedFlowItems = latestFlowItems.map(item => {
+                      if (item.type === 'output') {
+                        const existingOutput = existingFlowItems.find(
+                          e => e.type === 'output' && e.id === item.id
+                        );
+                        if (existingOutput && (existingOutput.data as any).content) {
+                          return {
+                            ...item,
+                            data: { ...item.data, content: (existingOutput.data as any).content }
+                          };
+                        }
+                      }
+                      return item;
+                    });
+
+                    updated[agentMessageIndex] = {
+                      ...updated[agentMessageIndex],
+                      flowItems: mergedFlowItems,
+                    };
+                    sessionManager.updateSession(sessionId, { messages: updated });
+                    // 节流持久化，确保切换章节时 flowItems 不丢失
+                    persistMessagesThrottled(updated, streamConversationId, uiMode, false);
+                  }
+                });
               }
             },
             onContent: (chunk) => {
@@ -1167,46 +1188,61 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 let charsSinceLastUpdate = 0;
 
                 // ✅ 内容感知的动态批量大小：表格/代码块使用更大的批量，减少渲染次数
+                // 缓存内容类型检测结果，避免每个字符都做正则匹配
+                let cachedBatchSize = 50;
+                let lastContentTypeCheckLen = 0;
                 const getDynamicBatchSize = (content: string): number => {
-                  // 检测是否包含表格（Markdown 表格语法：| xxx | xxx |）
-                  const hasTable = /\|[^|]+\|[^|]+\|/.test(content);
-                  // 检测是否包含代码块
-                  const hasCodeBlock = /```[\s\S]*/.test(content);
-                  // 检测是否在表格中间（最后 200 字符包含 | 但没有完整的行结束）
-                  const recentContent = content.slice(-200);
-                  const isInTableRow = recentContent.includes('|') && !recentContent.endsWith('\n');
+                  // 每 200 字符重新检测一次内容类型
+                  if (content.length - lastContentTypeCheckLen < 200) return cachedBatchSize;
+                  lastContentTypeCheckLen = content.length;
 
-                  if (hasTable || isInTableRow) return 200;  // 表格：200 字符更新一次
-                  if (hasCodeBlock) return 150;              // 代码块：150 字符更新一次
-                  return 50;                                 // 普通文本：50 字符更新一次
+                  const recentContent = content.slice(-300);
+                  if (/\|[^|]+\|[^|]+\|/.test(recentContent)) { cachedBatchSize = 200; return 200; }
+                  if (/```/.test(recentContent)) { cachedBatchSize = 150; return 150; }
+                  cachedBatchSize = 50;
+                  return 50;
+                };
+
+                // ✅ 性能优化：使用索引而非 shift()（shift 是 O(n)）
+                // queueReadIndexRef 是 hook 级别的 ref，finishStream 也能访问
+                queueReadIndexRef.current = 0;
+
+                const flushContentToSession = () => {
+                  const currentSession = sessionManager.getSession(sessionId);
+                  const currentMessages = currentSession?.messages || baseMessages;
+                  const updated = [...currentMessages];
+                  const target = updated[agentMessageIndex];
+                  if (target) {
+                    const existingFlowItems = (target as Message).flowItems || [];
+                    const updatedFlowItems = existingFlowItems.map(item => {
+                      if (item.type === 'output') {
+                        return { ...item, data: { ...item.data, content: streamingContent } };
+                      }
+                      return item;
+                    });
+                    updated[agentMessageIndex] = {
+                      ...target,
+                      content: streamingContent,
+                      agentSteps,
+                      flowItems: updatedFlowItems
+                    };
+                    sessionManager.updateSession(sessionId, { messages: updated });
+                    persistMessagesThrottled(updated, streamConversationId, uiMode, false);
+                  }
                 };
 
                 const processQueue = () => {
-                  if (stopRequestedRef.current || typewriterQueueRef.current.length === 0) {
+                  const queue = typewriterQueueRef.current;
+                  if (stopRequestedRef.current || queueReadIndexRef.current >= queue.length) {
                     // 队列空了，先刷新剩余内容到 UI，然后停止 Worker
                     if (charsSinceLastUpdate > 0) {
-                      // 最后一次更新 UI
-                      const currentSession = sessionManager.getSession(sessionId);
-                      const currentMessages = currentSession?.messages || baseMessages;
-                      const updated = [...currentMessages];
-                      const target = updated[agentMessageIndex];
-                      if (target) {
-                        const existingFlowItems = (target as Message).flowItems || [];
-                        const updatedFlowItems = existingFlowItems.map(item => {
-                          if (item.type === 'output') {
-                            return { ...item, data: { ...item.data, content: streamingContent } };
-                          }
-                          return item;
-                        });
-                        updated[agentMessageIndex] = {
-                          ...target,
-                          content: streamingContent,
-                          agentSteps,
-                          flowItems: updatedFlowItems
-                        };
-                        sessionManager.updateSession(sessionId, { messages: updated });
-                      }
+                      flushContentToSession();
                       charsSinceLastUpdate = 0;
+                    }
+                    // 清理已读字符，重置索引
+                    if (queueReadIndexRef.current > 0) {
+                      typewriterQueueRef.current = queue.slice(queueReadIndexRef.current);
+                      queueReadIndexRef.current = 0;
                     }
                     if (typewriterWorkerRef.current) {
                       typewriterWorkerRef.current.postMessage({ type: 'stop' });
@@ -1216,41 +1252,23 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     return;
                   }
 
-                  // 从队列取出一个字符
-                  const char = typewriterQueueRef.current.shift();
+                  // 从队列取出字符（使用索引，O(1) 而非 shift 的 O(n)）
+                  const char = queue[queueReadIndexRef.current++];
                   if (char) {
                     streamingContent += char;
                     charsSinceLastUpdate++;
 
-                    // ✅ 使用动态批量大小：根据内容类型调整更新频率
+                    // ✅ 使用缓存的动态批量大小
                     const currentBatchSize = getDynamicBatchSize(streamingContent);
                     if (charsSinceLastUpdate >= currentBatchSize) {
-                      const currentSession = sessionManager.getSession(sessionId);
-                      const currentMessages = currentSession?.messages || baseMessages;
-                      const updated = [...currentMessages];
-                      const target = updated[agentMessageIndex];
-                      if (target) {
-                        // v6.8: 同步更新 flowItems 中 output 类型项的 content
-                        const existingFlowItems = (target as Message).flowItems || [];
-                        const updatedFlowItems = existingFlowItems.map(item => {
-                          if (item.type === 'output') {
-                            return { ...item, data: { ...item.data, content: streamingContent } };
-                          }
-                          return item;
-                        });
-
-                        updated[agentMessageIndex] = {
-                          ...target,
-                          content: streamingContent,
-                          agentSteps,
-                          flowItems: updatedFlowItems  // v6.8: 更新 flowItems
-                        };
-                        sessionManager.updateSession(sessionId, { messages: updated });
-                        // 节流持久化内容，确保切换章节时不丢失
-                        persistMessagesThrottled(updated, streamConversationId, uiMode, false);
-                      }
+                      flushContentToSession();
                       charsSinceLastUpdate = 0;
                     }
+                  }
+                  // 定期清理已读字符，防止内存累积
+                  if (queueReadIndexRef.current > 1000) {
+                    typewriterQueueRef.current = queue.slice(queueReadIndexRef.current);
+                    queueReadIndexRef.current = 0;
                   }
                 };
 
@@ -1270,13 +1288,22 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               agentSteps.push(step);
             },
             onDone: (metadata, actions) => {
+              // ✅ 刷新 pending 的 flowItems rAF 更新（确保最终状态写入）
+              if (flowUpdateRafRef.current !== null) {
+                cancelAnimationFrame(flowUpdateRafRef.current);
+                flowUpdateRafRef.current = null;
+              }
               // ✅ 打字机效果：等待队列清空后再完成
               const finishStream = () => {
                 // V3.4.1 修复：使用 join 一次性合并，避免 O(n²) 的 shift 循环
-                if (typewriterQueueRef.current.length > 0) {
-                  streamingContent += typewriterQueueRef.current.join('');
-                  typewriterQueueRef.current = [];
+                // ✅ 只合并 queueReadIndexRef 之后的未读字符，避免重复
+                const readIdx = queueReadIndexRef.current;
+                const queue = typewriterQueueRef.current;
+                if (queue.length > readIdx) {
+                  streamingContent += queue.slice(readIdx).join('');
                 }
+                typewriterQueueRef.current = [];
+                queueReadIndexRef.current = 0;
 
                 // 清理 Worker
                 if (typewriterWorkerRef.current) {
@@ -1285,11 +1312,12 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                   typewriterWorkerRef.current = null;
                 }
 
-                // v5.1: 获取当前消息的 flowItems
+                // v5.1: 获取当前消息的 flowItems（优先使用 pendingFlowItems 以确保最终状态完整）
                 const currentSession = sessionManager.getSession(sessionId);
                 const currentMessages = currentSession?.messages || baseMessages;
                 const targetMessage = currentMessages[agentMessageIndex] as Message;
-                let currentFlowItems = targetMessage?.flowItems || [];
+                let currentFlowItems = pendingFlowItemsRef.current || targetMessage?.flowItems || [];
+                pendingFlowItemsRef.current = null;
 
                 // ✅ 流结束时：立即完成所有 pending 的步骤卡片（避免 running 状态残留）
                 if (pendingTaskTimersRef.current.size > 0) {
@@ -1396,6 +1424,11 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
               }
             },
             onError: (errorMsg) => {
+              // ✅ 清理 pending 的 rAF 更新
+              if (flowUpdateRafRef.current !== null) {
+                cancelAnimationFrame(flowUpdateRafRef.current);
+                flowUpdateRafRef.current = null;
+              }
               const errorMessage = errorMsg || '未知错误';
               const currentSession = sessionManager.getSession(sessionId);
               const currentMessages = currentSession?.messages || baseMessages;
@@ -1405,8 +1438,9 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 errorMessage.toLowerCase().includes('abort') ||
                 errorMessage.toLowerCase().includes('cancel');
               if (updated[agentMessageIndex]) {
-                // v5.1: 保留 flowItems
-                const existingFlowItems = (updated[agentMessageIndex] as Message).flowItems || [];
+                // v5.1: 保留 flowItems（优先从 pending 中获取最完整的状态）
+                const existingFlowItems = pendingFlowItemsRef.current || (updated[agentMessageIndex] as Message).flowItems || [];
+                pendingFlowItemsRef.current = null;
                 updated[agentMessageIndex] = {
                   role: 'agent',
                   content: isAbort
@@ -1494,6 +1528,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       typewriterWorkerRef.current = null;
     }
     typewriterQueueRef.current = [];
+    queueReadIndexRef.current = 0;
 
     // ✅ 清理所有 pending 的任务完成定时器
     pendingTaskTimersRef.current.forEach((timerId) => clearTimeout(timerId));
@@ -1518,6 +1553,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       typewriterWorkerRef.current = null;
     }
     typewriterQueueRef.current = [];
+    queueReadIndexRef.current = 0;
 
     // ✅ 清理所有 pending 的任务完成定时器
     pendingTaskTimersRef.current.forEach((timerId) => clearTimeout(timerId));

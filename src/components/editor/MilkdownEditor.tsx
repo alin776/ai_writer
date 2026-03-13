@@ -15,6 +15,7 @@ import { Crepe } from '@milkdown/crepe';
 import { editorViewCtx } from '@milkdown/core';
 import { replaceAll } from '@milkdown/utils';
 import { EditorState } from '@milkdown/prose/state';
+import { useDebouncedCallback } from 'use-debounce';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
 import { diffPluginKey, createDiffDecorationPlugin } from './diffDecorationPlugin';
@@ -80,20 +81,26 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
   // 标记程序化内容更新（replaceAll），避免误触发 scheduleSave
   const isProgrammaticUpdateRef = useRef(false);
 
-  // 计算字数
-  const updateWordCount = useCallback((md: string) => {
+  // 计算字数（防抖 500ms，避免每次按键都触发正则 + setState 重渲染）
+  const debouncedUpdateWordCount = useDebouncedCallback((md: string) => {
+    const text = md.replace(/[#*`>\-\[\]()!|_~]/g, '').trim();
+    setWordCount(text.length);
+  }, 500);
+
+  // 同步版本：仅在 replaceAll 等程序化操作后立即计算（不经过防抖）
+  const updateWordCountImmediate = useCallback((md: string) => {
     const text = md.replace(/[#*`>\-\[\]()!|_~]/g, '').trim();
     setWordCount(text.length);
   }, []);
 
-  // localStorage 备份（按 storageKey 隔离，避免跨章节覆盖）
-  const backupToStorage = useCallback((md: string) => {
+  // localStorage 备份（防抖 2000ms，避免每次按键都同步写 localStorage）
+  const debouncedBackupToStorage = useDebouncedCallback((md: string) => {
     try {
       localStorage.setItem(`milkdown-backup-${storageKey}`, md);
     } catch {
       // ignore
     }
-  }, [storageKey]);
+  }, 2000);
 
   // 初始化 Milkdown
   useEffect(() => {
@@ -156,8 +163,8 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
     // 监听编辑器变化
     crepe.on((listener: any) => {
       listener.markdownUpdated((_ctx: any, md: string) => {
-        updateWordCount(md);
-        backupToStorage(md);
+        debouncedUpdateWordCount(md);
+        debouncedBackupToStorage(md);
         if (isProgrammaticUpdateRef.current) return;
         scheduleSaveRef.current();
       });
@@ -193,12 +200,12 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
           isProgrammaticUpdateRef.current = false;
           syncedContentRef.current = pending;
           lastSavedRef.current = pending;
-          updateWordCount(pending);
+          updateWordCountImmediate(pending);
         } catch {
           // ignore
         }
       } else {
-        updateWordCount(content);
+        updateWordCountImmediate(content);
       }
     });
 
@@ -207,6 +214,8 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
       }
+      debouncedUpdateWordCount.cancel();
+      debouncedBackupToStorage.cancel();
       crepe.destroy();
       crepeRef.current = null;
     };
@@ -226,12 +235,12 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
       isProgrammaticUpdateRef.current = true;
       crepeRef.current.editor.action(replaceAll(content));
       isProgrammaticUpdateRef.current = false;
-      updateWordCount(content);
+      updateWordCountImmediate(content);
     } catch {
       // editor not ready
       pendingContentRef.current = content;
     }
-  }, [content, updateWordCount]);
+  }, [content, updateWordCountImmediate]);
 
   // 监听内联 Diff 事件
   useEffect(() => {
@@ -343,9 +352,6 @@ const MilkdownEditor: React.FC<MilkdownEditorProps> = ({
 
     const handleInlineDiff = (e: Event) => {
       const { oldString, newString, append } = (e as CustomEvent).detail || {};
-      // [DEBUG] 追踪谁触发了 diff
-      console.log('[MilkdownEditor] editor-inline-diff received', { oldString: oldString?.slice(0, 50), newString: newString?.slice(0, 50), append });
-      console.trace('[MilkdownEditor] editor-inline-diff call stack');
       if (typeof newString !== 'string') return;
       inlineDiffQueue.push({
         oldString: typeof oldString === 'string' ? oldString : '',
