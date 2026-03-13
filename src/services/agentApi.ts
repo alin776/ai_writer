@@ -299,6 +299,15 @@ class AgentApiService {
       return resp;
     };
 
+    // 断线重连状态（需在 try/catch 外声明）
+    let receivedDone = false;
+    let receivedError = false;
+    let doneMetadata: any = null;
+    let doneActions: string[] = [];
+    let lastEventId = 0;
+    let conversationId = '';
+    let handleLine: (line: string) => void = () => {};
+
     try {
       let response = await doFetch(token);
 
@@ -314,6 +323,12 @@ class AgentApiService {
         throw new Error(`HTTP error! status: ${response?.status ?? 'unknown'}`);
       }
 
+      // 从响应头提取 conversation_id（断线重连的关键：流断开前可能还没收到 done 事件）
+      const headerConvId = response.headers.get('X-Conversation-Id');
+      if (headerConvId) {
+        conversationId = headerConvId;
+      }
+
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
 
@@ -324,12 +339,16 @@ class AgentApiService {
       callbacks.onReader?.(reader, options?.controller);
 
       let buffer = '';
-      let receivedDone = false;
-      let receivedError = false;
-      let doneMetadata: any = null;
-      let doneActions: string[] = [];
 
-      const handleLine = (line: string) => {
+      handleLine = (line: string) => {
+        // 追踪 SSE id 字段
+        if (line.startsWith('id: ')) {
+          const parsed = parseInt(line.substring(4).trim(), 10);
+          if (!isNaN(parsed)) {
+            lastEventId = parsed;
+          }
+          return;
+        }
         if (!line.startsWith('data: ')) {
           return;
         }
@@ -341,6 +360,7 @@ class AgentApiService {
           switch (data.type) {
             // ????
             case 'start':
+              conversationId = data.conversation_id || conversationId;
               callbacks.onStart?.(data.conversation_id);
               break;
             case 'content': {
@@ -357,6 +377,7 @@ class AgentApiService {
             case 'done':
               receivedDone = true;
               if (data.conversation_id) {
+                conversationId = data.conversation_id;
                 callbacks.onStart?.(data.conversation_id);
               }
               doneMetadata = data.metadata;
@@ -374,6 +395,10 @@ class AgentApiService {
 
             // 执行轨迹事件 (v6.0)
             case 'agent_header':
+              // 从首个 SSE 事件中提取 conversation_id（断线重连的关键来源）
+              if (data.conversation_id) {
+                conversationId = data.conversation_id;
+              }
               callbacks.onFlowEvent?.({ type: 'agent_header', data: data.data, timestamp: data.timestamp });
               break;
             case 'text':
@@ -448,12 +473,132 @@ class AgentApiService {
 
       console.error('[AgentApi] Stream error:', error);
 
+      // 断线重连：非主动中断 + 有 conversationId + 收到过事件 → 尝试恢复
+      if (!isAbort && conversationId && lastEventId > 0 && !receivedDone) {
+        console.log(`[AgentApi] 尝试断线重连: conversationId=${conversationId}, lastEventId=${lastEventId}`);
+        try {
+          await this._resumeStream(conversationId, lastEventId, handleLine, streamBase, options);
+          // 重连成功，检查是否收到了 done
+          if (!receivedDone && !receivedError && !options?.signal?.aborted) {
+            callbacks.onDone?.(doneMetadata || {}, doneActions || []);
+          }
+          return; // 重连成功，正常返回
+        } catch (resumeError: any) {
+          console.error('[AgentApi] 重连失败:', resumeError);
+        }
+      }
+
       // 如果是主动停止/中断，直接静默结束
       if (!isAbort) {
         callbacks.onError?.(error.message || 'Stream connection failed');
       }
       throw error;
     }
+  }
+
+  /**
+   * SSE 断线重连：调用恢复端点，从断点续传事件
+   */
+  private async _resumeStream(
+    conversationId: string,
+    lastEventId: number,
+    handleLine: (line: string) => void,
+    streamBase: string,
+    options?: { signal?: AbortSignal; controller?: AbortController }
+  ): Promise<void> {
+    const maxRetries = 3;
+
+    const shouldAttemptResume = (
+      attempt: number,
+      maxRetries: number,
+      lastError: Error | null
+    ): { shouldRetry: boolean; delayMs: number } => {
+      // 超过最大重试次数，放弃
+      if (attempt >= maxRetries) return { shouldRetry: false, delayMs: 0 };
+
+      // 4xx 业务错误不重试（认证失败、资源不存在等）
+      // 匹配 "HTTP error! status: NNN" / "Resume HTTP error: NNN" 等格式
+      if (lastError?.message) {
+        const statusMatch = lastError.message.match(/HTTP error[!:\s]+(?:status[:\s]+)?(\d{3})/i);
+        if (statusMatch) {
+          const code = parseInt(statusMatch[1], 10);
+          if (code >= 400 && code < 500) return { shouldRetry: false, delayMs: 0 };
+        }
+      }
+
+      // 首次重连立即尝试，不等待
+      if (attempt === 0) return { shouldRetry: true, delayMs: 0 };
+
+      // 后续重试：指数退避 1s → 2s → 4s，加 ±30% 随机抖动防惊群
+      const baseDelay = 1000 * Math.pow(2, attempt - 1);
+      const jitter = baseDelay * 0.3 * (Math.random() * 2 - 1);
+      const delayMs = Math.round(baseDelay + jitter);
+
+      return { shouldRetry: true, delayMs };
+    };
+
+    const token = await this.ensureValidToken();
+
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const decision = shouldAttemptResume(attempt, maxRetries, lastError);
+      if (!decision.shouldRetry) break;
+
+      if (decision.delayMs > 0) {
+        await new Promise(resolve => setTimeout(resolve, decision.delayMs));
+      }
+
+      // 每次重试使用最新的 lastEventId（handleLine 可能已更新）
+      const resumeUrl = `${streamBase}/api/v1/agent/v2/chat/stream/resume/${conversationId}?last_event_id=${lastEventId}`;
+
+      try {
+        const resp = await fetch(resumeUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+          signal: options?.signal,
+        });
+
+        if (!resp.ok) throw new Error(`Resume HTTP error: ${resp.status}`);
+
+        const reader = resp.body?.getReader();
+        if (!reader) throw new Error('Resume response body not readable');
+
+        const decoder = new TextDecoder();
+        let resumeBuffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          resumeBuffer += decoder.decode(value, { stream: true });
+          const lines = resumeBuffer.split('\n');
+          resumeBuffer = lines.pop() || '';
+
+          for (const line of lines) {
+            handleLine(line);
+          }
+        }
+
+        resumeBuffer += decoder.decode();
+        if (resumeBuffer.trim()) {
+          for (const line of resumeBuffer.split('\n')) {
+            handleLine(line);
+          }
+        }
+
+        console.log('[AgentApi] 断线重连成功');
+        return; // 成功
+      } catch (retryError: any) {
+        lastError = retryError;
+        const nextDecision = shouldAttemptResume(attempt + 1, maxRetries, retryError);
+        if (!nextDecision.shouldRetry) throw retryError;
+        console.warn(`[AgentApi] 重连第 ${attempt + 1} 次失败，${nextDecision.delayMs}ms 后重试`);
+      }
+    }
+
+    throw new Error('断线重连: 所有重试均失败');
   }
   async createSession(payload: { title?: string; work_id?: string; chapter_id?: string; conversation_id?: string }): Promise<{ session_id: string; title?: string; conversation_id?: string; created_at?: string }> {
     const response = await this.client.post('/sessions', payload);

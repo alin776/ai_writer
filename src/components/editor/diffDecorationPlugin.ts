@@ -121,7 +121,15 @@ function findMatchIndex(fullText: string, target: string): { index: number; norm
     const trimmedFirst = firstTargetLine.trim();
     idx = fullText.indexOf(trimmedFirst);
     if (idx !== -1) {
-      return { index: idx, normalizedTarget: collapsed };
+      // 锚定行可能不是 collapsed 的第一行，需要回推真实起始位置
+      const collapsedLines = collapsed.split('\n');
+      let charsBeforeAnchor = 0;
+      for (const line of collapsedLines) {
+        if (line.trim() === trimmedFirst) break;
+        charsBeforeAnchor += line.length + 1; // +1 for '\n'
+      }
+      const adjustedIdx = idx - charsBeforeAnchor;
+      return { index: adjustedIdx >= 0 ? adjustedIdx : idx, normalizedTarget: collapsed };
     }
   }
 
@@ -299,7 +307,7 @@ function buildDecorations(
     return DecorationSet.empty;
   }
 
-  const matchEnd = match.index + match.normalizedTarget.length;
+  const matchEnd = Math.min(match.index + match.normalizedTarget.length, charMap.length);
   const paragraphs = buildParagraphMap(doc, charMap, match.index, matchEnd);
 
   // 规范化 newString（与 findMatchIndex 的规范化保持一致）
@@ -314,6 +322,9 @@ function buildDecorations(
       normalizedNew = newString.replace(/\n{2,}/g, '\n');
     }
   }
+  // matchedText 来自 ProseMirror charMap，段落间始终用单 \n；
+  // 确保 normalizedNew 也用单 \n，避免 diff 产生多余空行变更
+  normalizedNew = normalizedNew.replace(/\n{2,}/g, '\n');
 
   // 行级 diff：用 diff_linesToChars_ / diff_charsToLines_ 做段落级比对
   const matchedText = fullText.substring(match.index, matchEnd);
@@ -364,8 +375,12 @@ function buildDecorations(
       if (isNextInsert) {
         i++;
         const insLines = splitDiffLines(diffs[i][1]);
-        const lastPara = paragraphs[paraIdx + lines.length - 1];
-        const insertPos = lastPara ? lastPara.paraNodeEnd : 1;
+        // clamp 索引到有效范围，避免越界后回退到文档开头
+        const clampedIdx = Math.min(paraIdx + lines.length - 1, paragraphs.length - 1);
+        const lastPara = clampedIdx >= 0 ? paragraphs[clampedIdx] : undefined;
+        const insertPos = lastPara
+          ? lastPara.paraNodeEnd
+          : (paragraphs.length > 0 ? paragraphs[paragraphs.length - 1].paraNodeEnd : 1);
 
         // 单行配对：用字符级高亮显示差异
         if (lines.length === 1 && insLines.length === 1) {
@@ -408,9 +423,17 @@ function buildDecorations(
 
     } else if (op === 1) {
       // 独立 INSERT（前面没有配对的 DELETE）
-      const insertPos = paraIdx > 0 && paragraphs[paraIdx - 1]
-        ? paragraphs[paraIdx - 1].paraNodeEnd
-        : (paragraphs[0] ? paragraphs[0].paraNodeStart : 1);
+      // clamp 索引，防止越界回退到文首
+      let insertPos: number;
+      if (paraIdx > 0) {
+        const clampedIdx = Math.min(paraIdx - 1, paragraphs.length - 1);
+        const anchorPara = clampedIdx >= 0 ? paragraphs[clampedIdx] : undefined;
+        insertPos = anchorPara
+          ? anchorPara.paraNodeEnd
+          : (paragraphs.length > 0 ? paragraphs[paragraphs.length - 1].paraNodeEnd : 1);
+      } else {
+        insertPos = paragraphs[0] ? paragraphs[0].paraNodeStart : 1;
+      }
       decorations.push(createInsertWidget(insertPos, lines));
     }
   }

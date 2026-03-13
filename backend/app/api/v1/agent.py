@@ -199,6 +199,122 @@ def get_redis_client():
     return redis.Redis(connection_pool=_redis_pool)
 
 
+# ==================== SSE 事件缓存（断线重连） ====================
+
+_SSE_CACHE_TTL = 600  # 10 分钟
+_SSE_CACHE_PREFIX = "sse:events:"
+# 跟踪活跃的 SSE 流（conversation_id → set[asyncio.Queue]），支持多订阅者
+import asyncio as _asyncio
+_active_streams: dict[str, set[_asyncio.Queue]] = {}
+
+
+def _sse_cache_key(conversation_id: str) -> str:
+    return f"{_SSE_CACHE_PREFIX}{conversation_id}"
+
+
+_SSE_CACHE_MAX_EVENTS = 2000  # 单个会话最多缓存事件数
+
+
+def _cache_sse_event(conversation_id: str, event_id: int, raw_sse: str) -> None:
+    """将单条 SSE 事件缓存到 Redis List（同步，在 yield 时调用）。"""
+    try:
+        r = get_redis_client()
+        key = _sse_cache_key(conversation_id)
+        pipe = r.pipeline(transaction=False)
+        pipe.rpush(key, raw_sse.encode("utf-8"))
+        pipe.ltrim(key, -_SSE_CACHE_MAX_EVENTS, -1)
+        pipe.expire(key, _SSE_CACHE_TTL)
+        # 刷新 owner key TTL（防止长 Agent 运行超过初始 TTL 后 resume 被 403）
+        pipe.expire(f"sse:owner:{conversation_id}", _SSE_CACHE_TTL)
+        pipe.execute()
+    except Exception:
+        pass  # 缓存失败不影响主流程
+
+
+def _broadcast_to_subscribers(conversation_id: str, frame: str) -> None:
+    """向所有订阅者队列推送事件帧。队列满时移除该订阅者（慢客户端）。"""
+    subscribers = _active_streams.get(conversation_id)
+    if not subscribers:
+        return
+    dead: list[_asyncio.Queue] = []
+    for q in list(subscribers):  # 复制迭代，防止并发修改
+        try:
+            q.put_nowait(frame)
+        except _asyncio.QueueFull:
+            dead.append(q)
+    for q in dead:
+        subscribers.discard(q)
+
+
+def _get_cached_events(conversation_id: str, after_id: int) -> list[str]:
+    """从 Redis 获取 event_id > after_id 的所有缓存事件。
+
+    由于 LTRIM 可能截断早期事件，无法依赖 List 索引与 event_id 的简单映射。
+    改为获取全部缓存事件，通过帧内 id 字段过滤。
+    """
+    try:
+        r = get_redis_client()
+        key = _sse_cache_key(conversation_id)
+        raw_list = r.lrange(key, 0, -1)
+        result = []
+        for item in raw_list:
+            frame = item.decode("utf-8") if isinstance(item, bytes) else item
+            # 从帧中提取 event_id，跳过 <= after_id 的事件
+            frame_id = 0
+            for fline in frame.split("\n"):
+                if fline.startswith("id: "):
+                    try:
+                        frame_id = int(fline[4:].strip())
+                    except ValueError:
+                        pass
+                    break
+            if frame_id > after_id:
+                result.append(frame)
+        return result
+    except Exception:
+        return []
+
+
+def _mark_stream_done(conversation_id: str) -> None:
+    """标记流已完成（在 Redis 中设置标志）。"""
+    try:
+        r = get_redis_client()
+        r.set(f"sse:done:{conversation_id}", "1", ex=_SSE_CACHE_TTL)
+    except Exception:
+        pass
+
+
+def _is_stream_done(conversation_id: str) -> bool:
+    """检查流是否已完成。"""
+    try:
+        r = get_redis_client()
+        return r.exists(f"sse:done:{conversation_id}") > 0
+    except Exception:
+        return False
+
+
+def _set_stream_owner(conversation_id: str, user_id: str) -> None:
+    """记录 SSE 流的所有者（用于 resume 端点鉴权）。"""
+    try:
+        r = get_redis_client()
+        r.set(f"sse:owner:{conversation_id}", user_id, ex=_SSE_CACHE_TTL)
+    except Exception:
+        pass
+
+
+def _check_stream_owner(conversation_id: str, user_id: str) -> bool:
+    """校验当前用户是否为该 SSE 流的所有者。"""
+    try:
+        r = get_redis_client()
+        owner = r.get(f"sse:owner:{conversation_id}")
+        if owner is None:
+            return False
+        owner_str = owner.decode("utf-8") if isinstance(owner, bytes) else owner
+        return owner_str == user_id
+    except Exception:
+        return False
+
+
 # ==================== Request/response models ====================
 
 
@@ -701,8 +817,6 @@ async def get_agent_session_messages(
 # V2 端点 — DeepAgents 引擎（Strangler Fig 模式，与旧端点共存）
 # ══════════════════════════════════════════════════════════════════
 
-import asyncio as _asyncio
-
 # 待审批 backend 缓存："{user_id}:{conversation_id}" → BufferedFilesystemBackend
 _pending_backends: dict[str, Any] = {}
 # 并发锁：防止同一 work 的并发写入冲突
@@ -891,10 +1005,24 @@ async def agent_v2_chat_stream(
         if not _is_ok:
             raise HTTPException(status_code=402, detail=f"积分余额不足，当前 {_balance}")
 
+    # 在 generator 外同步设置 owner + 订阅者集合，确保即使 generator 延迟执行也能 resume
+    _set_stream_owner(conversation_id, user_id)
+    _active_streams.setdefault(conversation_id, set())
+
     async def event_generator():
         usage_cb = None
         _stream_start = None
         backend = None
+        _event_id = 0  # SSE 事件编号（断线重连用）
+
+        def _emit_sse(data_str: str) -> str:
+            """为 SSE 事件添加 id 字段并缓存到 Redis，返回完整 SSE 帧。"""
+            nonlocal _event_id
+            _event_id += 1
+            frame = f"id: {_event_id}\ndata: {data_str}\n\n"
+            _cache_sse_event(conversation_id, _event_id, frame)
+            _broadcast_to_subscribers(conversation_id, frame)
+            return frame
         try:
             counter = StepCounter()
 
@@ -1047,13 +1175,14 @@ async def agent_v2_chat_stream(
                     "recursion_limit": 150,
                 }
 
-                # 发送 agent_header
+                # 发送 agent_header（含 conversation_id，断线重连的关键：前端需尽早获得此 ID）
                 header = {
                     "type": "agent_header",
+                    "conversation_id": conversation_id,
                     "data": {"name": "文枢AI", "badge": "v2"},
                     "timestamp": get_utc_now().isoformat(),
                 }
-                yield f"data: {json.dumps(header, ensure_ascii=False)}\n\n"
+                yield _emit_sse(json.dumps(header, ensure_ascii=False))
 
                 # 发送 skill_loaded 事件（仅当用户选择了有效技能时）
                 if loaded_skill_name:
@@ -1062,7 +1191,7 @@ async def agent_v2_chat_stream(
                         "skill_name": loaded_skill_name,
                         "timestamp": get_utc_now().isoformat(),
                     }
-                    yield f"data: {json.dumps(skill_event, ensure_ascii=False)}\n\n"
+                    yield _emit_sse(json.dumps(skill_event, ensure_ascii=False))
 
                 # 流式运行 Agent（实时发送 revision）
                 _last_buffer_len = 0
@@ -1115,7 +1244,7 @@ async def agent_v2_chat_stream(
                         event = item
                         translated = translate_event(event, counter)
                         if translated:
-                            yield f"data: {json.dumps(translated, ensure_ascii=False)}\n\n"
+                            yield _emit_sse(json.dumps(translated, ensure_ascii=False))
 
                         # 检测 Skill 切换：Agent 读取其他 SKILL.md 时发送 skill_switched 事件
                         # 子 Agent 读取 SKILL.md 不触发 skill_switched
@@ -1132,7 +1261,7 @@ async def agent_v2_chat_stream(
                                         _switched = _sk_m.group(1)
                                         if _switched not in emitted_skills:
                                             emitted_skills.add(_switched)
-                                            yield f"data: {json.dumps({'type': 'skill_switched', 'skill_name': _switched, 'timestamp': get_utc_now().isoformat()}, ensure_ascii=False)}\n\n"
+                                            yield _emit_sse(json.dumps({'type': 'skill_switched', 'skill_name': _switched, 'timestamp': get_utc_now().isoformat()}, ensure_ascii=False))
                         if kind == "on_tool_end" and len(backend._buffer) > _last_buffer_len:
                             if not is_child_event:  # 子 Agent 写操作静默
                                 # 从 translated step_complete 事件提取精确 step_id（防嵌套调用错位）
@@ -1152,7 +1281,7 @@ async def agent_v2_chat_stream(
                                             op_dict["chapter_title"] = PurePosixPath(op_dict["path"]).stem
                                     rev = make_revision_event(op_dict)
                                     rev["step_id"] = _step_id
-                                    yield f"data: {json.dumps(rev, ensure_ascii=False)}\n\n"
+                                    yield _emit_sse(json.dumps(rev, ensure_ascii=False))
                             else:
                                 _last_buffer_len = len(backend._buffer)  # 静默推进指针
                 finally:
@@ -1171,7 +1300,7 @@ async def agent_v2_chat_stream(
 
                 # 发送 completion 事件
                 completion = make_completion_event(changes)
-                yield f"data: {json.dumps(completion, ensure_ascii=False)}\n\n"
+                yield _emit_sse(json.dumps(completion, ensure_ascii=False))
 
                 # ── 改动 C：流结束后汇总扣费 ──
                 token_usage_summary = None
@@ -1326,7 +1455,8 @@ async def agent_v2_chat_stream(
                     "has_changes": len(changes) > 0,
                     "token_usage": token_usage_summary,
                 }
-                yield f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
+                yield _emit_sse(json.dumps(done_event, ensure_ascii=False))
+                _mark_stream_done(conversation_id)
 
         except Exception as e:
             logger.error(f"[V2 Agent] Error: {e}", exc_info=True)
@@ -1507,8 +1637,11 @@ async def agent_v2_chat_stream(
                 "error": error_str + error_hint,
                 "error_type": type(e).__name__,
             }
-            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+            yield _emit_sse(json.dumps(error_event, ensure_ascii=False))
+            _mark_stream_done(conversation_id)
         finally:
+            # 清理活跃流注册（断线重连用）
+            _active_streams.pop(conversation_id, None)
             # 清理 Docker 沙盒容器（流结束后容器不再需要）
             if backend is not None and hasattr(backend, 'cleanup_sandbox'):
                 try:
@@ -1518,6 +1651,97 @@ async def agent_v2_chat_stream(
 
     return StreamingResponse(
         event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Conversation-Id": conversation_id,
+        },
+    )
+
+
+@router.get("/v2/chat/stream/resume/{conversation_id}", summary="SSE 断线重连")
+async def resume_v2_chat_stream(
+    conversation_id: str,
+    last_event_id: int = Query(0, alias="last_event_id", ge=0),
+    current_user: User = Depends(get_current_active_user),
+):
+    """断线重连端点：回放缓存事件 + 转发实时事件。"""
+    # 鉴权：校验当前用户是否为该流的所有者
+    if not _check_stream_owner(conversation_id, str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Not authorized for this conversation")
+
+    async def resume_generator():
+        subscribe_q: _asyncio.Queue = _asyncio.Queue(maxsize=256)
+        _RESUME_MAX_WAIT = 300  # 最长等待 5 分钟
+
+        # 1. 先注册订阅队列（在回放之前），避免回放和订阅之间的事件间隙
+        subscribers = _active_streams.get(conversation_id)
+        if subscribers is not None:
+            subscribers.add(subscribe_q)
+
+        try:
+            # 2. 回放 Redis 缓存中 last_event_id 之后的事件
+            cached = _get_cached_events(conversation_id, after_id=last_event_id)
+            # 记录已回放的最大 event_id，用于去重
+            replayed_max_id = last_event_id
+            for frame in cached:
+                yield frame
+                # 从帧中提取 event_id
+                for fline in frame.split("\n"):
+                    if fline.startswith("id: "):
+                        try:
+                            eid = int(fline[4:].strip())
+                            if eid > replayed_max_id:
+                                replayed_max_id = eid
+                        except ValueError:
+                            pass
+
+            # 3. 如果流已完成且队列为空，直接结束
+            if _is_stream_done(conversation_id) and subscribe_q.empty():
+                return
+
+            # 4. 如果主流不存在（已结束且清理了 _active_streams），直接结束
+            if subscribers is None or conversation_id not in _active_streams:
+                return
+
+            # 5. 转发实时事件（去重：跳过已回放的事件）
+            import time as _time
+            _resume_start = _time.monotonic()
+            while True:
+                # 超时保护：防止无限挂起
+                if _time.monotonic() - _resume_start > _RESUME_MAX_WAIT:
+                    break
+                try:
+                    frame = await _asyncio.wait_for(subscribe_q.get(), timeout=30)
+                    # 去重：提取 event_id，跳过已回放的
+                    frame_id = 0
+                    for fline in frame.split("\n"):
+                        if fline.startswith("id: "):
+                            try:
+                                frame_id = int(fline[4:].strip())
+                            except ValueError:
+                                pass
+                            break
+                    if frame_id > 0 and frame_id <= replayed_max_id:
+                        continue  # 已回放过，跳过
+
+                    yield frame
+                    if '"type": "done"' in frame or '"type": "error"' in frame:
+                        break
+                except _asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+                    if _is_stream_done(conversation_id) and subscribe_q.empty():
+                        break
+        finally:
+            # 从订阅者集合中移除自己
+            subs = _active_streams.get(conversation_id)
+            if subs is not None:
+                subs.discard(subscribe_q)
+
+    return StreamingResponse(
+        resume_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

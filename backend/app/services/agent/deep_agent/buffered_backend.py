@@ -250,6 +250,7 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         self._id = f"buffered-{uuid.uuid4().hex[:8]}"
         self._preflushed_paths: set[str] = set()          # 已预落盘的路径
         self._preflushed_originals: dict[str, str | None] = {}  # 路径 → 预落盘前的原始内容（None = 新文件）
+        self._disk_cache: dict[str, str | None] = {}      # 磁盘读取缓存（减少 _replay 中的阻塞 I/O）
         self._use_docker = use_docker
         self._docker_image = docker_image
         self._host_data_root = host_data_root
@@ -565,16 +566,23 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
             self._sandbox = None
 
     def _read_disk_content(self, file_path: str) -> str | None:
-        """Read normalized UTF-8 text from disk. Return None when file is missing."""
+        """Read normalized UTF-8 text from disk (with in-memory cache). Return None when file is missing."""
+        cache_key = file_path  # 用原始路径作为缓存 key
+        if cache_key in self._disk_cache:
+            return self._disk_cache[cache_key]
         try:
             file_path = self._resolve_existing_chapter_path(
                 file_path, include_buffer_alias=False
             )
             resolved = self._resolve_path(file_path)
             if not resolved.exists() or not resolved.is_file():
+                self._disk_cache[cache_key] = None
                 return None
-            return resolved.read_text(encoding="utf-8").replace("\r\n", "\n")
+            content = resolved.read_text(encoding="utf-8").replace("\r\n", "\n")
+            self._disk_cache[cache_key] = content
+            return content
         except (OSError, UnicodeDecodeError, ValueError):
+            self._disk_cache[cache_key] = None
             return None
 
     @staticmethod
@@ -1308,6 +1316,7 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
             self._buffer.clear()
             self._preflushed_paths.clear()
             self._preflushed_originals.clear()
+            self._disk_cache.clear()
             return list(affected)
 
         # 原有增量逻辑（未经 execute() 时走这条路径）
@@ -1352,6 +1361,7 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
             except Exception as e:
                 logger.error(f"[BufferedBackend] flush 操作失败: {op.op_type} {op.path}: {e}")
         self._buffer.clear()
+        self._disk_cache.clear()
         return list(affected)
 
     def flush_single(self, index: int) -> str | None:
@@ -1375,6 +1385,8 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                 return None
 
         self._buffer.pop(index)
+        # 磁盘内容即将变化，清除该路径的读取缓存
+        self._disk_cache.pop(op.path, None)
         affected_path: str | None = None
         try:
             if op.op_type == "write":
@@ -1394,6 +1406,7 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                     affected_path = op.path
             elif op.op_type == "rename":
                 new_path = self._normalize_tool_path(op.new_path or "")
+                self._disk_cache.pop(new_path, None)
                 src = self._resolve_path(op.path)
                 dst = self._resolve_path(new_path)
                 dst.parent.mkdir(parents=True, exist_ok=True)
@@ -1444,12 +1457,16 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         self._preflushed_paths.clear()
         self._preflushed_originals.clear()
         self._buffer.clear()
+        self._disk_cache.clear()
 
     def discard_single(self, index: int) -> bool:
         """单个拒绝：丢弃指定索引的操作，回滚该文件的预落盘。"""
         if index < 0 or index >= len(self._buffer):
             return False
         op = self._buffer.pop(index)
+
+        # 磁盘内容即将变化，清除该路径的读取缓存
+        self._disk_cache.pop(op.path, None)
 
         # 回滚预落盘：如果 _flush_for_execute() 已将内容写入磁盘，需要恢复
         if op.path in self._preflushed_originals:
