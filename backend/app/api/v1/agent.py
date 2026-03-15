@@ -1015,6 +1015,11 @@ async def agent_v2_chat_stream(
         backend = None
         _event_id = 0  # SSE 事件编号（断线重连用）
 
+        # 设置 Agent 计费累加器（合并内部多次 LLM 调用为 1 条记录）
+        from app.core.billing_context import AgentBillingAccumulator, set_agent_billing, agent_billing_ctx
+        billing_accumulator = AgentBillingAccumulator()
+        _billing_token = set_agent_billing(billing_accumulator)
+
         def _emit_sse(data_str: str) -> str:
             """为 SSE 事件添加 id 字段并缓存到 Redis，返回完整 SSE 帧。"""
             nonlocal _event_id
@@ -1315,9 +1320,7 @@ async def agent_v2_chat_stream(
                         from decimal import Decimal
                         from uuid import UUID
 
-                        # 从 callback 提取按模型聚合的 token 用量
-                        # UsageMetadataCallbackHandler.usage_metadata 是 dict:
-                        #   {model_name: UsageMetadata(input_tokens, output_tokens, total_tokens)}
+                        # ── Source 1: _UsageCollector（Agent 自身推理的 token）──
                         model_breakdown = {}
                         total_input = 0
                         total_output = 0
@@ -1341,6 +1344,24 @@ async def agent_v2_chat_stream(
                             entry["cache_creation"] += in_details.get("cache_creation", 0) or 0
                             entry["reasoning"] += out_details.get("reasoning", 0) or 0
 
+                        # _UsageCollector 部分的 token 小计（用于单独计算费用）
+                        uc_input = total_input
+                        uc_output = total_output
+
+                        # ── Source 2: billing_accumulator（工具/技能调用的 token）──
+                        for acc_model, acc_entry in billing_accumulator.model_breakdown.items():
+                            entry = model_breakdown.setdefault(acc_model, {
+                                "input_tokens": 0, "output_tokens": 0,
+                                "cache_read": 0, "cache_creation": 0, "reasoning": 0,
+                            })
+                            entry["input_tokens"] += acc_entry["input_tokens"]
+                            entry["output_tokens"] += acc_entry["output_tokens"]
+                            entry["cache_read"] += acc_entry["cache_read"]
+                            entry["cache_creation"] += acc_entry["cache_creation"]
+                            entry["reasoning"] += acc_entry["reasoning"]
+                            total_input += acc_entry["input_tokens"]
+                            total_output += acc_entry["output_tokens"]
+
                         total_total = total_input + total_output
 
                         if total_total > 0:
@@ -1355,18 +1376,41 @@ async def agent_v2_chat_stream(
                                 model_pricing = await SystemConfigService.get_model_pricing(pricing_db)
                                 credits_per_dollar = await SystemConfigService.get_credits_per_dollar(pricing_db)
 
-                            # 计算总成本 & 积分
-                            cost_data = CostCalculator.calculate_cost(
-                                model_name=settings.OPENAI_MODEL,
-                                prompt_tokens=total_input,
-                                completion_tokens=total_output,
-                                cache_read=total_cache_read,
-                                cache_creation=total_cache_creation,
-                                reasoning=total_reasoning,
-                                model_pricing=model_pricing,
-                            )
+                            # _UsageCollector 部分重新计算费用（Agent 推理的 token）
+                            if uc_input + uc_output > 0:
+                                uc_cache_read = sum(
+                                    (meta.get("input_token_details") or {}).get("cache_read", 0) or 0
+                                    for meta in usage_cb.usage_metadata.values()
+                                )
+                                uc_cache_creation = sum(
+                                    (meta.get("input_token_details") or {}).get("cache_creation", 0) or 0
+                                    for meta in usage_cb.usage_metadata.values()
+                                )
+                                uc_reasoning = sum(
+                                    (meta.get("output_token_details") or {}).get("reasoning", 0) or 0
+                                    for meta in usage_cb.usage_metadata.values()
+                                )
+                                cost_data = CostCalculator.calculate_cost(
+                                    model_name=settings.OPENAI_MODEL,
+                                    prompt_tokens=uc_input,
+                                    completion_tokens=uc_output,
+                                    cache_read=uc_cache_read,
+                                    cache_creation=uc_cache_creation,
+                                    reasoning=uc_reasoning,
+                                    model_pricing=model_pricing,
+                                )
+                                uc_cost = cost_data["total_cost"]
+                            else:
+                                cost_data = {"prompt_cost": 0, "completion_cost": 0, "total_cost": 0}
+                                uc_cost = 0
+
+                            # 合并费用：_UsageCollector 重算 + 累加器预算
+                            combined_total_cost = uc_cost + billing_accumulator.total_cost_usd
+                            combined_prompt_cost = cost_data["prompt_cost"] + billing_accumulator.prompt_cost_usd
+                            combined_completion_cost = cost_data["completion_cost"] + billing_accumulator.completion_cost_usd
+
                             credits_to_deduct = calculate_credits_from_cost(
-                                cost_data["total_cost"], credits_per_dollar=credits_per_dollar,
+                                combined_total_cost, credits_per_dollar=credits_per_dollar,
                             )
                             duration_ms = int((_time.time() - _stream_start) * 1000)
 
@@ -1387,15 +1431,17 @@ async def agent_v2_chat_stream(
                                             cache_read_tokens=total_cache_read,
                                             cache_creation_tokens=total_cache_creation,
                                             reasoning_tokens=total_reasoning,
-                                            prompt_cost=cost_data["prompt_cost"],
-                                            completion_cost=cost_data["completion_cost"],
-                                            total_cost=cost_data["total_cost"],
+                                            prompt_cost=combined_prompt_cost,
+                                            completion_cost=combined_completion_cost,
+                                            total_cost=combined_total_cost,
                                             duration_ms=duration_ms,
                                             is_success=True,
                                             extra_data={
                                                 "conversation_id": conversation_id,
                                                 "work_id": request.work_id,
                                                 "model_breakdown": model_breakdown,
+                                                "sub_call_count": billing_accumulator.call_count,
+                                                "sub_call_log_ids": billing_accumulator.ai_call_log_ids,
                                             },
                                         )
                                         log_svc = AILogService(billing_db)
@@ -1435,9 +1481,9 @@ async def agent_v2_chat_stream(
                                 "output_token_details": {"reasoning": total_reasoning},
                             }
                             logger.info(
-                                "[V2 Billing] user=%s conv=%s tokens=%d credits=%.2f",
+                                "[V2 Billing] user=%s conv=%s tokens=%d credits=%.2f (sub_calls=%d)",
                                 user_id, conversation_id[:8], total_total,
-                                float(credits_to_deduct),
+                                float(credits_to_deduct), billing_accumulator.call_count,
                             )
                     except Exception as billing_err:
                         logger.error("[V2 Billing] 计费失败（不影响用户）: %s", billing_err, exc_info=True)
@@ -1474,6 +1520,12 @@ async def agent_v2_chat_stream(
 
                     err_input = sum(m.get("input_tokens", 0) for m in usage_cb.usage_metadata.values())
                     err_output = sum(m.get("output_tokens", 0) for m in usage_cb.usage_metadata.values())
+                    # _UsageCollector 部分小计（用于单独计算费用）
+                    uc_err_input = err_input
+                    uc_err_output = err_output
+                    # 合并累加器 token
+                    err_input += billing_accumulator.prompt_tokens
+                    err_output += billing_accumulator.completion_tokens
                     err_total = err_input + err_output
 
                     if err_total > 0:
@@ -1487,6 +1539,9 @@ async def agent_v2_chat_stream(
                             err_cache_read += in_d.get("cache_read", 0) or 0
                             err_cache_creation += in_d.get("cache_creation", 0) or 0
                             err_reasoning += out_d.get("reasoning", 0) or 0
+                        err_cache_read += billing_accumulator.cache_read_tokens
+                        err_cache_creation += billing_accumulator.cache_creation_tokens
+                        err_reasoning += billing_accumulator.reasoning_tokens
 
                         # 构建 per-model breakdown（与成功路径一致）
                         err_model_breakdown = {}
@@ -1503,6 +1558,17 @@ async def agent_v2_chat_stream(
                             entry["cache_read"] += in_d.get("cache_read", 0) or 0
                             entry["cache_creation"] += in_d.get("cache_creation", 0) or 0
                             entry["reasoning"] += out_d.get("reasoning", 0) or 0
+                        # 合并累加器 model_breakdown
+                        for acc_model, acc_entry in billing_accumulator.model_breakdown.items():
+                            entry = err_model_breakdown.setdefault(acc_model, {
+                                "input_tokens": 0, "output_tokens": 0,
+                                "cache_read": 0, "cache_creation": 0, "reasoning": 0,
+                            })
+                            entry["input_tokens"] += acc_entry["input_tokens"]
+                            entry["output_tokens"] += acc_entry["output_tokens"]
+                            entry["cache_read"] += acc_entry["cache_read"]
+                            entry["cache_creation"] += acc_entry["cache_creation"]
+                            entry["reasoning"] += acc_entry["reasoning"]
 
                         # 从 DB 读取定价
                         from app.services.system_config_service import SystemConfigService
@@ -1510,15 +1576,37 @@ async def agent_v2_chat_stream(
                             model_pricing = await SystemConfigService.get_model_pricing(pricing_db)
                             credits_per_dollar = await SystemConfigService.get_credits_per_dollar(pricing_db)
 
-                        cost_data = CostCalculator.calculate_cost(
-                            settings.OPENAI_MODEL, err_input, err_output,
-                            cache_read=err_cache_read,
-                            cache_creation=err_cache_creation,
-                            reasoning=err_reasoning,
-                            model_pricing=model_pricing,
-                        )
+                        # _UsageCollector 部分费用
+                        if uc_err_input + uc_err_output > 0:
+                            uc_cache_read = sum(
+                                (m.get("input_token_details") or {}).get("cache_read", 0) or 0
+                                for m in usage_cb.usage_metadata.values()
+                            )
+                            uc_cache_creation = sum(
+                                (m.get("input_token_details") or {}).get("cache_creation", 0) or 0
+                                for m in usage_cb.usage_metadata.values()
+                            )
+                            uc_reasoning = sum(
+                                (m.get("output_token_details") or {}).get("reasoning", 0) or 0
+                                for m in usage_cb.usage_metadata.values()
+                            )
+                            cost_data = CostCalculator.calculate_cost(
+                                settings.OPENAI_MODEL, uc_err_input, uc_err_output,
+                                cache_read=uc_cache_read,
+                                cache_creation=uc_cache_creation,
+                                reasoning=uc_reasoning,
+                                model_pricing=model_pricing,
+                            )
+                        else:
+                            cost_data = {"prompt_cost": 0, "completion_cost": 0, "total_cost": 0}
+
+                        # 合并费用
+                        combined_total_cost = cost_data["total_cost"] + billing_accumulator.total_cost_usd
+                        combined_prompt_cost = cost_data["prompt_cost"] + billing_accumulator.prompt_cost_usd
+                        combined_completion_cost = cost_data["completion_cost"] + billing_accumulator.completion_cost_usd
+
                         credits_to_deduct = calculate_credits_from_cost(
-                            cost_data["total_cost"], credits_per_dollar=credits_per_dollar,
+                            combined_total_cost, credits_per_dollar=credits_per_dollar,
                         )
                         duration_ms = int((_time.time() - _stream_start) * 1000) if _stream_start else 0
 
@@ -1537,13 +1625,19 @@ async def agent_v2_chat_stream(
                                         cache_read_tokens=err_cache_read,
                                         cache_creation_tokens=err_cache_creation,
                                         reasoning_tokens=err_reasoning,
-                                        prompt_cost=cost_data["prompt_cost"],
-                                        completion_cost=cost_data["completion_cost"],
-                                        total_cost=cost_data["total_cost"],
+                                        prompt_cost=combined_prompt_cost,
+                                        completion_cost=combined_completion_cost,
+                                        total_cost=combined_total_cost,
                                         duration_ms=duration_ms,
                                         is_success=False,
                                         error_message=str(e)[:1000],
-                                        extra_data={"conversation_id": conversation_id, "work_id": request.work_id, "model_breakdown": err_model_breakdown},
+                                        extra_data={
+                                            "conversation_id": conversation_id,
+                                            "work_id": request.work_id,
+                                            "model_breakdown": err_model_breakdown,
+                                            "sub_call_count": billing_accumulator.call_count,
+                                            "sub_call_log_ids": billing_accumulator.ai_call_log_ids,
+                                        },
                                     )
                                     log_svc = AILogService(billing_db)
                                     ai_log = await log_svc.create_log(log_data, auto_commit=False)
@@ -1573,8 +1667,9 @@ async def agent_v2_chat_stream(
                                     raise
 
                         logger.info(
-                            "[V2 Billing] error-path user=%s tokens=%d credits=%.2f",
+                            "[V2 Billing] error-path user=%s tokens=%d credits=%.2f (sub_calls=%d)",
                             user_id, err_total, float(credits_to_deduct),
+                            billing_accumulator.call_count,
                         )
                 except Exception as billing_err:
                     logger.error("[V2 Billing] 错误路径计费失败: %s", billing_err, exc_info=True)
@@ -1640,6 +1735,8 @@ async def agent_v2_chat_stream(
             yield _emit_sse(json.dumps(error_event, ensure_ascii=False))
             _mark_stream_done(conversation_id)
         finally:
+            # 清理 Agent 计费上下文
+            agent_billing_ctx.reset(_billing_token)
             # 清理活跃流注册（断线重连用）
             _active_streams.pop(conversation_id, None)
             # 清理 Docker 沙盒容器（流结束后容器不再需要）
