@@ -42,6 +42,9 @@ interface WorksListResponse {
   page: number;
   pageSize: number;
   items: Work[];
+  publishedCount: number;
+  featuredCount: number;
+  totalWordCount: number;
 }
 
 const GENRE_MAP: Record<string, string> = {
@@ -71,6 +74,9 @@ export default function AdminWorksView() {
   const [works, setWorks] = useState<Work[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
+  const [publishedCount, setPublishedCount] = useState(0);
+  const [featuredCount, setFeaturedCount] = useState(0);
+  const [totalWordCount, setTotalWordCount] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,6 +99,9 @@ export default function AdminWorksView() {
 
       setWorks(response.items);
       setTotal(response.total);
+      setPublishedCount(response.publishedCount);
+      setFeaturedCount(response.featuredCount);
+      setTotalWordCount(response.totalWordCount);
     } catch (err) {
       console.error('加载小说列表失败:', err);
       error('加载小说列表失败');
@@ -197,19 +206,19 @@ export default function AdminWorksView() {
               <div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">已发布</div>
                 <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {works.filter((w) => w.isPublished).length}
+                  {publishedCount}
                 </div>
               </div>
               <div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">推荐中</div>
                 <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                  {works.filter((w) => w.isFeatured).length}
+                  {featuredCount}
                 </div>
               </div>
               <div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">总字数</div>
                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {(works.reduce((sum, w) => sum + w.totalWords, 0) / 10000).toFixed(1)}万
+                  {(totalWordCount / 10000).toFixed(1)}万
                 </div>
               </div>
             </div>
