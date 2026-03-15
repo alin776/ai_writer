@@ -152,6 +152,7 @@ const AdminCostView: React.FC = () => {
     const maxCost = Math.max(...metrics.topUsers.map(u => u.totalCost));
     return {
       userId: user.userId,
+      username: user.username,
       calls: user.totalCalls,
       cost: parseFloat((user.totalCost).toFixed(4)),
       percentage: maxCost > 0 ? Math.round((user.totalCost / maxCost) * 100) : 0,
@@ -373,11 +374,11 @@ const AdminCostView: React.FC = () => {
                   <span className="text-lg font-bold text-gray-400 dark:text-gray-500">#{index + 1}</span>
                 </div>
                 <div className="flex-shrink-0 w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{index + 1}</span>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{user.username.charAt(0).toUpperCase()}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{user.userId.slice(0, 8)}...</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{user.username}</p>
                     <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">${user.cost.toFixed(4)}</p>
                   </div>
                   <div className="flex items-center space-x-2">

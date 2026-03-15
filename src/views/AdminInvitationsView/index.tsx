@@ -7,7 +7,7 @@ import {
   type AdminInvitationStats,
 } from '../../services/AdminInvitationsService';
 import { useGlobalStore } from '../../store/globalStore';
-import { formatDate } from '../../utils/formatDate';
+import { formatDate, formatShortDate } from '../../utils/formatDate';
 
 /**
  * AdminInvitationsView 组件 - 邀请码管理页面
@@ -307,7 +307,7 @@ const AdminInvitationsView: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 text-sm">{getStatusBadge(invitation.status)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                        {invitation.expiresAt ? formatDate(invitation.expiresAt) : '无限期'}
+                        {invitation.expiresAt ? formatShortDate(invitation.expiresAt) : '无限期'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                         {invitation.remark || '-'}

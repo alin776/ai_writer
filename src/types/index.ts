@@ -506,6 +506,7 @@ export interface CostMetrics {
   }>;
   topUsers: Array<{
     userId: string;
+    username: string;
     totalCost: number;
     totalCalls: number;
     totalInputTokens: number;

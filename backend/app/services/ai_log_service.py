@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from app.models.ai_call_log import AICallLog
+from app.models.user import User
 from app.schemas.ai_call_log import (
     AICallLogCreate,
     AICallLogStats,
@@ -314,9 +315,10 @@ class AILogService:
                 'cost': float(day_cost)
             })
 
-        # Top 5 用户
+        # Top 5 用户（JOIN User 表获取用户名）
         top_users_stmt = select(
             AICallLog.user_id,
+            User.username,
             func.sum(AICallLog.total_cost).label('total_cost'),
             func.count(AICallLog.id).label('total_calls'),
             func.sum(AICallLog.prompt_tokens).label('total_input_tokens'),
@@ -324,9 +326,11 @@ class AILogService:
             func.sum(AICallLog.cache_read_tokens).label('total_cache_read'),
             func.sum(AICallLog.cache_creation_tokens).label('total_cache_creation'),
             func.sum(AICallLog.reasoning_tokens).label('total_reasoning'),
+        ).join(
+            User, AICallLog.user_id == User.id
         ).where(
             AICallLog.created_at >= this_month_start
-        ).group_by(AICallLog.user_id).order_by(
+        ).group_by(AICallLog.user_id, User.username).order_by(
             func.sum(AICallLog.total_cost).desc()
         ).limit(5)
 
@@ -336,6 +340,7 @@ class AILogService:
         top_users = [
             {
                 'user_id': str(user.user_id),
+                'username': user.username,
                 'total_cost': float(user.total_cost),
                 'total_calls': user.total_calls,
                 'total_input_tokens': int(user.total_input_tokens or 0),
