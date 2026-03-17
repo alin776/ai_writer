@@ -1486,14 +1486,12 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       onClick={() => jumpToMessage(message.replyTo!.id)}
                     >
                       {/* 被引用用户小头像 */}
-                      <img
-                        src={message.replyTo.userAvatar || '/default-avatar.png'}
-                        alt={getDisplayName(message.replyTo.userId || '', message.replyTo.userName)}
-                        className="w-4 h-4 rounded-full"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/default-avatar.png';
-                        }}
-                      />
+                      <Avatar className="w-4 h-4">
+                        <AvatarImage src={message.replyTo.userAvatar || undefined} />
+                        <AvatarFallback className="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                          {getDisplayName(message.replyTo.userId || '', message.replyTo.userName)?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
 
                       {/* 被引用用户名 */}
                       <span className="text-gray-600 dark:text-gray-300 hover:underline font-medium">
