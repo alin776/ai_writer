@@ -427,7 +427,7 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
             if path not in self._preflushed_originals:
                 resolved = self._resolve_path(path)
                 if resolved.exists():
-                    self._preflushed_originals[path] = resolved.read_text(encoding="utf-8")
+                    self._preflushed_originals[path] = resolved.read_text(encoding="utf-8").replace("\r\n", "\n")
                 else:
                     self._preflushed_originals[path] = None  # 新文件
 
@@ -438,6 +438,9 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                 resolved.parent.mkdir(parents=True, exist_ok=True)
                 resolved.write_text(content, encoding="utf-8")
                 self._preflushed_paths.add(path)
+
+        # 磁盘内容已变化，清除读取缓存，防止后续 _read_disk_content() 返回过期数据
+        self._disk_cache.clear()
 
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
         """在 work_dir 内执行 shell 命令（受限沙箱）。"""
@@ -1271,7 +1274,12 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                     item["chapter_title"] = parsed["title"]
                 # 读取磁盘旧内容作为 old_string，供前端做真正的 diff
                 # 若文件不存在（真正新建），old_string 为空字符串，前端走 create 逻辑
-                old_raw = self._read_disk_content(op.path) or ""
+                # 注意：若 execute() 已触发预落盘，磁盘内容已被覆盖为新内容，
+                # 必须优先使用 _preflushed_originals 中保存的原始内容
+                if op.path in self._preflushed_originals:
+                    old_raw = self._preflushed_originals[op.path] or ""
+                else:
+                    old_raw = self._read_disk_content(op.path) or ""
                 item["old_string"] = parse_chapter(old_raw)["content"] if old_raw else ""
             elif op.op_type == "edit":
                 item["old_string"] = op.old_string
@@ -1433,7 +1441,7 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                 try:
                     resolved = self._resolve_path(op.path)
                     if resolved.exists():
-                        self._preflushed_originals[op.path] = resolved.read_text(encoding="utf-8")
+                        self._preflushed_originals[op.path] = resolved.read_text(encoding="utf-8").replace("\r\n", "\n")
                     else:
                         self._preflushed_originals[op.path] = None
                 except OSError:
@@ -1511,6 +1519,7 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         data = {
             "cwd": str(self.cwd),
             "buffer": [asdict(op) for op in self._buffer],
+            "preflushed_originals": self._preflushed_originals,
         }
         filepath.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
@@ -1523,6 +1532,14 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
             data = json.loads(filepath.read_text(encoding="utf-8"))
             instance = cls(root_dir=data["cwd"])
             instance._buffer = [BufferOp(**op) for op in data["buffer"]]
+            # 恢复预落盘原始内容，确保 get_changes() 在反序列化后仍能正确计算 diff
+            preflushed = data.get("preflushed_originals")
+            if isinstance(preflushed, dict) and all(
+                v is None or isinstance(v, str) for v in preflushed.values()
+            ):
+                instance._preflushed_originals = preflushed
+                # 所有记录过原始内容的路径都经过了预落盘（包括 value=None 的新文件）
+                instance._preflushed_paths = set(preflushed.keys())
             return instance
         except Exception:
             return None
