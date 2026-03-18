@@ -800,6 +800,22 @@ const WorkDetailView: React.FC = () => {
       return;
     }
 
+    // 预落盘章节带 diff 数据（非 _pending 但有 _diffOriginal/_diffModified）→ 显示旧内容 + 重新触发 diff
+    const preLandedDiffOriginal = (chapter as any)._diffOriginal;
+    const preLandedDiffModified = (chapter as any)._diffModified;
+    if (preLandedDiffOriginal !== undefined && preLandedDiffModified) {
+      diffPreviewRef.current = true;
+      setCurrentChapterContent(preLandedDiffOriginal);
+      setCurrentChapterId(tabId);
+      editorChapterIdRef.current = tabId;
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('editor-inline-diff', {
+          detail: { oldString: preLandedDiffOriginal, newString: preLandedDiffModified }
+        }));
+      }, 100);
+      return;
+    }
+
     // 先加载内容，确保 EditorWrapper 重新挂载时有正确内容
     let content = stripLeakedFrontmatter(chapter.content || '');
     try {
@@ -2000,16 +2016,50 @@ const WorkDetailView: React.FC = () => {
         setIsEditorCollapsed(false);
       }
 
+      // --- 检测预落盘 diff 预览：章节已在磁盘上但内容已被 Agent 覆写 ---
+      const targetChapter = resolvedTargetChapterId
+        ? chapters.find(c => c.id === resolvedTargetChapterId)
+        : undefined;
+      const hasPreviewBase = typeof previewBaseContent === 'string' && previewBaseContent.length > 0;
+      const hasDiffData = canUseDirectDiff || canUseFallbackDiff || anchoredDiffPairs.length > 0;
+      const isPreLandedDiffPreview =
+        hasDiffData
+        && hasPreviewBase
+        && typeof resolvedTargetChapterId === 'string'
+        && resolvedTargetChapterId.startsWith('fs-')
+        && !!targetChapter
+        && !(targetChapter as any)._pending;
+
+      if (isPreLandedDiffPreview) {
+        console.log('[handleJumpRevision] 预落盘 diff 预览路径命中:', { chapterId: resolvedTargetChapterId, revisionType, hasPreviewBase, hasDiffData });
+        // 无论是否切换章节，都需要存储 diff 数据（供 handleEditorTabSwitch 恢复用）
+        const diffModifiedValue = (typeof newString === 'string' && newString.length > 0 ? newString : modifiedContent) || '';
+        setChapters(prev => prev.map(c =>
+          c.id === resolvedTargetChapterId
+            ? { ...c, _diffOriginal: previewBaseContent, _diffModified: diffModifiedValue } as any
+            : c
+        ));
+      }
+
       // 切换章节（如果不同）
       let needDelay = false;
       let isPendingChapter = false;
       if (resolvedTargetChapterId && resolvedTargetChapterId !== normalizedCurrentChapterId) {
-        const chapterExists = chapters.find((c) => c.id === resolvedTargetChapterId);
+        const chapterExists = targetChapter || chapters.find((c) => c.id === resolvedTargetChapterId);
         // _pending 章节仅存在于内存中（未落盘），不能走 handleChapterSelect 磁盘加载路径
         isPendingChapter = !!(chapterExists && (chapterExists as any)._pending);
         if (chapterExists && !isPendingChapter) {
-          // 章节已在磁盘上 → 正常切换
-          handleChapterSelect(resolvedTargetChapterId);
+          if (isPreLandedDiffPreview) {
+            // 预落盘章节：不走 handleChapterSelect（它会从磁盘加载已覆写的新内容）
+            // 改为手动设置编辑器为旧内容，让 diff 插件能在其中定位 oldString
+            openEditorTab(chapterExists);
+            setCurrentChapterContent(previewBaseContent);
+            setCurrentChapterId(resolvedTargetChapterId);
+            if (workId) setLastChapter(workId, resolvedTargetChapterId);
+          } else {
+            // 非 diff 预览的正常场景：从磁盘加载
+            handleChapterSelect(resolvedTargetChapterId);
+          }
           needDelay = true;
         } else {
           // 章节不在磁盘上（缓冲区新建 或 已有 _pending 章节缺少 diff 字段）→ 虚拟章节路径
@@ -2053,12 +2103,17 @@ const WorkDetailView: React.FC = () => {
       // 优先使用磁盘内容做匹配，只回放能命中的 diff，避免 oldString 找不到
       if (anchoredDiffPairs.length > 0 || canUseDirectDiff || canUseFallbackDiff) {
         // _pending 章节未落盘，跳过磁盘重新加载，直接用 previewBaseContent
-        const shouldReloadFromDisk = !isPendingChapter && typeof resolvedTargetChapterId === 'string' && resolvedTargetChapterId.startsWith('fs-');
+        // 预落盘章节也跳过：磁盘上已是新内容，oldString 无法匹配
+        const shouldReloadFromDisk = !isPendingChapter && !isPreLandedDiffPreview && typeof resolvedTargetChapterId === 'string' && resolvedTargetChapterId.startsWith('fs-');
         const baseDelay = needDelay ? 500 : (resolvedTargetChapterId !== normalizedCurrentChapterId ? 100 : 0);
         setTimeout(() => {
           const runDispatch = async () => {
             let baseText = previewBaseContent;
-            if (shouldReloadFromDisk && workId) {
+            // 预落盘且当前章节未切换（same chapter）时，确保编辑器显示旧内容
+            if (isPreLandedDiffPreview) {
+              baseText = previewBaseContent;
+              setCurrentChapterContent(previewBaseContent);
+            } else if (shouldReloadFromDisk && workId) {
               const chapterNum = chapterIdToNum(resolvedTargetChapterId || '');
               if (chapterNum !== null) {
                 try {
@@ -2087,6 +2142,13 @@ const WorkDetailView: React.FC = () => {
       diffPreviewRef.current = false;
       const chId = editorChapterIdRef.current;
       if (chId) {
+        const chapter = chapters.find(c => c.id === chId);
+        // 检测是否为预落盘 diff 预览（非 _pending 但有 diff 数据的磁盘章节）
+        const wasPreLandedPreview = chapter
+          && !(chapter as any)._pending
+          && (chapter as any)._diffModified !== undefined;
+
+        // 清除 diff 字段
         setChapters(prev => prev.map(c => {
           if (c.id === chId && (c as any)._diffModified !== undefined) {
             const { _diffModified, _diffOriginal, ...rest } = c as any;
@@ -2094,6 +2156,19 @@ const WorkDetailView: React.FC = () => {
           }
           return c;
         }));
+
+        // 预落盘章节关闭 diff 后，从磁盘重载真实内容（编辑器当前显示的是旧内容）
+        if (wasPreLandedPreview && workId && chId.startsWith('fs-')) {
+          const num = chapterIdToNum(chId);
+          if (num !== null) {
+            void (async () => {
+              try {
+                const full = await chaptersFs.get(workId, num);
+                setCurrentChapterContent(stripLeakedFrontmatter(full.content || ''));
+              } catch { /* 忽略，保留当前内容 */ }
+            })();
+          }
+        }
       }
     };
 

@@ -6,6 +6,7 @@ import logging
 import asyncio
 import time
 from typing import Optional, List, Dict, Any
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
@@ -188,54 +189,72 @@ class NovelAnalysisOrchestrator:
 
             logger.info(f"共获取 {len(chapters)} 个章节，内容验证通过，开始微观分析...")
 
-            # 5. 执行微观分析（并行版本）⚡
-            logger.info(f"⚡ 使用并行分析模式 (并发数: {settings.NOVEL_ANALYSIS_MAX_CONCURRENT})")
-            micro_results, failed_chapters = await self._analyze_chapters_parallel(
-                chapters=chapters,
-                analysis_id=str(analysis.id),
-                work_id=work_id
-            )
-            
-            micro_elapsed = time.time() - start_time
-            success_rate = len(micro_results) / len(chapters) * 100
-            
-            logger.info(f"=" * 60)
-            logger.info(f"微观分析完成统计:")
-            logger.info(f"  成功: {len(micro_results)}/{len(chapters)} 章节 ({success_rate:.1f}%)")
-            logger.info(f"  失败: {len(failed_chapters)} 章节")
-            logger.info(f"  总耗时: {micro_elapsed:.1f}秒 (平均 {micro_elapsed/len(chapters):.1f}秒/章)")
-            
-            if failed_chapters:
-                logger.warning(f"失败章节列表:")
-                for fc in failed_chapters:
-                    logger.warning(f"  - {fc['title']}: {fc['error']}")
-            
-            logger.info(f"=" * 60)
-            
-            # 6. 检查是否有足够的微观结果
-            if not micro_results:
-                raise Exception("所有章节的微观分析都失败了")
-            
-            if len(micro_results) < len(chapters) * 0.5:  # 至少成功50%
-                logger.warning(f"微观分析成功率较低: {success_rate:.1f}%")
-            
-            # 7. 更新阶段为"宏观分析"
-            await self.analysis_service.update_progress(
-                analysis_id=str(analysis.id),
-                analyzed_chapters=len(micro_results),
-                current_stage=AnalysisStage.MACRO_ANALYSIS
-            )
-            
-            logger.info(f"=" * 60)
-            logger.info("开始宏观分析...")
-            logger.info(f"=" * 60)
-            
-            # 8. 执行宏观分析
-            macro_start_time = time.time()
-            macro_report = await self.macro_service.analyze_novel_macro(micro_results)
-            macro_elapsed = time.time() - macro_start_time
-            
-            logger.info(f"宏观分析完成，报告长度: {len(macro_report)} 字符，耗时: {macro_elapsed:.1f}秒")
+            # 查询用户是否管理员（用于计费豁免）
+            from app.models.user import User
+            from sqlalchemy import select
+            is_admin = False
+            if user_id:
+                user_stmt = select(User.is_admin).where(User.id == UUID(user_id))
+                user_result = await self.db.execute(user_stmt)
+                is_admin = bool(user_result.scalar())
+
+            # 使用聚合计费上下文：整个分析流程只产生 1 条使用记录
+            from app.core.billing_context import billing_context
+            work_title = work.title if work else work_id
+            async with billing_context(
+                user_id=user_id,
+                description=f"小说分析 · {work_title}({len(chapters)}章)",
+                operation_type="novel_analysis",
+                is_admin=is_admin,
+            ):
+                # 5. 执行微观分析（并行版本）⚡
+                logger.info(f"⚡ 使用并行分析模式 (并发数: {settings.NOVEL_ANALYSIS_MAX_CONCURRENT})")
+                micro_results, failed_chapters = await self._analyze_chapters_parallel(
+                    chapters=chapters,
+                    analysis_id=str(analysis.id),
+                    work_id=work_id
+                )
+
+                micro_elapsed = time.time() - start_time
+                success_rate = len(micro_results) / len(chapters) * 100
+
+                logger.info(f"=" * 60)
+                logger.info(f"微观分析完成统计:")
+                logger.info(f"  成功: {len(micro_results)}/{len(chapters)} 章节 ({success_rate:.1f}%)")
+                logger.info(f"  失败: {len(failed_chapters)} 章节")
+                logger.info(f"  总耗时: {micro_elapsed:.1f}秒 (平均 {micro_elapsed/len(chapters):.1f}秒/章)")
+
+                if failed_chapters:
+                    logger.warning(f"失败章节列表:")
+                    for fc in failed_chapters:
+                        logger.warning(f"  - {fc['title']}: {fc['error']}")
+
+                logger.info(f"=" * 60)
+
+                # 6. 检查是否有足够的微观结果
+                if not micro_results:
+                    raise Exception("所有章节的微观分析都失败了")
+
+                if len(micro_results) < len(chapters) * 0.5:  # 至少成功50%
+                    logger.warning(f"微观分析成功率较低: {success_rate:.1f}%")
+
+                # 7. 更新阶段为"宏观分析"
+                await self.analysis_service.update_progress(
+                    analysis_id=str(analysis.id),
+                    analyzed_chapters=len(micro_results),
+                    current_stage=AnalysisStage.MACRO_ANALYSIS
+                )
+
+                logger.info(f"=" * 60)
+                logger.info("开始宏观分析...")
+                logger.info(f"=" * 60)
+
+                # 8. 执行宏观分析
+                macro_start_time = time.time()
+                macro_report = await self.macro_service.analyze_novel_macro(micro_results)
+                macro_elapsed = time.time() - macro_start_time
+
+                logger.info(f"宏观分析完成，报告长度: {len(macro_report)} 字符，耗时: {macro_elapsed:.1f}秒")
             
             # 9. 保存宏观结果
             await self.analysis_service.save_macro_result(

@@ -41,10 +41,10 @@ interface WorksListResponse {
   total: number;
   page: number;
   pageSize: number;
-  items: Work[];
   publishedCount: number;
   featuredCount: number;
-  totalWordCount: number;
+  totalWordsSum: number;
+  items: Work[];
 }
 
 const GENRE_MAP: Record<string, string> = {
@@ -76,7 +76,7 @@ export default function AdminWorksView() {
   const [total, setTotal] = useState(0);
   const [publishedCount, setPublishedCount] = useState(0);
   const [featuredCount, setFeaturedCount] = useState(0);
-  const [totalWordCount, setTotalWordCount] = useState(0);
+  const [totalWordsSum, setTotalWordsSum] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,9 +99,9 @@ export default function AdminWorksView() {
 
       setWorks(response.items);
       setTotal(response.total);
-      setPublishedCount(response.publishedCount);
-      setFeaturedCount(response.featuredCount);
-      setTotalWordCount(response.totalWordCount);
+      setPublishedCount(response.publishedCount ?? 0);
+      setFeaturedCount(response.featuredCount ?? 0);
+      setTotalWordsSum(response.totalWordsSum ?? 0);
     } catch (err) {
       console.error('加载小说列表失败:', err);
       error('加载小说列表失败');
@@ -218,7 +218,7 @@ export default function AdminWorksView() {
               <div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">总字数</div>
                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {(totalWordCount / 10000).toFixed(1)}万
+                  {(totalWordsSum / 10000).toFixed(1)}万
                 </div>
               </div>
             </div>

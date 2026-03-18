@@ -268,6 +268,9 @@ export const AI_OPERATION_LABELS: Record<string, string> = {
   'character_design': '角色设计',
   'world_building': '世界观构建',
   'deep_analysis': '深度分析',
+  // 聚合操作
+  'novel_analysis': '小说分析',
+  'worldview_scan': '世界观扫描',
   // 通用
   'unknown': 'AI服务',
 };

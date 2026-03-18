@@ -22,10 +22,10 @@ class WorksListResponse(BaseModel):
     total: int
     page: int
     pageSize: int
+    publishedCount: int = 0
+    featuredCount: int = 0
+    totalWordsSum: int = 0
     items: list
-    published_count: int = 0
-    featured_count: int = 0
-    total_word_count: int = 0
 
 
 class TogglePublishRequest(BaseModel):
@@ -110,29 +110,17 @@ async def get_all_works(
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
-    # 聚合统计：已发布数、推荐数、总字数（基于相同的筛选条件）
-    stats_query = select(
+    # 获取全局聚合统计（已发布数、推荐数、总字数）
+    stats_base = select(
         func.count(Work.id).filter(Work.is_published == True).label("published_count"),
         func.count(Work.id).filter(Work.is_featured == True).label("featured_count"),
-        func.coalesce(func.sum(Work.total_words), 0).label("total_word_count"),
+        func.coalesce(func.sum(Work.total_words), 0).label("total_words_sum"),
     )
-    # 应用与列表查询相同的筛选条件
-    if genre:
-        stats_query = stats_query.where(Work.genre == genre)
-    if status:
-        stats_query = stats_query.where(Work.status == status)
-    if is_published is not None:
-        stats_query = stats_query.where(Work.is_published == is_published)
-    if search:
-        from app.models.user import User as UserModel
-        stats_query = stats_query.join(Work.author).where(
-            or_(
-                Work.title.ilike(f"%{search}%"),
-                UserModel.username.ilike(f"%{search}%")
-            )
-        )
-    stats_result = await db.execute(stats_query)
+    stats_result = await db.execute(stats_base)
     stats_row = stats_result.one()
+    published_count = stats_row.published_count
+    featured_count = stats_row.featured_count
+    total_words_sum = stats_row.total_words_sum
 
     # 排序：推荐作品优先，然后按更新时间倒序
     query = query.order_by(Work.is_featured.desc(), Work.updated_at.desc())
@@ -184,10 +172,10 @@ async def get_all_works(
         total=total,
         page=page,
         pageSize=limit,
-        items=items,
-        published_count=stats_row.published_count,
-        featured_count=stats_row.featured_count,
-        total_word_count=stats_row.total_word_count,
+        publishedCount=published_count,
+        featuredCount=featured_count,
+        totalWordsSum=total_words_sum,
+        items=items
     )
 
 

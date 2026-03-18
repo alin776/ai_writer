@@ -163,7 +163,8 @@ class LangChainAIService:
         """
         # ==================== 积分预检查 ====================
         user_id = self.user_id or get_request_user_id()
-        if user_id and self.enable_cost_tracking:
+        from app.core.billing_context import get_billing_context as _get_billing_ctx
+        if user_id and self.enable_cost_tracking and not _get_billing_ctx():
             try:
                 from app.core.database import create_db_session
                 from app.services.credits.credit_service import CreditService
@@ -1069,105 +1070,103 @@ class LangChainAIService:
                 temp_log_service = AILogService(db_session)
                 ai_call_log = await temp_log_service.create_log(log_data, auto_commit=should_auto_commit)
 
-                # ========== Agent 计费合并 ==========
-                from app.core.billing_context import get_agent_billing
-                billing_acc = get_agent_billing()
-                if billing_acc is not None:
-                    # Agent 上下文：累加费用，跳过独立扣费
-                    billing_acc.accumulate(
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens,
-                        prompt_cost=cost_data["prompt_cost"],
-                        completion_cost=cost_data["completion_cost"],
-                        total_cost=cost_data["total_cost"],
-                        cache_read=cache_read,
-                        cache_creation=cache_creation,
-                        reasoning=reasoning,
+                # ==================== 聚合计费检查 ====================
+                from app.core.billing_context import get_billing_context, record_to_billing_context
+
+                billing_ctx = get_billing_context()
+                if billing_ctx is not None:
+                    # 批量模式：只记录日志，不扣费，累积到上下文
+                    await record_to_billing_context(
+                        log_id=str(ai_call_log.id),
+                        cost_data=cost_data,
+                        usage_info=usage_info,
                         model_name=model_to_track,
-                        ai_call_log_id=ai_call_log.id,
                     )
                     logger.debug(
-                        "[Agent计费] 累积第%d次调用: tokens=%d, cost=$%.6f",
-                        billing_acc.call_count,
-                        prompt_tokens + completion_tokens,
-                        cost_data["total_cost"],
+                        f"[成本追踪] 聚合模式：日志已记录，费用累积到 BillingContext "
+                        f"(call #{billing_ctx.call_count})"
                     )
-                    # 跳过下面的独立积分扣除，直接到日志记录
-                else:
-                    # ==================== 积分扣除（非 Agent 场景） ====================
-                    try:
-                        from app.services.credits.credit_service import CreditService
-                        from app.services.credits.credit_utils import calculate_credits_from_cost
-                        from app.services.credits.credit_exceptions import (
-                            InsufficientCreditsError,
-                            CreditsExpiredError,
+                    return {
+                        "ai_call_log": ai_call_log,
+                        "credits_deducted": None,
+                        "user_id": user_id,
+                        "is_admin": billing_ctx.is_admin,
+                    }
+
+                # ==================== 积分扣除 ====================
+                try:
+                    from app.services.credits.credit_service import CreditService
+                    from app.services.credits.credit_utils import calculate_credits_from_cost
+                    from app.services.credits.credit_exceptions import (
+                        InsufficientCreditsError,
+                        CreditsExpiredError,
+                    )
+                    from app.models.user import User
+                    from sqlalchemy import select
+
+                    user_stmt = select(User).where(User.id == UUID(user_id))
+                    user_result = await db_session.execute(user_stmt)
+                    user = user_result.scalar_one_or_none()
+
+                    if user:
+                        is_admin_user = user.is_admin
+                        credit_service = CreditService(db_session)
+                        credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
+
+                        transaction = await credit_service.consume(
+                            user_id=UUID(user_id),
+                            amount=credits_to_deduct,
+                            description=f"AI调用: {task_type.value if task_type else 'unknown'}",
+                            related_id=ai_call_log.id,
+                            skip_check=user.is_admin,
+                            auto_commit=should_auto_commit,
                         )
-                        from app.models.user import User
-                        from sqlalchemy import select
 
-                        user_stmt = select(User).where(User.id == UUID(user_id))
-                        user_result = await db_session.execute(user_stmt)
-                        user = user_result.scalar_one_or_none()
-
-                        if user:
-                            is_admin_user = user.is_admin
-                            credit_service = CreditService(db_session)
-                            credits_to_deduct = calculate_credits_from_cost(cost_data["total_cost"])
-
-                            transaction = await credit_service.consume(
-                                user_id=UUID(user_id),
-                                amount=credits_to_deduct,
-                                description=f"AI调用: {task_type.value if task_type else 'unknown'}",
-                                related_id=ai_call_log.id,
-                                skip_check=user.is_admin,
-                                auto_commit=should_auto_commit,
+                        if transaction:
+                            credits_deducted = credits_to_deduct
+                            logger.debug(
+                                f"[积分扣除] 用户 {user_id}: 扣除 {float(credits_to_deduct)} 积分, "
+                                f"余额: {float(transaction.balance_before)} → {float(transaction.balance_after)}"
                             )
-
-                            if transaction:
-                                credits_deducted = credits_to_deduct
-                                logger.debug(
-                                    f"[积分扣除] 用户 {user_id}: 扣除 {float(credits_to_deduct)} 积分, "
-                                    f"余额: {float(transaction.balance_before)} → {float(transaction.balance_after)}"
-                                )
-                            else:
-                                logger.debug(f"[积分扣除] 管理员 {user_id} 豁免积分扣除")
                         else:
-                            logger.warning(f"[积分扣除] 用户 {user_id} 不存在，跳过扣除")
+                            logger.debug(f"[积分扣除] 管理员 {user_id} 豁免积分扣除")
+                    else:
+                        logger.warning(f"[积分扣除] 用户 {user_id} 不存在，跳过扣除")
 
-                    except InsufficientCreditsError as e:
-                        logger.error(
-                            f"[积分扣除] 用户 {user_id} 余额不足: "
-                            f"需要 {float(e.required)} 积分，当前 {float(e.available)} 积分"
-                        )
-                        await db_session.rollback()
-                        from fastapi import HTTPException
+                except InsufficientCreditsError as e:
+                    logger.error(
+                        f"[积分扣除] 用户 {user_id} 余额不足: "
+                        f"需要 {float(e.required)} 积分，当前 {float(e.available)} 积分"
+                    )
+                    await db_session.rollback()
+                    from fastapi import HTTPException
 
-                        raise HTTPException(
-                            status_code=402,
-                            detail=f"积分余额不足：需要 {float(e.required):.2f} 积分，当前余额 {float(e.available):.2f} 积分。请先充值。",
-                        )
-                    except CreditsExpiredError as e:
-                        logger.error(f"[积分扣除] 用户 {user_id} 积分已过期: {e.expired_at}")
-                        await db_session.rollback()
-                        from fastapi import HTTPException
+                    raise HTTPException(
+                        status_code=402,
+                        detail=f"积分余额不足：需要 {float(e.required):.2f} 积分，当前余额 {float(e.available):.2f} 积分。请先充值。",
+                    )
+                except CreditsExpiredError as e:
+                    logger.error(f"[积分扣除] 用户 {user_id} 积分已过期: {e.expired_at}")
+                    await db_session.rollback()
+                    from fastapi import HTTPException
 
-                        raise HTTPException(
-                            status_code=402,
-                            detail=f"积分已于 {e.expired_at} 过期，请联系管理员。",
-                        )
-                    except ValueError as e:
-                        logger.error(f"[积分扣除] {str(e)}")
-                        await db_session.rollback()
-                        from fastapi import HTTPException
+                    raise HTTPException(
+                        status_code=402,
+                        detail=f"积分已于 {e.expired_at} 过期，请联系管理员。",
+                    )
+                except ValueError as e:
+                    logger.error(f"[积分扣除] {str(e)}")
+                    await db_session.rollback()
+                    from fastapi import HTTPException
 
-                        raise HTTPException(
-                            status_code=500,
-                            detail="积分系统错误：用户积分记录不存在。",
-                        )
-                    except Exception as e:
-                        logger.error(f"[积分扣除] 扣除失败: {type(e).__name__}: {str(e)}")
-                        logger.warning("[积分扣除] 扣除失败，但AI调用日志已记录")
-                    # ================================================
+                    raise HTTPException(
+                        status_code=500,
+                        detail="积分系统错误：用户积分记录不存在。",
+                    )
+                except Exception as e:
+                    logger.error(f"[积分扣除] 扣除失败: {type(e).__name__}: {str(e)}")
+                    logger.warning("[积分扣除] 扣除失败，但AI调用日志已记录")
+                # ================================================
 
             logger.debug(
                 f"[AILogService] API调用已记录到数据库 (来源:{source}): "

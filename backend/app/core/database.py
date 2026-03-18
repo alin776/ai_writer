@@ -122,7 +122,27 @@ async def init_db():
         try:
             logger.info(f"正在初始化数据库... (尝试 {attempt + 1}/{max_retries})")
             async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+                # 检测 pgvector 扩展是否可用（用 savepoint 隔离，防止失败污染事务）
+                pgvector_available = False
+                try:
+                    await conn.execute(sa.text("SAVEPOINT pgvector_check"))
+                    await conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
+                    await conn.execute(sa.text("RELEASE SAVEPOINT pgvector_check"))
+                    pgvector_available = True
+                except Exception:
+                    await conn.execute(sa.text("ROLLBACK TO SAVEPOINT pgvector_check"))
+                    logger.warning("⚠️ pgvector 扩展未安装，跳过向量表创建。向量相关功能将不可用。")
+
+                # 根据 pgvector 可用性决定创建哪些表
+                if pgvector_available:
+                    await conn.run_sync(Base.metadata.create_all)
+                else:
+                    tables_to_create = [
+                        t for t in Base.metadata.sorted_tables
+                        if t.name != "novel_analysis_vectors"
+                    ]
+                    await conn.run_sync(Base.metadata.create_all, tables=tables_to_create)
+
                 await conn.run_sync(_ensure_worldview_version_column)
             logger.info("✅ 数据库初始化成功")
             return
