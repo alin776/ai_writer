@@ -60,6 +60,10 @@ services:
       dockerfile: Dockerfile
     container_name: wenshu_backend
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 4G
     env_file:
       - ./backend/.env.prod
     environment:

@@ -18,6 +18,7 @@ import re
 import uuid
 import yaml
 import redis
+import time as _time
 from pathlib import Path, PurePosixPath
 from datetime import datetime, timedelta
 from app.utils.datetime_utils import get_utc_now
@@ -819,8 +820,55 @@ async def get_agent_session_messages(
 
 # 待审批 backend 缓存："{user_id}:{conversation_id}" → BufferedFilesystemBackend
 _pending_backends: dict[str, Any] = {}
+_pending_access_times: dict[str, float] = {}  # key → 最后访问的 time.time() 时间戳
+_PENDING_TTL = 30 * 60   # 30 分钟无访问则从内存驱逐（磁盘 JSON 保留）
+_PENDING_MAX_SIZE = 50    # 内存中最多保留 50 个 backend（LRU 兜底）
+
 # 并发锁：防止同一 work 的并发写入冲突
 _work_locks: dict[str, _asyncio.Lock] = {}
+_work_lock_access_times: dict[str, float] = {}  # key → 最后使用的 time.time() 时间戳
+_WORK_LOCK_TTL = 60 * 60  # 1 小时无使用则清理
+
+
+def _evict_stale_pending() -> None:
+    """驱逐内存中过期的 pending backends（磁盘 JSON 保留），并清理闲置的 work locks。"""
+    try:
+        now = _time.time()
+
+        # ── 1. TTL 驱逐：清理超过 30 分钟无访问的 pending backends ──
+        expired_keys = [
+            k for k, t in _pending_access_times.items()
+            if now - t > _PENDING_TTL
+        ]
+        for k in expired_keys:
+            _pending_backends.pop(k, None)
+            _pending_access_times.pop(k, None)
+
+        # ── 2. LRU 兜底：超过 max size 时淘汰最老的 ──
+        overflow = len(_pending_backends) - _PENDING_MAX_SIZE
+        if overflow > 0:
+            sorted_keys = sorted(_pending_access_times, key=_pending_access_times.get)
+            for k in sorted_keys[:overflow]:
+                _pending_backends.pop(k, None)
+                _pending_access_times.pop(k, None)
+            expired_keys.extend(sorted_keys[:overflow])
+
+        if expired_keys:
+            logger.info("[Pending] evicted %d stale entries from memory", len(expired_keys))
+
+        # ── 3. 顺便清理闲置的 work locks ──
+        stale_locks = [
+            k for k, t in _work_lock_access_times.items()
+            if now - t > _WORK_LOCK_TTL
+            and (k not in _work_locks or not _work_locks[k].locked())
+        ]
+        for k in stale_locks:
+            _work_locks.pop(k, None)
+            _work_lock_access_times.pop(k, None)
+        if stale_locks:
+            logger.info("[WorkLocks] cleaned %d stale locks", len(stale_locks))
+    except Exception as e:
+        logger.warning("[Eviction] cleanup failed (non-fatal): %s", e)
 
 # 全局 Redis checkpointer（跨请求共享，按 thread_id 隔离对话状态）
 _checkpointer = None
@@ -867,6 +915,7 @@ def _load_pending(key: str):
         backend = BufferedFilesystemBackend.load_pending(_pending_path(user_id, conv_id))
         if backend:
             _pending_backends[key] = backend
+            _pending_access_times[key] = _time.time()
         return backend
     except Exception as e:
         logger.warning(f"[Pending] load failed for {key}: {e}")
@@ -1035,6 +1084,7 @@ async def agent_v2_chat_stream(
             work_key = f"{user_id}:{request.work_id}"
             if work_key not in _work_locks:
                 _work_locks[work_key] = _asyncio.Lock()
+            _work_lock_access_times[work_key] = _time.time()
 
             async with _work_locks[work_key]:
                 # 创建 Agent + Backend（传入 checkpointer 实现跨轮次记忆）
@@ -1492,7 +1542,9 @@ async def agent_v2_chat_stream(
                 if changes:
                     backend_key = f"{user_id}:{conversation_id}"
                     _pending_backends[backend_key] = backend
+                    _pending_access_times[backend_key] = _time.time()
                     _save_pending(backend_key, backend)
+                    _evict_stale_pending()  # 搭车清理过期条目
 
                 # ── 改动 D：done 事件附加 token_usage ──
                 done_event = {
@@ -1859,6 +1911,7 @@ async def get_v2_changes(
     backend = _pending_backends.get(backend_key) or _load_pending(backend_key)
     if not backend:
         return V2ChangesResponse(conversation_id=conversation_id, changes=[])
+    _pending_access_times[backend_key] = _time.time()
     return V2ChangesResponse(
         conversation_id=conversation_id,
         changes=backend.get_changes(),
@@ -1874,9 +1927,11 @@ async def accept_v2_changes(
     """全部接受：将缓冲区写入磁盘。"""
     backend_key = f"{current_user.id}:{conversation_id}"
     backend = _pending_backends.pop(backend_key, None)
+    _pending_access_times.pop(backend_key, None)
     if not backend:
         backend = _load_pending(backend_key)
         _pending_backends.pop(backend_key, None)
+        _pending_access_times.pop(backend_key, None)
     if not backend:
         raise HTTPException(status_code=404, detail="No pending changes")
 
@@ -1937,9 +1992,11 @@ async def reject_v2_changes(
     """全部拒绝：丢弃缓冲区。"""
     backend_key = f"{current_user.id}:{conversation_id}"
     backend = _pending_backends.pop(backend_key, None)
+    _pending_access_times.pop(backend_key, None)
     if not backend:
         backend = _load_pending(backend_key)
         _pending_backends.pop(backend_key, None)
+        _pending_access_times.pop(backend_key, None)
     if not backend:
         raise HTTPException(status_code=404, detail="No pending changes")
     backend.discard()
@@ -1964,6 +2021,7 @@ async def accept_v2_single_change(
     backend = _pending_backends.get(backend_key) or _load_pending(backend_key)
     if not backend:
         raise HTTPException(status_code=404, detail="No pending changes")
+    _pending_access_times[backend_key] = _time.time()
 
     # 先捕获受影响路径（尤其是 rename 需要 old/new 两个路径），再执行 flush_single
     changes = backend.get_changes()
@@ -2033,6 +2091,7 @@ async def accept_v2_single_change(
     # 缓冲区清空后移除
     if not backend.get_changes():
         _pending_backends.pop(backend_key, None)
+        _pending_access_times.pop(backend_key, None)
         _delete_pending(backend_key)
         # 防御性清理：释放可能关联的 Docker 沙盒
         if hasattr(backend, 'cleanup_sandbox'):
@@ -2059,6 +2118,7 @@ async def reject_v2_single_change(
     backend = _pending_backends.get(backend_key) or _load_pending(backend_key)
     if not backend:
         raise HTTPException(status_code=404, detail="No pending changes")
+    _pending_access_times[backend_key] = _time.time()
 
     ok = backend.discard_single(index)
     if not ok:
@@ -2067,6 +2127,7 @@ async def reject_v2_single_change(
     # 缓冲区清空后移除
     if not backend.get_changes():
         _pending_backends.pop(backend_key, None)
+        _pending_access_times.pop(backend_key, None)
         _delete_pending(backend_key)
         # 防御性清理：释放可能关联的 Docker 沙盒
         if hasattr(backend, 'cleanup_sandbox'):
