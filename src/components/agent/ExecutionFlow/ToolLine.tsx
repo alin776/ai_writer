@@ -33,6 +33,8 @@ const TOOL_VERB_MAP: Record<string, string> = {
   skill: 'Skill',
   skill_switch: 'Switch',
   execute: 'Run',
+  web_search: 'Web Search',
+  fetch_url: 'Fetch',
 };
 
 /**
@@ -81,6 +83,14 @@ function formatToolLine(toolName?: string, toolInput?: any, fallbackTitle?: stri
     case 'execute': {
       const cmd = String(toolInput.command || '').slice(0, 60);
       return `${verb}(${cmd})`;
+    }
+    case 'web_search': {
+      const query = String(toolInput.query || '').slice(0, 50);
+      return `${verb}("${query}")`;
+    }
+    case 'fetch_url': {
+      const url = String(toolInput.url || '').slice(0, 60);
+      return `${verb}(${url})`;
     }
     default:
       return verb;
@@ -182,10 +192,14 @@ export function ToolLine({
           {displayText}
         </span>
       </div>
-      {/* 错误描述（工具失败时显示） */}
-      {status === 'error' && description && (
-        <div className="ml-4 text-xs text-red-500 dark:text-red-400 break-all">
-          {description}
+      {/* 完成/错误描述 */}
+      {description && (status === 'error' || (status === 'done' && (toolName === 'web_search' || toolName === 'fetch_url'))) && (
+        <div className={`ml-4 text-base font-mono ${
+          status === 'error'
+            ? 'text-red-500 dark:text-red-400'
+            : 'text-gray-400 dark:text-gray-500'
+        }`}>
+          └ {description}
         </div>
       )}
       {/* 子步骤嵌套区（仅 task 步骤） */}

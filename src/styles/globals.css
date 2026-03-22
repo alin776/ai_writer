@@ -36,6 +36,14 @@
   color: #e2e8f0 !important;
 }
 
+/* Streamdown 外部链接确认弹窗 - 修复 Open link 按钮在浅色/暗色模式下文字不可见 */
+[data-streamdown="link-safety-modal"] {
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #ffffff;
+}
+
 /* Streamdown 粗体文字 - ChatGPT 风格高对比 */
 [data-streamdown] strong {
   font-weight: 700 !important;
