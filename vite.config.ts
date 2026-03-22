@@ -13,15 +13,18 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+    watch: {
+      ignored: ['**/backend/**', '**/opencode/**', '**/node_modules/**', '**/.git/**'],
+    },
     proxy: {
       // WebSocket 代理需要单独配置
       '/api/v1/ws': {
-        target: 'ws://localhost:8000',
+        target: 'ws://localhost:8001',
         ws: true,
         changeOrigin: true,
       },
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8001',
         changeOrigin: true,
         secure: false,
       },

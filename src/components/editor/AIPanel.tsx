@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import { useDebouncedCallback } from 'use-debounce';
 import { Button } from '../ui/button';
-import { Send, Loader2, Square, BookOpen, ChevronRight, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus, Zap, Search, Settings } from 'lucide-react';
+import { Send, Loader2, Square, BookOpen, ChevronRight, ChevronUp, ChevronDown, Tag, X, Copy, Check, Plus, Zap, Search, Settings, Paperclip } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
@@ -309,7 +309,7 @@ MarkdownContent.displayName = 'MarkdownContent';
 type AtCommandStage = 'root' | 'knowledge' | 'skills';
 
 type RootCommandOption = {
-  key: 'knowledge' | 'skills';
+  key: 'knowledge' | 'skills' | 'upload';
   label: string;
   description: string;
   icon: React.ReactNode;
@@ -317,6 +317,13 @@ type RootCommandOption = {
 };
 
 const ROOT_OPTIONS: RootCommandOption[] = [
+  {
+    key: 'upload',
+    label: '从本地文件添加',
+    description: '上传本地文件到知识库',
+    icon: <Paperclip className="w-4 h-4" />,
+    hasChildren: false,
+  },
   {
     key: 'knowledge',
     label: '从知识库中添加',
@@ -485,10 +492,12 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
   }, [hasOperations, isLoading, workId, chapterId]);
   const menuRef = useRef<HTMLDivElement>(null);
   const knowledgeListRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   const [selectedDocs, setSelectedDocs] = useState<Array<{ id: string; title: string }>>([]);
   const [selectedSkill, setSelectedSkill] = useState<{ name: string; description: string; group: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [skillsList, setSkillsList] = useState<Array<{ name: string; description: string; group: string }>>([]);
   const [skillsLoading, setSkillsLoading] = useState(false);
   const [skillTooltip, setSkillTooltip] = useState<{ description: string; x: number; y: number } | null>(null);
@@ -1217,6 +1226,11 @@ ${context.selected_text}
 
   const handleRootOption = useCallback(
     (option: RootCommandOption) => {
+      if (option.key === 'upload') {
+        closeAtMenu();
+        requestAnimationFrame(() => fileInputRef.current?.click());
+        return;
+      }
       if (option.key === 'skills') {
         setKnowledgePanelOpen(false);
         setAtStage('skills');
@@ -1231,7 +1245,7 @@ ${context.selected_text}
       setHighlightIndex(0);
       setAtMenuOpen(true);
     },
-    []
+    [closeAtMenu]
   );
 
   const handleRootHover = useCallback(
@@ -1298,6 +1312,97 @@ ${context.selected_text}
   const removeSkill = useCallback(() => {
     setSelectedSkill(null);
   }, []);
+
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounter = useRef(0);
+
+  const processUploadFile = useCallback(
+    async (file: File) => {
+      if (!workId) return;
+
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (!ext || !['txt', 'md', 'pdf', 'docx'].includes(ext)) {
+        showError('文件类型不支持', '仅支持 .txt, .md, .pdf, .docx 文件');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        showError('文件过大', '文件大小不能超过 5MB');
+        return;
+      }
+
+      setIsUploading(true);
+      try {
+        const newTree = await docsFs.uploadKnowledge(workId, file);
+
+        const stem = file.name.includes('.')
+          ? file.name.slice(0, file.name.lastIndexOf('.'))
+          : file.name;
+        const expectedPath = `knowledge/${stem}.md`;
+
+        setSelectedDocs((prev) =>
+          prev.find((d) => d.id === expectedPath)
+            ? prev
+            : [...prev, { id: expectedPath, title: stem }]
+        );
+        setKnowledgeDocs((prev) => {
+          if (prev.find((d) => d.id === expectedPath)) return prev;
+          return [...prev, { id: expectedPath, title: stem }];
+        });
+        setKnowledgeLoadedOnce(false);
+
+        window.dispatchEvent(
+          new CustomEvent('knowledge-uploaded', { detail: { workId, tree: newTree } })
+        );
+      } catch (err: any) {
+        const detail = err?.response?.data?.detail || err?.message || '上传失败';
+        showError('上传失败', typeof detail === 'string' ? detail : '上传失败');
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [workId, showError]
+  );
+
+  const handleFileUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) processUploadFile(file);
+      e.target.value = '';
+    },
+    [processUploadFile]
+  );
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processUploadFile(file);
+  }, [processUploadFile]);
 
   const adjustInputHeight = useCallback(() => {
     const el = inputRef.current;
@@ -1559,7 +1664,17 @@ ${selectionContext.selected_text}
           </h1>
 
           {/* 居中的输入框区域 */}
-          <div className="w-full max-w-2xl rounded-3xl bg-white border border-gray-200 px-4 py-3 space-y-3 dark:bg-slate-800 dark:border-slate-700">
+          <div
+            className={`w-full max-w-2xl rounded-3xl bg-white border px-4 py-3 space-y-3 dark:bg-slate-800 transition-colors ${
+              isDragOver
+                ? 'border-blue-400 border-dashed bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20'
+                : 'border-gray-200 dark:border-slate-700'
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
             <div className="relative">
               <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
                 {/* 选中文本前置 */}
@@ -1624,6 +1739,18 @@ ${selectionContext.selected_text}
                     </button>
                   </span>
                 ))}
+                {isUploading && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    上传中...
+                  </span>
+                )}
+                {isDragOver && !isUploading && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">
+                    <Paperclip className="w-3 h-3" />
+                    松开以上传文件
+                  </span>
+                )}
 
                 <textarea
                   ref={inputRef}
@@ -2157,7 +2284,17 @@ ${selectionContext.selected_text}
                 </button>
               </div>
             )}
-            <div className="rounded-3xl bg-white border border-gray-200 px-4 py-3 space-y-3 flex-shrink-0 dark:bg-slate-800 dark:border-slate-700">
+            <div
+              className={`rounded-3xl bg-white border px-4 py-3 space-y-3 flex-shrink-0 dark:bg-slate-800 transition-colors ${
+                isDragOver
+                  ? 'border-blue-400 border-dashed bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20'
+                  : 'border-gray-200 dark:border-slate-700'
+              }`}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
             <div className="relative">
               <div className="flex flex-wrap items-start gap-2 w-full min-h-12 px-1 py-2 rounded-xl bg-transparent text-gray-800 dark:text-slate-200">
                 {/* 选中文本前置（放在后，保持同一行逻辑）*/}
@@ -2222,6 +2359,18 @@ ${selectionContext.selected_text}
                     </button>
                   </span>
                 ))}
+                {isUploading && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    上传中...
+                  </span>
+                )}
+                {isDragOver && !isUploading && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">
+                    <Paperclip className="w-3 h-3" />
+                    松开以上传文件
+                  </span>
+                )}
 
                 <textarea
                   ref={inputRef}
@@ -2669,6 +2818,15 @@ ${selectionContext.selected_text}
         </div>,
         document.body
       )}
+
+      {/* Hidden file input for local file upload to knowledge */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,.md,.pdf,.docx"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
     </div>
   );
 }

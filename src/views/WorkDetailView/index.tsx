@@ -2191,6 +2191,18 @@ const WorkDetailView: React.FC = () => {
     };
   }, [workId, currentChapterId, handleChapterSelect, isEditorCollapsed, chapters, openEditorTab]);
 
+  // 监听 AIPanel 上传知识库文件后刷新文件树
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.workId === workId && detail?.tree) {
+        setFileTree(detail.tree);
+      }
+    };
+    window.addEventListener('knowledge-uploaded', handler);
+    return () => window.removeEventListener('knowledge-uploaded', handler);
+  }, [workId]);
+
   // 如果 workId 不存在，不渲染任何内容（路由已切换到其他页面）
   if (!workId) {
     return null;
