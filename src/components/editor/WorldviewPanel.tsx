@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { formatUserError } from '../../utils/formatUserError';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import { Progress } from '../ui/progress';
@@ -108,7 +109,7 @@ export function WorldviewPanel({
       setSyncChanges(changes);
     } catch (err: any) {
       console.error('扫描世界观变化失败:', err);
-      setSyncError(err.message || '扫描失败，请稍后重试');
+      setSyncError(formatUserError(err.message));
     } finally {
       setSyncLoading(false);
     }
@@ -150,7 +151,7 @@ export function WorldviewPanel({
       onWorldDataUpdate?.();
     } catch (err: any) {
       console.error('应用世界观变化失败:', err);
-      showError('应用失败', err.message || '请稍后重试');
+      showError('应用失败', formatUserError(err.message));
     } finally {
       setSyncApplying(false);
     }
@@ -237,9 +238,9 @@ export function WorldviewPanel({
       finishSyncProgress('success', message);
     } catch (err: any) {
       console.error('卡片同步到知识库失败:', err);
-      const errorMsg = err?.message || '请稍后重试';
-      showError('同步失败', errorMsg);
-      finishSyncProgress('error', errorMsg);
+      const userMsg = formatUserError(err?.message);
+      showError('同步失败', userMsg);
+      finishSyncProgress('error', userMsg);
     } finally {
       setSyncingKnowledge(false);
     }
@@ -301,9 +302,9 @@ export function WorldviewPanel({
       onWorldDataUpdate?.();
     } catch (err: any) {
       console.error('\u6587\u4ef6\u540c\u6b65\u5230\u4e16\u754c\u89c2\u5931\u8d25:', err);
-      const errorMsg = err?.message || '\u8bf7\u7a0d\u540e\u91cd\u8bd5';
-      showError('\u540c\u6b65\u5931\u8d25', errorMsg);
-      finishSyncProgress('error', errorMsg);
+      const userMsg = formatUserError(err?.message);
+      showError('\u540c\u6b65\u5931\u8d25', userMsg);
+      finishSyncProgress('error', userMsg);
     } finally {
       setSyncingKnowledgeToWorldview(false);
     }

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { formatUserError } from '@/utils/formatUserError';
 import { ImportOptions, ImportPreviewResponse } from '@/types/export';
 import type { Work } from '@/types';
 import { DataService } from '@/services/DataService';
@@ -89,7 +90,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
       setPreview(previewData);
     } catch (err: any) {
       console.error('预览失败:', err);
-      setError(err.detail || err.message || '预览失败，请检查文件格式');
+      setError(formatUserError(err.detail || err.message));
       setPreview(null);
     } finally {
       setPreviewing(false);
@@ -153,7 +154,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({ onClose, onSuccess }) => {
       onClose();
     } catch (err: any) {
       console.error('导入失败:', err);
-      setError(err.detail || err.message || '导入失败，请稍后重试');
+      setError(formatUserError(err.detail || err.message));
     } finally {
       setLoading(false);
     }

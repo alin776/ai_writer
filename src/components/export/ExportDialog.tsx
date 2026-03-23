@@ -2,6 +2,7 @@
  * 导出对话框组件
  */
 import React, { useState } from 'react';
+import { formatUserError } from '@/utils/formatUserError';
 import { ExportOptions } from '@/types/export';
 import { DataService } from '@/services/DataService';
 import { Download, X, FileJson, FileText, Loader2 } from 'lucide-react';
@@ -64,7 +65,7 @@ const ExportDialog: React.FC<ExportDialogProps> = ({ workId, workTitle, onClose 
       onClose();
     } catch (err: any) {
       console.error('导出失败:', err);
-      setError(err.message || '导出失败，请稍后重试');
+      setError(formatUserError(err.message));
     } finally {
       setLoading(false);
     }

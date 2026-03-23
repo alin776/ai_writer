@@ -12,6 +12,7 @@ import {
   Flag,
   Trash2,
 } from 'lucide-react';
+import { formatUserError } from '@/utils/formatUserError';
 import { Novel } from './NovelCard';
 import { ImageWithFallback } from './ImageWithFallback';
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -909,11 +910,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
       setReportDescription('');
     } catch (error: any) {
       console.error('举报失败:', error);
-      if (error?.response?.data?.detail) {
-        showError(error.response.data.detail);
-      } else {
-        showError('举报失败，请重试');
-      }
+      showError(formatUserError(error?.response?.data?.detail || error?.message));
     }
   };
 
@@ -936,11 +933,7 @@ export function NovelDetail({ novel, onBack, isFromBookshelf = false, source = '
       setDeleteCommentId(null);
     } catch (error: any) {
       console.error('删除失败:', error);
-      if (error?.response?.data?.detail) {
-        showError(error.response.data.detail);
-      } else {
-        showError('删除失败，请重试');
-      }
+      showError(formatUserError(error?.response?.data?.detail || error?.message));
     }
   };
 

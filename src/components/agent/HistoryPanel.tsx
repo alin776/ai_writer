@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatUserError } from '@/utils/formatUserError';
 import { agentApi } from '@/services/agentApi';
 import type { HistorySessionItem } from '@/types/agent';
 import { getChapterTabs, saveTab, deleteTab, removeTabFromChapter } from '@/utils/tabStorage';
@@ -100,7 +101,7 @@ export default function HistoryPanel({
       console.log('[HistoryPanel] 加载历史会话成功:', enriched.length);
     } catch (err: any) {
       console.error('[HistoryPanel] 加载历史会话失败:', err);
-      setError(err.response?.data?.detail || err.message || '加载失败');
+      setError(formatUserError(err.response?.data?.detail || err.message));
     } finally {
       setIsLoading(false);
     }
@@ -250,7 +251,7 @@ export default function HistoryPanel({
       onClose();
     } catch (err: any) {
       console.error('[HistoryPanel] 恢复会话失败:', err);
-      alert(`恢复失败: ${err.message}`);
+      setError(formatUserError(err.message));
     } finally {
       setRestoringSessionId(null);
     }

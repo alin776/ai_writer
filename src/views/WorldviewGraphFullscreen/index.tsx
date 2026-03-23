@@ -3,6 +3,7 @@
  * 提供专业的关系图编辑体验
  */
 import React, { useState, useEffect } from 'react';
+import { formatUserError } from '@/utils/formatUserError';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -1253,8 +1254,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                     target_id: panelCreateRelationshipData?.targetId,
                   }
                 });
-                const errorDetail = error.response?.data?.detail || error.message || '未知错误';
-                showToast('error', `创建失败: ${errorDetail}`);
+                showToast('error', formatUserError(error.response?.data?.detail || error.message));
                 throw error;
               }
             }}
@@ -1328,8 +1328,7 @@ const WorldviewGraphFullscreen: React.FC = () => {
                 showToast('success', '关系已更新');
               } catch (error: any) {
                 console.error('更新关系失败:', error);
-                const errorDetail = error.response?.data?.detail || error.message || '未知错误';
-                showToast('error', `更新失败: ${errorDetail}`);
+                showToast('error', formatUserError(error.response?.data?.detail || error.message));
                 throw error;
               }
             }}

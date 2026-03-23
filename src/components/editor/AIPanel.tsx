@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAgentChat } from '../../hooks/useAgentChat';
 import { useEditorStore } from '../../store/editorStore';
 import { useChatDraftStore } from '../../store/chatDraftStore';
+import { formatUserError } from '../../utils/formatUserError';
 import { agentApi } from '../../services/agentApi';  // v7.5: 非阻塞式修订
 import { changesApi } from '../../services/changesApi';  // V2 Changes API
 import { DataService } from '../../services/DataService';
@@ -602,8 +603,7 @@ export function AIPanel({ workId, chapterId, sessionId, onTitleChange, isActive 
       showSuccess('添加成功', '内容已保存到知识库');
     } catch (error: any) {
       console.error('Failed to add knowledge:', error);
-      const errorMessage = error?.response?.data?.detail || error?.message || '添加失败，请稍后重试';
-      showError('添加失败', errorMessage);
+      showError('添加失败', formatUserError(error?.response?.data?.detail || error?.message));
     } finally {
       setKnowledgeSubmitting(false);
     }
@@ -1354,8 +1354,7 @@ ${context.selected_text}
           new CustomEvent('knowledge-uploaded', { detail: { workId, tree: newTree } })
         );
       } catch (err: any) {
-        const detail = err?.response?.data?.detail || err?.message || '上传失败';
-        showError('上传失败', typeof detail === 'string' ? detail : '上传失败');
+        showError('上传失败', formatUserError(err?.response?.data?.detail || err?.message));
       } finally {
         setIsUploading(false);
       }
@@ -2204,7 +2203,7 @@ ${selectionContext.selected_text}
           <div className="flex items-start">
             <div className="flex-1 p-2.5 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800">
               <p className="text-[11px] leading-relaxed text-red-600 dark:text-red-400">
-                {error}
+                {formatUserError(error)}
               </p>
             </div>
           </div>

@@ -1,5 +1,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { formatUserError } from '@/utils/formatUserError';
 import { agentApi } from '@/services/agentApi';
 import { changesApi } from '@/services/changesApi';
 import { DataService } from '@/services/DataService';
@@ -512,13 +513,10 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
 
         return response;
       } catch (err: any) {
-        const errorMessage = err.response?.data?.detail || err.message || '????';
+        const errorMessage = formatUserError(err.response?.data?.detail || err.message || '');
         const errorAgentMessage: Message = {
           role: 'agent',
-          content:
-            'Sorry, something went wrong: ' +
-            errorMessage +
-            '\\n\\nPlease try again later or contact support.',
+          content: errorMessage,
           timestamp: new Date().toISOString()
         };
         const updated = [...withUser, errorAgentMessage];
@@ -1429,23 +1427,22 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                 cancelAnimationFrame(flowUpdateRafRef.current);
                 flowUpdateRafRef.current = null;
               }
-              const errorMessage = errorMsg || '未知错误';
+              const rawError = errorMsg || '';
+              const isAbort =
+                stopRequestedRef.current ||
+                rawError.toLowerCase().includes('abort') ||
+                rawError.toLowerCase().includes('cancel');
+              const errorMessage = isAbort ? '对话已停止。' : formatUserError(rawError);
               const currentSession = sessionManager.getSession(sessionId);
               const currentMessages = currentSession?.messages || baseMessages;
               const updated = [...currentMessages];
-              const isAbort =
-                stopRequestedRef.current ||
-                errorMessage.toLowerCase().includes('abort') ||
-                errorMessage.toLowerCase().includes('cancel');
               if (updated[agentMessageIndex]) {
                 // v5.1: 保留 flowItems（优先从 pending 中获取最完整的状态）
                 const existingFlowItems = pendingFlowItemsRef.current || (updated[agentMessageIndex] as Message).flowItems || [];
                 pendingFlowItemsRef.current = null;
                 updated[agentMessageIndex] = {
                   role: 'agent',
-                  content: isAbort
-                    ? '对话已停止。'
-                    : '抱歉，遇到了问题：' + errorMessage + '\\n\\n请稍后重试，或联系管理员。',
+                  content: errorMessage,
                   timestamp: new Date().toISOString(),
                   flowItems: existingFlowItems,  // v5.1: 保留执行轨迹
                 };
@@ -1473,17 +1470,16 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
           }
         );
       } catch (err: any) {
-        const errorMessage = err.message || '未知错误';
-        const isAbort = stopRequestedRef.current || errorMessage.toLowerCase().includes('abort');
+        const rawError = err.message || '';
+        const isAbort = stopRequestedRef.current || rawError.toLowerCase().includes('abort');
+        const errorMessage = isAbort ? '对话已停止。' : formatUserError(rawError);
         const currentSession = sessionManager.getSession(sessionId);
         const currentMessages = currentSession?.messages || [];
         const updated = [...currentMessages];
         if (updated.length > 0 && updated[updated.length - 1].role === 'agent') {
           updated[updated.length - 1] = {
             ...updated[updated.length - 1],
-            content: isAbort
-              ? '对话已停止。'
-              : '抱歉，遇到了问题：' + errorMessage + '\\n\\n请稍后重试，或联系管理员。',
+            content: errorMessage,
             timestamp: new Date().toISOString(),
           };
         } else if (isAbort) {
@@ -1748,7 +1744,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
       } catch (err: any) {
         console.error('[useAgentChat] submit approval failed:', err);
         sessionManager.updateSession(sessionId, {
-          error: err.response?.data?.detail || err.message || 'Approval failed',
+          error: formatUserError(err.response?.data?.detail || err.message || ''),
           pendingApproval: null  // 🆕 错误时也清理状态
         });
       }

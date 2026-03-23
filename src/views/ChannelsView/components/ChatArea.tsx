@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { formatUserError } from '@/utils/formatUserError';
 import { useNavigate } from 'react-router-dom';
 import { Send, AtSign, Megaphone, MoreVertical, Smile, Reply, AlertCircle, X, Users, Trash2, ArrowDown, Mail, Search, Edit2, Pin, Upload, Star, PanelLeftClose, PanelLeft, Image, MessageCircle, BookOpen, Coffee, FlaskConical, Hash, Forward, BellOff, Bell, UserPlus, User, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -1109,7 +1110,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       // WebSocket 会广播删除事件，父组件通过 onMessageDelete 回调更新消息列表
       showSuccess('消息已删除');
     } catch (error: any) {
-      showError(error.response?.data?.detail || '删除失败');
+      showError(formatUserError(error.response?.data?.detail || error?.message));
     }
   };
 
@@ -1123,7 +1124,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
       setEditContent('');
       // WebSocket 会广播更新，无需手动刷新
     } catch (error: any) {
-      alert(error.response?.data?.detail || '编辑失败');
+      console.warn('[ChatArea] 编辑失败:', error);
+      alert('编辑失败，请稍后重试。');
     }
   };
 
@@ -1826,7 +1828,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                       }
                       onPinChange?.();
                     } catch (error: any) {
-                      showError(error.response?.data?.detail || (message.isPinned ? '取消置顶失败' : '置顶失败'));
+                      showError(formatUserError(error.response?.data?.detail || error?.message));
                     }
                   }}
                   onReport={() => {
@@ -2442,7 +2444,8 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                           }
                           onPinChange?.();
                         } catch (error: any) {
-                          alert(error.response?.data?.detail || (message.isPinned ? '取消置顶失败' : '置顶失败'));
+                          console.warn('[ChatArea] 置顶操作失败:', error);
+                          alert(message.isPinned ? '取消置顶失败，请稍后重试。' : '置顶失败，请稍后重试。');
                         }
                         setContextMenu(null);
                       }}
@@ -2630,7 +2633,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                                   }
                                 } catch (error: any) {
                                   console.error('邀请失败:', error);
-                                  showError(error?.detail || error?.message || '邀请失败，请重试');
+                                  showError(formatUserError(error?.detail || error?.message));
                                 }
                                 setUserContextMenu(null);
                               }}
@@ -3193,7 +3196,7 @@ export function ChatArea({ channel, messages, currentUser, onSendMessage, onSend
                     await sendFriendRequest(friendRequiredDialog.userId);
                     showSuccess(`已向 ${friendRequiredDialog.userName} 发送好友请求`);
                   } catch (error: any) {
-                    showError(error?.message || '发送好友请求失败');
+                    showError(formatUserError(error?.message));
                   }
                 }
                 setFriendRequiredDialog(null);

@@ -320,7 +320,12 @@ class AgentApiService {
       }
 
       if (!response || !response.ok) {
-        throw new Error(`HTTP error! status: ${response?.status ?? 'unknown'}`);
+        let detail = '';
+        try {
+          const body = await response?.json();
+          detail = typeof body?.detail === 'string' ? body.detail : '';
+        } catch { /* body 不可读则忽略 */ }
+        throw new Error(detail || `HTTP error! status: ${response?.status ?? 'unknown'}`);
       }
 
       // 从响应头提取 conversation_id（断线重连的关键：流断开前可能还没收到 done 事件）
