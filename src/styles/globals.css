@@ -1113,13 +1113,40 @@ select option {
 .milkdown .ProseMirror.ProseMirror {
   flex: 1;
   min-height: 100%;
-  padding: 12px 20px;
+  padding: 32px 48px;
+  max-width: 760px;
+  margin: 0 auto;
+  font-size: 17px;
+  line-height: 2;
   outline: none;
 }
 
-/* 小说正文段落默认首行缩进（不影响列表/引用等容器内段落） */
+/* 小说正文段落默认首行缩进 + 段间距 */
 .milkdown .ProseMirror > p {
   text-indent: 2em;
+  margin-bottom: 0.6em;
+}
+
+/* 标题层级：知识库文档标题不要过大 */
+.milkdown .ProseMirror h1 {
+  font-size: 1.6em;
+  margin-top: 1.2em;
+  margin-bottom: 0.6em;
+  line-height: 1.4;
+}
+
+.milkdown .ProseMirror h2 {
+  font-size: 1.35em;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  line-height: 1.4;
+}
+
+.milkdown .ProseMirror h3 {
+  font-size: 1.15em;
+  margin-top: 0.8em;
+  margin-bottom: 0.4em;
+  line-height: 1.4;
 }
 
 /* b) 字体对齐 - 与 app 全局字体一致 */
