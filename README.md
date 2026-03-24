@@ -2,6 +2,8 @@
 
 **文枢AI** 是一个面向网文作者的 AI 驱动创作平台，集智能写作辅助、世界观构建、社区互动于一体，帮助作者更高效地完成从构思到成稿的全流程。
 
+![文枢AI 首页](docs/pic/homepage.png)
+
 ## 演示与体验
 
 - **视频介绍**：[市场上AI写作工具这么多，为什么我只推荐文枢AI？](https://www.bilibili.com/video/BV1xCXwBjEnL?vd_source=781968bc261a09d62bcfb19c6dbd5102)
