@@ -5,7 +5,7 @@
 ## 演示与体验
 
 - **视频介绍**：[市场上AI写作工具这么多，为什么我只推荐文枢AI？](https://www.bilibili.com/video/BV1xCXwBjEnL?vd_source=781968bc261a09d62bcfb19c6dbd5102)
-- **在线体验**（需注册）：[https://wenshuai.online](https://wenshuai.online/register?code=BJ7X9ZCP)
+- **在线体验**（需注册）：[https://wenshuai.online/register?code=BJ7X9ZCP](https://wenshuai.online/register?code=BJ7X9ZCP)
 
 ## 核心功能
 
