@@ -16,6 +16,10 @@
 - **25+ 专业写作技能**，覆盖故事诊断、角色塑造、结构设计、写作技法、世界构建等 7 大类别
 - 内置 RAG 语义检索，自动关联作品上下文，生成更连贯的内容
 
+![主界面](docs/pic/main-interface.png)
+
+![工作台](docs/pic/workspace.png)
+
 ### 小说管理
 - 作品与章节的完整 CRUD 管理
 - 富文本编辑器（Lexical / Milkdown）
