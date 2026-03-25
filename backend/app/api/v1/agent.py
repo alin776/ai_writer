@@ -962,6 +962,40 @@ async def _sync_worldview_cards_from_pending(
     )
 
 
+async def _handle_knowledge_write_post(
+    work_id: str, work_dir: Path, path: str,
+) -> None:
+    """knowledge/ 写入直接落盘后的异步后处理：向量更新 + Bridge 同步。"""
+    try:
+        normalized = path.lstrip("./").lstrip("/")
+        rel_path = "/" + normalized if not normalized.startswith("/") else normalized
+
+        # 向量更新（不需要 DB session）
+        resolved = work_dir / normalized
+        if resolved.exists():
+            from app.services.agent.deep_agent.rag_tool import update_knowledge_vectors
+            content = resolved.read_text(encoding="utf-8")
+            if len(content.strip()) >= 50:
+                update_knowledge_vectors(work_id, rel_path, content)
+
+        # Bridge 同步（使用独立 session，不共享主请求的 session）
+        from app.services.worldview_knowledge_bridge import WorldviewKnowledgeBridge
+        if WorldviewKnowledgeBridge.is_tracked_path(normalized):
+            from app.core.database import AsyncSessionLocal
+            from app.services.knowledge_sync_scheduler import request_worldview_sync
+            async with AsyncSessionLocal() as db:
+                await request_worldview_sync(
+                    db=db,
+                    work_id=work_id,
+                    work_dir=work_dir,
+                    touched_paths=[normalized],
+                    sync_mode=settings.WORLDVIEW_KNOWLEDGE_SYNC_MODE,
+                )
+                await db.commit()
+    except Exception as exc:
+        logger.warning("[Agent] knowledge 写入后处理失败: %s", exc)
+
+
 def _buffer_op_to_change(op, index: int) -> dict:
     """将单条 BufferOp 转换为 get_changes() 兼容的 dict，供实时 revision 使用。"""
     from app.services.agent.deep_agent.frontmatter import parse_chapter
@@ -1121,8 +1155,17 @@ async def agent_v2_chat_stream(
                             self.usage_metadata[name] = um
 
                 usage_cb = _UsageCollector(default_model=settings.OPENAI_MODEL)
+
+                # 读取用户启用的 Skills 列表，传给 agent factory 过滤
+                _user_prefs = current_user.preferences or {}
+                _enabled_skills: list[str] | None = _user_prefs.get("enabled_skills")
+                if _enabled_skills is None:
+                    _enabled_skills = _get_default_enabled_skills(_load_all_skills())
+
                 agent, backend = create_writing_agent(
-                    work, user_id, checkpointer=checkpointer, callbacks=[usage_cb],
+                    work, user_id, checkpointer=checkpointer,
+                    callbacks=[usage_cb],
+                    enabled_skills=_enabled_skills,
                 )
                 _stream_start = _time.time()
 
@@ -1339,6 +1382,15 @@ async def agent_v2_chat_stream(
                                     yield _emit_sse(json.dumps(rev, ensure_ascii=False))
                             else:
                                 _last_buffer_len = len(backend._buffer)  # 静默推进指针
+
+                        # knowledge/ 写入已直接落盘，异步触发向量更新和 Bridge 同步
+                        if kind == "on_tool_end" and not is_child_event:
+                            if translated and translated.get("is_memory"):
+                                _kpath = (event.get("data", {}).get("input") or {}).get("file_path", "")
+                                if _kpath:
+                                    _asyncio.ensure_future(_handle_knowledge_write_post(
+                                        work_id, work_dir, _kpath,
+                                    ))
                 finally:
                     _heartbeat_task.cancel()
                     if not _producer_task.done():
@@ -1354,7 +1406,7 @@ async def agent_v2_chat_stream(
                 changes = backend.get_changes()
 
                 # 发送 completion 事件
-                completion = make_completion_event(changes)
+                completion = make_completion_event(changes, memory_count=counter.memory_count)
                 yield _emit_sse(json.dumps(completion, ensure_ascii=False))
 
                 # ── 改动 C：流结束后汇总扣费 ──

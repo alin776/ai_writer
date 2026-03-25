@@ -818,6 +818,7 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     toolName: event.toolName,
                     toolInput: event.toolInput,
                     isTask: event.isTask || false,
+                    isMemory: event.isMemory || false,
                     childSteps: event.isTask ? [] : undefined,
                   };
                   const item: FlowItem = {
@@ -952,13 +953,32 @@ export function useAgentChat(options: UseAgentChatOptions = {}): UseAgentChatRet
                     }
                   }
 
-                  const item: FlowItem = {
+                  // Memory Updated 汇总：knowledge/ 写入已自动落盘，显示完成通知
+                  const memoryCount = completionData.memory_count;
+                  if (memoryCount && memoryCount > 0) {
+                    const memoryItem: FlowItem = {
+                      id: `flow-${Date.now()}-memory-updated`,
+                      type: 'step',
+                      data: {
+                        stepId: -1,
+                        title: 'Memory updated',
+                        description: 'Memory updated',
+                        status: 'done' as const,
+                        toolName: 'memory_complete',
+                        isMemory: true,
+                      } as StepFlowData,
+                      timestamp,
+                    };
+                    currentFlowItems = [...currentFlowItems, memoryItem];
+                  }
+
+                  const completionItem: FlowItem = {
                     id: `flow-${Date.now()}-completion`,
                     type: 'completion',
                     data: { text: completionData.text },
                     timestamp,
                   };
-                  currentFlowItems = [...currentFlowItems, item];
+                  currentFlowItems = [...currentFlowItems, completionItem];
                   break;
                 }
                 case 'revision': {

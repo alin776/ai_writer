@@ -9,7 +9,7 @@ metadata:
   type: diagnostic
   mode: diagnostic
   domain: worldbuilding
-allowed-tools: read_file, glob, grep, semantic_search, task
+allowed-tools: read_file, glob, grep, semantic_search, task, web_search, fetch_url
 ---
 
 # 网文世界观：诊断技能
@@ -268,7 +268,7 @@ allowed-tools: read_file, glob, grep, semantic_search, task
 
 ### 第五步：输出持久化
 将诊断结果和修复建议写入 `/knowledge/worldview.md`。
-如涉及角色设定问题，同步更新 `/knowledge/characters.md`。
+如涉及角色设定问题，同步更新 `/knowledge/characters/` 目录。
 
 ---
 
@@ -278,7 +278,7 @@ allowed-tools: read_file, glob, grep, semantic_search, task
 
 分析和诊断结果直接在对话中呈现。如需持久化，写入平台标准路径：
 - 世界观相关 → `/knowledge/worldview.md`
-- 角色相关 → `/knowledge/characters.md`
+- 角色相关 → `/knowledge/characters/` 目录
 
 ### 主要输出
 

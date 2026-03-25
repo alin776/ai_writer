@@ -8,7 +8,7 @@ metadata:
   type: system
   mode: always-active
   domain: meta
-allowed-tools: task
+allowed-tools: task, web_search, fetch_url
 ---
 
 # 子 Agent 使用策略（必须遵守）

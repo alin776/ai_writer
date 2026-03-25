@@ -2,6 +2,150 @@
 
 ---
 
+## 本轮任务（2026-03-24 文件即图谱 + 联网调研）
+
+### 已确认的代码事实
+
+- [x] 已通读与本题相关的关键代码和文档，确认当前 Agent 工作目录以 `data/users/{user_id}/works/{work_id}/` 为根
+- [x] 已确认 Deep Agent 的 system prompt 明确把 `/knowledge/outline.md`、`/knowledge/characters.md`、`/knowledge/worldview.md` 作为核心上下文文件
+- [x] 已确认当前存在 `WorldviewKnowledgeBridge`，其设计是“DB 卡片为单一真源，knowledge Markdown 为镜像”
+- [x] 已确认当前存在 `WorldviewSyncService`，可从章节内容提取世界观变化，并回写卡片，再镜像到 knowledge 文件
+- [x] 已确认当前 Skill 系统会将 `backend/app/services/agent/skills/**` 同步到每个作品工作目录，Agent 通过读取 `SKILL.md` 获得 SOP
+- [x] 已确认当前章节主存储在文件系统 `chapters/*.md`，前端 `knowledge_files` 也会直接注入给 Agent 使用
+- [x] 已确认项目内未找到 `openspec/AGENTS.md`，因此本轮按现有仓库规范继续分析
+
+### 待办清单
+
+- [x] 联网调研：搜索超长篇 AI 小说写作、agentic writing、file-based memory、knowledge base maintenance、story bible、consistency tracking 的最新实践
+- [x] 对照现有项目架构，分析“文件即图谱”方向是否正确，尤其评估它与“DB 卡片为真源”之间的冲突和兼容方案
+- [x] 判断要支撑百万字级小说时，当前 `/knowledge/*.md + refs/*.md + chapters/*.md + semantic_search` 模式的优势、瓶颈与扩展边界
+- [x] 细化 `knowledge-updater` Skill 的职责边界、触发时机、输入输出、更新粒度、失败回退与去抖策略
+- [x] 给出我建议的落地路线：最小可行版本、推荐文件结构、与现有 `WorldviewKnowledgeBridge` / `WorldviewSyncService` 的集成方式
+- [x] 在本文件追加 review，总结本轮调研结论、关键风险和后续建议
+
+### 当前判断（待联网调研后校正）
+
+- [x] 初步判断：你的方向大体是对的，但不能直接把“文件即图谱”理解为“彻底抛弃 DB”
+- [x] 初步判断：更合理的路线可能是“文件作为 Agent 的工作记忆真源 + DB/卡片作为产品层索引与可视化投影”，而不是二选一
+
+### Review
+
+#### 本轮结论
+
+- 方向基本正确：从 Agent 实际工作方式看，文件系统确实比图数据库更接近它的“世界模型”
+- 但要支撑百万字长篇，不能把方案停留在 `characters.md + worldview.md + event-log.md` 这几个大文件
+- 真正需要的是**分层文件记忆系统**：
+  - `chapters/` 作为原始叙事层
+  - `events/` 作为章节事件流水层
+  - `entities/` 作为角色/地点/物品/势力的当前状态与变更历史层
+  - `refs/` 作为时间线、势力、物品、术语、未决冲突等专题索引层
+  - `characters.md / worldview.md` 作为面向 UI 与总览的摘要层
+
+#### 外部调研得到的关键启发
+
+- Anthropic 当前文档明确采用 markdown 文件作为长期项目记忆与规则载体，并用“短索引 + 主题文件懒加载”的方式控制上下文体积
+- Anthropic 2025-09-29 的 Claude Agent SDK 文章明确提出：文件系统本身就是一种 context engineering，建议优先从 agentic search + 文件组织起步，语义检索作为增强层而不是第一步
+- LangGraph 官方内存文档明确区分“热路径写记忆”和“后台写记忆”；这非常适合 `knowledge-updater` 采用“写完章节先做轻量增量，后台再做整合”的策略
+- MemGPT 论文表明长任务本质上需要分层记忆，而不能依赖单一上下文窗口
+- Graphiti / Zep 这类时间知识图谱方案更适合做高阶时间推理与企业记忆底座，但它们需要额外图数据库、抽取与运维成本；对当前项目来说，现阶段不是第一优先级
+- Novelcrafter、Sudowrite 这类 AI 写作产品，近期演进重点也集中在 Story Bible / Codex / Timeline / Series memory / 自动检测与同步，而不是把图数据库作为作者面向的主模型
+
+#### 对当前项目的具体判断
+
+- 你项目里其实已经有正确方向的雏形：
+  - `prompts.py` 已要求 Agent 以 `knowledge/` 为核心上下文
+  - `knowledge_templates.py` 已提供 `refs/` 分层模板
+  - `knowledge_sync_scheduler.py` 已提供去抖同步机制
+- 当前真正的缺口是：
+  - 只有 `knowledge/characters.md` 与 `knowledge/worldview.md` 被桥接到 DB/UI
+  - `refs/*.md` 还是“有模板、少闭环”
+  - 缺少“章节写完后自动提炼事实并增量更新知识文件”的专门执行技能
+
+#### 对 `knowledge-updater` 的建议设计
+
+- 触发时机：
+  - 首选在“章节写完并落盘后”触发
+  - 不建议每次正文小改都触发
+  - 可增加手动补跑入口
+- 执行模式：
+  - 热路径：快速追加 `events/` 与必要的实体当前状态
+  - 后台路径：按章节数/时间窗口合并到 `characters.md` / `worldview.md`，并同步 DB/UI
+- 更新优先级：
+  - 优先更新受影响实体文件与事件流水
+  - 其次更新 `timeline.md` / `items.md` / `factions.md`
+  - 最后才重写摘要型主文件
+- 失败策略：
+  - 低置信度变化不直接覆盖，写入 `refs/unresolved.md`
+  - 主文件不做大段重写，尽量局部 patch
+
+#### 推荐的落地路线
+
+- Phase 1（最小可行）：
+  - 新增 `refs/event-log.md` 或按章节拆分 `events/0025.md`
+  - 新增 `knowledge-updater` Skill
+  - 每章完成后自动更新事件流水、时间线、物品/势力增量、未决冲突
+  - `characters.md / worldview.md` 继续保留，按里程碑合并
+- Phase 2（适配长篇）：
+  - 将角色/地点/物品拆为 `knowledge/entities/**` 多文件
+  - `characters.md / worldview.md` 退化为“总览索引”
+  - 扩展桥接层，让 UI 可以消费更细粒度实体状态
+- Phase 3（需要时再做）：
+  - 若后续确实遇到跨作品时间推理、复杂冲突检测、图可视化查询瓶颈，再考虑引入图数据库作为**二级索引层**，而不是主记忆层
+
+#### 关键风险
+
+- 单个 `event-log.md` 会在长篇项目中迅速膨胀，最终不利于 Agent 读取
+- 单个 `characters.md` 会逐渐沦为“巨石文件”，更新冲突和上下文成本都会升高
+- 如果继续维持“DB 为绝对真源、文件只作镜像”，Agent 维护知识的闭环就会持续受限
+- 如果直接把文件层彻底改成唯一真源，又会一次性冲击当前 UI / 卡片同步链路；应采用渐进迁移
+
+#### 本轮补充（2026-03-24 百万字一致性深挖）
+
+- 已进一步确认：当前项目的真实优势不是“数据库很强”，而是 **Agent prompt + knowledge 模板 + semantic_search + 文件缓冲落盘** 这一整套已经偏向文件化工作流
+- 已进一步确认：当前项目的真实短板不是“没有记忆”，而是 **事实更新没有分层闭环**
+  - `outline.md` 会更新摘要
+  - `characters.md / worldview.md` 可被桥接
+  - `refs/*.md` 有模板但没有自动维护
+  - `timeline` UI 与 `knowledge/refs/timeline.md` 还是两套平行系统
+- 已进一步确认：旧的 `agent/memory/**` 与 `context/**` 主要服务对话历史、Token 管理、长期向量记忆，不适合作为小说事实一致性的主真源
+
+#### 本轮新增外部结论
+
+- Novelcrafter 官方帮助文档已经把 **Codex Progressions** 设计成“只在某个场景之后才进入 AI 上下文”的增量事实层，这和我们建议的“事件层/状态变更层”高度一致
+- Novelcrafter 官方 FAQ 明确提醒：不应把所有条目都设为全局可见，否则会快速拉高上下文成本并误导 AI；这直接支持“摘要层 + 细节层 + 按需加载”的架构
+- EdwardAThomson/NovelWriter 这类开源项目已经证明：`chapters/ + agents/ + current_work/ + quality/` 这种目录化流水线能稳定支撑长篇生成，但它更偏生成流程，弱于知识闭环
+- Obsidian Storyteller Suite 说明：开源世界已经验证了“角色/地点/事件/物品/时间线/网络图”这套 Story Bible 工作台是有真实需求的，而且完全可以建立在文件/笔记体系之上
+
+#### 进一步收束后的建议
+
+- 面向“百万字网文”的主设计不应是“更大的总表文件”，而应是：
+  - `chapters/` 负责原始正文
+  - `knowledge/events/` 负责章节事实流水
+  - `knowledge/entities/**` 负责实体当前状态与状态变更史
+  - `knowledge/refs/*.md` 负责专题索引与未决冲突
+  - `knowledge/characters.md / worldview.md` 负责摘要、索引与 UI 总览
+- 第一优先级不是引入新数据库，而是新增 **`knowledge-updater`**，让章节完成后自动把“新事实”落到正确层级
+- 若未来要接图数据库，也更适合做 **二级索引 / 冲突检测 / 可视化查询层**，而不是第一真源
+
+#### 开源生态补充判断
+
+- 不是完全没有现成项目，而是 **没有一个开源项目能直接把“百万字中文网文写作 + Story Bible + 自动知识维护 + 当前这套前后端链路”整套交付给你**
+- 现有开源项目大致分成四类：
+  - **文件化记忆 / Memory OS**：Letta MemFS、ReMe、memU、agents-md
+  - **通用 Agent 长期记忆层**：OpenMemory、Mem0、MemOS、Graphiti、memX、Mimir
+  - **Markdown 知识库 / 第二大脑**：Rocketnotes、second-brain-agent、SurfSense
+  - **故事工作台 / Story Bible**：Obsidian Storyteller Suite、EdwardAThomson/NovelWriter
+- 最接近你当前思想的，不是单一“写小说框架”，而是下面这个组合：
+  - Letta / ReMe / memU 提供“文件即记忆”的方法论与实现模式
+  - Storyteller Suite 提供“角色/事件/地点/物品/时间线/图谱”的目录与 UI 心智模型
+  - Graphiti / OpenMemory 提供“时间推理 / explainable memory / temporal graph”的后备增强路线
+- 因此更现实的路线不是“完全手搓”或“直接照搬某个项目”，而是：
+  - **核心领域模型自己定义**
+  - **底层记忆与组织能力尽量借现成开源项目**
+
+
+---
+
 ## 第二轮修复（2026-02-12 深度诊断）
 
 ### 三个根因

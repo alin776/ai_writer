@@ -676,29 +676,64 @@ class ImportService:
 
     @staticmethod
     def _vectorize_chapters_background(work_id: str, chapters_dir: Path) -> None:
-        """后台线程调用 update_chapter_vectors / update_knowledge_vectors 对章节和知识库进行向量化"""
+        """后台线程：向量化章节/知识库 + 实体扫描填充 index.md"""
         def _run():
             try:
                 from app.services.agent.deep_agent.frontmatter import parse_chapter
                 from app.services.agent.deep_agent.rag_tool import update_chapter_vectors, update_knowledge_vectors
-                # 索引章节
+
+                work_dir = chapters_dir.parent
+
+                # 确保知识目录和模板存在（修复导入时 knowledge/ 不存在的问题）
+                from app.services.knowledge_templates import ensure_knowledge_templates
+                ensure_knowledge_templates(work_dir)
+
+                # 索引章节（同时收集实体扫描数据）
+                scan_data: list[tuple[int, str, str]] = []
                 for md_file in sorted(chapters_dir.glob("*.md")):
                     raw = md_file.read_text(encoding="utf-8")
                     parsed = parse_chapter(raw)
                     content = parsed.get("content", "").strip()
+
+                    # 收集实体扫描数据
+                    if content:
+                        match = re.match(r"^(\d+)-", md_file.stem)
+                        ch_num = int(match.group(1)) if match else 0
+                        ch_title = parsed.get("title", md_file.stem)
+                        scan_data.append((ch_num, ch_title, content))
+
+                    # 向量化
                     if len(content) < 100:
                         continue
                     path = f"/chapters/{md_file.name}"
                     update_chapter_vectors(work_id, path, content)
 
-                # 索引知识库文件
-                knowledge_dir = chapters_dir.parent / "knowledge"
+                # 实体扫描 → 更新 index.md（独立 try/except，失败不影响向量化）
+                if scan_data:
+                    try:
+                        from app.services.entity_scanner import scan_entities, format_index_md, merge_scan_into_index
+                        result = scan_entities(scan_data)
+                        if result.characters or result.locations:
+                            index_path = work_dir / "knowledge" / "index.md"
+                            if index_path.exists():
+                                existing = index_path.read_text(encoding="utf-8")
+                                updated = merge_scan_into_index(existing, result)
+                            else:
+                                updated = format_index_md(result)
+                            index_path.write_text(updated, encoding="utf-8")
+                            logger.info("[ImportService] 实体扫描完成: %d 角色, %d 地点",
+                                        len(result.characters), len(result.locations))
+                    except Exception as exc:
+                        logger.warning("[ImportService] 实体扫描失败(不影响向量化): %s", exc)
+
+                # 索引知识库文件（index.md 已更新，会被一并向量化）
+                knowledge_dir = work_dir / "knowledge"
                 if knowledge_dir.is_dir():
                     for md_file in knowledge_dir.rglob("*.md"):
                         raw = md_file.read_text(encoding="utf-8")
                         if len(raw.strip()) < 50:
                             continue
-                        rel_path = "/" + str(md_file.relative_to(chapters_dir.parent)).replace("\\", "/")
+                        rel_path = "/" + str(md_file.relative_to(work_dir)).replace("\\", "/")
                         update_knowledge_vectors(work_id, rel_path, raw)
             except Exception as exc:
                 logger.warning("[ImportService] 后台向量化失败: %s", exc)

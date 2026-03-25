@@ -19,6 +19,21 @@ from app.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
+
+def _is_knowledge_write(tool_name: str, tool_input: Any) -> bool:
+    """检测是否为 knowledge/ 目录下的写操作（触发 Memory Updated 展示）。"""
+    if tool_name not in ("write_file", "edit_file"):
+        return False
+    if not isinstance(tool_input, dict):
+        return False
+    file_path = (tool_input.get("file_path") or "").replace("\\", "/")
+    # 去掉 ./ 或 / 前缀
+    while file_path.startswith("./"):
+        file_path = file_path[2:]
+    file_path = file_path.lstrip("/")
+    return file_path.startswith("knowledge/")
+
+
 # 工具图标映射
 _TOOL_ICONS = {
     "read_file": "FileText",
@@ -33,6 +48,8 @@ _TOOL_ICONS = {
     "write_todos": "ListTodo",
     "read_todos": "ListTodo",
     "task": "Users",
+    "web_search": "Globe",
+    "fetch_url": "Download",
 }
 
 # 步骤计数器（per-session 实例，避免全局状态并发冲突）
@@ -46,6 +63,10 @@ class StepCounter:
         self._run_to_step: dict[str, int] = {}  # run_id → step_id 映射
         # 子 Agent 并行追踪（支持多 Task 并行）
         self._active_tasks: dict[str, dict] = {}  # run_id → {step_id, child_count}
+        # 知识写入标记：on_tool_start 存入，on_tool_end 取出
+        self._run_is_memory: dict[str, bool] = {}
+        # 知识写入计数：completion 事件用
+        self._memory_count: int = 0
 
     def next_id(self, run_id: str | None = None) -> int:
         self._counter += 1
@@ -81,6 +102,22 @@ class StepCounter:
             if pid in self._active_tasks:
                 return self._active_tasks[pid]
         return None
+
+    def set_memory_flag(self, run_id: str) -> None:
+        """标记该 run_id 对应的工具调用是知识写入。"""
+        self._run_is_memory[run_id] = True
+
+    def pop_memory_flag(self, run_id: str) -> bool:
+        """取出并移除 memory 标志（on_tool_end 时调用）。"""
+        is_memory = self._run_is_memory.pop(run_id, False)
+        if is_memory:
+            self._memory_count += 1
+        return is_memory
+
+    @property
+    def memory_count(self) -> int:
+        """本次会话中 knowledge/ 写入的总次数。"""
+        return self._memory_count
 
 
 def _now() -> str:
@@ -134,6 +171,26 @@ def _extract_tool_error(output: Any) -> str | None:
         if re.match(r"(?i)^error[:\s]", stripped):
             return _normalize_error_text(stripped)
 
+    return None
+
+
+def _web_tool_description(tool_name: str, output: Any) -> str | None:
+    """为 web 工具生成富完成描述（配合前端 ToolLine 展示）。"""
+    # 兼容 ToolMessage 等包装类型（LangGraph on_tool_end 可能包装 output）
+    if hasattr(output, "content") and isinstance(output.content, str):
+        output = output.content
+    if not isinstance(output, str):
+        return None
+    if tool_name == "web_search":
+        results = re.findall(r"^\d+\.\s+\*\*", output, re.MULTILINE)
+        return f"Found {len(results)} results" if results else None
+    if tool_name == "fetch_url":
+        if output.startswith("Error:"):
+            return None
+        size = len(output.encode("utf-8"))
+        if size >= 1024:
+            return f"Received {size / 1024:.1f}KB"
+        return f"Received {size}B"
     return None
 
 
@@ -217,7 +274,12 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
                 "parent_step_id": parent_task["step_id"],
             }
 
-        return {
+        # 普通工具调用（非 task、非子 Agent）
+        is_memory = _is_knowledge_write(tool_name, tool_input)
+        if is_memory:
+            counter.set_memory_flag(run_id)
+
+        result = {
             "type": "step_start",
             "step_id": step_id,
             "title": desc,
@@ -226,6 +288,9 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
             "status": "running",
             "timestamp": _now(),
         }
+        if is_memory:
+            result["is_memory"] = True
+        return result
 
     # ─── 工具调用结束 ───
     if kind == "on_tool_end":
@@ -236,7 +301,8 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
         if tool_error:
             description = f"{tool_name} 失败: {tool_error}"
         else:
-            description = f"{tool_name} 完成"
+            web_desc = _web_tool_description(tool_name, data.get("output"))
+            description = web_desc or f"{tool_name} 完成"
 
         # task 工具结束：从活跃 Task 字典注销，附加子工具统计
         if tool_name == "task":
@@ -268,26 +334,32 @@ def translate_event(event: dict[str, Any], counter: StepCounter) -> dict[str, An
                 "parent_step_id": parent_task["step_id"],
             }
 
-        return {
+        # 普通工具调用结束
+        is_memory = counter.pop_memory_flag(run_id)
+        result = {
             "type": "step_complete",
             "step_id": counter.get_step_id(run_id),
-            "description": description,
+            "description": "Memory updated" if (is_memory and not tool_error) else description,
             "tool_name": tool_name,
-            "tool_call": {"icon": icon, "name": tool_name},
+            "tool_call": {"icon": "Brain" if is_memory else icon, "name": tool_name},
             "status": status,
             "error": tool_error,
             "timestamp": _now(),
         }
+        if is_memory:
+            result["is_memory"] = True
+        return result
 
     # ─── 跳过不关心的事件 ───
     return None
 
 
-def make_completion_event(changes: list[dict]) -> dict[str, Any]:
+def make_completion_event(changes: list[dict], memory_count: int = 0) -> dict[str, Any]:
     """构建 Agent 完成事件。
 
     Args:
         changes: 待审批改动列表（来自 backend.get_changes()）
+        memory_count: knowledge/ 写入次数（已自动落盘，不需审批）
 
     Returns:
         completion FlowEvent
@@ -297,11 +369,14 @@ def make_completion_event(changes: list[dict]) -> dict[str, Any]:
     else:
         text = "任务已完成"
 
-    return {
+    result = {
         "type": "completion",
         "data": {"text": text, "changes": changes},
         "timestamp": _now(),
     }
+    if memory_count > 0:
+        result["data"]["memory_count"] = memory_count
+    return result
 
 
 def make_revision_event(op: dict) -> dict[str, Any]:
@@ -354,6 +429,9 @@ def make_revision_event(op: dict) -> dict[str, Any]:
 def _tool_description(tool_name: str, tool_input: Any) -> str:
     """生成工具调用的友好描述。"""
     if isinstance(tool_input, dict):
+        # 知识文件写入 → Memory 展示
+        if _is_knowledge_write(tool_name, tool_input):
+            return "Add a memory"
         if tool_name == "read_file":
             return f"读取 {tool_input.get('file_path', '文件')}"
         if tool_name == "write_file":
@@ -370,6 +448,10 @@ def _tool_description(tool_name: str, tool_input: Any) -> str:
             return f"搜索 {tool_input.get('pattern', '')}"
         if tool_name == "semantic_search":
             return f"语义搜索: {str(tool_input.get('query', ''))[:50]}"
+        if tool_name == "web_search":
+            return f"搜索网络: {str(tool_input.get('query', ''))[:50]}"
+        if tool_name == "fetch_url":
+            return f"获取网页: {str(tool_input.get('url', ''))[:50]}"
         if tool_name == "task":
             return f"子任务: {str(tool_input.get('description', ''))[:50]}"
         if tool_name == "execute":

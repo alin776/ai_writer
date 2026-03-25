@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: diagnostic+generative
   domain: fiction
-allowed-tools: read_file, glob, grep, semantic_search, execute
+allowed-tools: read_file, glob, grep, semantic_search, execute, web_search, fetch_url
 ---
 
 # 类型惯例：诊断与生成技能
@@ -367,7 +367,7 @@ python skills/craft/genre-conventions/scripts/genre_blend.py --matrix
 - 章节内容 → `/chapters/NN-标题.md`
 - 大纲相关 → `/knowledge/outline.md`
 - 世界观相关 → `/knowledge/worldview.md`
-- 角色相关 → `/knowledge/characters.md`
+- 角色相关 → `/knowledge/characters/` 目录
 
 ### 主要输出
 

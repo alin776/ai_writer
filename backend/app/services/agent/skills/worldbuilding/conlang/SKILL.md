@@ -8,7 +8,7 @@ metadata:
   type: generator
   mode: generative
   domain: worldbuilding
-allowed-tools: read_file, glob, grep, semantic_search, execute
+allowed-tools: read_file, glob, grep, semantic_search, execute, web_search, fetch_url
 ---
 
 # Conlang: Language Generation Skill

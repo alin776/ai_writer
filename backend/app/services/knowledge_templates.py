@@ -13,6 +13,44 @@ logger = logging.getLogger(__name__)
 
 
 MAIN_TEMPLATES: dict[str, str] = {
+    "index.md": """# 作品知识索引
+
+> 全局速查表。写作前先看这里，了解故事当前全貌。有重要变化时随手更新。
+
+## 进度
+- 当前章节：
+- 当前阶段：
+- 主线推进：
+
+## 人物速查
+> 每个角色一行：名字 | 身份 | 当前状态 | 当前位置。详细档案见 characters/ 目录。
+
+（暂无角色）
+
+## 地点速查
+> 每个地点一行：名字 | 类型 | 当前状态。详细档案见 locations/ 目录。
+
+（暂无地点）
+
+## 活跃支线
+> 正在推进的剧情线。停滞超过 20 章的支线标记 [停滞]。
+
+（暂无支线）
+
+## 待兑现伏笔
+> 已埋下但尚未揭示的伏笔。格式：[埋设章节] 内容 → 预计揭示时机
+
+（暂无伏笔）
+""",
+    "canon.md": """# 硬性规则（Canon）
+
+> 写在这里的规则在全书范围内不可违反。AI 和作者都应遵守。
+> 只放绝对不变的核心设定；可变的设定放在 worldview.md 或 refs/ 中。
+
+## 规则列表
+
+（暂无硬性规则——创建角色体系、力量等级等不可更改的设定时，记录在这里）
+""",
     "outline.md": """# 大纲
 
 ## 一句话梗概
@@ -329,6 +367,17 @@ REF_TEMPLATES: dict[str, str] = {
 }
 
 
+EVENTS_TEMPLATES: dict[str, str] = {
+    "_latest.md": """# 近期事件
+
+> 记录最近 20 章的关键事件。超过 20 章的旧事件压缩移入 archive/。
+> 每章写完后追加本章重要事件，保持按章节顺序排列。
+
+（暂无事件记录）
+""",
+}
+
+
 def ensure_knowledge_templates(work_dir: Path) -> list[str]:
     """
     Ensure baseline knowledge templates exist in a work directory.
@@ -339,10 +388,17 @@ def ensure_knowledge_templates(work_dir: Path) -> list[str]:
     created: list[str] = []
     knowledge_dir = work_dir / "knowledge"
     refs_dir = knowledge_dir / "refs"
+    characters_dir = knowledge_dir / "characters"
+    locations_dir = knowledge_dir / "locations"
+    events_dir = knowledge_dir / "events"
+    events_archive_dir = events_dir / "archive"
 
-    knowledge_dir.mkdir(parents=True, exist_ok=True)
-    refs_dir.mkdir(parents=True, exist_ok=True)
+    # Create all directories
+    for d in (knowledge_dir, refs_dir, characters_dir, locations_dir,
+              events_dir, events_archive_dir):
+        d.mkdir(parents=True, exist_ok=True)
 
+    # Main templates (index.md, canon.md, outline.md)
     for filename, content in MAIN_TEMPLATES.items():
         target = knowledge_dir / filename
         if target.exists():
@@ -350,12 +406,21 @@ def ensure_knowledge_templates(work_dir: Path) -> list[str]:
         target.write_text(content, encoding="utf-8")
         created.append(f"knowledge/{filename}")
 
+    # Refs templates
     for filename, content in REF_TEMPLATES.items():
         target = refs_dir / filename
         if target.exists():
             continue
         target.write_text(content, encoding="utf-8")
         created.append(f"knowledge/refs/{filename}")
+
+    # Events templates
+    for filename, content in EVENTS_TEMPLATES.items():
+        target = events_dir / filename
+        if target.exists():
+            continue
+        target.write_text(content, encoding="utf-8")
+        created.append(f"knowledge/events/{filename}")
 
     if created:
         logger.info("[knowledge_templates] created %d template files under %s", len(created), work_dir)

@@ -182,9 +182,18 @@ class WorldviewKnowledgeBridge:
         "worldview.md",
     }
 
+    # 目录级追踪：characters/*.md 等单文件也触发同步
+    TRACKED_PATH_PREFIXES = (
+        "knowledge/characters/",
+        "knowledge/locations/",
+    )
+
     @classmethod
     def is_tracked_path(cls, path: str) -> bool:
-        return _normalize_path(path) in cls.TRACKED_PATHS
+        normalized = _normalize_path(path)
+        if normalized in cls.TRACKED_PATHS:
+            return True
+        return any(normalized.startswith(prefix) for prefix in cls.TRACKED_PATH_PREFIXES)
 
     @classmethod
     def has_tracked_path(cls, paths: list[str] | None) -> bool:
@@ -225,12 +234,34 @@ class WorldviewKnowledgeBridge:
             )
         ).scalars().all()
 
-        mirrors = {
-            "knowledge/characters.md": self._render_characters_markdown(characters),
-            "knowledge/worldview.md": self._render_worldview_markdown(locations, settings),
-        }
-
+        mirrors = {}
         updated_files: list[str] = []
+        characters_dir = resolved_work_dir / "knowledge" / "characters"
+
+        # 目录模式：如果 characters/ 目录存在，每人写一个文件
+        if characters_dir.is_dir():
+            existing_files = {f.stem for f in characters_dir.glob("*.md")}
+            active_names = set()
+            for character in characters:
+                safe_name = self._safe_filename(character.name)
+                active_names.add(safe_name)
+                content = self._render_single_character_markdown(character)
+                target = characters_dir / f"{safe_name}.md"
+                previous = target.read_text(encoding="utf-8") if target.exists() else None
+                if previous != content:
+                    target.write_text(content, encoding="utf-8")
+                    updated_files.append(f"knowledge/characters/{safe_name}.md")
+            # 清理 DB 中已删除的角色文件
+            for orphan in existing_files - active_names:
+                orphan_path = characters_dir / f"{orphan}.md"
+                if orphan_path.exists():
+                    orphan_path.unlink()
+        else:
+            # 旧模式：单文件
+            mirrors["knowledge/characters.md"] = self._render_characters_markdown(characters)
+
+        mirrors["knowledge/worldview.md"] = self._render_worldview_markdown(locations, settings)
+
         for rel_path, content in mirrors.items():
             target = resolved_work_dir / rel_path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -239,6 +270,14 @@ class WorldviewKnowledgeBridge:
             if previous != content:
                 target.write_text(content, encoding="utf-8")
                 updated_files.append(rel_path)
+
+        # 同步更新 index.md 的人物/地点速查段
+        if characters or locations:
+            index_updated = self._update_index_from_cards(
+                resolved_work_dir, characters, locations,
+            )
+            if index_updated:
+                updated_files.append("knowledge/index.md")
 
         return {
             "updated_files": updated_files,
@@ -281,10 +320,10 @@ class WorldviewKnowledgeBridge:
 
         sync_characters = (not touched_has_data) or bool(
             touched & {"knowledge/characters.md", "characters.md"}
-        )
+        ) or any(p.startswith("knowledge/characters/") for p in touched)
         sync_worldview = (not touched_has_data) or bool(
             touched & {"knowledge/worldview.md", "worldview.md"}
-        )
+        ) or any(p.startswith("knowledge/locations/") for p in touched)
 
         created = {"characters": 0, "locations": 0, "settings": 0}
         updated = {"characters": 0, "locations": 0, "settings": 0}
@@ -295,14 +334,18 @@ class WorldviewKnowledgeBridge:
 
         if sync_characters:
             checked_files.append("knowledge/characters.md")
-            characters_path = self._pick_existing_path(
-                resolved_work_dir,
-                "knowledge/characters.md",
-                "characters.md",
-            )
-            if characters_path and characters_path.exists():
-                raw_text = characters_path.read_text(encoding="utf-8")
-                parsed_characters = self._parse_characters_markdown(raw_text)
+            characters_dir = resolved_work_dir / "knowledge" / "characters"
+
+            # 目录模式优先：knowledge/characters/*.md（每人一文件）
+            if characters_dir.is_dir() and any(characters_dir.glob("*.md")):
+                parsed_characters = []
+                for md_file in sorted(characters_dir.glob("*.md")):
+                    raw_text = md_file.read_text(encoding="utf-8")
+                    parsed_characters.extend(
+                        self._parse_characters_markdown(
+                            self._promote_h1_to_h2(raw_text)
+                        )
+                    )
                 parsed_counts["characters"] = len(parsed_characters)
                 c_created, c_updated = await self._upsert_characters(work_id, parsed_characters)
                 created["characters"] += c_created
@@ -310,7 +353,23 @@ class WorldviewKnowledgeBridge:
                 if strict_mode:
                     deleted["characters"] += await self._delete_missing_characters(work_id, parsed_characters)
             else:
-                missing_files.append("knowledge/characters.md")
+                # 旧模式兜底：单个 characters.md
+                characters_path = self._pick_existing_path(
+                    resolved_work_dir,
+                    "knowledge/characters.md",
+                    "characters.md",
+                )
+                if characters_path and characters_path.exists():
+                    raw_text = characters_path.read_text(encoding="utf-8")
+                    parsed_characters = self._parse_characters_markdown(raw_text)
+                    parsed_counts["characters"] = len(parsed_characters)
+                    c_created, c_updated = await self._upsert_characters(work_id, parsed_characters)
+                    created["characters"] += c_created
+                    updated["characters"] += c_updated
+                    if strict_mode:
+                        deleted["characters"] += await self._delete_missing_characters(work_id, parsed_characters)
+                else:
+                    missing_files.append("knowledge/characters.md")
 
         if sync_worldview:
             checked_files.append("knowledge/worldview.md")
@@ -444,6 +503,99 @@ class WorldviewKnowledgeBridge:
         return "\n".join(lines).rstrip() + "\n"
 
     @staticmethod
+    def _update_index_from_cards(
+        work_dir: Path,
+        characters: list[Character],
+        locations: list[Location],
+    ) -> bool:
+        """更新 index.md 的人物速查和地点速查段，保持索引与 DB 卡片同步。
+
+        返回 True 表示文件有变更。
+        """
+        index_path = work_dir / "knowledge" / "index.md"
+        if not index_path.exists():
+            return False
+
+        content = index_path.read_text(encoding="utf-8")
+
+        # 构建人物速查内容
+        if characters:
+            char_lines = []
+            for c in characters:
+                role = _normalize_character_role(c.role) or ""
+                status = c.status or "待补充"
+                char_lines.append(f"- {c.name} | {role} | {status}")
+            char_section = "\n".join(char_lines)
+        else:
+            char_section = "（暂无角色）"
+
+        # 构建地点速查内容
+        if locations:
+            loc_lines = []
+            for loc in locations:
+                loc_type = loc.type or "待补充"
+                loc_lines.append(f"- {loc.name} | {loc_type}")
+            loc_section = "\n".join(loc_lines)
+        else:
+            loc_section = "（暂无地点）"
+
+        # 替换人物速查段
+        content = re.sub(
+            r'(## 人物速查[^\n]*\n>[^\n]*\n)\n[\s\S]*?(?=\n## )',
+            rf'\1\n{char_section}\n',
+            content,
+        )
+
+        # 替换地点速查段
+        content = re.sub(
+            r'(## 地点速查[^\n]*\n>[^\n]*\n)\n[\s\S]*?(?=\n## )',
+            rf'\1\n{loc_section}\n',
+            content,
+        )
+
+        previous = index_path.read_text(encoding="utf-8")
+        if content != previous:
+            index_path.write_text(content, encoding="utf-8")
+            return True
+        return False
+
+    @staticmethod
+    def _render_single_character_markdown(character: Character) -> str:
+        """渲染单个角色为独立 markdown 文件（h1 标题，用于 characters/ 目录模式）。"""
+        role = _normalize_character_role(character.role)
+        description, inferred_role = _normalize_character_description(character.description, role)
+        final_role = role or inferred_role
+
+        lines = [f"# {character.name}"]
+        if final_role:
+            lines.append(f"- 角色：{final_role}")
+        lines.append(f"- 描述：{_flatten_text(description) or '待补充'}")
+        aliases = _safe_tags(character.aliases)
+        if aliases:
+            lines.append(f"- 别名：{'、'.join(aliases)}")
+        if character.status:
+            lines.append(f"- 状态：{character.status}")
+        if character.voice:
+            lines.append(f"- 口吻：{character.voice}")
+        tags = _safe_tags(character.tags)
+        if tags:
+            lines.append(f"- 标签：{'、'.join(tags)}")
+        if character.constraints:
+            for c in character.constraints:
+                lines.append(f"- 约束：{c}")
+        if character.relationships:
+            for rel in character.relationships:
+                if isinstance(rel, dict):
+                    target = rel.get("target") or rel.get("name") or ""
+                    relation = rel.get("relation") or rel.get("type") or ""
+                    if target:
+                        lines.append(f"- 关系：{target}（{relation}）" if relation else f"- 关系：{target}")
+                elif isinstance(rel, str) and rel.strip():
+                    lines.append(f"- 关系：{rel}")
+        lines.append("")
+        return "\n".join(lines).rstrip() + "\n"
+
+    @staticmethod
     def _render_worldview_markdown(locations: list[Location], settings: list[Setting]) -> str:
         lines = [
             "# 世界观设定",
@@ -503,6 +655,38 @@ class WorldviewKnowledgeBridge:
             lines.extend(["（暂无设定卡片）", ""])
 
         return "\n".join(lines).rstrip() + "\n"
+
+    @staticmethod
+    def _safe_filename(name: str) -> str:
+        """将角色/地点名转为安全的文件名（去除文件系统不允许的字符）。"""
+        return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name).strip('. ') or '_'
+
+    @staticmethod
+    def _promote_h1_to_h2(text: str) -> str:
+        """将每人一文件格式（# 角色名）提升为解析器兼容格式（## 角色名）。
+
+        当文件只有一个 h1 标题且没有 h2/h3 时，将 h1 转为 h2。
+        """
+        lines = text.split("\n")
+        h1_count = 0
+        h2_count = 0
+        for line in lines:
+            stripped = line.lstrip()
+            if stripped.startswith("## ") and not stripped.startswith("### "):
+                h2_count += 1
+            elif stripped.startswith("# ") and not stripped.startswith("## "):
+                h1_count += 1
+        # 只有 h1 没有 h2/h3：每人一文件格式，提升 h1 → h2
+        if h1_count >= 1 and h2_count == 0:
+            result = []
+            for line in lines:
+                stripped = line.lstrip()
+                if stripped.startswith("# ") and not stripped.startswith("## "):
+                    result.append("#" + line)  # # Name → ## Name
+                else:
+                    result.append(line)
+            return "\n".join(result)
+        return text
 
     @staticmethod
     def _parse_characters_markdown(text: str) -> list[dict[str, Any]]:

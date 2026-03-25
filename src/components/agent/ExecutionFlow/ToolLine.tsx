@@ -160,11 +160,15 @@ export function ToolLine({
   title,
   description,
   isTask,
+  isMemory,
   childSteps,
   childToolCount,
   children,
 }: ToolLineProps) {
-  const displayText = formatToolLine(toolName, toolInput, title);
+  // Memory 步骤：running → "Add a memory"，done → "Memory updated"
+  const displayText = isMemory
+    ? (status === 'done' ? (description || 'Memory updated') : (title || 'Add a memory'))
+    : formatToolLine(toolName, toolInput, title);
 
   // write_todos 不单独渲染为 ToolLine（由 TodoBlock 接管）
   if (toolName === 'write_todos') {
@@ -192,8 +196,8 @@ export function ToolLine({
           {displayText}
         </span>
       </div>
-      {/* 完成/错误描述 */}
-      {description && (status === 'error' || (status === 'done' && (toolName === 'web_search' || toolName === 'fetch_url'))) && (
+      {/* 完成/错误描述（memory done 已显示在主行，不重复；error 始终显示） */}
+      {description && (status === 'error' || (!isMemory && status === 'done' && (toolName === 'web_search' || toolName === 'fetch_url'))) && (
         <div className={`ml-4 text-base font-mono ${
           status === 'error'
             ? 'text-red-500 dark:text-red-400'

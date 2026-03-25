@@ -964,13 +964,26 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
                 )
         return matches
 
+    @staticmethod
+    def _is_knowledge_path(path: str) -> bool:
+        """knowledge/ 下的文件绕过缓冲区直接写盘，不需要用户审批。"""
+        normalized = path.replace("\\", "/").lstrip("/")
+        return normalized.startswith("knowledge/")
+
     # ─── 重写写操作：缓冲不落盘 ───
 
     def write(self, file_path: str, content: str) -> WriteResult:
-        """write 操作存入缓冲区，不落盘。"""
-        # 检查磁盘上是否已存在
+        """write 操作存入缓冲区，不落盘。knowledge/ 路径直接落盘。"""
         file_path = self._normalize_tool_path(file_path)
         resolved = self._resolve_path(file_path)
+
+        # knowledge/ 路径：直接落盘，不进缓冲区
+        if self._is_knowledge_path(file_path):
+            resolved.parent.mkdir(parents=True, exist_ok=True)
+            resolved.write_text(content, encoding="utf-8")
+            return WriteResult(path=file_path, files_update=None)
+
+        # 检查磁盘上是否已存在
         if resolved.exists():
             return WriteResult(
                 error=f"Cannot write to {file_path} because it already exists. "
@@ -999,9 +1012,36 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
         new_string: str,
         replace_all: bool = False,
     ) -> EditResult:
-        """edit 操作存入缓冲区，不落盘。先验证 old_string 匹配。"""
-        # 行号模式检测：[LINES:起始行-结束行]
+        """edit 操作存入缓冲区，不落盘。knowledge/ 路径直接落盘。"""
         file_path = self._normalize_tool_path(file_path)
+
+        # knowledge/ 路径：直接读-改-写，不进缓冲区
+        if self._is_knowledge_path(file_path):
+            resolved = self._resolve_path(file_path)
+            if not resolved.exists():
+                return EditResult(error=f"Error: File '{file_path}' not found")
+            current = resolved.read_text(encoding="utf-8")
+
+            # 行号模式
+            m = re.match(r'^\[LINES:(\d+)-(\d+)\]$', old_string.strip())
+            if m:
+                lines = current.split("\n")
+                start, end = int(m.group(1)) - 1, int(m.group(2))
+                if start < 0 or end > len(lines) or start >= end:
+                    return EditResult(error=f"Error: Invalid line range [LINES:{start+1}-{end}] for file with {len(lines)} lines")
+                lines[start:end] = new_string.split("\n")
+                resolved.write_text("\n".join(lines), encoding="utf-8")
+                return EditResult(path=file_path, files_update=None, occurrences=1)
+
+            # 普通替换
+            result = perform_string_replacement(current, old_string, new_string, replace_all)
+            if isinstance(result, str):
+                return EditResult(error=result)
+            new_content, occurrences = result
+            resolved.write_text(new_content, encoding="utf-8")
+            return EditResult(path=file_path, files_update=None, occurrences=int(occurrences))
+
+        # 行号模式检测：[LINES:起始行-结束行]
         file_path = self._resolve_existing_chapter_path(file_path)
         m = re.match(r'^\[LINES:(\d+)-(\d+)\]$', old_string.strip())
         if m:
@@ -1127,8 +1167,21 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
     def rename_path(self, old_path: str, new_path: str) -> str | None:
         """Buffer a rename operation. Returns an error string on failure."""
         old_path = self._normalize_tool_path(old_path)
-        old_path = self._resolve_existing_chapter_path(old_path)
         new_path = self._normalize_tool_path(new_path)
+
+        # knowledge/ 路径：直接重命名
+        if self._is_knowledge_path(old_path):
+            resolved_old = self._resolve_path(old_path)
+            resolved_new = self._resolve_path(new_path)
+            if not resolved_old.exists():
+                return f"Error: File '{old_path}' not found"
+            if resolved_new.exists():
+                return f"Error: Target '{new_path}' already exists"
+            resolved_new.parent.mkdir(parents=True, exist_ok=True)
+            resolved_old.rename(resolved_new)
+            return None
+
+        old_path = self._resolve_existing_chapter_path(old_path)
 
         if old_path == new_path:
             return "Error: Source and target path are the same"
@@ -1154,6 +1207,15 @@ class BufferedFilesystemBackend(FilesystemBackend, SandboxBackendProtocol):
     def delete_path(self, file_path: str) -> str | None:
         """Buffer a delete operation. Returns an error string on failure."""
         file_path = self._normalize_tool_path(file_path)
+
+        # knowledge/ 路径：直接删除
+        if self._is_knowledge_path(file_path):
+            resolved = self._resolve_path(file_path)
+            if not resolved.exists():
+                return f"Error: File '{file_path}' not found"
+            resolved.unlink()
+            return None
+
         file_path = self._resolve_existing_chapter_path(file_path)
         if file_path == "/":
             return "Error: Cannot delete root path"

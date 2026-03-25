@@ -10,7 +10,7 @@ metadata:
   type: generator
   mode: generative
   domain: fiction
-allowed-tools: read_file, glob, grep, semantic_search
+allowed-tools: read_file, glob, grep, semantic_search, web_search, fetch_url
 ---
 
 # Adaptation Synthesis：功能优先的创意转化

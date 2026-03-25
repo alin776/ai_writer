@@ -19,12 +19,12 @@ export default defineConfig({
     proxy: {
       // WebSocket 代理需要单独配置
       '/api/v1/ws': {
-        target: 'ws://localhost:8001',
+        target: 'ws://localhost:8000',
         ws: true,
         changeOrigin: true,
       },
       '/api': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
       },

@@ -6,7 +6,7 @@ description: |
 metadata:
   trigger: 创作中文小说、分章节故事、长篇小说创作
   source: 基于小说创作最佳实践设计
-allowed-tools: read_file, write_file, edit_file, glob, grep, semantic_search, execute
+allowed-tools: read_file, write_file, edit_file, glob, grep, semantic_search, execute, web_search, fetch_url
 ---
 
 # Chinese Novelist: 中文小说创作助手
@@ -116,7 +116,7 @@ Options:
 执行以下步骤：
 
 1. **生成大纲**：创建 `/knowledge/outline.md`，使用 `references/outline-template.md` 模板，填入完整的章节规划
-2. **生成人物档案**：创建 `/knowledge/characters.md`，使用 `references/character-template.md` 模板，创建主角、反派、配角档案
+2. **生成人物档案**：创建 `/knowledge/characters/` 目录，使用 `references/character-template.md` 模板，创建主角、反派、配角档案
 
 完成后，向用户展示规划摘要并请求确认，等待用户确认。用户同意后，进入"第三阶段：疯狂创作"。
 
@@ -200,5 +200,5 @@ python scripts/check_chapter_wordcount.py chapters/01-标题.md 3500
 | 文件 | 路径 | 示例 |
 |------|------|------|
 | 大纲 | `/knowledge/outline.md` | `knowledge/outline.md` |
-| 人物档案 | `/knowledge/characters.md` | `knowledge/characters.md` |
+| 人物档案 | `/knowledge/characters/` 目录 | `knowledge/characters/` 目录 |
 | 章节文件 | `/chapters/XX-标题.md` | `chapters/01-吞噬.md`、`chapters/02-浑圆桩.md` |

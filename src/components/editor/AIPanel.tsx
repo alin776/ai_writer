@@ -2811,7 +2811,7 @@ ${selectionContext.selected_text}
           className="pointer-events-none fixed z-[9999]"
           style={{ left: skillTooltip.x, top: skillTooltip.y }}
         >
-          <div className="max-w-[260px] px-3 py-2 rounded-md bg-slate-900 dark:bg-slate-700 text-[11px] leading-relaxed text-slate-100 shadow-lg border border-slate-700 dark:border-slate-600">
+          <div className="max-w-[260px] px-3 py-2 rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 text-[11px] leading-relaxed shadow-lg">
             {skillTooltip.description}
           </div>
         </div>,

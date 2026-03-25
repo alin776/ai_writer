@@ -370,6 +370,7 @@ export interface StepFlowData {
   // ── 子 Agent 嵌套字段 ──
   parentStepId?: number;           // 非空 = 这是子步骤
   isTask?: boolean;                // true = task 工具调用
+  isMemory?: boolean;              // true = knowledge/ 写入（Memory Updated 展示）
   childSteps?: ChildStepData[];    // 子步骤列表（仅 task 步骤有）
   childToolCount?: number;         // 后端返回的子工具总数
 }
@@ -407,6 +408,7 @@ export interface AgentHeaderFlowData {
  */
 export interface CompletionFlowData {
   text?: string;           // "任务已完成"
+  memory_count?: number;   // knowledge/ 写入次数（已自动落盘）
 }
 
 /**

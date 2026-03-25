@@ -8,7 +8,7 @@ metadata:
   type: generator
   mode: generative
   domain: worldbuilding
-allowed-tools: read_file, glob, grep, semantic_search
+allowed-tools: read_file, glob, grep, semantic_search, web_search, fetch_url
 ---
 
 # 聚落设计：网文空间构建技能

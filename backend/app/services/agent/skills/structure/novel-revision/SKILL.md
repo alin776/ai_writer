@@ -105,7 +105,7 @@ allowed-tools: read_file, glob, grep, semantic_search, task
 
 读取项目文件评估影响：
 - `/knowledge/worldview.md` — 世界观设定是否受影响
-- `/knowledge/characters.md` — 角色设定是否受影响
+- `/knowledge/characters/` 目录 — 角色设定是否受影响
 - `/knowledge/outline.md` — 大纲是否需要调整
 - `/chapters/*.md` — 哪些章节需要修改
 
@@ -148,7 +148,7 @@ allowed-tools: read_file, glob, grep, semantic_search, task
 ### 阶段 4：同步更新
 更新项目知识文件：
 - `/knowledge/worldview.md` — 世界观变更
-- `/knowledge/characters.md` — 角色变更
+- `/knowledge/characters/` 目录 — 角色变更
 - `/knowledge/outline.md` — 大纲调整
 
 ---
@@ -305,7 +305,7 @@ allowed-tools: read_file, glob, grep, semantic_search, task
 分析和诊断结果直接在对话中呈现。修改直接应用到平台标准路径：
 - 章节修改 → `/chapters/NN-标题.md`
 - 世界观更新 → `/knowledge/worldview.md`
-- 角色更新 → `/knowledge/characters.md`
+- 角色更新 → `/knowledge/characters/` 目录
 - 大纲调整 → `/knowledge/outline.md`
 
 ### 主要输出

@@ -6,8 +6,6 @@ System Prompt 构建器
 
 from pathlib import Path
 
-from app.core.config import settings
-
 GENRE_PROMPTS_DIR = Path(__file__).parent.parent / "genre_prompts"
 SKILLS_ROOT = Path(__file__).parent.parent / "skills"
 
@@ -86,18 +84,35 @@ def build_system_prompt(work) -> str:
   ---
   正文内容
   ```
-- 大纲在 /knowledge/outline.md，世界观在 /knowledge/worldview.md，人物在 /knowledge/characters.md
-- 细分资料在 /knowledge/refs/*.md（时间线、势力、物品、术语、待确认设定等）
 
-## 知识更新策略（成本优先）
-- refs（/knowledge/refs/*.md）优先做增量更新，保持及时
-- 主文件（outline/characters/worldview）按里程碑合并：每{settings.KNOWLEDGE_MAIN_DOC_CHAPTER_INTERVAL}章或每{settings.KNOWLEDGE_MAIN_DOC_TIME_INTERVAL_MINUTES}分钟一次
-- 单次 refs 更新尽量不超过 {settings.KNOWLEDGE_REFS_DELTA_LIMIT} 条增量，避免大段重复改写
-- 高频编辑时采用去抖：{settings.WORLDVIEW_KNOWLEDGE_SYNC_DEBOUNCE_SECONDS} 秒窗口内合并处理
+## 你的书架（knowledge/ 目录）
+
+你有一个作者的知识书架，像真正的小说家在电脑旁贴满便签和资料卡。
+
+**核心文件（随时翻阅）：**
+- `knowledge/index.md` — 全局索引：人物速查、地点速查、活跃支线、待兑现伏笔
+- `knowledge/canon.md` — 硬性规则，写入后全书遵守不可违反
+- `knowledge/outline.md` — 大纲与当前推进状态
+- `knowledge/worldview.md` — 世界观设定
+
+**人物 & 地点（一人一档 / 一地一档）：**
+- `knowledge/characters/角色名.md` — 每个重要角色单独建档
+- `knowledge/locations/地点名.md` — 每个重要地点单独建档
+
+**事件记录：**
+- `knowledge/events/_latest.md` — 最近 20 章的关键事件滚动记录
+- `knowledge/events/archive/` — 更早的事件压缩存档
+
+**细分资料：**
+- `knowledge/refs/*.md` — 时间线、势力、物品、力量体系、术语、待确认设定
+
+像真正的作家一样使用书架：写作前先看 index.md 了解全局，再翻阅与本章相关的角色和地点档案。写完后如果有重要变化（角色状态改变、新关系建立、伏笔埋下或兑现），随手更新对应的文件和 index.md。不用面面俱到，只记你觉得后续会用到的关键变化。
+
+如果 index.md 中有"自动扫描"标记的人物列表但 characters/ 目录为空，说明这是导入的已有作品。用 semantic_search 查找关键角色的详细信息后，为其建立 characters/角色名.md 档案——用时再查，查完就记。
 
 ## 行为规则
 1. 每次任务开始时必须重新 read_file 读取目标文件的最新内容，不得依赖对话历史中的旧版本——用户可能在上次对话后手动修改了文件
-2. 写作前先阅读已有章节和核心设定文件（outline/characters/worldview），再按任务需要补充读取 refs 文件；需要跨章节回顾特定细节（如某角色上次出现的场景、某物品的描写、某伏笔的原文）时，优先使用 semantic_search 快速定位（它能搜索全书章节和知识库文件），避免逐章 read_file
+2. 写作前先看 knowledge/index.md 了解全局，再按需读取相关的角色档案（characters/）、地点档案（locations/）和近期事件（events/_latest.md）；需要跨章节回顾特定细节（如某角色上次出现的场景、某物品的描写、某伏笔的原文）时，优先使用 semantic_search 快速定位（它能搜索全书章节和知识库文件），避免逐章 read_file
 3. **上下文容量限制**：单次对话中 read_file 累计不要超过 15 个文件。如果任务涉及大量章节（如全书分析、批量审阅），必须使用 semantic_search 代替逐章阅读，或通过 task 工具将工作拆分给多个子 Agent 分批处理
 4. 新建章节用 write_file，修改已有章节用 edit_file；重命名文件用 rename_file，删除文件用 delete_file
 5. 创建章节时务必包含 frontmatter（title + status）
@@ -107,6 +122,7 @@ def build_system_prompt(work) -> str:
 9. 新建章节文件名格式为 两位序号-标题.md，如 chapters/03-玉佩之谜.md
 10. 修改任何已有 Markdown 文件时（章节与 knowledge 文件都适用），优先使用行号语法：edit_file 的 old_string 填写 [LINES:起始行-结束行]（如 [LINES:5-12]），new_string 填替换内容。行号从 read_file 输出的行号获取。这比复述原文更准确
 11. 写作或改写正文时，不要为”首行缩进”手动在段首添加空格（全角/半角）；正文仅保留正常段落内容，缩进由编辑器样式控制
+12. 需要查询实时信息、真实世界知识、文化背景、历史典故等项目文件中没有的内容时，使用 web_search 搜索网络；获取搜索结果中某个网页的详细内容时，使用 fetch_url 抓取
 
 ## 交互风格
 - 每次调用工具前，先用一句简短的话说明你接下来要做什么（如"让我先看看已有的章节…"）

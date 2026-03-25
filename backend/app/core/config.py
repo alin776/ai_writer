@@ -282,42 +282,6 @@ class Settings(BaseSettings):
 
     WORLDVIEW_KNOWLEDGE_SYNC_BATCH_LIMIT: int = 5  # 去抖窗口内累计到该次数时立即触发同步
 
-    @field_validator("KNOWLEDGE_MAIN_DOC_CHAPTER_INTERVAL", mode="before")
-    @classmethod
-    def validate_knowledge_main_doc_chapter_interval(cls, v):
-        if isinstance(v, (int, str)):
-            interval = int(v)
-            if interval < 1 or interval > 20:
-                raise ValueError("KNOWLEDGE_MAIN_DOC_CHAPTER_INTERVAL 必须在 1-20 之间")
-            return interval
-        raise ValueError("KNOWLEDGE_MAIN_DOC_CHAPTER_INTERVAL 必须是整数")
-
-    KNOWLEDGE_MAIN_DOC_CHAPTER_INTERVAL: int = 2  # 主文件建议合并频率（按章节数）
-
-    @field_validator("KNOWLEDGE_MAIN_DOC_TIME_INTERVAL_MINUTES", mode="before")
-    @classmethod
-    def validate_knowledge_main_doc_time_interval_minutes(cls, v):
-        if isinstance(v, (int, str)):
-            minutes = int(v)
-            if minutes < 1 or minutes > 1440:
-                raise ValueError("KNOWLEDGE_MAIN_DOC_TIME_INTERVAL_MINUTES 必须在 1-1440 之间")
-            return minutes
-        raise ValueError("KNOWLEDGE_MAIN_DOC_TIME_INTERVAL_MINUTES 必须是整数")
-
-    KNOWLEDGE_MAIN_DOC_TIME_INTERVAL_MINUTES: int = 30  # 主文件建议合并频率（按分钟）
-
-    @field_validator("KNOWLEDGE_REFS_DELTA_LIMIT", mode="before")
-    @classmethod
-    def validate_knowledge_refs_delta_limit(cls, v):
-        if isinstance(v, (int, str)):
-            limit = int(v)
-            if limit < 1 or limit > 50:
-                raise ValueError("KNOWLEDGE_REFS_DELTA_LIMIT 必须在 1-50 之间")
-            return limit
-        raise ValueError("KNOWLEDGE_REFS_DELTA_LIMIT 必须是整数")
-
-    KNOWLEDGE_REFS_DELTA_LIMIT: int = 5  # refs 单次建议处理的最大变更条目数
-
     # 导入异步任务配置
     ENABLE_CELERY_IMPORT_TASKS: bool = False  # 使用 Celery 执行导入相关重任务
 
@@ -343,6 +307,10 @@ class Settings(BaseSettings):
 
     # Tenor 贴图搜索配置
     TENOR_API_KEY: Optional[str] = None  # Tenor API Key，用于贴图搜索功能
+
+    # Web 搜索 & 网页抓取配置
+    TAVILY_API_KEY: Optional[str] = None  # Tavily API Key，用于 web_search 工具
+    JINA_API_KEY: Optional[str] = None  # Jina Reader API Key，用于 fetch_url 工具
 
     # SMTP 邮件配置
     SMTP_HOST: Optional[str] = None

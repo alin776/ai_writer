@@ -8,7 +8,7 @@ metadata:
   type: diagnostic
   mode: diagnostic+assistive
   domain: fiction
-allowed-tools: read_file, glob, grep, semantic_search, task
+allowed-tools: read_file, glob, grep, semantic_search, task, web_search, fetch_url
 ---
 
 # 角色弧线：转变技能
@@ -287,7 +287,7 @@ allowed-tools: read_file, glob, grep, semantic_search, task
 ### 输出路径
 
 分析和诊断结果直接在对话中呈现。如需持久化，写入平台标准路径：
-- 角色相关 → `/knowledge/characters.md`
+- 角色相关 → `/knowledge/characters/` 目录
 - 章节内容 → `/chapters/NN-标题.md`
 - 大纲相关 → `/knowledge/outline.md`
 - 世界观相关 → `/knowledge/worldview.md`

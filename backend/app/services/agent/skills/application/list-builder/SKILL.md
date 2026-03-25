@@ -10,7 +10,7 @@ metadata:
   type: utility
   mode: generative
   domain: creativity
-allowed-tools: read_file, glob, grep, semantic_search
+allowed-tools: read_file, glob, grep, semantic_search, web_search, fetch_url
 ---
 
 # List Builder：创意熵源策展技能

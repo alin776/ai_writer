@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "baoyu-post-to-wechat": {
+      "source": "jimliu/baoyu-skills",
+      "sourceType": "github",
+      "computedHash": "6909638a1191b24db78a35f7a26f78cc9f7c37bc7fb1cb9d5fe9c45d36ccd9ae"
+    },
+    "humanizer-zh": {
+      "source": "op7418/humanizer-zh",
+      "sourceType": "github",
+      "computedHash": "ad6b2b1f1433413c64f6403dc322d950da175a058f494291bd4399e77cb587c7"
+    },
+    "wechat-article-writer": {
+      "source": "iamzhihuix/happy-claude-skills",
+      "sourceType": "github",
+      "computedHash": "3427f51544956a3dcf10ed98e4cb1acf39e10dfee6e7f4d398def42b65424470"
+    }
+  }
+}
